@@ -1,0 +1,64 @@
+name: PR Notification to Mattermost
+
+on:
+  pull_request:
+    types: 
+      - opened
+      - reopened
+      - ready_for_review
+      - review_requested
+      - closed
+      - synchronize
+
+jobs:
+  notify-mattermost:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send PR Notification
+        env:
+          WEBHOOK_URL: ${{ secrets.MATTERMOST_WEBHOOK_URL }}
+          ACTION: ${{ github.event.action }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          BASE_BRANCH: ${{ github.event.pull_request.base.ref }}
+          MERGED: ${{ github.event.pull_request.merged }}
+          REVIEWER: ${{ github.event.requested_reviewer.login }}
+        run: |
+          COLOR="#808080"
+          STATUS_MSG="Pull Request 상태 변경"
+          
+          if [ "$ACTION" = "opened" ] || [ "$ACTION" = "reopened" ] || [ "$ACTION" = "ready_for_review" ]; then
+            COLOR="#00FF00"
+            STATUS_MSG="🚀 새로운 PR이 생성되었습니다"
+          elif [ "$ACTION" = "closed" ]; then
+            if [ "$MERGED" = "true" ]; then
+               COLOR="#8B008B"
+               STATUS_MSG="🎉 PR이 병합(Merged) 되었습니다"
+            else
+               COLOR="#FF0000"
+               STATUS_MSG="❌ PR이 닫혔습니다 (거절/취소)"
+            fi
+          elif [ "$ACTION" = "review_requested" ]; then
+            COLOR="#FFA500"
+            STATUS_MSG="👀 리뷰가 요청되었습니다 (To: $REVIEWER)"
+          elif [ "$ACTION" = "synchronize" ]; then
+            COLOR="#0000FF"
+            STATUS_MSG="🔄 PR에 새로운 커밋이 추가되었습니다"
+          fi
+          
+          PAYLOAD=$(cat <<EOF
+          {
+            "attachments": [
+              {
+                "color": "$COLOR",
+                "title": "$STATUS_MSG",
+                "title_link": "$PR_URL",
+                "text": "**$PR_TITLE**\n작성자: $PR_AUTHOR | 대상 브랜치: \`$BASE_BRANCH\`\n[👉 PR 확인하러 가기]($PR_URL)"
+              }
+            ]
+          }
+          EOF
+          )
+          
+          curl -s -X POST -H "Content-Type: application/json" -d "$PAYLOAD" "$WEBHOOK_URL"
