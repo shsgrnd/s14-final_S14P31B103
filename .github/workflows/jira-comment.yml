@@ -1,0 +1,63 @@
+name: Jira Auto Comment
+
+on:
+  pull_request:
+    types: [opened, closed] # PR이 열릴 때와 머지/닫힐 때 알림을 답니다.
+
+jobs:
+  comment-to-jira:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Extract Jira Issue Key and Add Comment
+        env:
+          JIRA_BASE_URL: ${{ secrets.JIRA_BASE_URL }}
+          JIRA_USER_EMAIL: ${{ secrets.JIRA_USER_EMAIL }}
+          JIRA_API_TOKEN: ${{ secrets.JIRA_API_TOKEN }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          BRANCH_NAME: ${{ github.event.pull_request.head.ref }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          ACTION: ${{ github.event.action }}
+          MERGED: ${{ github.event.pull_request.merged }}
+        run: |
+          # 1. PR 제목이나 브랜치명에서 Jira 이슈 키(예: S14P-123) 추출
+          ISSUE_KEY=$(echo -e "$PR_TITLE\n$BRANCH_NAME" | grep -oE '[a-zA-Z0-9]+-[0-9]+' | head -n 1)
+          
+          if [ -z "$ISSUE_KEY" ]; then
+            echo "PR 제목이나 브랜치 이름에서 Jira 이슈 키를 찾을 수 없습니다."
+            exit 0
+          fi
+          
+          echo "발견된 지라 이슈 키: $ISSUE_KEY"
+          
+          # 2. 액션 상태에 따른 댓글 내용 포맷팅 설정
+          if [ "$ACTION" = "opened" ]; then
+            COMMENT_BODY="🚀 새로운 GitHub PR이 열렸습니다!\n[👉 PR 내용 확인하기|${PR_URL}]"
+          elif [ "$ACTION" = "closed" ]; then
+            if [ "$MERGED" = "true" ]; then
+               COMMENT_BODY="🎉 PR 코드가 성공적으로 Merge 되었습니다.\n[👉 반영 확인하기|${PR_URL}]"
+            else
+               COMMENT_BODY="❌ PR이 합쳐지지 않고 닫혔습니다.\n[👉 내용 확인하기|${PR_URL}]"
+            fi
+          fi
+          
+          # 3. HTTP Auth 인코딩 처리
+          B64_AUTH=$(echo -n "${JIRA_USER_EMAIL}:${JIRA_API_TOKEN}" | base64 | tr -d '\n')
+          
+          # 4. JSON Payload 구성 (Jira v2 API 사용)
+          PAYLOAD=$(cat <<EOF
+          {
+            "body": "$COMMENT_BODY"
+          }
+          EOF
+          )
+          
+          # 5. Jira 도메인 끝의 /(슬래시) 제거 및 curl 요청
+          BASE_URL=$(echo "$JIRA_BASE_URL" | sed 's/\/$//')
+          API_ENDPOINT="$BASE_URL/rest/api/2/issue/$ISSUE_KEY/comment"
+          
+          echo "지라로 댓글 전송 중..."
+          curl -s -X POST \
+            -H "Authorization: Basic $B64_AUTH" \
+            -H "Content-Type: application/json" \
+            -d "$PAYLOAD" \
+            "$API_ENDPOINT"
