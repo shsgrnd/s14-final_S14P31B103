@@ -52,7 +52,7 @@ jobs:
           )
           
           # 5. Jira 도메인 끝의 /(슬래시) 제거 및 curl 요청
-          BASE_URL=$(echo "$JIRA_BASE_URL" | sed 's/\/$//')
+          BASE_URL=$(echo "$JIRA_BASE_URL" | grep -oE '^https?://[^/]+')
           API_ENDPOINT="$BASE_URL/rest/api/2/issue/$ISSUE_KEY/comment"
           
           echo "지라로 댓글 전송 중..."
