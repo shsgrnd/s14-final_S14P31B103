@@ -20,7 +20,7 @@ jobs:
           MERGED: ${{ github.event.pull_request.merged }}
         run: |
           # 1. PR 제목이나 브랜치명에서 Jira 이슈 키(예: S14P-123) 추출
-          ISSUE_KEY=$(echo -e "$PR_TITLE\n$BRANCH_NAME" | grep -oE '[A-Z]+-[0-9]+' | head -n 1)
+          ISSUE_KEY=$(echo -e "$PR_TITLE\n$BRANCH_NAME" | grep -oE '[a-zA-Z0-9]+-[0-9]+' | head -n 1)
           
           if [ -z "$ISSUE_KEY" ]; then
             echo "PR 제목이나 브랜치 이름에서 Jira 이슈 키를 찾을 수 없습니다."
