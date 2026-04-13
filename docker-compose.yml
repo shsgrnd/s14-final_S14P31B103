@@ -1,0 +1,41 @@
+version: '3.8'
+
+# 현재는 자리표시자(Placeholder) 목적의 파일입니다.
+# 향후 개발 환경 구성 시 프론트엔드, 백엔드, AI 파트의 컨테이너를 정의하세요.
+
+services:
+  # 예시: 백엔드 서비스
+  # backend:
+  #   build:
+  #     context: ./apps/backend
+  #   ports:
+  #     - "${BACKEND_PORT}:8000"
+  #   environment:
+  #     - DATABASE_URL=${DATABASE_URL}
+
+  # 예시: 프론트엔드 서비스
+  # frontend:
+  #   build:
+  #     context: ./apps/frontend
+  #   ports:
+  #     - "${FRONTEND_PORT}:3000"
+
+  # 예시: AI 서비스
+  # ai:
+  #   build:
+  #     context: ./apps/ai
+  #   ports:
+  #     - "${AI_PORT}:8001"
+
+  # 예시: 데이터베이스
+  # db:
+  #   image: postgres:15
+  #   environment:
+  #     POSTGRES_USER: user
+  #     POSTGRES_PASSWORD: password
+  #     POSTGRES_DB: dbname
+  #   ports:
+  #     - "5432:5432"
+
+volumes:
+  # db_data:

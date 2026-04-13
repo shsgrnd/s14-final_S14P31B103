@@ -1,0 +1,25 @@
+name: Mirror to GitLab
+
+# 모든 브랜치와 태그에 푸시(push)가 발생할 때마다 액션이 실행됩니다.
+on:
+  push:
+    branches: [ "**" ]
+    tags: [ "**" ]
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 미러링을 위해 최신 커밋뿐만 아니라 전체 히스토리를 가져옵니다.
+          
+      - name: Mirror to GitLab
+        run: |
+          # GitHub Secrets에 등록될 GITLAB_REPO_URL(토큰이 포함된 주소)로 원격 저장소를 추가합니다.
+          git remote add gitlab ${{ secrets.GITLAB_REPO_URL }}
+          
+          # 모든 브랜치와 태그를 GitLab에 덮어쓰기로 푸시합니다.
+          git push --force --all gitlab
+          git push --force --tags gitlab
