@@ -1,7 +1,8 @@
 version: '3.8'
 
-# 현재는 자리표시자(Placeholder) 목적의 파일입니다.
-# 향후 개발 환경 구성 시 프론트엔드, 백엔드, AI 파트의 컨테이너를 정의하세요.
+# GitCat 개발 환경 구성을 위한 docker-compose 파일입니다.
+# 클라이언트(Extension/Desktop)는 로컬 환경에서 직접 실행하는 것을 권장하며,
+# 백엔드(Backend)와 AI 서버(AI), 그리고 데이터베이스(DB)를 로컬에서 통합 실행할 때 사용합니다.
 
 services:
   # 예시: 백엔드 서비스
@@ -12,13 +13,6 @@ services:
   #     - "${BACKEND_PORT}:8000"
   #   environment:
   #     - DATABASE_URL=${DATABASE_URL}
-
-  # 예시: 프론트엔드 서비스
-  # frontend:
-  #   build:
-  #     context: ./apps/frontend
-  #   ports:
-  #     - "${FRONTEND_PORT}:3000"
 
   # 예시: AI 서비스
   # ai:
