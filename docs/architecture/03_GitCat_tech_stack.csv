@@ -1,0 +1,10 @@
+﻿구분,사용 기술,적용 모듈,선정 이유,대안 기술,MVP 적용 여부,비고
+개발 언어,TypeScript,전체,VS Code Extension 친화적이고 타입 기반 구조 관리에 유리,JavaScript,O,메인 언어
+확장 프로그램,VS Code Extension API,"UI 모듈, 명령 처리",VS Code 내부 기능과 자연스럽게 연동 가능,별도 데스크톱 앱,O,GitCat 기본 실행 기반
+UI,Tree View,UI 모듈,"스냅샷 목록, 충돌 후보 목록 등 리스트형 정보 표시에 적합",Webview 전면 사용,O,기본 UI 구조
+UI,Webview,UI 모듈,"AI 병합 초안 비교, 상세 결과 화면에 적합",Tree View만 사용,O,복잡한 상세 화면 전용
+Git 연동,git CLI,"Git 상태 수집 모듈, 브랜치 정리 모듈",로컬 Git 상태를 직접 조회할 수 있어 구현과 디버깅이 쉬움,VS Code 내부 Git 의존,O,로컬 Git 중심
+로컬 저장,JSON,"Snapshot 관리 모듈, 변경 기록 관리 모듈",메타데이터 저장과 구조 관리가 단순함,SQLite,O,스냅샷/기록 정보 저장
+AI 연동,외부 LLM API,AI 호출 모듈,"병합 초안 및 중재안 생성에 필요, 협업 텍스트 추천",로컬 모델,O,모델은 추후 확정 가능
+정적 분석,TypeScript Compiler API,정적 분석 모듈,"타입 오류, 참조 오류 검증 가능",Babel 기반 검사,O,TS/JS 우선
+정적 분석,ESLint,정적 분석 모듈,코드 품질 및 추가 규칙 점검 가능,없음,O,보조 검증
