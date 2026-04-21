@@ -49,3 +49,27 @@ out/
 !.yarn/releases
 !.yarn/sdks
 !.yarn/versions
+
+# Monorepo & Build Cache
+.turbo/
+.eslintcache
+
+# Frameworks (Next.js, Nuxt, etc)
+.next/
+.nuxt/
+.output/
+
+# Python Test & Cache
+.pytest_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Security & Certs
+*.pem
+*.key
+*.cert
+*.crt
+
+# JS Testing
+.nyc_output/
