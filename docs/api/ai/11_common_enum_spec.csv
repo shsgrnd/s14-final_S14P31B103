@@ -1,0 +1,58 @@
+﻿enum명,값,설명,사용 위치,비고
+feature_type,conflict_explanation,충돌 원인과 위험 지점 설명,"AI Sessions, AI Requests, AI Proposals, ai_task_request, ai_input_payload, model_call_request, parsed_ai_result",
+feature_type,merge_mediation,어떤 방향으로 병합해야 하는지에 대한 중재안,동일,
+feature_type,merge_patch_draft,실제 반영 가능한 diff/patch 또는 코드 초안,동일,핵심 MVP 기능
+feature_type,recommendation,"커밋 메시지, 브랜치명, 작업 설명 추천",동일,세부 구분은 recommendation_type 사용
+recommendation_type,commit_message,커밋 메시지 추천,"AI Proposals, ai_input_payload, parsed_ai_result",feature_type이 recommendation일 때 사용
+recommendation_type,branch_name,브랜치명 추천,동일,
+recommendation_type,work_description,작업 설명 추천,동일,
+request_origin,panel,패널 UI에서 요청 발생,"AI Sessions, ai_task_request",
+request_origin,treeview,Tree View에서 요청 발생,동일,
+request_origin,command_palette,명령 팔레트에서 요청 발생,동일,
+request_origin,inline_action,인라인 액션에서 요청 발생,동일,
+trigger_source,manual,사용자가 직접 요청,"AI Sessions, ai_task_request",
+trigger_source,merge_detected,병합/충돌 감지로 요청 발생,동일,
+trigger_source,restore_related,복구 흐름 관련 요청,동일,
+trigger_source,recommendation_request,추천 기능 요청,동일,
+response_format,plain_text,일반 텍스트 응답,"AI Requests, model_call_request",
+response_format,structured_json,구조화된 JSON 응답,동일,파서 친화적
+response_format,markdown,마크다운 응답,동일,
+response_format,diff_patch,diff/patch 응답,동일,병합 초안 관련
+response_format,mixed,텍스트와 구조화 데이터 혼합 응답,동일,
+request_status,queued,호출 대기 중,"AI Requests, model_call_result",
+request_status,calling,호출 진행 중,동일,
+request_status,succeeded,호출 성공,동일,
+request_status,failed,호출 실패,동일,
+request_status,timeout,시간 초과,동일,
+request_status,cancelled,사용자 또는 시스템에 의해 취소,동일,
+proposal_status,generated,생성 완료 직후 상태,"AI Proposals, parsed_ai_result",
+proposal_status,parsed,파싱 완료 상태,동일,MVP 기본 결과 상태
+proposal_status,displayed,UI 표시 완료 상태,동일,
+proposal_status,accepted,사용자가 그대로 수락,동일,
+proposal_status,edited,사용자가 수정 후 채택,동일,
+proposal_status,rejected,사용자가 거절,동일,
+proposal_status,archived,보관 상태,동일,확장용
+selection_status,accepted,결과를 그대로 수락,"Proposal Feedback, proposal_feedback_payload",
+selection_status,edited,수정 후 채택,동일,
+selection_status,rejected,사용하지 않음,동일,
+quality_tag,useful,유용함,"Proposal Feedback, proposal_feedback_payload",
+quality_tag,partially_useful,부분적으로 유용함,동일,
+quality_tag,not_useful,유용하지 않음,동일,
+quality_tag,incorrect,내용이 부정확함,동일,
+quality_tag,unsafe,안전하지 않음,동일,
+quality_tag,needs_followup,추가 검토 필요,동일,
+risk_level,low,낮은 위험,"AI Sessions, parsed_ai_result, conflict_explanation_output",
+risk_level,medium,중간 위험,동일,
+risk_level,high,높은 위험,동일,
+risk_level,critical,치명적 위험,동일,
+dataset_type,sft,지도학습용 데이터,"Training Candidates, training_candidate_payload",확장용
+dataset_type,dpo,선호 최적화용 데이터,동일,확장용
+dataset_type,eval,평가용 데이터,동일,확장용
+source_type,merge_proposal,병합 초안 기반 후보,"Training Candidates, training_candidate_payload",
+source_type,conflict_explanation,충돌 설명 기반 후보,동일,
+source_type,recommendation,추천 결과 기반 후보,동일,
+conflict_type,same_region,동일 코드 구간 변경,ai_input_payload,conflict_candidates 내부
+conflict_type,adjacent_change,인접 라인/함수 변경,동일,
+conflict_type,signature_change,함수 시그니처 변경,동일,
+conflict_type,shared_module_impact,공통 모듈 영향 범위 충돌,동일,
+conflict_type,data_structure_change,데이터 구조 변경에 따른 충돌,동일,
