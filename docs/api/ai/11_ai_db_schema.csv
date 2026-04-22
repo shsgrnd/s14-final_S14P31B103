@@ -1,0 +1,93 @@
+﻿구분,DB명,속성명,타입,설명,필수 여부,값 목록 / 관계 대상,비고
+A,AI Sessions,Session ID,Title,AI 작업 세션 고유 식별자,필수,,예: AIS-20260422-001
+A,AI Sessions,Project ID,Text,연결된 프로젝트 식별자,필수,,로컬 프로젝트 단위 구분
+A,AI Sessions,Feature Type,Select,AI 기능 유형,필수,"conflict_explanation, merge_mediation, merge_patch_draft, recommendation",공통 enum
+A,AI Sessions,Task Title,Text,세션 제목,필수,,사람이 한눈에 보는 작업명
+A,AI Sessions,User Intent,Text,사용자 요청 의도 또는 자연어 요청,필수,,실제 요청 문장 또는 요약
+A,AI Sessions,Request Origin,Select,요청 발생 위치,필수,"panel, treeview, command_palette, inline_action",UI 진입점 구분
+A,AI Sessions,Trigger Source,Select,요청 발생 원인,필수,"manual, merge_detected, restore_related, recommendation_request",자동/수동 구분 포함
+A,AI Sessions,Current Branch,Text,현재 체크아웃 브랜치명,필수,,세션 시작 기준 브랜치
+A,AI Sessions,Target Branch,Text,병합 또는 비교 대상 브랜치명,선택,,추천 기능에서는 비어 있을 수 있음
+A,AI Sessions,Base Branch,Text,기준 브랜치명,선택,,"예: main, develop"
+A,AI Sessions,Workspace State Summary,Text,현재 워크스페이스 상태 요약,선택,,"변경 파일, 충돌 여부, 주요 맥락 요약"
+A,AI Sessions,Risk Summary,Text,위험 요약 설명,선택,,"충돌 위험, 손실 위험 등"
+A,AI Sessions,Risk Level,Select,위험 수준,선택,"low, medium, high, critical",필터링용
+A,AI Sessions,Status,Select,세션 처리 상태,필수,"collected, generating, parsed, displayed, completed, failed",세션 상위 상태
+A,AI Sessions,Created At,Date,세션 생성 시각,필수,,날짜+시간 권장
+A,AI Sessions,Completed At,Date,세션 종료 시각,선택,,완료/실패 시 기록
+A,AI Sessions,Requests,Relation,연결된 AI 요청 목록,선택,AI Requests,개념상 관계 속성
+A,AI Sessions,Proposals,Relation,연결된 AI 제안 결과 목록,선택,AI Proposals,개념상 관계 속성
+B,AI Requests,AI Request ID,Title,모델 호출 1회 단위 식별자,필수,,예: AIR-20260422-001
+B,AI Requests,Session,Relation,상위 AI 세션 참조,필수,AI Sessions,세션 하위 호출 단위
+B,AI Requests,Feature Type,Select,요청 기능 유형,필수,"conflict_explanation, merge_mediation, merge_patch_draft, recommendation",세션과 동일 기준
+B,AI Requests,Provider,Select,모델 제공자,필수,"openai, local_model, mock",초기에는 openai 중심
+B,AI Requests,Model Name,Text,실제 호출 모델명,필수,,예: gpt-4.1-mini
+B,AI Requests,Prompt Template Version,Text,프롬프트 템플릿 버전,선택,,프롬프트 관리용
+B,AI Requests,System Policy Version,Text,시스템 정책 버전,선택,,하네스/가드레일 버전
+B,AI Requests,Output Contract Version,Text,응답 포맷 계약 버전,선택,,파서 호환성 관리용
+B,AI Requests,Response Format,Select,응답 형식 유형,필수,"plain_text, structured_json, markdown, diff_patch, mixed",출력 형식 구분
+B,AI Requests,Temperature,Number,생성 다양성 설정값,선택,,모델 파라미터
+B,AI Requests,Max Tokens,Number,최대 출력 토큰 수,선택,,모델 파라미터
+B,AI Requests,Retry Count,Number,재시도 횟수,선택,,운영 로그용
+B,AI Requests,Request Status,Select,호출 상태,필수,"queued, calling, succeeded, failed, timeout, cancelled",요청 단위 상태
+B,AI Requests,Latency ms,Number,호출 소요 시간(ms),선택,,성능 측정용
+B,AI Requests,Input Token Count,Number,입력 토큰 수,선택,,비용 추적용
+B,AI Requests,Output Token Count,Number,출력 토큰 수,선택,,비용 추적용
+B,AI Requests,Raw Response Ref,Text,원문 응답 참조 경로 또는 ID,선택,,로컬 파일 시스템 참조
+B,AI Requests,Error Code,Text,오류 코드,선택,,실패 시 기록
+B,AI Requests,Error Message,Text,오류 메시지,선택,,실패 시 기록
+B,AI Requests,Requested At,Date,호출 시작 시각,필수,,날짜+시간 권장
+B,AI Requests,Ended At,Date,호출 종료 시각,선택,,완료/실패 시 기록
+B,AI Requests,Proposal,Relation,이 호출로 생성된 결과 참조,선택,AI Proposals,1:N 가능
+C,AI Proposals,Proposal ID,Title,AI 제안 결과 식별자,필수,,예: AIP-20260422-001
+C,AI Proposals,Session,Relation,상위 AI 세션 참조,필수,AI Sessions,세션 기준 결과 묶음
+C,AI Proposals,AI Request,Relation,생성에 사용된 요청 참조,필수,AI Requests,생성 근거 추적용
+C,AI Proposals,Feature Type,Select,제안 결과 유형,필수,"conflict_explanation, merge_mediation, merge_patch_draft, recommendation",기능별 결과 구분
+C,AI Proposals,Recommendation Type,Select,추천 기능 세부 유형,선택,"commit_message, branch_name, work_description",feature_type이 recommendation일 때 사용
+C,AI Proposals,Proposal Title,Text,제안 결과 제목,필수,,사람이 읽는 제목
+C,AI Proposals,Summary,Text,결과 요약,필수,,핵심 요약
+C,AI Proposals,Explanation,Text,결과 상세 설명,선택,,설명형 응답 저장
+C,AI Proposals,Confidence Score,Number,결과 신뢰도 점수,선택,,0~1 또는 내부 점수 체계
+C,AI Proposals,Risk Notes,Text,위험 관련 보조 설명,선택,,주의사항 기록
+C,AI Proposals,Proposal Status,Select,제안 결과 상태,필수,"generated, parsed, displayed, accepted, edited, rejected, archived",사용자 판단 이후 상태 반영 가능
+C,AI Proposals,Primary Text,Text,추천 기능의 대표 결과 텍스트,선택,,recommendation 결과용
+C,AI Proposals,Alternative Texts,Text,추천 기능의 대안 후보 목록,선택,,배열을 문자열로 관리 가능
+C,AI Proposals,Generation Basis Summary,Text,추천 생성 근거 요약,선택,,recommendation 결과용
+C,AI Proposals,Merge Analysis Ref,Text,병합 분석 참조 ID 또는 경로,선택,,merge_analysis 연결용
+C,AI Proposals,Conflict Candidate Refs,Text,관련 충돌 후보 참조 목록,선택,,다중 ID는 문자열로 관리 가능
+C,AI Proposals,Related Files,Text,관련 파일 목록,선택,,경량 명세용이면 Text 권장
+C,AI Proposals,Affected Symbols,Text,영향받는 함수/심볼 목록,선택,,"함수, 클래스 등"
+C,AI Proposals,Diff Patch Ref,Text,diff/patch 원문 참조 경로 또는 ID,선택,,병합 초안 핵심
+C,AI Proposals,Merged Code Ref,Text,병합 코드 원문 참조 경로 또는 ID,선택,,코드 초안 저장 참조
+C,AI Proposals,Validation Required,Checkbox,추가 검증 필요 여부,선택,true / false,정적 분석 연계용
+C,AI Proposals,Validation Summary,Text,검증 결과 요약,선택,,구조적 문제 요약
+C,AI Proposals,Parsed At,Date,파싱 완료 시각,선택,,결과 생성 완료 시점
+C,AI Proposals,Feedback,Relation,사용자 피드백 참조,선택,Proposal Feedback,후속 판단 연결
+C,AI Proposals,Training Candidates,Relation,학습 후보 참조,선택,Training Candidates,확장용
+D,Proposal Feedback,Feedback ID,Title,사용자 피드백 식별자,필수,,예: FB-20260422-001
+D,Proposal Feedback,Proposal,Relation,대상 AI 제안 참조,필수,AI Proposals,어떤 결과에 대한 피드백인지 연결
+D,Proposal Feedback,Session,Relation,상위 세션 참조,필수,AI Sessions,세션 단위 추적용
+D,Proposal Feedback,Selection Status,Select,사용자 최종 선택 상태,필수,"accepted, edited, rejected",핵심 판단값
+D,Proposal Feedback,Final Text,Text,최종 확정 텍스트,선택,,recommendation 결과 확정본
+D,Proposal Feedback,Final Code Ref,Text,최종 확정 코드 참조 경로 또는 ID,선택,,patch/code 수정본 저장
+D,Proposal Feedback,Final Explanation,Text,최종 설명 또는 보정 설명,선택,,사용자가 수정한 설명 포함 가능
+D,Proposal Feedback,Quality Tag,Select,품질 평가 태그,선택,"useful, partially_useful, not_useful, incorrect, unsafe, needs_followup",후속 분석용
+D,Proposal Feedback,Edited Fields,Multi-select,수정된 항목 목록,선택,"title, summary, explanation, merged_code, diff_patch, recommendation_text, primary_text",edited일 때 주로 사용
+D,Proposal Feedback,Feedback Note,Text,사용자 자유 메모,선택,,왜 수정/거절했는지 기록
+D,Proposal Feedback,Decided By,Text,판단 주체,선택,local_user,로컬 사용자 기본값
+D,Proposal Feedback,Decided At,Date,최종 판단 시각,필수,,날짜+시간 권장
+E,Training Candidates,Training Candidate ID,Title,학습 후보 식별자,필수,,예: TC-20260422-001
+E,Training Candidates,Proposal,Relation,원본 AI 제안 참조,필수,AI Proposals,후보의 출처
+E,Training Candidates,Feedback,Relation,연결된 피드백 참조,선택,Proposal Feedback,선택 결과 기반 후보화
+E,Training Candidates,Session,Relation,상위 세션 참조,필수,AI Sessions,세션 연결용
+E,Training Candidates,Dataset Type,Select,데이터셋 유형,필수,"sft, dpo, eval",학습/평가 용도 구분
+E,Training Candidates,Source Type,Select,후보 데이터 출처 유형,필수,"merge_proposal, conflict_explanation, recommendation",기능 기반 출처 구분
+E,Training Candidates,Prompt Ref,Text,프롬프트 참조 경로 또는 ID,선택,,입력 원문 참조
+E,Training Candidates,Chosen Ref,Text,채택된 결과 참조 경로 또는 ID,선택,,SFT/DPO용
+E,Training Candidates,Rejected Ref,Text,거절된 결과 참조 경로 또는 ID,선택,,DPO용
+E,Training Candidates,Input Schema Ref,Text,입력 스키마 참조 경로 또는 ID,선택,,재현성 확보용
+E,Training Candidates,Is Approved,Checkbox,학습 후보 승인 여부,선택,true / false,export 전 승인 플래그
+E,Training Candidates,Is Exported,Checkbox,외부 export 여부,선택,true / false,데이터 반출 여부 관리
+E,Training Candidates,Approval Note,Text,승인/보류 사유,선택,,품질 검토 메모
+E,Training Candidates,Created At,Date,후보 생성 시각,필수,,날짜+시간 권장
+E,Training Candidates,Exported At,Date,export 완료 시각,선택,,반출 시 기록

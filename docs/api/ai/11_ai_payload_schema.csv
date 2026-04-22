@@ -1,0 +1,114 @@
+﻿객체명,필드명,타입,필수 여부,설명,예시 값,enum 값,조건,담당 모듈,담당자,관련 기능,저장 여부,비고
+ai_task_request,project_id,string,필수,현재 프로젝트 식별자,proj_gitcat_local_01,,,input,허서연,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,세션 생성 시 필요
+ai_task_request,session_id,string,필수,AI 작업 세션 식별자,ais_20260422_001,,,input,허서연,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,상위 세션 ID
+ai_task_request,feature_type,enum,필수,요청 기능 유형,merge_patch_draft,"conflict_explanation, merge_mediation, merge_patch_draft, recommendation",,input,허서연,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,기능 분기 기준
+ai_task_request,user_intent,string,필수,사용자 요청 의도 또는 자연어 요청,두 브랜치 변경사항을 반영한 병합 초안을 만들어줘,,,input,허서연,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,UI 원문 또는 요약
+ai_task_request,request_origin,enum,필수,요청 발생 위치,panel,"panel, treeview, command_palette, inline_action",,input,허서연,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,UI 진입점
+ai_task_request,trigger_source,enum,필수,요청 발생 원인,manual,"manual, merge_detected, restore_related, recommendation_request",,input,허서연,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,자동/수동 구분
+ai_task_request,requested_at,datetime,필수,요청 시각,2026-04-22T14:30:00+09:00,,,input,허서연,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,날짜+시간
+ai_input_payload,project_id,string,필수,프로젝트 식별자,proj_gitcat_local_01,,,input,허서연,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,상위 request와 동일
+ai_input_payload,session_id,string,필수,세션 식별자,ais_20260422_001,,,input,허서연,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,
+ai_input_payload,feature_type,enum,필수,기능 유형,conflict_explanation,"conflict_explanation, merge_mediation, merge_patch_draft, recommendation",,input,허서연,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,
+ai_input_payload,current_branch,string,필수,현재 체크아웃 브랜치,feat/login-refactor,,,input,허서연,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,병합 및 추천 공통
+ai_input_payload,target_branch,string,조건부 필수,비교 또는 병합 대상 브랜치,develop,,병합 관련 기능일 때 필수,input,허서연,"merge_patch_draft, conflict_explanation, merge_mediation",저장함,recommendation은 생략 가능
+ai_input_payload,workspace_summary,string,선택,워크스페이스 상태 요약,로그인 응답 DTO와 예외 처리 로직이 함께 수정됨,,,input,허서연,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,사람이 읽는 요약
+ai_input_payload,related_files,array,조건부 필수,관련 파일 목록,"[""src/auth/service.ts"",""src/auth/dto.ts""]",,병합/충돌 기능에서 필요,input,허서연,"merge_patch_draft, conflict_explanation, merge_mediation",저장함,문자열 배열
+ai_input_payload,conflict_candidates,array,조건부 필수,충돌 후보 목록,"[{""file_path"":""src/auth/service.ts"",""line_start"":88,""line_end"":121}]",,충돌 설명/병합 초안 기능일 때 필수,input,허서연,"merge_patch_draft, conflict_explanation, merge_mediation",저장함,객체 배열
+ai_input_payload,working_tree_diff_ref,ref,조건부 필수,현재 diff 원문 참조,diff://local/session/ais_001/working.diff,,diff 기반 기능일 때 필수,input,허서연,"merge_patch_draft, conflict_explanation, merge_mediation",ref만 저장,파일 원문은 FS 저장
+ai_input_payload,risk_summary,string,선택,위험 요약,함수 시그니처 변경으로 간접 충돌 가능성 높음,,,input,허서연,"merge_patch_draft, conflict_explanation, merge_mediation",저장함,
+ai_input_payload,schema_version,string,필수,입력 스키마 버전,v1,,,input,허서연,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,버전 관리용
+ai_input_payload,recommendation_type,enum,조건부 필수,추천 결과 세부 유형,commit_message,"commit_message, branch_name, work_description",feature_type이 recommendation일 때 필수,input,허서연,recommendation,저장함,recommendation 세부 분기
+ai_input_payload,change_summary,string,조건부 필수,전체 변경사항 요약,로그인 응답 DTO 구조를 정리하고 예외 처리 흐름을 개선함,,feature_type이 recommendation일 때 필수,input,허서연,recommendation,저장함,추천 생성 핵심 근거
+ai_input_payload,changed_files,array,조건부 필수,추천 생성의 근거가 되는 주요 변경 파일 목록,"[""src/auth/service.ts"",""src/auth/dto.ts"",""src/auth/errors.ts""]",,feature_type이 recommendation일 때 필수,input,허서연,recommendation,저장함,문자열 배열
+ai_input_payload,work_intent,string,조건부 필수,이번 작업의 목표와 의도,로그인 응답 형식을 정리하고 예외 반환 구조를 일관되게 맞추려는 작업,,feature_type이 recommendation일 때 필수,input,허서연,recommendation,저장함,추천 품질 핵심
+ai_input_payload,diff_summary,string,선택,diff 전체 대신 핵심 변경점만 요약한 보조 설명,"DTO 필드 구조 정리, 예외 메시지 생성 로직 수정, 서비스 반환 타입 보정",,,input,허서연,recommendation,저장함,
+ai_input_payload,branch_context,string,선택,현재 브랜치 역할이나 작업 흐름 설명,인증 모듈 리팩토링 작업 중 일부,,,input,허서연,recommendation,저장함,
+ai_input_payload,ticket_ref,string,선택,Jira 이슈 번호나 작업 ID,GITCAT-42,,,input,허서연,recommendation,저장함,
+ai_input_payload,naming_constraints,array,선택,브랜치명 추천 형식 제약,"[""kebab-case"",""slash-prefix-required"",""english-only""]",,branch_name 추천 시 사용,input,허서연,recommendation,저장함,
+ai_input_payload,message_constraints,array,선택,커밋 메시지 추천 형식 제약,"[""conventional-commit"",""subject-under-50"",""imperative-style""]",,commit_message 추천 시 사용,input,허서연,recommendation,저장함,
+model_call_request,ai_request_id,string,필수,모델 호출 식별자,air_20260422_001,,,generate,남주완,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,호출 1회 단위
+model_call_request,session_id,string,필수,상위 세션 식별자,ais_20260422_001,,,generate,남주완,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,
+model_call_request,feature_type,enum,필수,기능 유형,merge_patch_draft,"conflict_explanation, merge_mediation, merge_patch_draft, recommendation",,generate,남주완,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,
+model_call_request,provider,enum,필수,모델 제공자,openai,"openai, local_model, mock",,generate,남주완,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,초기엔 openai
+model_call_request,model_name,string,필수,실제 호출 모델명,gpt-4.1-mini,,,generate,남주완,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,
+model_call_request,system_prompt,string,필수,시스템 프롬프트,너는 병합 중재를 지원하는 코드 도우미다,,,generate,남주완,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장 안함,원문은 별도 ref로 관리 가능
+model_call_request,user_prompt,string,필수,사용자 프롬프트,아래 충돌 후보와 변경 기록을 보고 병합 초안을 생성하라,,,generate,남주완,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장 안함,길면 raw prompt ref로 대체 가능
+model_call_request,response_format,enum,필수,기대 응답 형식,structured_json,"plain_text, structured_json, markdown, diff_patch, mixed",,generate,남주완,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,파서와 연결
+model_call_request,temperature,number,선택,생성 다양성 값,0.2,,,generate,남주완,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,
+model_call_request,max_tokens,number,선택,최대 출력 토큰 수,1800,,,generate,남주완,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,
+model_call_request,timeout_ms,number,선택,타임아웃 시간,30000,,,generate,남주완,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,
+model_call_request,retry_count,number,선택,재시도 횟수,0,,,generate,남주완,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,
+model_call_result,ai_request_id,string,필수,모델 호출 식별자,air_20260422_001,,,generate,남주완,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,request와 연결
+model_call_result,request_status,enum,필수,호출 상태,succeeded,"queued, calling, succeeded, failed, timeout, cancelled",,generate,남주완,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,운영 상태
+model_call_result,raw_response_ref,ref,조건부 필수,원문 응답 참조,response://local/air_001/raw.json,,succeeded일 때 필수,generate,남주완,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",ref만 저장,원문은 FS 저장
+model_call_result,started_at,datetime,필수,호출 시작 시각,2026-04-22T14:31:00+09:00,,,generate,남주완,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,
+model_call_result,ended_at,datetime,선택,호출 종료 시각,2026-04-22T14:31:04+09:00,,,generate,남주완,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,
+model_call_result,latency_ms,number,선택,호출 지연 시간,4021,,,generate,남주완,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,
+model_call_result,input_token_count,number,선택,입력 토큰 수,1290,,,generate,남주완,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,
+model_call_result,output_token_count,number,선택,출력 토큰 수,845,,,generate,남주완,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,
+model_call_result,error_code,string,조건부 필수,오류 코드,rate_limit,,failed일 때 필수,generate,남주완,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,
+model_call_result,error_message,string,조건부 필수,오류 메시지,provider timeout,,failed 또는 timeout일 때 필수,generate,남주완,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,
+parsed_ai_result,proposal_id,string,필수,AI 결과 식별자,aip_20260422_001,,,parse,남주완,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,proposal 기준 ID
+parsed_ai_result,session_id,string,필수,상위 세션 식별자,ais_20260422_001,,,parse,남주완,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,
+parsed_ai_result,ai_request_id,string,필수,생성 요청 식별자,air_20260422_001,,,parse,남주완,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,
+parsed_ai_result,feature_type,enum,필수,기능 유형,merge_mediation,"conflict_explanation, merge_mediation, merge_patch_draft, recommendation",,parse,남주완,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,
+parsed_ai_result,title,string,필수,결과 제목,DTO 구조를 유지하는 방향의 병합안,,,parse,남주완,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,UI 표시용
+parsed_ai_result,summary,string,필수,결과 요약,develop의 응답 구조를 유지하되 예외 처리 변경을 반영하는 안,,,parse,남주완,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,
+parsed_ai_result,explanation,string,선택,상세 설명,공통 모듈 의존성을 고려하면 DTO 변경 최소화가 안전함,,,parse,남주완,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,
+parsed_ai_result,confidence_score,number,선택,신뢰도 점수,0.82,,,parse,남주완,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,0~1 권장
+parsed_ai_result,proposal_status,enum,필수,제안 결과 상태,parsed,"generated, parsed, displayed, accepted, edited, rejected, archived",,parse,남주완,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,
+parsed_ai_result,parser_version,string,필수,파서 버전,v1,,,parse,남주완,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,파서 관리용
+parsed_ai_result,diff_patch_ref,ref,조건부 필수,patch 원문 참조,patch://local/aip_001.patch,,"feature_type이 merge_patch_draft일 때, merged_code_ref와 둘 중 하나 이상 필요",parse,남주완,merge_patch_draft,ref만 저장,핵심 산출물
+parsed_ai_result,merged_code_ref,ref,조건부 필수,병합 코드 참조,code://local/aip_001.ts,,"feature_type이 merge_patch_draft일 때, diff_patch_ref와 둘 중 하나 이상 필요",parse,남주완,merge_patch_draft,ref만 저장,
+parsed_ai_result,applied_files,array,선택,적용 대상 파일 목록,"[""src/auth/service.ts""]",,,parse,남주완,merge_patch_draft,저장함,
+parsed_ai_result,validation_required,boolean,선택,정적 분석 필요 여부,true,,,parse,남주완,merge_patch_draft,저장함,
+parsed_ai_result,validation_summary,string,선택,검증 요약,타입 확인 필요: LoginResponseDto,,,parse,남주완,merge_patch_draft,저장함,
+parsed_ai_result,cause_summary,string,조건부 필수,충돌 원인 요약,로그인 응답 DTO 구조와 예외 처리 포맷이 동시에 변경됨,,feature_type이 conflict_explanation일 때 필수,parse,남주완,conflict_explanation,저장함,
+parsed_ai_result,detailed_explanation,string,선택,상세 설명,동일 파일 내 직접 충돌은 없지만 응답 형식 사용 지점에서 간접 충돌 가능,,,parse,남주완,conflict_explanation,저장함,
+parsed_ai_result,related_files,array,선택,관련 파일 목록,"[""src/auth/dto.ts"",""src/auth/controller.ts""]",,,parse,남주완,conflict_explanation,저장함,
+parsed_ai_result,recommended_resolution_direction,string,선택,권장 해결 방향,DTO 구조를 기준 브랜치에 맞추고 예외 처리만 선택 반영,,,parse,남주완,conflict_explanation,저장함,중재안 전 단계
+parsed_ai_result,risk_level,enum,선택,위험 수준,high,"low, medium, high, critical",,parse,남주완,conflict_explanation,저장함,세션 risk와 별도 가능
+parsed_ai_result,recommended_option,string,조건부 필수,권장 중재안 선택지,develop의 DTO 구조를 유지하고 feature의 예외 처리 흐름만 반영,,feature_type이 merge_mediation일 때 필수,parse,남주완,merge_mediation,저장함,
+parsed_ai_result,tradeoffs,array,선택,대안별 장단점 목록,"[""DTO 변경 최소화 장점"",""예외 포맷 일부 재조정 필요""]",,,parse,남주완,merge_mediation,저장함,
+parsed_ai_result,recommended_next_action,string,선택,권장 다음 행동,정적 분석 후 login response 관련 호출부 재확인,,,parse,남주완,merge_mediation,저장함,
+parsed_ai_result,recommendation_type,enum,조건부 필수,추천 결과 세부 유형,commit_message,"commit_message, branch_name, work_description",feature_type이 recommendation일 때 필수,parse,남주완,recommendation,저장함,
+parsed_ai_result,primary_text,string,조건부 필수,가장 우선 추천하는 결과 1개,refactor(auth): align login dto and error flow,,feature_type이 recommendation일 때 필수,parse,남주완,recommendation,저장함,
+parsed_ai_result,alternative_texts,array,조건부 필수,대안 후보 목록,"[""fix(auth): normalize login response and exceptions"",""refactor(auth): clean up login response handling""]",,feature_type이 recommendation일 때 필수,parse,남주완,recommendation,저장함,
+parsed_ai_result,generation_basis_summary,string,선택,어떤 변경 근거를 바탕으로 추천했는지 요약,"DTO 구조 정리, 예외 처리 흐름 수정, 인증 서비스 반환 타입 보정을 반영함",,,parse,남주완,recommendation,저장함,
+parsed_ai_result,format_notes,string,선택,형식상 참고할 점,conventional commit 형식과 50자 내외 subject 기준을 반영함,,,parse,남주완,recommendation,저장함,
+parsed_ai_result,warnings,array,선택,추천 사용 시 주의사항,"[""feat는 신규 기능으로 오해될 수 있어 refactor 또는 fix가 더 적절할 수 있음""]",,,parse,남주완,recommendation,저장함,
+merge_proposal_output,proposal_id,string,필수,병합 초안 식별자,aip_20260422_001,,,parse,남주완,merge_patch_draft,저장함,parsed result와 연결
+merge_proposal_output,merge_analysis_ref,ref,선택,병합 분석 참조,merge://analysis/ma_001,,,parse,남주완,merge_patch_draft,ref만 저장,
+merge_proposal_output,conflict_candidate_refs,array,선택,관련 충돌 후보 참조 목록,"[""cc_001"",""cc_002""]",,,parse,남주완,merge_patch_draft,저장함,문자열 배열
+merge_proposal_output,diff_patch_ref,ref,조건부 필수,patch 원문 참조,patch://local/aip_001.patch,,병합 초안이면 필수,parse,남주완,merge_patch_draft,ref만 저장,핵심 산출물
+merge_proposal_output,merged_code_ref,ref,조건부 필수,병합 코드 참조,code://local/aip_001.ts,,patch 대신 코드 원문 저장 시 필수,parse,남주완,merge_patch_draft,ref만 저장,둘 중 하나 이상 필요
+merge_proposal_output,applied_files,array,선택,적용 대상 파일 목록,"[""src/auth/service.ts""]",,,parse,남주완,merge_patch_draft,저장함,
+merge_proposal_output,affected_symbols,array,선택,영향받는 심볼 목록,"[""AuthService.login""]",,,parse,남주완,merge_patch_draft,저장함,
+merge_proposal_output,validation_required,boolean,선택,정적 분석 필요 여부,true,,,parse,남주완,merge_patch_draft,저장함,
+merge_proposal_output,validation_summary,string,선택,검증 요약,타입 확인 필요: LoginResponseDto,,,parse,남주완,merge_patch_draft,저장함,
+conflict_explanation_output,proposal_id,string,필수,충돌 설명 결과 식별자,aip_20260422_002,,,parse,남주완,conflict_explanation,저장함,
+conflict_explanation_output,cause_summary,string,필수,충돌 원인 요약,로그인 응답 DTO 구조와 예외 처리 포맷이 동시에 변경됨,,,parse,남주완,conflict_explanation,저장함,
+conflict_explanation_output,detailed_explanation,string,선택,상세 설명,동일 파일 내 직접 충돌은 없지만 응답 형식 사용 지점에서 간접 충돌 가능,,,parse,남주완,conflict_explanation,저장함,
+conflict_explanation_output,related_files,array,선택,관련 파일 목록,"[""src/auth/dto.ts"",""src/auth/controller.ts""]",,,parse,남주완,conflict_explanation,저장함,
+conflict_explanation_output,related_symbols,array,선택,관련 심볼 목록,"[""LoginResponseDto"",""AuthController.login""]",,,parse,남주완,conflict_explanation,저장함,
+conflict_explanation_output,recommended_resolution_direction,string,선택,권장 해결 방향,DTO 구조를 기준 브랜치에 맞추고 예외 처리만 선택 반영,,,parse,남주완,conflict_explanation,저장함,중재안 전 단계
+conflict_explanation_output,risk_level,enum,선택,위험 수준,high,"low, medium, high, critical",,parse,남주완,conflict_explanation,저장함,
+proposal_feedback_payload,feedback_id,string,필수,피드백 식별자,fb_20260422_001,,,save,신형섭,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,
+proposal_feedback_payload,proposal_id,string,필수,대상 proposal 식별자,aip_20260422_001,,,save,신형섭,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,
+proposal_feedback_payload,selection_status,enum,필수,사용자 최종 선택 상태,edited,"accepted, edited, rejected",,save,신형섭,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,핵심 저장값
+proposal_feedback_payload,final_text,string,조건부 필수,최종 텍스트 결과,fix(auth): align response dto and keep new exception flow,,recommendation에서 accepted 또는 edited일 때 사용 가능,save,신형섭,recommendation,저장함,추천형 결과용
+proposal_feedback_payload,final_code_ref,ref,조건부 필수,최종 코드 참조,code://local/final/fb_001.ts,,merge_patch_draft에서 edited일 때 필수,save,신형섭,merge_patch_draft,ref만 저장,코드형 결과용
+proposal_feedback_payload,final_explanation,string,선택,최종 설명 또는 보정 설명,예외 처리 부분만 유지하고 DTO는 기준 브랜치 구조를 따름,,,save,신형섭,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,
+proposal_feedback_payload,quality_tag,enum,선택,품질 평가 태그,partially_useful,"useful, partially_useful, not_useful, incorrect, unsafe, needs_followup",,save,신형섭,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,학습 후보화 참고
+proposal_feedback_payload,feedback_note,string,선택,자유 메모,설명은 유용했지만 patch는 일부 수동 수정 필요,,,save,신형섭,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,
+proposal_feedback_payload,decided_at,datetime,필수,최종 판단 시각,2026-04-22T14:40:00+09:00,,,save,신형섭,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,
+training_candidate_payload,training_candidate_id,string,필수,학습 후보 식별자,tc_20260422_001,,,save,신형섭,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,
+training_candidate_payload,proposal_id,string,필수,원본 proposal 식별자,aip_20260422_001,,,save,신형섭,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,
+training_candidate_payload,feedback_id,string,선택,연결된 피드백 식별자,fb_20260422_001,,,save,신형섭,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,
+training_candidate_payload,dataset_type,enum,필수,데이터셋 유형,dpo,"sft, dpo, eval",,save,신형섭,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,
+training_candidate_payload,source_type,enum,필수,후보 출처 유형,merge_proposal,"merge_proposal, conflict_explanation, recommendation",,save,신형섭,"merge_patch_draft, conflict_explanation, recommendation",저장함,
+training_candidate_payload,prompt_ref,ref,선택,프롬프트 참조,prompt://local/air_001.txt,,,save,신형섭,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",ref만 저장,
+training_candidate_payload,chosen_ref,ref,조건부 필수,채택 결과 참조,chosen://local/tc_001.json,,sft/dpo일 때 필요,save,신형섭,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",ref만 저장,
+training_candidate_payload,rejected_ref,ref,조건부 필수,거절 결과 참조,rejected://local/tc_001.json,,dpo일 때 필요,save,신형섭,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",ref만 저장,
+training_candidate_payload,is_approved,boolean,선택,학습 후보 승인 여부,false,,,save,신형섭,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,
+training_candidate_payload,is_exported,boolean,선택,export 여부,false,,,save,신형섭,"merge_patch_draft, conflict_explanation, merge_mediation, recommendation",저장함,
