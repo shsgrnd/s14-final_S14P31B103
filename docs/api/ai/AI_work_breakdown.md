@@ -133,13 +133,13 @@ AI 파트의 인터페이스 이름과 전체 구조는 이미 정해져 있다.
 - feedback_id: `fb_YYYYMMDD_001`
 
 ### ref 형식
-로컬 원문 참조는 문자열 ref로 고정한다.
+로컬 원문 참조는 문자열 ref로 고정하며, 실제 로컬 파일 시스템 경로(`.vscode/gitcat/...`)와 매핑된다.
 
-- diff ref: `diff://local/{session_id}/working.diff`
-- response ref: `response://local/{ai_request_id}/raw.json`
-- patch ref: `patch://local/{proposal_id}/merge.patch`
-- code ref: `code://local/{proposal_id}/merged.ts`
-- final code ref: `code://local/{feedback_id}/final.ts`
+- diff ref: `diff://local/{session_id}/working.diff` (예: `.vscode/gitcat/snapshots/{session_id}/working.diff`)
+- response ref: `response://local/{ai_request_id}/raw.json` (예: `.vscode/gitcat/ai/responses/{ai_request_id}.json`)
+- patch ref: `patch://local/{proposal_id}/merge.patch` (예: `.vscode/gitcat/ai/patches/{proposal_id}.patch`)
+- code ref: `code://local/{proposal_id}/merged.ts` (예: `.vscode/gitcat/ai/codes/{proposal_id}/merged.ts`)
+- final code ref: `code://local/{feedback_id}/final.ts` (예: `.vscode/gitcat/ai/codes/{feedback_id}/final.ts`)
 
 ### confidence_score
 - 0.0 ~ 1.0 범위의 number로 고정한다.
