@@ -1,6 +1,6 @@
 # 08. ERD (SQLITE)
 
-https://www.erdcloud.com/d/bXpT2Rh3nyZLdNXSg
+https://www.erdcloud.com/d/TYkyQkCQDTmRFBkjP
 
 # ERD
 
