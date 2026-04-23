@@ -1,0 +1,89 @@
+﻿기능,객체명,속성명,타입,설명,필수 여부
+스냅샷,SnapshotMeta,snapshotId,string,string스냅샷 고유 식별자 (UUID v4),필수
+,SnapshotMeta,createdAt,number,생성 시각 (Unix ms),필수
+,SnapshotMeta,reason,SnapshotReason,생성 이유 enum,필수
+,SnapshotMeta,files,string[],복사된 파일 경로 목록,필수
+,SnapshotMeta,branchName,string,생성 시점 활성 브랜치명,필수
+,SnapshotMeta,label,string?,사용자 지정 이름,선택
+,SnapshotMeta,isCheckpoint,boolean,체크포인트 지정 여부 — 자동 삭제 제외 대상,선택
+,SnapshotReason,(enum),"ai_work, manual, pre_merge, pre_restore",스냅샷 생성 이유 값 목록,-
+,SnapshotInputFile,uri,string,파일 URI (절대 경로),필수
+,SnapshotInputFile,content,string,저장 직전 파일 내용 (document.getText()),필수
+,SnapshotStoredFile,snapshotFileId,string,저장된 스냅샷 파일 고유 식별자,필수
+,SnapshotStoredFile,snapshotId,string,연결된 스냅샷 ID,필수
+,SnapshotStoredFile,originalPath,string,원본 파일 경로,필수
+,SnapshotStoredFile,storedPath,string,저장된 파일 경로,필수
+,SnapshotStoredFile,fileName,string,파일명,필수
+,SnapshotStoredFile,contentHash,string?,저장 내용 해시,선택
+변경 기록,ChangeRecord,projectId,string,연결된 프로젝트 ID,필수
+,ChangeRecord,recordId,string,변경 기록 고유 식별자,필수
+,ChangeRecord,snapshotId,string,연결된 스냅샷 ID,필수
+,ChangeRecord,createdAt,number,생성 시각 (Unix ms),필수
+,ChangeRecord,files,ChangedFile[],변경 파일 목록,필수
+,ChangeRecord,branchName,string,브랜치명,필수
+,ChangeRecord,description,string?,작업 설명,선택
+,ChangeRecord,sessionId,string?,연결된 세션 ID,선택
+,ChangedFile,filePath,string,변경 파일 경로,필수
+,ChangedFile,changeType,ChangeType,변경 유형,필수
+,ChangedFile,location,string?,수정 코드 위치,선택
+,ChangedFile,summary,string?,변경 내용 요약,선택
+,ChangeType,(enum),"added, deleted, modified",파일 변경 유형 값 목록,-
+,ContextObject,recordId,string,연결된 변경 기록 ID,필수
+,ContextObject,files,ChangedFile[],변경 파일 목록,필수
+,ContextObject,branchName,string,작업 브랜치명,필수
+,ContextObject,description,string?,작업 설명,선택
+,ContextObject,sessionId,string?,연결된 세션 ID,선택
+충돌 분석,MergeAnalysis,analysisId,string,병합 분석 고유 식별자,
+,MergeAnalysis,projectId,string,연결된 프로젝트 ID,
+,MergeAnalysis,sessionId,string?,연결된 세션 ID,
+,MergeAnalysis,sourceBranch,string,source 브랜치명,
+,MergeAnalysis,targetBranch,string,target 브랜치명,
+,MergeAnalysis,mergeBase,string,공통 조상 커밋 해시,
+,MergeAnalysis,status,string,분석 상태,
+,MergeAnalysis,createdAt,number,생성 시각,
+충돌 분석,ConflictCandidate,candidateId,string,충돌 후보 고유 식별자,필수
+,ConflictCandidate,analysisId,string,연결된 병합 분석 ID,필수
+,ConflictCandidate,filePath,string,충돌 후보 파일 경로,필수
+,ConflictCandidate,lineRange,LineRange,충돌 라인 범위,필수
+,ConflictCandidate,sourceCode,string,source 브랜치 코드,필수
+,ConflictCandidate,targetCode,string,target 브랜치 코드,필수
+,ConflictCandidate,baseCode,string?,공통 조상 코드,선택
+,ConflictCandidate,confidence,Confidence,충돌 신뢰도,필수
+,ConflictCandidate,detectedBy,DetectionMethod,탐지 방법,필수
+,LineRange,start,number,시작 라인 번호 (1-based),필수
+,LineRange,end,number,종료 라인 번호 (inclusive),필수
+,Confidence,(enum),"high, low, medium",충돌 신뢰도 값 목록,-
+,DetectionMethod,(enum),"ast, both, diff",탐지 방법 값 목록,-
+AI 응답,MergeProposal,proposalId,string,병합 제안 고유 식별자,
+,MergeProposal,analysisId,string,연결된 병합 분석 ID,
+,MergeProposal,createdAt,string,생성 시각 (Unix ms),
+,MergeProposal,filePath,string,대상 파일 경로,필수
+,MergeProposal,proposedCode,string,AI 제안 병합 코드,필수
+,MergeProposal,explanation,string,중재안 설명 텍스트,필수
+,MergeProposal,confidence,Confidence,AI 제안 신뢰도,필수
+,CommitSuggestion,messages,string[],커밋 메시지 후보 3개,필수
+,CommitSuggestion,branchNames,string[],브랜치명 후보 3개,필수
+,CommitSuggestion,description,string,PR description 초안,필수
+,CommitTag,(enum),"docs, feat, fix, refactor",커밋 작업 유형 값 목록,-
+GIT,GitStatus,current,string,현재 체크아웃 브랜치명,필수
+,GitStatus,staged,string[],staged 파일 경로 목록,필수
+,GitStatus,unstaged,string[],unstaged 파일 경로 목록,필수
+,GitStatus,untracked,string[],untracked 파일 경로 목록,필수
+,GitStatus,conflicted,string[],충돌 마커가 있는 파일 경로 목록,필수
+,BranchInfo,name,string,브랜치명,필수
+,BranchInfo,isCurrent,boolean,현재 체크아웃 브랜치 여부,필수
+,BranchInfo,tracking,string?,원격 트래킹 브랜치명,선택
+,BranchInfo,lastCommit,string?,마지막 커밋 날짜 (ISO 8601),선택
+,BranchInfo,merged,boolean,main/develop 기준 병합 완료 여부,필수
+,DiffResult,filePath,string,변경된 파일 경로,필수
+,DiffResult,hunks,string[],diff hunk 텍스트 목록,필수
+,MergeResult,success,boolean,병합 성공 여부,필수
+,MergeResult,conflictFiles,string[],충돌 마커가 남은 파일 경로 목록,필수
+,WorktreeInfo,path,string,워크트리 루트 경로,필수
+,WorktreeInfo,branch,string,해당 워크트리의 체크아웃 브랜치명,필수
+,WorktreeInfo,isMain,boolean,주 워크트리 여부,필수
+,LogEntry,hash,string,커밋 SHA 해시,필수
+,LogEntry,author,string,작성자 이름,필수
+,LogEntry,date,string,커밋 날짜 (ISO 8601),필수
+,LogEntry,message,string,커밋 메시지 첫 줄,필수
+공통 유틸리티,ErrorCode,(enum),"AI_RESPONSE_FAILED, BRANCH_DELETE_FAILED, GIT_OPERATION_FAILED, RESTORE_FAILED, SCHEMA_VALIDATION_FAILED, SNAPSHOT_WRITE_FAILED, UNKNOWN",오류 코드 표준 enum — I-02-ERROR 메시지의 code 필드에 사용,-

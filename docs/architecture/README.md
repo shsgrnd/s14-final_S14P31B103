@@ -7,3 +7,6 @@
 - `Architecture_Diagram.png`: 전체 시스템 아키텍처 구성도 이미지
 - `GitCat_module.csv`: GitCat 서비스 모듈 명세서 (CSV)
 - `GitCat_tech_stack.csv`: 서비스에 적용된 기술 스택 명세서 (CSV)
+- `07_storage_architecture.md`: 전체 저장소 구조도
+- `09_local_file_structure_spec.md`: 로컬 파일 구조 정의서
+- `10_file_storage_convention.md`: 파일 저장 규약 / 보안 저장소 규약
