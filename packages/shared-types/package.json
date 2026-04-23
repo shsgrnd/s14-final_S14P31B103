@@ -1,0 +1,19 @@
+{
+  "name": "shared-types",
+  "version": "1.0.0",
+  "description": "이 패키지는 GitCat 모노레포를 구성하는 여러 패키지(`apps/extension`, `packages/ai-pipeline` 등)에서 공통으로 사용되는 타입 및 인터페이스를 정의합니다.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "typescript": "^6.0.3"
+  }
+}
