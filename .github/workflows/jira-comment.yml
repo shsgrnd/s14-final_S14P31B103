@@ -24,8 +24,10 @@ jobs:
         run: |
           set -euo pipefail
 
-          # 1. PR 제목이나 브랜치명에서 Jira 이슈 키 추출 (특정 프로젝트 키만 허용)
-          ISSUE_KEY=$(echo -e "${PR_TITLE}\n${BRANCH_NAME}" | grep -oE 'S14P-[0-9]+' | head -n 1 || true)
+          # 1. PR 제목이나 브랜치명에서 Jira 이슈 키 추출
+          # docs/conventions/git_convention.md 기준: [작업타입]/[작업파트]/[브랜치설명]/[지라코드]
+          # docs/conventions/jira_convention.md 예시에 맞춰 GitCat 프로젝트 Jira 키 형식만 허용
+          ISSUE_KEY=$(echo -e "${PR_TITLE}\n${BRANCH_NAME}" | grep -oE 'S14P31B103-[0-9]+' | head -n 1 || true)
           
           if [ -z "$ISSUE_KEY" ]; then
             echo "PR 제목이나 브랜치 이름에서 허용된 Jira 이슈 키를 찾을 수 없습니다."
