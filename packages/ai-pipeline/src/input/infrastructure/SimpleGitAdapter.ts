@@ -1,6 +1,6 @@
 import { simpleGit, SimpleGit, SimpleGitOptions } from 'simple-git';
 import { GitClient } from '../ports/GitClient';
-import { GitStatus } from 'shared-types';
+import { GitStatus } from '@gitcat/shared-types';
 
 /**
  * simple-git을 이용해 AI 파이프라인용 Git 상태를 수집하는 어댑터
