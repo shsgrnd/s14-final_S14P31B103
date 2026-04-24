@@ -2,9 +2,16 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "type": "npm",
-            "script": "compile",
-            "path": "apps/extension",
+            "label": "pnpm compile",
+            "type": "shell",
+            "command": "pnpm",
+            "args": [
+                "run",
+                "compile"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}/apps/extension"
+            },
             "group": "build",
             "presentation": {
                 "panel": "dedicated",
@@ -15,9 +22,15 @@
             ]
         },
         {
-            "type": "npm",
-            "script": "watch",
-            "path": "apps/extension",
+            "type": "shell",
+            "command": "pnpm",
+            "args": [
+                "run",
+                "watch"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}/apps/extension"
+            },
             "isBackground": true,
             "group": {
                 "kind": "build",
