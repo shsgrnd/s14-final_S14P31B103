@@ -28,17 +28,16 @@ importers:
         version: 5.9.3
 
   apps/extension:
-    dependencies:
-      '@gitcat/ai-pipeline':
-        specifier: workspace:*
-        version: link:../../packages/ai-pipeline
-      '@gitcat/storage':
-        specifier: workspace:*
-        version: link:../../packages/storage
     devDependencies:
+      '@types/node':
+        specifier: 18.x
+        version: 18.19.130
       '@types/vscode':
         specifier: ^1.80.0
         version: 1.116.0
+      typescript:
+        specifier: ^5.0.0
+        version: 5.9.3
 
   packages/ai-pipeline:
     dependencies:
@@ -954,7 +953,7 @@ snapshots:
 
   '@types/node-fetch@2.6.13':
     dependencies:
-      '@types/node': 20.19.39
+      '@types/node': 25.6.0
       form-data: 4.0.5
 
   '@types/node@18.19.130':
