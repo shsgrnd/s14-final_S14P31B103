@@ -1,36 +1,62 @@
 {
   "name": "gitcat",
   "displayName": "GitCat",
-  "version": "0.1.0",
-  "publisher": "gitcat-team",
+  "description": "An AI-powered Git assistant for safer commits, conflict prevention, and smarter workflow guidance in VS Code.",
+  "version": "0.0.1",
   "engines": {
     "vscode": "^1.80.0"
   },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
       {
-        "command": "gitcat.takeSnapshot",
-        "title": "GitCat: Take Snapshot"
+        "command": "gitcat.openPanel",
+        "title": "GitCat: Open Panel"
       },
       {
-        "command": "gitcat.analyzeConflict",
-        "title": "GitCat: Analyze Conflict"
-      },
-      {
-        "command": "gitcat.setApiKey",
-        "title": "GitCat: Set AI API Key"
+        "command": "gitcat.getGitStatus",
+        "title": "GitCat: Refresh Status"
       }
-    ]
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "gitcat-sidebar",
+          "title": "GitCat",
+          "icon": "$(git-commit)"
+        }
+      ]
+    },
+    "views": {
+      "gitcat-sidebar": [
+        {
+          "id": "gitcat-git-view",
+          "name": "Git 작업"
+        },
+        {
+          "id": "gitcat-safety-view",
+          "name": "안전 계층"
+        },
+        {
+          "id": "gitcat-branch-view",
+          "name": "브랜치 정리"
+        }
+      ]
+    }
   },
   "scripts": {
-    "build": "tsc"
-  },
-  "dependencies": {
-    "@gitcat/storage": "workspace:*",
-    "@gitcat/ai-pipeline": "workspace:*"
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "lint": "eslint src --ext ts"
   },
   "devDependencies": {
-    "@types/vscode": "^1.80.0"
+    "@types/vscode": "^1.80.0",
+    "@types/node": "18.x",
+    "typescript": "^5.0.0"
   }
 }
