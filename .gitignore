@@ -76,3 +76,6 @@ htmlcov/
 
 # JS Testing
 .nyc_output/
+
+# etc
+.codex
