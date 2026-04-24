@@ -1,0 +1,14 @@
+{
+  "name": "ai-pipeline",
+  "version": "1.0.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "dependencies": {
+    "simple-git": "^3.22.0",
+    "shared-types": "file:../shared-types"
+  },
+  "devDependencies": {
+    "typescript": "^5.3.3",
+    "@types/node": "^20.11.0"
+  }
+}

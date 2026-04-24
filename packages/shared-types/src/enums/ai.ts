@@ -1,9 +1,10 @@
 import { z } from 'zod';
 
 // ==========================================
-// 1. Core AI Enums (snake_case)
+// 1. Core AI Enums
 // ==========================================
 
+// ai_requests.feature_type
 export const FeatureTypeEnum = z.enum([
   'conflict_explanation',
   'merge_mediation',
@@ -12,6 +13,7 @@ export const FeatureTypeEnum = z.enum([
 ]);
 export type FeatureType = z.infer<typeof FeatureTypeEnum>;
 
+// recommendation_histories.recommendation_type
 export const RecommendationTypeEnum = z.enum([
   'commit_message',
   'branch_name',
@@ -19,6 +21,7 @@ export const RecommendationTypeEnum = z.enum([
 ]);
 export type RecommendationType = z.infer<typeof RecommendationTypeEnum>;
 
+// ai_requests.request_origin
 export const RequestOriginEnum = z.enum([
   'panel',
   'treeview',
@@ -27,44 +30,35 @@ export const RequestOriginEnum = z.enum([
 ]);
 export type RequestOrigin = z.infer<typeof RequestOriginEnum>;
 
-export const TriggerSourceEnum = z.enum([
+// work_sessions.session_type
+export const SessionTypeEnum = z.enum([
+  'ai_work',
   'manual',
-  'merge_detected',
-  'restore_related',
-  'recommendation_request',
+  'pre_restore',
+  'pre_merge',
 ]);
-export type TriggerSource = z.infer<typeof TriggerSourceEnum>;
+export type SessionType = z.infer<typeof SessionTypeEnum>;
 
-export const ResponseFormatEnum = z.enum([
-  'plain_text',
-  'structured_json',
-  'markdown',
-  'diff_patch',
-  'mixed',
-]);
-export type ResponseFormat = z.infer<typeof ResponseFormatEnum>;
-
+// ai_requests.request_status
 export const RequestStatusEnum = z.enum([
   'queued',
-  'calling',
-  'succeeded',
+  'analyzing',
+  'completed',
   'failed',
-  'timeout',
-  'cancelled',
 ]);
 export type RequestStatus = z.infer<typeof RequestStatusEnum>;
 
-export const ProposalStatusEnum = z.enum([
+// merge_proposals.status
+export const MergeProposalStatusEnum = z.enum([
   'generated',
-  'parsed',
   'displayed',
   'accepted',
-  'edited',
-  'rejected',
-  'archived',
+  'completed',
+  'failed',
 ]);
-export type ProposalStatus = z.infer<typeof ProposalStatusEnum>;
+export type MergeProposalStatus = z.infer<typeof MergeProposalStatusEnum>;
 
+// proposal_feedbacks.selection_status
 export const SelectionStatusEnum = z.enum([
   'accepted',
   'edited',
@@ -72,6 +66,7 @@ export const SelectionStatusEnum = z.enum([
 ]);
 export type SelectionStatus = z.infer<typeof SelectionStatusEnum>;
 
+// proposal_feedbacks.quality_tag
 export const QualityTagEnum = z.enum([
   'useful',
   'partially_useful',
@@ -82,6 +77,107 @@ export const QualityTagEnum = z.enum([
 ]);
 export type QualityTag = z.infer<typeof QualityTagEnum>;
 
+// ==========================================
+// 2. Git / Repository Enums
+// ==========================================
+
+// snapshots.reason
+export const SnapshotReasonEnum = z.enum([
+  'ai_work',
+  'manual',
+  'pre_restore',
+  'pre_merge',
+]);
+export type SnapshotReason = z.infer<typeof SnapshotReasonEnum>;
+
+// changed_files.change_type — ERD에 'renamed' 포함
+export const ChangeTypeEnum = z.enum([
+  'added',
+  'modified',
+  'deleted',
+  'renamed',
+]);
+export type ChangeType = z.infer<typeof ChangeTypeEnum>;
+
+// ==========================================
+// 3. Conflict / Merge Enums
+// ==========================================
+
+// conflict_candidates.detected_by
+export const DetectionMethodEnum = z.enum([
+  'diff',
+  'ast',
+  'both',
+]);
+export type DetectionMethod = z.infer<typeof DetectionMethodEnum>;
+
+// merge_analyses.status
+export const MergeAnalysisStatusEnum = z.enum([
+  'pending',
+  'analyzing',
+  'completed',
+  'failed',
+]);
+export type MergeAnalysisStatus = z.infer<typeof MergeAnalysisStatusEnum>;
+
+// ==========================================
+// 4. Inference / AI Model Enums
+// ==========================================
+
+// inference_runs.run_type (from ERD ENUM list)
+export const InferenceRunTypeEnum = z.enum([
+  'conflict_explanation',
+  'merge_mediation',
+  'merge_patch_draft',
+  'recommendation',
+]);
+export type InferenceRunType = z.infer<typeof InferenceRunTypeEnum>;
+
+// inference_runs.status
+export const InferenceRunStatusEnum = z.enum([
+  'queued',
+  'calling',
+  'succeeded',
+  'failed',
+  'timeout',
+  'cancelled',
+]);
+export type InferenceRunStatus = z.infer<typeof InferenceRunStatusEnum>;
+
+// ai_requests.response_format
+export const ResponseFormatEnum = z.enum([
+  'plain_text',
+  'structured_json',
+  'markdown',
+  'diff_patch',
+  'mixed',
+]);
+export type ResponseFormat = z.infer<typeof ResponseFormatEnum>;
+
+// ==========================================
+// 5. Training / Dataset Enums
+// ==========================================
+
+// training_candidates.dataset_type
+export const DatasetTypeEnum = z.enum([
+  'sft',
+  'dpo',
+  'eval',
+]);
+export type DatasetType = z.infer<typeof DatasetTypeEnum>;
+
+// training_candidates.source_type
+export const SourceTypeEnum = z.enum([
+  'merge_proposal',
+  'conflict_explanation',
+  'recommendation',
+]);
+export type SourceType = z.infer<typeof SourceTypeEnum>;
+
+// ==========================================
+// 6. Risk / General Enums
+// ==========================================
+
 export const RiskLevelEnum = z.enum([
   'low',
   'medium',
@@ -90,77 +186,10 @@ export const RiskLevelEnum = z.enum([
 ]);
 export type RiskLevel = z.infer<typeof RiskLevelEnum>;
 
-export const DatasetTypeEnum = z.enum([
-  'sft',
-  'dpo',
-  'eval',
-]);
-export type DatasetType = z.infer<typeof DatasetTypeEnum>;
-
-export const SourceTypeEnum = z.enum([
-  'merge_proposal',
-  'conflict_explanation',
-  'recommendation',
-]);
-export type SourceType = z.infer<typeof SourceTypeEnum>;
-
-export const ConflictTypeEnum = z.enum([
-  'same_region',
-  'adjacent_change',
-  'signature_change',
-  'shared_module_impact',
-  'data_structure_change',
-]);
-export type ConflictType = z.infer<typeof ConflictTypeEnum>;
-
-// ==========================================
-// 2. Updated Specs (from 06_data_type_interface_spec)
-// ==========================================
-
-export const SnapshotReasonEnum = z.enum([
-  'ai_work',
+export const TriggerSourceEnum = z.enum([
   'manual',
-  'pre_merge',
-  'pre_restore',
+  'merge_detected',
+  'restore_related',
+  'recommendation_request',
 ]);
-export type SnapshotReason = z.infer<typeof SnapshotReasonEnum>;
-
-export const ChangeTypeEnum = z.enum([
-  'added',
-  'deleted',
-  'modified',
-]);
-export type ChangeType = z.infer<typeof ChangeTypeEnum>;
-
-export const ConfidenceEnum = z.enum([
-  'high',
-  'low',
-  'medium',
-]);
-export type Confidence = z.infer<typeof ConfidenceEnum>;
-
-export const DetectionMethodEnum = z.enum([
-  'ast',
-  'both',
-  'diff',
-]);
-export type DetectionMethod = z.infer<typeof DetectionMethodEnum>;
-
-export const CommitTagEnum = z.enum([
-  'docs',
-  'feat',
-  'fix',
-  'refactor',
-]);
-export type CommitTag = z.infer<typeof CommitTagEnum>;
-
-export const ErrorCodeEnum = z.enum([
-  'AI_RESPONSE_FAILED',
-  'BRANCH_DELETE_FAILED',
-  'GIT_OPERATION_FAILED',
-  'RESTORE_FAILED',
-  'SCHEMA_VALIDATION_FAILED',
-  'SNAPSHOT_WRITE_FAILED',
-  'UNKNOWN',
-]);
-export type ErrorCode = z.infer<typeof ErrorCodeEnum>;
+export type TriggerSource = z.infer<typeof TriggerSourceEnum>;
