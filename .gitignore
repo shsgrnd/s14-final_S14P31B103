@@ -25,7 +25,9 @@ ehthumbs.db
 
 # IDEs
 .idea/
-.vscode/
+# .vscode/ 는 익스텐션 실행 설정(launch.json) 공유를 위해 허용합니다.
+# 대신 GitCat 로컬 데이터 스토리지 공간만 완벽히 커밋 차단합니다.
+/.vscode/gitcat/
 *.swp
 *.swo
 

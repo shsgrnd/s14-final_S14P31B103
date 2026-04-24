@@ -1,0 +1,36 @@
+{
+  "name": "gitcat",
+  "displayName": "GitCat",
+  "version": "0.1.0",
+  "publisher": "gitcat-team",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "gitcat.takeSnapshot",
+        "title": "GitCat: Take Snapshot"
+      },
+      {
+        "command": "gitcat.analyzeConflict",
+        "title": "GitCat: Analyze Conflict"
+      },
+      {
+        "command": "gitcat.setApiKey",
+        "title": "GitCat: Set AI API Key"
+      }
+    ]
+  },
+  "scripts": {
+    "build": "tsc"
+  },
+  "dependencies": {
+    "@gitcat/storage": "workspace:*",
+    "@gitcat/ai-pipeline": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.80.0"
+  }
+}
