@@ -1,4 +1,4 @@
-import { GitStatus } from 'shared-types';
+import { GitStatus } from '@gitcat/shared-types';
 
 /**
  * AI 파이프라인의 Git 데이터 수집 인터페이스

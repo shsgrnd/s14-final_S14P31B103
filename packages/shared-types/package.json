@@ -1,5 +1,5 @@
 {
-  "name": "shared-types",
+  "name": "@gitcat/shared-types",
   "version": "1.0.0",
   "description": "이 패키지는 GitCat 모노레포를 구성하는 여러 패키지(`apps/extension`, `packages/ai-pipeline` 등)에서 공통으로 사용되는 타입 및 인터페이스를 정의합니다.",
   "main": "dist/index.js",
