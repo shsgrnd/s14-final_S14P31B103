@@ -17,7 +17,7 @@ export const ParsedAiResultBaseSchema = z.object({
   feature_type: FeatureTypeEnum,
   title: z.string(),
   summary: z.string(),
-  proposal_status: z.string(), // 'parsed' 등 상태값
+  proposal_status: MergeProposalStatusEnum,
   parser_version: z.string(),
   explanation: z.string().optional(),
   confidence_score: z.number().optional(),
@@ -57,6 +57,8 @@ export const RecommendationResultSchema = ParsedAiResultBaseSchema.extend({
   primary_text: z.string(),
   alternative_texts: z.array(z.string()),
   generation_basis_summary: z.string().optional(),
+  format_notes: z.string().optional(),
+  warnings: z.array(z.string()).optional(),
 });
 
 export const ParsedAiResultSchema = z.discriminatedUnion('feature_type', [
@@ -83,6 +85,11 @@ export const AiInputPayloadSchema = z.object({
   change_summary: z.string().optional(),
   changed_files: z.array(z.string()).optional(),
   work_intent: z.string().optional(),
+  diff_summary: z.string().optional(),
+  branch_context: z.string().optional(),
+  ticket_ref: z.string().optional(),
+  naming_constraints: z.array(z.string()).optional(),
+  message_constraints: z.array(z.string()).optional(),
 }).refine(
   (data) => {
     if (['merge_patch_draft', 'conflict_explanation', 'merge_mediation'].includes(data.feature_type)) {

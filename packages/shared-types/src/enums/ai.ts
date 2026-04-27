@@ -60,8 +60,11 @@ export type ErrorCode = z.infer<typeof ErrorCodeEnum>;
 // merge_proposals.status
 export const MergeProposalStatusEnum = z.enum([
   'generated',
+  'parsed',
   'displayed',
   'accepted',
+  'edited',
+  'rejected',
   'completed',
   'failed',
 ]);

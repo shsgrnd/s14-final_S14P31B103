@@ -1,11 +1,31 @@
 import { 
   AiInputPayload, 
   AiInputPayloadSchema, 
-  ParsedAiResultSchema 
+  ParsedAiResultSchema,
+  ProposalFeedbackSchema,
+  ProposalFeedback,
+  ParsedAiResult,
 } from '@gitcat/shared-types';
 import { MergeAiService } from '../merge-proposal/MergeAiService';
 import { MergeResultParser } from '../parser/MergeResultParser';
-import { invalidInputMocks, invalidResponseMocks } from './invalidMocks';
+import {
+  buildProposalFeedbackPayload,
+  toCreateProposalFeedbackInput,
+} from '../feedback/proposal-feedback';
+import { buildFeedbackPersistencePlan } from '../feedback/feedback-persistence-plan';
+import { buildTrainingCandidatePayload } from '../feedback/training-candidate';
+import { buildDisplayReadyResult } from '../feedback/result-display';
+import {
+  getAllowedProposalLifecycleEvents,
+  isTerminalProposalStatus,
+  transitionProposalStatus,
+} from '../feedback/proposal-lifecycle';
+import {
+  invalidFeedbackBuilderMocks,
+  invalidInputMocks,
+  invalidResponseMocks,
+  invalidTrainingCandidateBuilderMocks,
+} from './invalidMocks';
 
 // --- 정상 데이터 Mock ---
 
@@ -36,6 +56,120 @@ export const mockAiInputPayload: AiInputPayload = {
   risk_summary: "Medium risk due to core auth module changes.",
   schema_version: "1.0.0"
 };
+
+export const mockParsedAiResults: ParsedAiResult[] = [
+  {
+    proposal_id: "aip_20260427_001",
+    session_id: "ais_20260427_001",
+    ai_request_id: "air_20260427_001",
+    feature_type: "merge_patch_draft",
+    title: "DTO 구조를 유지하면서 예외 처리 변경을 반영한 병합 초안",
+    summary: "develop의 응답 구조를 유지하고 feature 브랜치의 예외 처리 흐름을 선택 반영하는 안",
+    explanation: "공통 모듈 의존성을 고려하면 DTO 구조 변경을 최소화하는 것이 안전합니다.",
+    confidence_score: 0.82,
+    proposal_status: "parsed",
+    parser_version: "v1",
+    diff_patch_ref: "patch://local/aip_20260427_001/merge.patch",
+    merged_code_ref: "code://local/aip_20260427_001/merged.ts",
+    applied_files: ["src/auth/service.ts"],
+    validation_required: true,
+    validation_summary: "LoginResponseDto 타입 확인 필요",
+  },
+  {
+    proposal_id: "aip_20260427_002",
+    session_id: "ais_20260427_002",
+    ai_request_id: "air_20260427_002",
+    feature_type: "conflict_explanation",
+    title: "로그인 응답 형식 변경으로 인한 간접 충돌 가능성",
+    summary: "동일 라인 충돌은 없지만 응답 DTO 변경과 예외 처리 포맷 변경이 연결 지점에서 충돌할 수 있습니다.",
+    explanation: "직접 충돌보다 인터페이스 불일치가 핵심 위험입니다.",
+    confidence_score: 0.79,
+    proposal_status: "parsed",
+    parser_version: "v1",
+    cause_summary: "응답 DTO 구조와 예외 처리 포맷이 동시에 변경됨",
+    detailed_explanation: "컨트롤러, 서비스, DTO 간 데이터 흐름에서 반환 형식이 달라질 수 있습니다.",
+    related_files: ["src/auth/dto.ts", "src/auth/controller.ts"],
+    recommended_resolution_direction: "DTO 구조를 기준 브랜치에 맞추고 예외 처리만 선택 반영",
+    risk_level: "high",
+  },
+  {
+    proposal_id: "aip_20260427_101",
+    session_id: "ais_20260427_101",
+    ai_request_id: "air_20260427_101",
+    feature_type: "recommendation",
+    recommendation_type: "commit_message",
+    title: "커밋 메시지 추천 결과",
+    summary: "로그인 DTO 정리와 예외 처리 흐름 개선 작업을 반영한 커밋 메시지 제안",
+    explanation: "auth 범주의 refactor 또는 fix 형태가 적절한 변경으로 보입니다.",
+    confidence_score: 0.86,
+    proposal_status: "parsed",
+    parser_version: "v1",
+    primary_text: "refactor(auth): align login dto and error flow",
+    alternative_texts: [
+      "fix(auth): normalize login response and exceptions",
+      "refactor(auth): clean up login response handling",
+      "feat(auth): improve login response and error structure",
+    ],
+    generation_basis_summary: "DTO 구조 정리, 예외 처리 흐름 수정, 인증 서비스 반환 타입 보정을 반영함",
+    format_notes: "conventional commit 형식과 50자 내외 subject 기준을 우선 반영함",
+    warnings: [
+      "feat는 신규 기능으로 오해될 수 있어 refactor 또는 fix가 더 적절할 수 있음",
+    ],
+  },
+];
+
+export const mockProposalFeedbacks: ProposalFeedback[] = [
+  {
+    feedback_id: "fb_20260427_001",
+    proposal_id: "aip_20260427_001",
+    merge_proposal_id: "aip_20260427_001",
+    selection_status: "edited",
+    final_code_ref: "code://local/fb_20260427_001/final.ts",
+    final_explanation: "DTO는 develop 기준을 유지하고 예외 처리 로직만 선택 반영함",
+    quality_tag: "partially_useful",
+    feedback_note: "설명은 유용했지만 patch는 일부 수동 수정이 필요했음",
+    decided_at: "2026-04-27T10:30:00+09:00",
+  },
+  {
+    feedback_id: "fb_20260427_002",
+    proposal_id: "aip_20260427_002",
+    merge_proposal_id: "aip_20260427_002",
+    selection_status: "accepted",
+    final_explanation: "응답 DTO 불일치를 우선 해결하기로 결정",
+    quality_tag: "useful",
+    feedback_note: "원인 설명이 충분히 명확했음",
+    decided_at: "2026-04-27T10:35:00+09:00",
+  },
+  {
+    feedback_id: "fb_20260427_101",
+    proposal_id: "aip_20260427_101",
+    selection_status: "accepted",
+    final_text: "refactor(auth): align login dto and error flow",
+    final_explanation: "커밋 메시지 추천안 1번을 그대로 사용하기로 결정",
+    quality_tag: "useful",
+    feedback_note: "짧고 변경 의도가 잘 드러남",
+    decided_at: "2026-04-27T10:40:00+09:00",
+  },
+  {
+    feedback_id: "fb_20260427_102",
+    proposal_id: "aip_20260427_101",
+    selection_status: "edited",
+    final_text: "fix(auth): align login dto and keep new error flow",
+    final_explanation: "추천 방향은 유지하되 fix가 더 적절하다고 판단해 수정함",
+    quality_tag: "partially_useful",
+    feedback_note: "의도는 맞지만 타입을 조금 더 보수적으로 표현하고 싶었음",
+    decided_at: "2026-04-27T10:42:00+09:00",
+  },
+  {
+    feedback_id: "fb_20260427_103",
+    proposal_id: "aip_20260427_101",
+    selection_status: "rejected",
+    final_explanation: "이번에는 팀 컨벤션상 더 짧은 메시지가 필요해서 사용하지 않음",
+    quality_tag: "partially_useful",
+    feedback_note: "추천은 자연스럽지만 팀 메시지 스타일과는 약간 다름",
+    decided_at: "2026-04-27T10:45:00+09:00",
+  },
+];
 
 // --- 검증 함수들 ---
 
@@ -86,8 +220,292 @@ function testParser() {
   });
 }
 
+function testDocumentedMocks() {
+  console.log("\n--- [STEP 3] 문서 mock 검증 시작 ---");
+  console.log("목표: 개인 문서에 정리한 parsed_ai_result / proposal_feedback_payload 샘플이 실제 스키마를 통과하는지 확인");
+
+  mockParsedAiResults.forEach((mock) => {
+    try {
+      ParsedAiResultSchema.parse(mock);
+      console.log(`[PASS] parsed_ai_result mock 검증 완료`);
+      console.log(`      - Proposal ID: ${mock.proposal_id}`);
+      console.log(`      - Feature Type: ${mock.feature_type}`);
+    } catch (err: any) {
+      console.log(`[FAIL] parsed_ai_result mock 검증 실패`);
+      console.log(`      - Proposal ID: ${mock.proposal_id}`);
+      console.log(`      - 에러 내용: ${err.message}`);
+    }
+  });
+
+  mockProposalFeedbacks.forEach((mock) => {
+    try {
+      ProposalFeedbackSchema.parse(mock);
+      console.log(`[PASS] proposal_feedback_payload mock 검증 완료`);
+      console.log(`      - Feedback ID: ${mock.feedback_id}`);
+      console.log(`      - Selection Status: ${mock.selection_status}`);
+    } catch (err: any) {
+      console.log(`[FAIL] proposal_feedback_payload mock 검증 실패`);
+      console.log(`      - Feedback ID: ${mock.feedback_id}`);
+      console.log(`      - 에러 내용: ${err.message}`);
+    }
+  });
+}
+
+function testFeedbackBuilder() {
+  console.log("\n--- [STEP 4] feedback 생성기 검증 시작 ---");
+  console.log("목표: parsed_ai_result와 사용자 선택을 조합해 proposal_feedback_payload 및 저장 입력을 만들 수 있는지 확인");
+
+  const generatedMergeFeedback = buildProposalFeedbackPayload({
+    parsed_result: mockParsedAiResults[0],
+    selection_status: "edited",
+    final_code_ref: "code://local/fb_20260427_301/final.ts",
+    final_explanation: "DTO는 유지하고 예외 처리 흐름만 수동 조정함",
+    quality_tag: "partially_useful",
+    feedback_note: "patch 방향은 좋았지만 최종 코드는 수동 수정함",
+    feedback_id: "fb_20260427_301",
+    decided_at: "2026-04-27T11:00:00+09:00",
+  });
+
+  const generatedConflictFeedback = buildProposalFeedbackPayload({
+    parsed_result: mockParsedAiResults[1],
+    selection_status: "accepted",
+    quality_tag: "useful",
+    feedback_note: "설명 결과를 그대로 채택함",
+    feedback_id: "fb_20260427_302",
+    decided_at: "2026-04-27T11:05:00+09:00",
+  });
+
+  const generatedRecommendationFeedback = buildProposalFeedbackPayload({
+    parsed_result: mockParsedAiResults[2],
+    selection_status: "accepted",
+    quality_tag: "useful",
+    feedback_note: "1번 추천안을 그대로 채택함",
+    feedback_id: "fb_20260427_303",
+    decided_at: "2026-04-27T11:10:00+09:00",
+  });
+
+  const editedRecommendationFeedback = buildProposalFeedbackPayload({
+    parsed_result: mockParsedAiResults[2],
+    selection_status: "edited",
+    final_text: "fix(auth): align login dto and keep new error flow",
+    final_explanation: "추천 방향은 유지하되 팀 톤에 맞게 수정함",
+    quality_tag: "partially_useful",
+    feedback_note: "추천 초안은 유용했지만 최종 텍스트는 조금 더 보수적으로 조정함",
+    feedback_id: "fb_20260427_304",
+    decided_at: "2026-04-27T11:12:00+09:00",
+  });
+
+  const rejectedRecommendationFeedback = buildProposalFeedbackPayload({
+    parsed_result: mockParsedAiResults[2],
+    selection_status: "rejected",
+    final_explanation: "이번에는 더 짧은 메시지가 필요해서 채택하지 않음",
+    quality_tag: "partially_useful",
+    feedback_note: "근거는 좋지만 팀 메시지 스타일과는 약간 다름",
+    feedback_id: "fb_20260427_305",
+    decided_at: "2026-04-27T11:14:00+09:00",
+  });
+
+  const repositoryInput = toCreateProposalFeedbackInput(
+    mockAiInputPayload.project_id,
+    generatedMergeFeedback,
+  );
+
+  [
+    generatedMergeFeedback,
+    generatedConflictFeedback,
+    generatedRecommendationFeedback,
+    editedRecommendationFeedback,
+    rejectedRecommendationFeedback,
+  ].forEach((feedback) => {
+    try {
+      ProposalFeedbackSchema.parse(feedback);
+      console.log(`[PASS] feedback 생성기 검증 완료`);
+      console.log(`      - Feedback ID: ${feedback.feedback_id}`);
+      console.log(`      - Selection Status: ${feedback.selection_status}`);
+    } catch (err: any) {
+      console.log(`[FAIL] feedback 생성기 검증 실패`);
+      console.log(`      - Feedback ID: ${feedback.feedback_id}`);
+      console.log(`      - 에러 내용: ${err.message}`);
+    }
+  });
+
+  console.log(`[PASS] 저장 입력 변환 검증 완료`);
+  console.log(`      - Project ID: ${repositoryInput.project_id}`);
+  console.log(`      - Proposal ID: ${repositoryInput.proposal_id}`);
+}
+
+function testTrainingCandidateBuilder() {
+  console.log("\n--- [STEP 5] 학습 후보 생성기 검증 시작 ---");
+  console.log("목표: feedback 결과를 training_candidate_payload 규칙에 맞게 후보화할 수 있는지 확인");
+
+  const mergeFeedback = buildProposalFeedbackPayload({
+    parsed_result: mockParsedAiResults[0],
+    selection_status: "edited",
+    final_code_ref: "code://local/fb_20260427_401/final.ts",
+    final_explanation: "DTO는 유지하고 예외 처리 흐름만 수정함",
+    quality_tag: "partially_useful",
+    feedback_note: "수동 수정본을 학습 후보로 남김",
+    feedback_id: "fb_20260427_401",
+    decided_at: "2026-04-27T11:20:00+09:00",
+  });
+
+  const conflictFeedback = buildProposalFeedbackPayload({
+    parsed_result: mockParsedAiResults[1],
+    selection_status: "accepted",
+    quality_tag: "useful",
+    feedback_note: "설명 방향을 그대로 채택함",
+    feedback_id: "fb_20260427_402",
+    decided_at: "2026-04-27T11:25:00+09:00",
+  });
+
+  const mergeTrainingCandidate = buildTrainingCandidatePayload({
+    parsed_result: mockParsedAiResults[0],
+    feedback: mergeFeedback,
+    dataset_type: "sft",
+    prompt_ref: "prompt://local/air_20260427_001/request.txt",
+    chosen_ref: "chosen://local/tc_20260427_401.json",
+    training_candidate_id: "tc_20260427_401",
+  });
+
+  const conflictTrainingCandidate = buildTrainingCandidatePayload({
+    parsed_result: mockParsedAiResults[1],
+    feedback: conflictFeedback,
+    dataset_type: "dpo",
+    prompt_ref: "prompt://local/air_20260427_002/request.txt",
+    chosen_ref: "chosen://local/tc_20260427_402.json",
+    rejected_ref: "rejected://local/tc_20260427_402.json",
+    training_candidate_id: "tc_20260427_402",
+  });
+
+  [mergeTrainingCandidate, conflictTrainingCandidate].forEach((candidate) => {
+    console.log(`[PASS] training_candidate_payload 생성기 검증 완료`);
+    console.log(`      - Training Candidate ID: ${candidate.training_candidate_id}`);
+    console.log(`      - Dataset Type: ${candidate.dataset_type}`);
+    console.log(`      - Source Type: ${candidate.source_type}`);
+  });
+}
+
+function testFeedbackPersistencePlan() {
+  console.log("\n--- [STEP 6] 저장 계획 생성기 검증 시작 ---");
+  console.log("목표: feedback 저장 입력, proposal 상태 변경, training 후보화를 한 번에 묶을 수 있는지 확인");
+
+  const persistencePlan = buildFeedbackPersistencePlan({
+    project_id: mockAiInputPayload.project_id,
+    parsed_result: mockParsedAiResults[0],
+    selection_status: "edited",
+    final_code_ref: "code://local/fb_20260427_501/final.ts",
+    final_explanation: "수동 수정본 기준으로 확정",
+    quality_tag: "partially_useful",
+    feedback_note: "저장 메타데이터 연결 테스트",
+    feedback_id: "fb_20260427_501",
+    decided_at: "2026-04-27T11:35:00+09:00",
+    training_candidate: {
+      dataset_type: "sft",
+      prompt_ref: "prompt://local/air_20260427_001/request.txt",
+      chosen_ref: "chosen://local/tc_20260427_501.json",
+      training_candidate_id: "tc_20260427_501",
+    },
+  });
+
+  console.log(`[PASS] 저장 계획 생성기 검증 완료`);
+  console.log(`      - Feedback ID: ${persistencePlan.proposal_feedback_payload.feedback_id}`);
+  console.log(`      - Next Proposal Status: ${persistencePlan.next_proposal_status}`);
+  console.log(`      - Project ID: ${persistencePlan.proposal_feedback_input.project_id}`);
+  console.log(
+    `      - Training Candidate: ${persistencePlan.training_candidate_payload?.training_candidate_id ?? "none"}`
+  );
+}
+
+function testDisplayReadyResult() {
+  console.log("\n--- [STEP 7] 표시 구조 생성기 검증 시작 ---");
+  console.log("목표: parsed_ai_result를 UI 표시 직전 형태로 정리하고 상태를 displayed로 전환할 수 있는지 확인");
+
+  mockParsedAiResults.forEach((result) => {
+    const displayReady = buildDisplayReadyResult(result);
+
+    console.log(`[PASS] display ready 변환 완료`);
+    console.log(`      - Proposal ID: ${displayReady.proposal_id}`);
+    console.log(`      - Feature Type: ${displayReady.feature_type}`);
+    console.log(`      - Display Status: ${displayReady.proposal_status}`);
+    console.log(`      - Section Count: ${displayReady.sections.length}`);
+  });
+}
+
+function testProposalLifecycle() {
+  console.log("\n--- [STEP 8] 상태 전이 규칙 검증 시작 ---");
+  console.log("목표: displayed/accepted/edited/rejected/completed 흐름이 한 곳에서 일관되게 계산되는지 확인");
+
+  const displayedStatus = transitionProposalStatus("parsed", "display");
+  const acceptedStatus = transitionProposalStatus("displayed", "accept");
+  const completedStatus = transitionProposalStatus("accepted", "complete");
+  const allowedEvents = getAllowedProposalLifecycleEvents("displayed");
+
+  console.log(`[PASS] proposal lifecycle 검증 완료`);
+  console.log(`      - parsed -> ${displayedStatus}`);
+  console.log(`      - displayed -> ${acceptedStatus}`);
+  console.log(`      - accepted -> ${completedStatus}`);
+  console.log(`      - displayed allowed events: ${allowedEvents.join(", ")}`);
+  console.log(`      - is completed terminal?: ${isTerminalProposalStatus(completedStatus)}`);
+}
+
+function testInvalidFeedbackAndTrainingRules() {
+  console.log("\n--- [STEP 9] feedback/save 실패 규칙 검증 시작 ---");
+  console.log("목표: edited/ref 규칙과 training candidate 조건 위반이 즉시 감지되는지 확인");
+
+  invalidFeedbackBuilderMocks.forEach((mock) => {
+    try {
+      buildProposalFeedbackPayload({
+        parsed_result: mockParsedAiResults[0],
+        ...(mock.input as any),
+      });
+      console.log(`[FAIL] ${mock.name}: 에러가 발생해야 하는데 통과됨`);
+    } catch (err: any) {
+      console.log(`[PASS] ${mock.name}: 의도된 에러 발생`);
+      console.log(`      - 에러 내용: ${err.message}`);
+    }
+  });
+
+  invalidTrainingCandidateBuilderMocks.forEach((mock) => {
+    try {
+      const parsedResult =
+        mock.name.includes("merge_mediation")
+          ? ({
+              proposal_id: "aip_20260427_999",
+              session_id: "ais_20260427_999",
+              ai_request_id: "air_20260427_999",
+              feature_type: "merge_mediation",
+              title: "중재안",
+              summary: "중재 선택지 요약",
+              proposal_status: "parsed",
+              parser_version: "v1",
+              recommended_option: "Option A",
+              tradeoffs: ["장점", "단점"],
+              recommended_next_action: "검토 후 수동 반영",
+            } as ParsedAiResult)
+          : mockParsedAiResults[1];
+
+      const feedback = buildProposalFeedbackPayload({
+        parsed_result: parsedResult,
+        selection_status: "accepted",
+        feedback_id: "fb_20260427_999",
+        decided_at: "2026-04-27T11:50:00+09:00",
+      });
+
+      buildTrainingCandidatePayload({
+        parsed_result: parsedResult,
+        feedback,
+        ...(mock.input as any),
+      });
+      console.log(`[FAIL] ${mock.name}: 에러가 발생해야 하는데 통과됨`);
+    } catch (err: any) {
+      console.log(`[PASS] ${mock.name}: 의도된 에러 발생`);
+      console.log(`      - 에러 내용: ${err.message}`);
+    }
+  });
+}
+
 async function testFullServiceFlow() {
-  console.log("\n--- [STEP 3] 서비스 전체 흐름 검증 시작 ---");
+  console.log("\n--- [STEP 10] 서비스 전체 흐름 검증 시작 ---");
   console.log("목표: 입력 -> Prompt -> Client -> Parser -> Result 전체 과정을 시뮬레이션");
 
   const service = new MergeAiService();
@@ -138,6 +556,13 @@ export async function runMockAiPipelineDemo() {
 
   testInputSchema();
   testParser();
+  testDocumentedMocks();
+  testFeedbackBuilder();
+  testTrainingCandidateBuilder();
+  testFeedbackPersistencePlan();
+  testDisplayReadyResult();
+  testProposalLifecycle();
+  testInvalidFeedbackAndTrainingRules();
   await testFullServiceFlow();
 
   console.log("\n" + "=".repeat(50));

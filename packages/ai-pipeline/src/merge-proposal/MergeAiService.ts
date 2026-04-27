@@ -1,6 +1,24 @@
-import { AiInputPayload, ParsedAiResult, AiInputPayloadSchema } from '@gitcat/shared-types';
+import {
+  AiInputPayload,
+  AiInputPayloadSchema,
+  MergeProposalInput,
+  ParsedAiResult,
+  RecommendationInput,
+} from '@gitcat/shared-types';
 import { AiClient, PromptPayload } from '../provider/AiClient';
 import { MergeResultParser } from '../parser/MergeResultParser';
+import {
+  buildConflictUserPrompt,
+  buildMergeMediationUserPrompt,
+  buildMergePatchDraftUserPrompt,
+  getConflictExplanationSystemPrompt,
+  getMergeMediationSystemPrompt,
+  getMergePatchDraftSystemPrompt,
+} from '../prompt/merge-conflict';
+import {
+  buildRecommendationUserPrompt,
+  getRecommendationSystemPrompt,
+} from '../prompt/recommendation';
 
 export class MergeAiService {
   private client: AiClient;
@@ -34,31 +52,34 @@ export class MergeAiService {
    * 특정 기능 유형에 따라 프롬프트 구성
    */
   private constructPrompt(payload: AiInputPayload): PromptPayload {
-    const baseSystemPrompt = "You are an expert Git conflict resolution AI. You must return your response ONLY as a valid JSON object.";
-
-    let userPrompt = `Project ID: ${payload.project_id}\nSession ID: ${payload.session_id}\nBranch: ${payload.current_branch} -> ${payload.target_branch}\n`;
-    userPrompt += `Conflict Candidates: ${JSON.stringify(payload.conflict_candidates)}\n`;
-
     switch (payload.feature_type) {
       case 'merge_patch_draft':
-        userPrompt += "\nGenerate a 'merge_patch_draft'. The JSON must include: 'title', 'summary', 'diff_patch_ref' or 'merged_code_ref', 'applied_files' (array of strings), 'validation_required' (boolean), and 'validation_summary'. Optional: 'explanation', 'confidence_score'.";
-        break;
+        return {
+          systemPrompt: getMergePatchDraftSystemPrompt(),
+          // AiInputPayloadSchema에서 merge 계열 필수 필드를 이미 검증했기 때문에
+          // 여기서는 merge 전용 payload로 안전하게 해석할 수 있습니다.
+          userPrompt: buildMergePatchDraftUserPrompt(payload as MergeProposalInput),
+        };
       case 'conflict_explanation':
-        userPrompt += "\nGenerate a 'conflict_explanation'. The JSON must include: 'title', 'summary', 'cause_summary', 'detailed_explanation', 'related_files' (array of strings), 'recommended_resolution_direction', and 'risk_level' (low|medium|high|critical). Optional: 'explanation', 'confidence_score'.";
-        break;
+        return {
+          systemPrompt: getConflictExplanationSystemPrompt(),
+          userPrompt: buildConflictUserPrompt(payload as MergeProposalInput),
+        };
       case 'merge_mediation':
-        userPrompt += "\nGenerate a 'merge_mediation'. The JSON must include: 'title', 'summary', 'recommended_option', 'tradeoffs' (array of strings), and 'recommended_next_action'. Optional: 'explanation', 'confidence_score'.";
-        break;
+        return {
+          systemPrompt: getMergeMediationSystemPrompt(),
+          userPrompt: buildMergeMediationUserPrompt(payload as MergeProposalInput),
+        };
       case 'recommendation':
-        userPrompt = `Project ID: ${payload.project_id}\nSession ID: ${payload.session_id}\nRecommendation Type: ${payload.recommendation_type}\n`;
-        userPrompt += `Change Summary: ${payload.change_summary}\nWork Intent: ${payload.work_intent}\nChanged Files: ${JSON.stringify(payload.changed_files)}\n`;
-        userPrompt += "\nGenerate a 'recommendation'. The JSON must include: 'title', 'summary', 'recommendation_type', 'primary_text', 'alternative_texts' (array of strings). Optional: 'generation_basis_summary', 'explanation', 'confidence_score'.";
-        break;
+        return {
+          systemPrompt: getRecommendationSystemPrompt(),
+          userPrompt: buildRecommendationUserPrompt(payload as RecommendationInput),
+        };
+      default: {
+        // 새 feature_type이 추가되면 여기서 바로 드러나도록 방어합니다.
+        const unsupportedFeature: never = payload.feature_type;
+        throw new Error(`Unsupported feature_type: ${unsupportedFeature}`);
+      }
     }
-
-    return {
-      systemPrompt: baseSystemPrompt,
-      userPrompt,
-    };
   }
 }

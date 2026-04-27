@@ -7,7 +7,8 @@
   "type": "commonjs",
   "scripts": {
     "build": "tsc",
-    "test:mock": "ts-node -r tsconfig-paths/register src/run-mock.ts"
+    "test:mock": "ts-node -r tsconfig-paths/register src/run-mock.ts",
+    "test:live": "ts-node -r tsconfig-paths/register src/run-live.ts"
   },
   "dependencies": {
     "@gitcat/shared-types": "workspace:*",

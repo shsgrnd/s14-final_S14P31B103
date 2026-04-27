@@ -1,5 +1,6 @@
 export * from './client';
 export * from './prompt/merge-conflict';
+export * from './prompt/recommendation';
 export * from './input/ports/GitClient';
 export * from './input/infrastructure/SimpleGitAdapter';
 export * from './merge-proposal/MergeAiService';
@@ -10,3 +11,8 @@ export * from './input/application/AiInputService';
 export * from './input/application/TokenCounter';
 export * from './input/application/TokenConfig';
 export * from './input/application/ContextMinimizer';
+export * from './feedback/proposal-feedback';
+export * from './feedback/training-candidate';
+export * from './feedback/feedback-persistence-plan';
+export * from './feedback/result-display';
+export * from './feedback/proposal-lifecycle';
