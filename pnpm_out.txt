@@ -1,0 +1,78 @@
+Legend: production dependency, optional only, dev only
+
+gitcat-monorepo C:\workspace\2학기_자율_PJT\s14-final_S14P31B103 (PRIVATE)
+│
+│   devDependencies:
+├── @types/node@25.6.0
+├── @typescript-eslint/eslint-plugin@8.59.0
+├── @typescript-eslint/parser@8.59.0
+├── eslint@8.57.1
+├── prettier@3.8.3
+└── typescript@5.9.3
+
+gitcat@0.0.1 C:\workspace\2학기_자율_PJT\s14-final_S14P31B103\apps\extension
+│
+│   dependencies:
+├── @gitcat/ai-pipeline@link:../../packages/ai-pipeline
+├── @gitcat/storage@link:../../packages/storage
+│
+│   devDependencies:
+└── @types/vscode@1.116.0
+
+@gitcat/ai-pipeline@0.1.0 C:\workspace\2학기_자율_PJT\s14-final_S14P31B103\packages\ai-pipeline
+│
+│   dependencies:
+├── @gitcat/shared-types@link:../shared-types
+├── openai@4.104.0
+├── simple-git@3.36.0
+│
+│   devDependencies:
+├── @types/node@20.19.39
+└── typescript@5.9.3
+
+@gitcat/conflict-analyzer@0.1.0 C:\workspace\2학기_자율_PJT\s14-final_S14P31B103\packages\conflict-analyzer
+│
+│   dependencies:
+└── @gitcat/shared-types@link:../shared-types
+
+@gitcat/git-client-cli@0.1.0 C:\workspace\2학기_자율_PJT\s14-final_S14P31B103\packages\git-client-cli
+│
+│   dependencies:
+└── simple-git@3.36.0
+
+@gitcat/git-core@0.1.0 C:\workspace\2학기_자율_PJT\s14-final_S14P31B103\packages\git-core
+│
+│   dependencies:
+├── @gitcat/git-client-cli@link:../git-client-cli
+└── @gitcat/shared-types@link:../shared-types
+
+@gitcat/session-core@0.1.0 C:\workspace\2학기_자율_PJT\s14-final_S14P31B103\packages\session-core
+│
+│   dependencies:
+├── @gitcat/shared-types@link:../shared-types
+└── @gitcat/storage@link:../storage
+
+@gitcat/shared-types@1.0.0 C:\workspace\2학기_자율_PJT\s14-final_S14P31B103\packages\shared-types
+│
+│   dependencies:
+├── zod@4.3.6
+│
+│   devDependencies:
+└── typescript@6.0.3
+
+@gitcat/snapshot-core@0.1.0 C:\workspace\2학기_자율_PJT\s14-final_S14P31B103\packages\snapshot-core
+│
+│   dependencies:
+├── @gitcat/shared-types@link:../shared-types
+└── @gitcat/storage@link:../storage
+
+@gitcat/storage@1.0.0 C:\workspace\2학기_자율_PJT\s14-final_S14P31B103\packages\storage
+│
+│   dependencies:
+├── better-sqlite3@12.9.0
+│
+│   devDependencies:
+├── @types/better-sqlite3@7.6.13
+└── typescript@5.9.3
+
+27 packages in 11 projects
