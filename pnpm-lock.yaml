@@ -40,14 +40,16 @@ importers:
         specifier: ^1.80.0
         version: 1.116.0
 
+  apps/webview-ui: {}
+
   packages/ai-pipeline:
     dependencies:
-      openai:
-        specifier: ^4.20.0
-        version: 4.104.0
       '@gitcat/shared-types':
         specifier: workspace:*
         version: link:../shared-types
+      openai:
+        specifier: ^4.20.0
+        version: 4.104.0
       simple-git:
         specifier: ^3.22.0
         version: 3.36.0
@@ -59,6 +61,36 @@ importers:
         specifier: ^5.3.3
         version: 5.9.3
 
+  packages/conflict-analyzer:
+    dependencies:
+      '@gitcat/shared-types':
+        specifier: workspace:*
+        version: link:../shared-types
+
+  packages/git-client-cli:
+    dependencies:
+      simple-git:
+        specifier: ^3.22.0
+        version: 3.36.0
+
+  packages/git-core:
+    dependencies:
+      '@gitcat/git-client-cli':
+        specifier: workspace:*
+        version: link:../git-client-cli
+      '@gitcat/shared-types':
+        specifier: workspace:*
+        version: link:../shared-types
+
+  packages/session-core:
+    dependencies:
+      '@gitcat/shared-types':
+        specifier: workspace:*
+        version: link:../shared-types
+      '@gitcat/storage':
+        specifier: workspace:*
+        version: link:../storage
+
   packages/shared-types:
     dependencies:
       zod:
@@ -68,6 +100,15 @@ importers:
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
+
+  packages/snapshot-core:
+    dependencies:
+      '@gitcat/shared-types':
+        specifier: workspace:*
+        version: link:../shared-types
+      '@gitcat/storage':
+        specifier: workspace:*
+        version: link:../storage
 
   packages/storage:
     dependencies:
