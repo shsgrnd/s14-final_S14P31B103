@@ -12,3 +12,5 @@ export * from './feedback/training-candidate';
 export * from './feedback/feedback-persistence-plan';
 export * from './feedback/result-display';
 export * from './feedback/proposal-lifecycle';
+export * from './feedback/result-storage-plan';
+export * from './feedback/result-repository-input';
