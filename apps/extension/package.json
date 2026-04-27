@@ -2,6 +2,8 @@
   "name": "gitcat",
   "displayName": "GitCat",
   "description": "An AI-powered Git assistant for safer commits, conflict prevention, and smarter workflow guidance in VS Code.",
+  "publisher": "ssafy",
+  "icon": "icon.png",
   "version": "0.0.1",
   "engines": {
     "vscode": "^1.80.0"
@@ -49,7 +51,7 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
+    "vscode:prepublish": "pnpm run compile",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "lint": "eslint src --ext ts"

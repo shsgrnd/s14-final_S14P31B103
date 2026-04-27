@@ -1,0 +1,85 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* VS Code Theme Variables Mapping */
+    --background: var(--vscode-sideBar-background);
+    --foreground: var(--vscode-sideBar-foreground);
+    --card: var(--vscode-editor-background);
+    --card-foreground: var(--vscode-editor-foreground);
+    --primary: var(--vscode-button-background);
+    --primary-foreground: var(--vscode-button-foreground);
+    --primary-hover: var(--vscode-button-hoverBackground);
+    --secondary: var(--vscode-button-secondaryBackground);
+    --secondary-foreground: var(--vscode-button-secondaryForeground);
+    --secondary-hover: var(--vscode-button-secondaryHoverBackground);
+    --muted: var(--vscode-list-hoverBackground);
+    --muted-foreground: var(--vscode-list-deemphasizedForeground);
+    --accent: var(--vscode-list-activeSelectionBackground);
+    --accent-foreground: var(--vscode-list-activeSelectionForeground);
+    --border: var(--vscode-panel-border);
+    --input: var(--vscode-input-background);
+    --ring: var(--vscode-focusBorder);
+    
+    /* Description Text */
+    --description: var(--vscode-descriptionForeground);
+  }
+}
+
+body {
+  background-color: var(--background);
+  color: var(--foreground);
+  font-family: var(--vscode-font-family, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif);
+  font-size: var(--vscode-font-size, 13px);
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  user-select: none;
+}
+
+/* Slim Scrollbar for Premium Feel */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--vscode-scrollbarSlider-background);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--vscode-scrollbarSlider-hoverBackground);
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease-out forwards;
+}
+
+/* Sidebar Section Header Style */
+.section-header {
+  font-size: 11px;
+  font-weight: bold;
+  text-transform: uppercase;
+  color: var(--description);
+  padding: 8px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  user-select: none;
+}
+
+.section-header:hover {
+  color: var(--foreground);
+}
+

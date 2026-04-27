@@ -4,8 +4,10 @@
   "description": "GitCat AI 통신 및 프롬프트 제어 파이프라인",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "type": "commonjs",
   "scripts": {
-    "build": "tsc"
+    "build": "tsc",
+    "test:mock": "ts-node -r tsconfig-paths/register src/run-mock.ts"
   },
   "dependencies": {
     "openai": "^4.20.0",
@@ -14,6 +16,13 @@
   },
   "devDependencies": {
     "typescript": "^5.3.3",
-    "@types/node": "^20.11.0"
+    "@types/node": "^20.11.0",
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0"
+  },
+  "ts-node": {
+    "compilerOptions": {
+      "module": "CommonJS"
+    }
   }
 }

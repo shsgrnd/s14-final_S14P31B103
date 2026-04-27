@@ -193,3 +193,12 @@ export const TriggerSourceEnum = z.enum([
   'recommendation_request',
 ]);
 export type TriggerSource = z.infer<typeof TriggerSourceEnum>;
+
+export const ConflictTypeEnum = z.enum([
+  'same_region',
+  'adjacent_change',
+  'signature_change',
+  'shared_module_impact',
+  'data_structure_change',
+]);
+export type ConflictType = z.infer<typeof ConflictTypeEnum>;
