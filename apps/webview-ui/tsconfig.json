@@ -1,11 +1,6 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "rootDir": "src",
-    "outDir": "dist"
-  },
-  "include": ["src/**/*"]
-  "compilerOptions": {
     "target": "ESNext",
     "useDefineForClassFields": true,
     "lib": ["DOM", "DOM.Iterable", "ESNext"],
@@ -21,8 +16,9 @@
     "isolatedModules": true,
     "noEmit": false,
     "outDir": "out",
+    "rootDir": "src",
     "jsx": "react-jsx",
-    "types": ["node", "vscode"]
+    "types": ["node"]
   },
   "include": ["src"],
   "references": [{ "path": "./tsconfig.node.json" }]

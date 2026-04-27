@@ -88,15 +88,17 @@ export type OutboundPayloadByType = {
  * `type` 값으로 분기하여 payload 스키마를 자동으로 좁히므로,
  * 라우터에서 switch(type) 시 타입 안정성이 크게 올라갑니다.
  */
+const inboundMessageSchemas = InboundMessageTypeEnum.options.map((type) =>
+  z.object({
+    type: z.literal(type),
+    payload: InboundPayloadSchemaMap[type],
+    requestId: z.string().optional(),
+  }),
+);
+
 export const InboundMessageSchema = z.discriminatedUnion(
   'type',
-  InboundMessageTypeEnum.options.map((type) =>
-    z.object({
-      type: z.literal(type),
-      payload: InboundPayloadSchemaMap[type],
-      requestId: z.string().optional(),
-    }),
-  ) as [z.ZodTypeAny, ...z.ZodTypeAny[]],
+  inboundMessageSchemas as any,
 );
 
 /**
@@ -105,13 +107,15 @@ export const InboundMessageSchema = z.discriminatedUnion(
  * Extension이 Webview로 보내는 응답/이벤트도
  * type별 payload 모양을 컴파일/런타임 양쪽에서 일치시키기 위해 사용합니다.
  */
+const outboundMessageSchemas = OutboundMessageTypeEnum.options.map((type) =>
+  z.object({
+    type: z.literal(type),
+    payload: OutboundPayloadSchemaMap[type],
+    requestId: z.string().optional(),
+  }),
+);
+
 export const OutboundMessageSchema = z.discriminatedUnion(
   'type',
-  OutboundMessageTypeEnum.options.map((type) =>
-    z.object({
-      type: z.literal(type),
-      payload: OutboundPayloadSchemaMap[type],
-      requestId: z.string().optional(),
-    }),
-  ) as [z.ZodTypeAny, ...z.ZodTypeAny[]],
+  outboundMessageSchemas as any,
 );
