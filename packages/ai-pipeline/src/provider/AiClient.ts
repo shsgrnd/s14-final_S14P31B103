@@ -1,18 +1,82 @@
 import { FeatureType } from '@gitcat/shared-types';
+import {
+  GitCatAIClient,
+  resolveGmsOpenAiBaseUrl,
+} from '../client';
+import { loadRootEnv } from '../config/load-root-env';
 
 export interface PromptPayload {
   systemPrompt: string;
   userPrompt: string;
 }
 
+export interface AiClientOptions {
+  mode?: 'mock' | 'live';
+  apiKey?: string;
+  model?: string;
+  temperature?: number;
+  timeoutMs?: number;
+  baseURL?: string;
+}
+
 export class AiClient {
+  private readonly mode: 'mock' | 'live';
+
+  private readonly liveClient?: GitCatAIClient;
+
+  constructor(options: AiClientOptions = {}) {
+    loadRootEnv();
+
+    this.mode = options.mode ?? (process.env.GITCAT_AI_MODE === 'live' ? 'live' : 'mock');
+
+    if (this.mode === 'live') {
+      const apiKey = options.apiKey ?? process.env.GMS_KEY;
+      const gmsBaseUrl = process.env.GMS_BASE_URL;
+
+      if (!apiKey) {
+        throw new Error(
+          'AiClient live mode requires GMS_KEY or an explicit apiKey option',
+        );
+      }
+      if (!gmsBaseUrl && !options.baseURL) {
+        throw new Error(
+          'AiClient live mode requires GMS_BASE_URL or an explicit baseURL option',
+        );
+      }
+
+      this.liveClient = new GitCatAIClient({
+        apiKey,
+        model: options.model ?? process.env.GMS_MODEL,
+        temperature: options.temperature,
+        timeoutMs: options.timeoutMs,
+        baseURL:
+          options.baseURL ??
+          resolveGmsOpenAiBaseUrl(gmsBaseUrl),
+      });
+    }
+  }
+
   /**
-   * LLM과 상호작용하기 위한 최소한의 추상 클라이언트
-   * featureType에 따라 mock 응답 반환
+   * mock 모드에서는 빠른 개발용 canned response를 반환하고,
+   * live 모드에서는 실제 OpenAI 호출을 수행합니다.
    */
   async generateResponse(featureType: FeatureType, payload: PromptPayload): Promise<string> {
-    // 실제 구현에서는 LLM 제공자에게 API 호출 수행
+    if (this.mode === 'live') {
+      return this.generateLiveResponse(payload);
+    }
 
+    return this.generateMockResponse(featureType);
+  }
+
+  private async generateLiveResponse(payload: PromptPayload): Promise<string> {
+    if (!this.liveClient) {
+      throw new Error('Live AI client is not initialized');
+    }
+
+    return this.liveClient.callModel(payload);
+  }
+
+  private generateMockResponse(featureType: FeatureType): string {
     switch (featureType) {
       case 'merge_patch_draft':
         return JSON.stringify({
