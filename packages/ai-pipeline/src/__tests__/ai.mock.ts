@@ -1,7 +1,10 @@
 import { 
   AiInputPayload, 
   AiInputPayloadSchema, 
-  ParsedAiResultSchema 
+  ParsedAiResultSchema,
+  ProposalFeedbackSchema,
+  ProposalFeedback,
+  ParsedAiResult,
 } from '@gitcat/shared-types';
 import { MergeAiService } from '../merge-proposal/MergeAiService';
 import { MergeResultParser } from '../parser/MergeResultParser';
@@ -36,6 +39,67 @@ export const mockAiInputPayload: AiInputPayload = {
   risk_summary: "Medium risk due to core auth module changes.",
   schema_version: "1.0.0"
 };
+
+export const mockParsedAiResults: ParsedAiResult[] = [
+  {
+    proposal_id: "aip_20260427_001",
+    session_id: "ais_20260427_001",
+    ai_request_id: "air_20260427_001",
+    feature_type: "merge_patch_draft",
+    title: "DTO 구조를 유지하면서 예외 처리 변경을 반영한 병합 초안",
+    summary: "develop의 응답 구조를 유지하고 feature 브랜치의 예외 처리 흐름을 선택 반영하는 안",
+    explanation: "공통 모듈 의존성을 고려하면 DTO 구조 변경을 최소화하는 것이 안전합니다.",
+    confidence_score: 0.82,
+    proposal_status: "parsed",
+    parser_version: "v1",
+    diff_patch_ref: "patch://local/aip_20260427_001/merge.patch",
+    merged_code_ref: "code://local/aip_20260427_001/merged.ts",
+    applied_files: ["src/auth/service.ts"],
+    validation_required: true,
+    validation_summary: "LoginResponseDto 타입 확인 필요",
+  },
+  {
+    proposal_id: "aip_20260427_002",
+    session_id: "ais_20260427_002",
+    ai_request_id: "air_20260427_002",
+    feature_type: "conflict_explanation",
+    title: "로그인 응답 형식 변경으로 인한 간접 충돌 가능성",
+    summary: "동일 라인 충돌은 없지만 응답 DTO 변경과 예외 처리 포맷 변경이 연결 지점에서 충돌할 수 있습니다.",
+    explanation: "직접 충돌보다 인터페이스 불일치가 핵심 위험입니다.",
+    confidence_score: 0.79,
+    proposal_status: "parsed",
+    parser_version: "v1",
+    cause_summary: "응답 DTO 구조와 예외 처리 포맷이 동시에 변경됨",
+    detailed_explanation: "컨트롤러, 서비스, DTO 간 데이터 흐름에서 반환 형식이 달라질 수 있습니다.",
+    related_files: ["src/auth/dto.ts", "src/auth/controller.ts"],
+    recommended_resolution_direction: "DTO 구조를 기준 브랜치에 맞추고 예외 처리만 선택 반영",
+    risk_level: "high",
+  },
+];
+
+export const mockProposalFeedbacks: ProposalFeedback[] = [
+  {
+    feedback_id: "fb_20260427_001",
+    proposal_id: "aip_20260427_001",
+    merge_proposal_id: "aip_20260427_001",
+    selection_status: "edited",
+    final_code_ref: "code://local/fb_20260427_001/final.ts",
+    final_explanation: "DTO는 develop 기준을 유지하고 예외 처리 로직만 선택 반영함",
+    quality_tag: "partially_useful",
+    feedback_note: "설명은 유용했지만 patch는 일부 수동 수정이 필요했음",
+    decided_at: "2026-04-27T10:30:00+09:00",
+  },
+  {
+    feedback_id: "fb_20260427_002",
+    proposal_id: "aip_20260427_002",
+    merge_proposal_id: "aip_20260427_002",
+    selection_status: "accepted",
+    final_explanation: "응답 DTO 불일치를 우선 해결하기로 결정",
+    quality_tag: "useful",
+    feedback_note: "원인 설명이 충분히 명확했음",
+    decided_at: "2026-04-27T10:35:00+09:00",
+  },
+];
 
 // --- 검증 함수들 ---
 
@@ -86,8 +150,39 @@ function testParser() {
   });
 }
 
+function testDocumentedMocks() {
+  console.log("\n--- [STEP 3] 문서 mock 검증 시작 ---");
+  console.log("목표: 개인 문서에 정리한 parsed_ai_result / proposal_feedback_payload 샘플이 실제 스키마를 통과하는지 확인");
+
+  mockParsedAiResults.forEach((mock) => {
+    try {
+      ParsedAiResultSchema.parse(mock);
+      console.log(`[PASS] parsed_ai_result mock 검증 완료`);
+      console.log(`      - Proposal ID: ${mock.proposal_id}`);
+      console.log(`      - Feature Type: ${mock.feature_type}`);
+    } catch (err: any) {
+      console.log(`[FAIL] parsed_ai_result mock 검증 실패`);
+      console.log(`      - Proposal ID: ${mock.proposal_id}`);
+      console.log(`      - 에러 내용: ${err.message}`);
+    }
+  });
+
+  mockProposalFeedbacks.forEach((mock) => {
+    try {
+      ProposalFeedbackSchema.parse(mock);
+      console.log(`[PASS] proposal_feedback_payload mock 검증 완료`);
+      console.log(`      - Feedback ID: ${mock.feedback_id}`);
+      console.log(`      - Selection Status: ${mock.selection_status}`);
+    } catch (err: any) {
+      console.log(`[FAIL] proposal_feedback_payload mock 검증 실패`);
+      console.log(`      - Feedback ID: ${mock.feedback_id}`);
+      console.log(`      - 에러 내용: ${err.message}`);
+    }
+  });
+}
+
 async function testFullServiceFlow() {
-  console.log("\n--- [STEP 3] 서비스 전체 흐름 검증 시작 ---");
+  console.log("\n--- [STEP 4] 서비스 전체 흐름 검증 시작 ---");
   console.log("목표: 입력 -> Prompt -> Client -> Parser -> Result 전체 과정을 시뮬레이션");
 
   const service = new MergeAiService();
@@ -138,6 +233,7 @@ export async function runMockAiPipelineDemo() {
 
   testInputSchema();
   testParser();
+  testDocumentedMocks();
   await testFullServiceFlow();
 
   console.log("\n" + "=".repeat(50));
