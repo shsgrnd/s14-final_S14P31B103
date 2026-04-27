@@ -1,0 +1,15 @@
+{
+  "name": "@gitcat/git-core",
+  "version": "0.1.0",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "lint": "echo \"No lint targets yet\"",
+    "test": "echo \"No tests yet\""
+  },
+  "dependencies": {
+    "@gitcat/git-client-cli": "workspace:*",
+    "@gitcat/shared-types": "workspace:*"
+  }
+}

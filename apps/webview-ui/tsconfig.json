@@ -1,4 +1,5 @@
 {
+  "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "target": "ESNext",
     "useDefineForClassFields": true,
@@ -15,8 +16,9 @@
     "isolatedModules": true,
     "noEmit": false,
     "outDir": "out",
+    "rootDir": "src",
     "jsx": "react-jsx",
-    "types": ["node", "vscode"]
+    "types": ["node"]
   },
   "include": ["src"],
   "references": [{ "path": "./tsconfig.node.json" }]
