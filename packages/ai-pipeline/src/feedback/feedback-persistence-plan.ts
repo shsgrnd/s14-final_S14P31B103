@@ -7,7 +7,7 @@ import {
   SelectionStatus,
   TrainingCandidatePayload,
 } from '@gitcat/shared-types';
-import type { CreateProposalFeedbackInput } from '@gitcat/shared-types/contracts/repositories';
+import type { CreateProposalFeedbackInput } from '@gitcat/shared-types';
 import {
   BuildProposalFeedbackPayloadInput,
   buildProposalFeedbackPayload,
