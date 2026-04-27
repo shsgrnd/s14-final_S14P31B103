@@ -48,6 +48,15 @@ export const RequestStatusEnum = z.enum([
 ]);
 export type RequestStatus = z.infer<typeof RequestStatusEnum>;
 
+// ai message error codes
+export const ErrorCodeEnum = z.enum([
+  'UNKNOWN',
+  'INVALID_INPUT',
+  'NOT_FOUND',
+  'INTERNAL',
+]);
+export type ErrorCode = z.infer<typeof ErrorCodeEnum>;
+
 // merge_proposals.status
 export const MergeProposalStatusEnum = z.enum([
   'generated',
@@ -60,6 +69,8 @@ export const MergeProposalStatusEnum = z.enum([
   'failed',
 ]);
 export type MergeProposalStatus = z.infer<typeof MergeProposalStatusEnum>;
+export const ProposalStatusEnum = MergeProposalStatusEnum;
+export type ProposalStatus = MergeProposalStatus;
 
 // proposal_feedbacks.selection_status
 export const SelectionStatusEnum = z.enum([
