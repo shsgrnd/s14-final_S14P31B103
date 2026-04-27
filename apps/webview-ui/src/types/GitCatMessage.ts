@@ -86,6 +86,6 @@ export interface AIDraft {
  */
 export interface Branch {
   name: string;
-  status: 'merged' | 'stale' | 'active';
+  status: 'merged' | 'stale' | 'active' | 'protected';
   lastActivity: string;
 }
