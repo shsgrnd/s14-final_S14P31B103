@@ -1,5 +1,5 @@
 import { GitStatus } from '../core/types';
-import { GitClientImpl } from '../services/GitClientImpl';
+import { GitClientImpl } from '../adapters/GitClientImpl';
 
 export class GitCommandHandler {
     static async handleGetStatus(): Promise<GitStatus> {

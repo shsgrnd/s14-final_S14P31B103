@@ -3,8 +3,8 @@ import type {
   MergeFeedbackServiceContract,
   MergeMetadataServiceContract,
   RecommendationServiceContract,
-} from '../../../../../packages/shared-types/src/contracts/services';
-import type { MessageValidator } from '../../../../../packages/shared-types/src/contracts/repositories';
+} from '@gitcat/shared-types/src/interfaces/services';
+import type { MessageValidator } from '@gitcat/shared-types/src/interfaces/repositories';
 
 /**
  * backend2가 제공하는 서비스 집합 계약입니다.

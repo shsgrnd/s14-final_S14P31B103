@@ -1,6 +1,6 @@
-import type { RepositoryBundle } from '../../storage/repositories/interfaces';
-import type { SettingsAndSecretsBundle } from '../../platform/settings/contracts';
-import type { Backend2ServiceBundle } from './backend2-contracts';
+import type { RepositoryBundle } from '../../storage/interfaces';
+import type { SettingsAndSecretsBundle } from '../../platform/settings/interfaces';
+import type { Backend2ServiceBundle } from './backend2-interfaces';
 
 /**
  * backend1이 소비하는 backend2 연동 계약입니다.

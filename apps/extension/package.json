@@ -60,5 +60,9 @@
     "@types/vscode": "^1.80.0",
     "@types/node": "18.x",
     "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "@gitcat/shared-types": "workspace:*",
+    "@gitcat/storage": "workspace:*"
   }
 }

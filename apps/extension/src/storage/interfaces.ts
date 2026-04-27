@@ -4,13 +4,28 @@ import type {
   MergeProposalRepository,
   ProposalFeedbackRepository,
   RecommendationHistoryRepository,
-} from '../../../../../packages/shared-types/src/contracts/repositories';
+} from '@gitcat/shared-types/src/interfaces/repositories';
+import { SnapshotMeta } from '../core/types';
+
+/**
+ * 단일 마이그레이션 단위입니다.
+ */
+export interface SqlMigration {
+  version: number;
+  name: string;
+  sql: string;
+}
+
+/**
+ * SQLite 스키마 부트스트랩 계약입니다.
+ */
+export interface SqliteSchemaBootstrapper {
+  getMigrations(): SqlMigration[];
+  migrate(): Promise<void>;
+}
 
 /**
  * SQLite 접근 어댑터 최소 계약입니다.
- *
- * repository 구현은 이 인터페이스만 의존하고,
- * 실제 드라이버(better-sqlite3/sqlite3 등)는 인프라 계층에서 감쌉니다.
  */
 export interface SQLiteDatabaseAdapter {
   run(sql: string, params?: unknown[]): Promise<void>;
@@ -21,9 +36,6 @@ export interface SQLiteDatabaseAdapter {
 
 /**
  * 저장소 의존성을 한 번에 주입하기 위한 번들 타입입니다.
- *
- * 백엔드1/백엔드2가 인터페이스 단위로 병렬 개발할 때
- * 조합 지점을 단순화하는 목적입니다.
  */
 export interface RepositoryBundle {
   recommendationHistories: RecommendationHistoryRepository;
@@ -31,4 +43,8 @@ export interface RepositoryBundle {
   mergeAnalyses: MergeAnalysisRepository;
   conflictCandidates: ConflictCandidateRepository;
   mergeProposals: MergeProposalRepository;
+
+  // workSessions: WorkSessionRepository;
+  // snapshots: SnapshotRepository;
+  // changeRecords: ChangeRecordRepository;
 }

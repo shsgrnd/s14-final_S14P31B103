@@ -2,7 +2,7 @@ import type {
   AppSettings,
   SecretsStore,
   SettingsStore,
-} from '../../../../../packages/shared-types/src/contracts/services';
+} from '@gitcat/shared-types/src/interfaces/services';
 
 /**
  * VS Code globalState를 감싸는 어댑터 계약입니다.
