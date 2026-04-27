@@ -219,3 +219,13 @@ export const CommitSuggestionSchema = z.object({
   description: z.string(),
 });
 export type CommitSuggestion = z.infer<typeof CommitSuggestionSchema>;
+
+// ==========================================
+// 11. Diff 결과 (DiffResult)
+// ==========================================
+
+export const DiffResultSchema = z.object({
+  file_path: z.string(),
+  hunks: z.array(z.string()),
+});
+export type DiffResult = z.infer<typeof DiffResultSchema>;
