@@ -38,6 +38,57 @@ function newWay() {
 
 ## 📌 기록 모음
 
+### 🗓️ 2026-04-27 AI 결과 계약 정리부터 표시/피드백/저장 helper 구현까지 (Task 9~16)
+**1. 배경 및 문제 상황**
+- `docs/api/ai/AI_work_breakdown.md` 기준으로 신형섭 담당 범위는 `display / feedback / save`였지만, 시작 시점에는 저장 경계, 타입 계약, mock 기준, 상태 전이 규칙이 문서와 코드에 흩어져 있었음.
+- 특히 `parsed_ai_result`와 `proposal_feedback_payload`가 어떤 식으로 저장 계층으로 이어지는지, recommendation까지 포함해 어떤 필드가 실제로 필요한지 정리되지 않아 Core/UI 담당과의 병렬 개발 경계가 흐려질 수 있었음.
+
+**2. 고려했던 대안들**
+- 대안 A: 각 팀원이 각자 구현하면서 필요할 때마다 문서와 타입을 맞춰가는 방식
+- 대안 B: 먼저 저장 경계/불일치/mock/검증 기준을 문서화하고, 그 후 AI 패키지 안에 `display / feedback / save` helper를 코드로 고정하는 방식
+
+**3. 최종 결정 및 논리**
+- **결정:** 대안 B 채택.
+- **Why:** 역할 분담상 신형섭은 Core 구현을 대신하는 것이 아니라 `parsed_ai_result` 이후 경계와 저장 메타데이터를 고정하는 쪽이 핵심이었기 때문임.  
+- 먼저 `Task 9~13`에서 저장 경계, 불일치 체크, 메시지 초안, mock, 검증 기준을 문서로 정리하고, 그 위에 `Task 15~16`으로 helper 코드를 올리는 순서가 병렬 개발에 가장 안전하다고 판단함.
+
+**4. 핵심 코드 변경 사항**
+```typescript
+// [After] 문서 기준 저장 경계 / 불일치 / mock / 검증 기준을 먼저 정리
+// 05_ai_result_storage_contract.md
+// 06_ai_contract_mismatch_checklist.md
+// 08_ai_result_mock_samples.md
+
+// [After] feedback 생성기
+const feedback = buildProposalFeedbackPayload({
+  parsed_result,
+  selection_status: "edited",
+  final_code_ref: "code://local/fb_xxx/final.ts",
+});
+
+// [After] 표시용 상태 전이
+const displayReady = buildDisplayReadyResult(parsedResult);
+// proposal_status: parsed -> displayed
+
+// [After] 저장 직전 산출물 묶음
+const plan = buildFeedbackPersistencePlan({
+  project_id,
+  parsed_result,
+  selection_status: "accepted",
+  training_candidate: {
+    dataset_type: "sft",
+    chosen_ref: "chosen://local/tc_xxx.json",
+  },
+});
+```
+
+**5. 결과 및 배운 점**
+- `Task 9~13` 기준으로는 저장 경계, 타입 불일치, 메시지 초안, mock, 검증 체크포인트가 문서로 정리되어 Core/UI 담당에게 설명 가능한 상태가 됨.
+- `proposal_feedback_payload` 생성, repository 저장 입력 변환, `training_candidate_payload` 생성, `parsed -> displayed -> accepted/edited/rejected` 전이 규칙까지 AI 패키지 내부에서 정리됨.
+- recommendation 결과의 `format_notes`, `warnings`도 타입/스키마에 반영해 문서와 코드 정합성을 높임.
+- 마지막으로 실패 케이스까지 mock 테스트에 넣어 `merge_patch_draft edited -> final_code_ref 필수`, `dpo -> rejected_ref 필요`, `merge_mediation source_type 미정` 같은 규칙 위반을 바로 감지하도록 고정함.
+- 이번 작업을 통해 "역할상 내 일이 아닌 구현을 대신하는 것"보다 "내 경계의 계약을 문서와 코드, mock 테스트로 고정하는 것"이 병렬 개발에서 훨씬 중요하다는 점을 다시 확인함.
+
 ### 🗓️ 2026-04-24 인프라 세팅용 브랜치 생성 및 작업 시작점 분리
 **1. 배경 및 문제 상황**
 - 초기 인프라 작업을 진행하기 전에, 공용 `develop` 브랜치에서 바로 작업하면 충돌 시 원인 추적이 어려워질 수 있었음.

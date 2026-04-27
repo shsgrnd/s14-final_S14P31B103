@@ -32,6 +32,21 @@
   - 실제 모델 연결 전에도 "결과 표시 → 수락/수정/거절 → 저장" 흐름을 검증할 수 있도록 체크포인트를 만든다.
   - 필요한 경우 코어 담당 협업 포인트와 UI 담당 전달 포인트를 구분한다.
   - 결과 문서: `infra/docs/personal/09_ai_result_flow_validation_checkpoints.md`
+- [x] **Task 15:** `proposal_feedback_payload` 생성기 및 저장 입력 변환기 구현
+  - `parsed_ai_result + selection_status`를 기준으로 feedback payload를 생성한다.
+  - `merge_patch_draft edited -> final_code_ref 필수` 같은 문서 규칙을 코드로 고정한다.
+  - repository 저장 직전 입력(`CreateProposalFeedbackInput`)으로 변환하는 helper를 추가한다.
+  - 결과 코드: `packages/ai-pipeline/src/feedback/proposal-feedback.ts`
+- [x] **Task 16:** AI 결과 표시 / 상태 전이 / 학습 후보화 helper 구현
+  - `parsed_ai_result -> displayed` 전이 및 display-ready 구조를 helper로 정리한다.
+  - `training_candidate_payload` 생성기와 persistence plan을 추가해 feedback/save 흐름을 mock으로 검증한다.
+  - recommendation 결과/feedback mock과 실패 케이스 검증까지 포함해 today scope를 마무리한다.
+  - 결과 코드:
+    - `packages/ai-pipeline/src/feedback/result-display.ts`
+    - `packages/ai-pipeline/src/feedback/proposal-lifecycle.ts`
+    - `packages/ai-pipeline/src/feedback/training-candidate.ts`
+    - `packages/ai-pipeline/src/feedback/feedback-persistence-plan.ts`
+    - `packages/ai-pipeline/src/__tests__/ai.mock.ts`
 
 ### 오늘 보류 / 후순위
 - [ ] **Task 14:** GitCat 배포 파이프라인 구축 (`.vsix` 패키징 자동화)

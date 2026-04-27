@@ -35,10 +35,13 @@
 *   **문제**: 단순 텍스트 프롬프트 기반의 병합 제안은 AI 특유의 할루시네이션(환각)으로 인해 괄호 누락, 참조 불일치 등 구조적 문법 오류를 동반할 위험이 큼.
 *   **해결 — 알고리즘 및 데이터 전략**:
     - 공식 OpenAI SDK를 연동한 클라이언트 통신 뼈대(client.ts)와 시스템 프롬프트 모듈을 구축했습니다. 특히 문서화된 `ai_input_payload` 스키마를 바탕으로 프롬프트 구조를 모듈화하여, AI 담당자가 비즈니스 로직에만 집중할 수 있도록 진입점과 JSDoc 상세 가이드라인을 제공했습니다.
+    - AI 결과가 나온 뒤의 후속 흐름인 `parsed_ai_result -> displayed -> proposal_feedback_payload -> training_candidate_payload` 경계를 별도 helper 계층으로 정리했습니다. 이를 통해 결과 표시용 view model, 사용자 수락/수정/거절 payload, 저장 직전 입력 변환, 상태 전이 규칙을 코드 레벨에서 고정했습니다.
+    - recommendation 기능까지 포함해 `commit_message`, `branch_name`, `work_description` 결과에 대한 mock 및 feedback 규칙을 확장하고, `format_notes`, `warnings` 같은 문서 필드를 실제 타입/스키마에 반영해 문서-코드 간 드리프트를 줄였습니다.
 *   **해결 — 정적 분석기(AST) 기반 방어 레이어**:
     - AI가 응답한 코드를 UI로 바로 노출하지 않고, 백그라운드에서 `TypeScript Compiler API` 및 `ESLint`를 동적으로 호출하여 코드의 유효성을 1차 검증하는 **Fail-safe Design** 적용.
 *   **성과**:
     - 사용자가 최종 병합 코드를 신뢰할 수 있도록 룰 기반(Rule-based) 검증 단계를 추가하여 확장 프로그램의 안정성과 사용자 경험(UX)을 대폭 향상.
+    - 실제 모델 호출 전에도 `display / feedback / save` 전체 흐름을 mock 기반으로 검증 가능하게 만들어, Core/UI 담당과의 병렬 개발 속도를 높이고 책임 경계를 명확히 했습니다.
 
 ---
 
@@ -59,6 +62,8 @@
 - **로컬 아키텍처 설계 경험 (Serverless MVP)**: 일반적인 웹 서버 개발을 넘어, VS Code Extension 내부에서 DB(SQLite)와 File System을 직접 핸들링하며 하이브리드하게 데이터를 쪼개어 저장/복원하는 시스템 설계 역량을 길렀습니다.
 
 - **AI 할루시네이션 제어 및 파서(Parser) 결합 역량**: AI 모델의 한계를 맹신하지 않고, 뒷단에 확실한 규칙 기반의 `정적 분석 레이어`를 배치함으로써(AI-Parser 결합) 치명적인 오류가 사용자에게 전파되지 않게 막는 **실패 방지 설계(Fail-safe Design)** 경험을 확보했습니다.
+
+- **AI 결과 후처리 계약 설계 경험**: 단순히 모델 응답을 받는 것에서 끝나지 않고, `parsed_ai_result`를 화면 표시용 구조로 정리하고, 사용자의 수락/수정/거절을 `proposal_feedback_payload`와 `training_candidate_payload`로 연결하는 후처리 파이프라인을 설계했습니다. 이를 통해 AI 결과를 실제 제품 흐름과 저장 구조에 연결하는 데이터 계약 설계 역량을 강화했습니다.
 
 - **모노레포 CI/CD, 의존성 관리 및 인프라 주도 경험**: `apps/`와 `packages/`로 나뉜 모노레포 아키텍처에서 빌드 파이프라인과 GitHub Actions를 직접 구축했습니다. 특히 `pnpm workspace` 기반의 공통 타입(`shared-types`) 참조 및 `tsconfig.base.json` 계층 구조 설정을 주도하여, 패키지 간 병합 충돌 시 발생하는 복잡한 타입스크립트 빌드 에러를 근본적으로 해결하는 깊이 있는 의존성 관리 역량을 축적했습니다.
 
