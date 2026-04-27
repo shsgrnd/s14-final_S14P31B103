@@ -79,4 +79,6 @@ htmlcov/
 
 # etc
 .codex
-/infra/docs/personal/
+infra/docs/personal/
+packages/shared-types/src/**/*.js
+packages/shared-types/src/**/*.js.map

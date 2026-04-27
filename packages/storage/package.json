@@ -4,7 +4,8 @@
   "main": "src/index.ts",
   "scripts": {
     "build": "tsc",
-    "lint": "eslint \"src/**/*.ts\""
+    "lint": "eslint \"src/**/*.ts\"",
+    "verify:sqlite": "node ./scripts/verify-better-sqlite3.cjs"
   },
   "dependencies": {
     "better-sqlite3": "^12.9.0"

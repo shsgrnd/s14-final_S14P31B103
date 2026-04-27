@@ -40,3 +40,32 @@ export const invalidResponseMocks = [
     })
   }
 ];
+
+export const invalidFeedbackBuilderMocks = [
+  {
+    name: "merge_patch_draft edited - final_code_ref 누락",
+    input: {
+      selection_status: "edited",
+      final_explanation: "설명만 있고 최종 코드 ref가 없음",
+    },
+  },
+];
+
+export const invalidTrainingCandidateBuilderMocks = [
+  {
+    name: "dpo - rejected_ref 누락",
+    input: {
+      dataset_type: "dpo",
+      prompt_ref: "prompt://local/air_invalid/request.txt",
+      chosen_ref: "chosen://local/tc_invalid.json",
+    },
+  },
+  {
+    name: "merge_mediation - source_type 미정",
+    input: {
+      dataset_type: "sft",
+      prompt_ref: "prompt://local/air_invalid/request.txt",
+      chosen_ref: "chosen://local/tc_invalid.json",
+    },
+  },
+];

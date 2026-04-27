@@ -1,49 +1,77 @@
 import OpenAI from 'openai';
 
+export const DEFAULT_GMS_GATEWAY_BASE_URL = 'https://gms.ssafy.io/gmsapi/';
+
+export interface GitCatAiClientConfig {
+  apiKey: string;
+  model?: string;
+  temperature?: number;
+  maxRetries?: number;
+  timeoutMs?: number;
+  baseURL?: string;
+}
+
+export interface GitCatAiRequest {
+  systemPrompt: string;
+  userPrompt: string;
+}
+
+function normalizeGatewayBaseUrl(baseUrl: string): string {
+  return baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+}
+
 /**
- * GitCat AI 통신 클라이언트입니다.
- * 이 클래스는 인프라 파트에서 주입해주는 API Key를 바탕으로 OpenAI API와 통신합니다.
- * 
- * [주의사항]
- * 남주완 담당자님: 이곳에서 OpenAI 라이브러리를 활용해 모델 호출, 재시도(Retry), 에러 핸들링을 구현하시면 됩니다.
- * 
- * @example
- * const aiClient = new GitCatAIClient(apiKey);
- * const response = await aiClient.generateMergeDraft(payload);
+ * GMS 게이트웨이 뒤에 OpenAI 호환 경로를 붙여,
+ * 최종 호출이 `.../gmsapi/api.openai.com/v1/chat/completions`로 나가도록 만듭니다.
+ */
+export function resolveGmsOpenAiBaseUrl(
+  gatewayBaseUrl: string = DEFAULT_GMS_GATEWAY_BASE_URL,
+): string {
+  return `${normalizeGatewayBaseUrl(gatewayBaseUrl)}api.openai.com/v1`;
+}
+
+/**
+ * OpenAI SDK를 감싸는 얇은 어댑터입니다.
+ * ai-pipeline 레이어에서는 이 객체를 통해 "실제 LLM 호출"만 수행하고,
+ * 프롬프트 구성이나 결과 파싱은 상위 서비스에서 계속 담당합니다.
  */
 export class GitCatAIClient {
-  private openai: OpenAI;
+  private readonly openai: OpenAI;
 
-  /**
-   * @param apiKey SecretManager를 통해 가져온 사용자 API Key
-   */
-  constructor(apiKey: string) {
-    this.openai = new OpenAI({ apiKey });
+  private readonly model: string;
+
+  private readonly temperature: number;
+
+  constructor(config: GitCatAiClientConfig) {
+    this.openai = new OpenAI({
+      apiKey: config.apiKey,
+      baseURL: config.baseURL ?? resolveGmsOpenAiBaseUrl(),
+      maxRetries: config.maxRetries ?? 2,
+      timeout: config.timeoutMs ?? 45_000,
+    });
+    this.model = config.model ?? 'gpt-4o-mini';
+    this.temperature = config.temperature ?? 0.2;
   }
 
   /**
-   * (임시 예시) AI에게 프롬프트를 보내고 응답을 받아옵니다.
-   * 실제 구현 시에는 남주완 담당자님이 정의된 인터페이스 규격(model_call_request 등)에 맞게
-   * 파라미터와 리턴 타입을 수정해 주시면 됩니다.
-   * 
-   * @param promptSystem 시스템 프롬프트 (템플릿에서 생성됨)
-   * @param promptUser 사용자 프롬프트 (페이로드 기반)
+   * 시스템/유저 프롬프트를 실제 모델로 전송하고 텍스트 응답을 반환합니다.
+   * structured output 계약은 시스템 프롬프트와 파서에서 함께 보장합니다.
    */
-  public async callModel(promptSystem: string, promptUser: string): Promise<string | null> {
-    try {
-      const response = await this.openai.chat.completions.create({
-        model: "gpt-4-turbo-preview", // 임시 모델명
-        messages: [
-          { role: "system", content: promptSystem },
-          { role: "user", content: promptUser }
-        ],
-        temperature: 0.2, // 환각(Hallucination) 방지를 위해 낮게 설정
-      });
+  public async callModel(request: GitCatAiRequest): Promise<string> {
+    const response = await this.openai.chat.completions.create({
+      model: this.model,
+      temperature: this.temperature,
+      messages: [
+        { role: 'system', content: request.systemPrompt },
+        { role: 'user', content: request.userPrompt },
+      ],
+    });
 
-      return response.choices[0].message.content;
-    } catch (error) {
-      console.error("[GitCat AI Error]", error);
-      throw error;
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      throw new Error('OpenAI returned an empty response content');
     }
+
+    return content;
   }
 }
