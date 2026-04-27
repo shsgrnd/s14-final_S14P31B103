@@ -29,23 +29,16 @@
         {
           "id": "gitcat-sidebar",
           "title": "GitCat",
-          "icon": "$(git-commit)"
+          "icon": "media/GitCat_icon.png"
         }
       ]
     },
     "views": {
       "gitcat-sidebar": [
         {
-          "id": "gitcat-git-view",
-          "name": "Git 작업"
-        },
-        {
-          "id": "gitcat-safety-view",
-          "name": "안전 계층"
-        },
-        {
-          "id": "gitcat-branch-view",
-          "name": "브랜치 정리"
+          "type": "webview",
+          "id": "gitcat-sidebar-webview",
+          "name": "GitCat Core"
         }
       ]
     }
