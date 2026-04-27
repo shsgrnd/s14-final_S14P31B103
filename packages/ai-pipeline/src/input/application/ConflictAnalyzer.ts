@@ -1,12 +1,25 @@
 import { GitClient } from '../ports/GitClient';
 import { ConflictCandidate, DiffResult } from '@gitcat/shared-types';
 import * as crypto from 'crypto';
+import { AstAnalyzer } from './AstAnalyzer';
+import * as path from 'path';
+
+/** AST 분석 지원 대상 파일 확장자 목록 */
+const AST_SUPPORTED_EXTENSIONS = ['.ts', '.tsx', '.js', '.jsx'];
 
 /**
- * 3-Way Diff 기반 충돌 후보(ConflictCandidate) 추출기
+ * 3-Way Diff + AST 기반 충돌 후보(ConflictCandidate) 추출기
  * I-06-analyze 규격을 구현합니다.
+ *
+ * 감지 전략:
+ *  1. (Line-based) 수정된 라인 범위가 서로 겹치거나 인접하면 'diff' 방식으로 충돌 후보 생성
+ *  2. (AST-based) JS/TS 파일에 한해, 서로 다른 라인을 건드렸더라도
+ *     같은 함수·메서드·클래스를 동시에 수정한 경우 'ast' 방식으로 충돌 후보 추가 생성
  */
 export class ConflictAnalyzer {
+  /** AST 분석을 담당하는 유틸리티 (TypeScript Compiler API 래퍼) */
+  private readonly astAnalyzer = new AstAnalyzer();
+
   constructor(private readonly gitClient: GitClient) { }
 
   /**
@@ -38,9 +51,25 @@ export class ConflictAnalyzer {
       if (targetFiles.has(filePath)) {
         const targetDiff = targetFiles.get(filePath)!;
 
-        // 4. 동일 파일 내 겹치거나 인접한(Adjacent) 변경 구간 식별
-        const conflicts = await this.detectLineConflicts(sourceDiff, targetDiff, filePath, source, target, mergeBase, analysisId, repoPath);
-        candidates.push(...conflicts);
+        // 4-A. 라인 기반(Line-based) 충돌 후보 추출 (모든 파일 대상)
+        const lineConflicts = await this.detectLineConflicts(
+          sourceDiff, targetDiff, filePath, source, target, mergeBase, analysisId, repoPath
+        );
+        candidates.push(...lineConflicts);
+
+        // 4-B. AST 기반 구조적 충돌 후보 추출 (JS/TS 파일만)
+        if (this.isSupportedForAst(filePath)) {
+          const astConflicts = await this.detectAstConflicts(
+            sourceDiff, targetDiff, filePath, source, target, mergeBase, analysisId, repoPath
+          );
+          // 라인 기반에서 이미 탐지된 구간과 중복되지 않는 경우만 추가합니다.
+          for (const astConflict of astConflicts) {
+            const alreadyCovered = lineConflicts.some(
+              (lc) => lc.line_start <= astConflict.line_start && astConflict.line_end <= lc.line_end
+            );
+            if (!alreadyCovered) candidates.push(astConflict);
+          }
+        }
       }
     }
 
@@ -49,7 +78,18 @@ export class ConflictAnalyzer {
   }
 
   /**
-   * 특정 파일 내에서 두 Diff 뭉치(Hunk)를 비교하여 겹치는 구간을 충돌로 간주하고 추출합니다.
+   * 파일 확장자가 AST 분석을 지원하는 형식인지 확인합니다.
+   * JS/TS 계열 파일(.ts .tsx .js .jsx)에 한해 AST 파싱을 적용합니다.
+   */
+  private isSupportedForAst(filePath: string): boolean {
+    const ext = path.extname(filePath).toLowerCase();
+    return AST_SUPPORTED_EXTENSIONS.includes(ext);
+  }
+
+  /**
+   * [Step 4-A] 라인 기반(Line-based) 충돌 감지.
+   * @@ 헤더에서 변경 라인 범위를 추출하고, 두 브랜치의 범위가 겹치거나 인접하면 충돌 후보로 등록합니다.
+   * detected_by: 'diff'
    */
   private async detectLineConflicts(
     sourceDiff: DiffResult,
@@ -63,31 +103,19 @@ export class ConflictAnalyzer {
   ): Promise<ConflictCandidate[]> {
     const candidates: ConflictCandidate[] = [];
 
-    // Hunk 파싱을 통해 변경된 라인 범위(start, end)를 추출해야 하나,
-    // 현재 구현에서는 간소화를 위해 파일 단위 겹침을 우선 하나의 거대한 덩어리로 가져오거나,
-    // 정규식을 통해 @@ -start,count +start,count @@ 에서 범위를 추출합니다.
     const sourceRanges = this.extractLineRanges(sourceDiff.hunks);
     const targetRanges = this.extractLineRanges(targetDiff.hunks);
 
     for (const sRange of sourceRanges) {
       for (const tRange of targetRanges) {
-        // 라인 겹침(Overlap) 또는 인접(Adjacent) 판별 (간단히 ±3 라인 여유)
+        // 라인 겹침(Overlap) 또는 인접(Adjacent) 판별 (±3 라인 여유)
         if (this.isOverlappingOrAdjacent(sRange, tRange, 3)) {
-          // 겹치는 전체 범위 계산
           const conflictStart = Math.min(sRange.start, tRange.start);
           const conflictEnd = Math.max(sRange.end, tRange.end);
 
-          // Base, Source, Target 코드 내용 조회
           const sourceCode = await this.gitClient.getFileContent(filePath, sourceRef, repoPath);
           const targetCode = await this.gitClient.getFileContent(filePath, targetRef, repoPath);
           const baseCode = await this.gitClient.getFileContent(filePath, baseRef, repoPath);
-
-          // (응용) 전체 코드 대신, 해당 라인 범위만 잘라서 넣을 수도 있습니다.
-          // 편의상 전체 코드를 넣고 AI 모델이 라인 넘버를 참고하도록 구성하거나,
-          // 잘라내는 유틸리티 로직을 여기에 추가할 수 있습니다.
-          const snippetSource = this.extractCodeSnippet(sourceCode, conflictStart, conflictEnd);
-          const snippetTarget = this.extractCodeSnippet(targetCode, conflictStart, conflictEnd);
-          const snippetBase = this.extractCodeSnippet(baseCode, conflictStart, conflictEnd);
 
           candidates.push({
             candidate_id: this.generateId('cc_'),
@@ -95,12 +123,90 @@ export class ConflictAnalyzer {
             file_path: filePath,
             line_start: conflictStart,
             line_end: conflictEnd,
-            source_code: snippetSource,
-            target_code: snippetTarget,
-            base_code: snippetBase,
-            conflict_type: 'same_region', // 또는 인접시 'adjacent_change'
-            reason_summary: '동일 시그니처 또는 로직 구간 동시 변경',
-            detected_by: 'diff', // DetectionMethodEnum.diff 에 대응
+            source_code: this.extractCodeSnippet(sourceCode, conflictStart, conflictEnd),
+            target_code: this.extractCodeSnippet(targetCode, conflictStart, conflictEnd),
+            base_code: this.extractCodeSnippet(baseCode, conflictStart, conflictEnd),
+            conflict_type: this.isOverlappingOrAdjacent(sRange, tRange, 0)
+              ? 'same_region'     // 실제로 겹치는 경우
+              : 'adjacent_change', // 겹치지는 않지만 매우 인접한 경우
+            reason_summary: '동일 또는 인접한 코드 구간에서 두 브랜치가 동시에 변경을 발생시킴',
+            detected_by: 'diff',
+          });
+        }
+      }
+    }
+
+    return candidates;
+  }
+
+  /**
+   * [Step 4-B] AST 기반 구조적 충돌 감지.
+   * 라인이 겹치지 않더라도, 두 브랜치가 같은 함수/메서드/클래스를 수정했다면 충돌 후보로 등록합니다.
+   * detected_by: 'ast'
+   *
+   * 예시:
+   *  - Source 브랜치: calculateTotal() 함수의 3번 라인 수정
+   *  - Target 브랜치: calculateTotal() 함수의 25번 라인 수정 (라인 겹침 없음)
+   *  → 같은 함수를 건드렸으므로 AST 기반 충돌 후보로 등록됩니다.
+   */
+  private async detectAstConflicts(
+    sourceDiff: DiffResult,
+    targetDiff: DiffResult,
+    filePath: string,
+    sourceRef: string,
+    targetRef: string,
+    baseRef: string,
+    analysisId: string,
+    repoPath?: string
+  ): Promise<ConflictCandidate[]> {
+    const candidates: ConflictCandidate[] = [];
+
+    // Base 시점의 파일 내용을 기준으로 AST를 파싱합니다.
+    // (Base 기준으로 파싱해야 Source와 Target 양쪽 변경 라인의 맥락을 공통으로 파악할 수 있습니다.)
+    const baseCode = await this.gitClient.getFileContent(filePath, baseRef, repoPath);
+    if (!baseCode) return []; // Base에 파일이 없으면 신규 파일이므로 AST 분석 불필요
+
+    // Base 코드를 AST로 분석하여 모든 논리 블록을 추출합니다.
+    const blocks = this.astAnalyzer.extractBlocks(baseCode, filePath);
+    if (blocks.length === 0) return []; // 분석 가능한 블록이 없으면 종료
+
+    const sourceRanges = this.extractLineRanges(sourceDiff.hunks);
+    const targetRanges = this.extractLineRanges(targetDiff.hunks);
+
+    // Source와 Target의 모든 변경 라인 조합을 비교합니다.
+    for (const sRange of sourceRanges) {
+      for (const tRange of targetRanges) {
+        // 이미 라인 기반에서 겹치는 구간은 detectLineConflicts에서 처리했으므로 제외합니다.
+        if (this.isOverlappingOrAdjacent(sRange, tRange, 3)) continue;
+
+        // Source 변경 라인의 '중간 지점'이 어느 논리 블록에 속하는지 확인합니다.
+        const sMidLine = Math.floor((sRange.start + sRange.end) / 2);
+        const tMidLine = Math.floor((tRange.start + tRange.end) / 2);
+
+        // 두 변경 지점이 같은 논리 블록(함수/클래스)에 속하면 구조적 충돌로 판단합니다.
+        if (this.astAnalyzer.isSameLogicalBlock(blocks, sMidLine, tMidLine)) {
+          // 해당 논리 블록의 전체 범위를 충돌 구간으로 사용합니다.
+          const containingBlock = this.astAnalyzer.findBlocksAtLine(blocks, sMidLine)
+            .at(-1)!; // 가장 안쪽(narrowest) 블록
+
+          const conflictStart = containingBlock.startLine;
+          const conflictEnd = containingBlock.endLine;
+
+          const sourceCode = await this.gitClient.getFileContent(filePath, sourceRef, repoPath);
+          const targetCode = await this.gitClient.getFileContent(filePath, targetRef, repoPath);
+
+          candidates.push({
+            candidate_id: this.generateId('ca_'), // 'ca_' prefix로 AST 탐지임을 명시
+            analysis_id: analysisId,
+            file_path: filePath,
+            line_start: conflictStart,
+            line_end: conflictEnd,
+            source_code: this.extractCodeSnippet(sourceCode, conflictStart, conflictEnd),
+            target_code: this.extractCodeSnippet(targetCode, conflictStart, conflictEnd),
+            base_code: this.extractCodeSnippet(baseCode, conflictStart, conflictEnd),
+            conflict_type: 'same_region',
+            reason_summary: `동일 논리 블록(${containingBlock.kind}: ${containingBlock.name})을 두 브랜치가 동시에 수정함`,
+            detected_by: 'ast', // AST 기반 탐지임을 명시
           });
         }
       }
