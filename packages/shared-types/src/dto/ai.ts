@@ -201,9 +201,16 @@ export type RecommendationHistory = z.infer<typeof RecommendationHistorySchema>;
 
 export const ProposalFeedbackSchema = z.object({
   feedback_id: z.string(),
+  // proposal_feedback_payload 문서 기준의 공통 식별자
+  proposal_id: z.string(),
+  // 기존 코드/저장 흐름 호환용 alias. 이후 proposal_id 기준으로 정리 권장
   merge_proposal_id: z.string().optional(),
-  session_id: z.string(),
+  recommendation_id: z.string().optional(),
+  session_id: z.string().optional(),
   selection_status: SelectionStatusEnum,
+  final_text: z.string().optional(),
+  final_code_ref: z.string().optional(),
+  final_explanation: z.string().optional(),
   input_summary: z.string().optional(),
   response_ref: z.string().optional(),
   feedback_note: z.string().optional(),
@@ -234,7 +241,7 @@ export interface ParsedAiResultBase {
   feature_type: FeatureType;
   title: string;
   summary: string;
-  proposal_status: string; // Enums에서 MergeProposalStatus와 매핑 가능
+  proposal_status: z.infer<typeof MergeProposalStatusEnum>;
   parser_version: string;
   explanation?: string;
   confidence_score?: number;

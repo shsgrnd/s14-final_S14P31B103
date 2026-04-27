@@ -51,8 +51,11 @@ export type RequestStatus = z.infer<typeof RequestStatusEnum>;
 // merge_proposals.status
 export const MergeProposalStatusEnum = z.enum([
   'generated',
+  'parsed',
   'displayed',
   'accepted',
+  'edited',
+  'rejected',
   'completed',
   'failed',
 ]);

@@ -26,9 +26,9 @@
 ## 📅 페이즈 2: 확장 프로그램 뼈대 및 Git 코어 연동 (Scaffolding & Git)
 > **목표:** VS Code 익스텐션으로서 구동할 수 있는 뼈대를 잡고, 사용자의 로컬 Git 상태를 제어할 수 있는 기반 모듈을 완성합니다.
 
-- [ ] **VS Code Secrets 기반 API Key 관리 모듈 연동 (`packages/storage/src/secrets`)**
+- [x] **VS Code Secrets 기반 API Key 관리 모듈 연동 (`packages/storage/src/secrets`)**
   - **Why:** AI 호출용 API 키를 평문으로 두지 않고 VS Code의 기본 보안 표준에 맞게 암호화하여 저장하기 위함.
-- [ ] **`apps/extension` 메인 엔트리포인트 구성 및 기본 명령어 등록**
+- [x] **`apps/extension` 메인 엔트리포인트 구성 및 기본 명령어 등록**
   - **Why:** 사용자가 Ctrl+Shift+P를 눌렀을 때 GitCat 명령어들이 정상적으로 호출되고 동작할 수 있도록 진입점을 뚫어주기 위함.
 - [ ] **`packages/git-core` 모듈 초기화 및 스냅샷 자동화 로직 구현**
   - **Why:** AI 작업이 시작되기 직전, 현재 워크스페이스의 uncommitted 변경사항을 감지하고 자동으로 스냅샷(백업)을 찍는 핵심 Git 연동 로직 필요.

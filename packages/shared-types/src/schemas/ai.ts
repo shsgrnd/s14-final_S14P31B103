@@ -17,7 +17,7 @@ export const ParsedAiResultBaseSchema = z.object({
   feature_type: FeatureTypeEnum,
   title: z.string(),
   summary: z.string(),
-  proposal_status: z.string(), // 'parsed' 등 상태값
+  proposal_status: MergeProposalStatusEnum,
   parser_version: z.string(),
   explanation: z.string().optional(),
   confidence_score: z.number().optional(),
