@@ -32,6 +32,13 @@ importers:
         version: 5.9.3
 
   apps/extension:
+    dependencies:
+      '@gitcat/shared-types':
+        specifier: workspace:*
+        version: link:../../packages/shared-types
+      '@gitcat/storage':
+        specifier: workspace:*
+        version: link:../../packages/storage
     devDependencies:
       '@types/node':
         specifier: 18.x

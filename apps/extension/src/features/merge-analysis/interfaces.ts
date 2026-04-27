@@ -1,13 +1,13 @@
 import type {
   MergeFeedbackServiceContract,
   MergeMetadataServiceContract,
-} from '../../../../../packages/shared-types/src/contracts/services';
+} from '@gitcat/shared-types/src/interfaces/services';
 import type {
   ConflictCandidate,
-  MergeAnalysisMeta,
+  MergeAnalysis,
   MergeProposal,
   ProposalFeedback,
-} from '../../../../../packages/shared-types/src/dto/ai';
+} from '@gitcat/shared-types/src/dto/ai';
 
 /**
  * 병합 분석/제안 오케스트레이터 계약입니다.
@@ -22,7 +22,7 @@ export interface MergeOrchestrator extends MergeFeedbackServiceContract, MergeMe
    * 이후 후보/제안 row가 analysis_id를 FK로 참조하므로
    * 일반적으로 가장 먼저 호출됩니다.
    */
-  createAnalysisMeta(meta: Omit<MergeAnalysisMeta, 'created_at'>): Promise<MergeAnalysisMeta>;
+  createAnalysisMeta(meta: Omit<MergeAnalysis, 'created_at'>): Promise<MergeAnalysis>;
   /**
    * 충돌 후보 목록을 저장합니다.
    */

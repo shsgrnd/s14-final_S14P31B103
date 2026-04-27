@@ -5,7 +5,7 @@ import {
   QualityTag,
   SelectionStatus,
 } from '@gitcat/shared-types';
-import type { CreateProposalFeedbackInput } from '@gitcat/shared-types/contracts/repositories';
+import type { CreateProposalFeedbackInput } from '@gitcat/shared-types';
 
 export interface BuildProposalFeedbackPayloadInput {
   parsed_result: ParsedAiResult;

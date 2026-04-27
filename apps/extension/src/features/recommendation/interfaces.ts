@@ -1,7 +1,7 @@
 import type {
   RecommendationServiceContract,
-} from '../../../../../packages/shared-types/src/contracts/services';
-import type { RecommendationInput, RecommendationHistory } from '../../../../../packages/shared-types/src/dto/ai';
+} from '@gitcat/shared-types/src/interfaces/services';
+import type { RecommendationInput, RecommendationHistory } from '@gitcat/shared-types/src/dto/ai';
 
 /**
  * 추천 오케스트레이터 계약입니다.

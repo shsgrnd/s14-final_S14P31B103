@@ -1,4 +1,4 @@
-import type { InboundPayload } from '../../../../packages/shared-types/src/dto/messages';
+import type { InboundPayload } from '@gitcat/shared-types/src/dto/messages';
 
 /**
  * 추천 관련 Inbound 메시지 핸들러 계약입니다.
