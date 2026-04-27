@@ -79,4 +79,4 @@ htmlcov/
 
 # etc
 .codex
-/infra/docs/personal/
+infra/docs/personal/
