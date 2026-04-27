@@ -7,3 +7,4 @@ export * from './provider/AiClient';
 export * from './parser/MergeResultParser';
 export * from './input/application/ConflictAnalyzer';
 export * from './input/application/AiInputService';
+export * from './input/application/TokenCounter';

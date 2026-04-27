@@ -5,6 +5,7 @@ import {
 } from '@gitcat/shared-types';
 import { GitClient } from '../ports/GitClient';
 import { ConflictAnalyzer } from './ConflictAnalyzer';
+import { TokenCounter } from './TokenCounter';
 
 /**
  * AI 입력을 위한 최종 Payload(Context)를 조립하는 오케스트레이션 서비스.
@@ -70,7 +71,13 @@ export class AiInputService {
       schema_version: '1.0.0',
     };
 
-    // 5. 데이터 무결성 검증 (Zod Validation)
+    // 5. 토큰 사용량 측정 (Step 2)
+    // tiktoken을 통해 조립된 Payload의 무게를 잽니다.
+    const tokenCounter = new TokenCounter();
+    const estimatedTokens = tokenCounter.countPayloadTokens(rawPayload);
+    console.log(`[AiInputService] Estimated tokens for payload: ${estimatedTokens} tokens`);
+
+    // 6. 데이터 무결성 검증 (Zod Validation)
     // 규격에 맞지 않는 데이터가 AI에게 전달되어 비용이 낭비되거나 에러가 나는 것을 방지합니다.
     try {
       console.log(`[AiInputService] Validating payload with Zod...`);

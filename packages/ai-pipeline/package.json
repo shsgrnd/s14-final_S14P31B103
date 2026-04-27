@@ -10,15 +10,16 @@
     "test:mock": "ts-node -r tsconfig-paths/register src/run-mock.ts"
   },
   "dependencies": {
+    "@gitcat/shared-types": "workspace:*",
     "openai": "^4.20.0",
     "simple-git": "^3.22.0",
-    "@gitcat/shared-types": "workspace:*"
+    "tiktoken": "^1.0.22"
   },
   "devDependencies": {
-    "typescript": "^5.3.3",
     "@types/node": "^20.11.0",
     "ts-node": "^10.9.2",
-    "tsconfig-paths": "^4.2.0"
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^5.3.3"
   },
   "ts-node": {
     "compilerOptions": {
