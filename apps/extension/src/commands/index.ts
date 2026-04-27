@@ -20,6 +20,18 @@ export class CommandRegistry {
             })
         );
 
+        // 스냅샷 관련 커맨드
+        context.subscriptions.push(
+            vscode.commands.registerCommand('gitcat.createSnapshot', async () => {
+                const { SnapshotCommandHandler } = await import('./SnapshotCommandHandler');
+                return await SnapshotCommandHandler.handleCreateSnapshot();
+            }),
+            vscode.commands.registerCommand('gitcat.restoreSnapshot', async () => {
+                const { RestoreCommandHandler } = await import('./RestoreCommandHandler');
+                return await RestoreCommandHandler.handleRestoreSnapshot('dummy-id');
+            })
+        );
+
         // 추가 커맨드 등록 위치
     }
 }

@@ -29,3 +29,8 @@ export interface SnapshotMeta {
     label: string;
     createdAt: string;
 }
+
+export interface Snapshot extends SnapshotMeta {
+    files?: string[];
+    commitHash?: string;
+}
