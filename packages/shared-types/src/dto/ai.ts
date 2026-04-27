@@ -19,6 +19,9 @@ import {
   MergeAnalysisStatusEnum,
   DatasetTypeEnum,
   SourceTypeEnum,
+  FeatureType,
+  RiskLevel,
+  RecommendationType,
 } from '../enums/ai';
 
 // ==========================================
@@ -219,3 +222,59 @@ export const CommitSuggestionSchema = z.object({
   description: z.string(),
 });
 export type CommitSuggestion = z.infer<typeof CommitSuggestionSchema>;
+
+// ==========================================
+// 11. Parsed AI 결과 (Service 간 전달용 DTO)
+// ==========================================
+
+export interface ParsedAiResultBase {
+  proposal_id: string;
+  session_id: string;
+  ai_request_id: string;
+  feature_type: FeatureType;
+  title: string;
+  summary: string;
+  proposal_status: string; // Enums에서 MergeProposalStatus와 매핑 가능
+  parser_version: string;
+  explanation?: string;
+  confidence_score?: number;
+}
+
+export interface MergePatchDraftResult extends ParsedAiResultBase {
+  feature_type: 'merge_patch_draft';
+  diff_patch_ref?: string;
+  merged_code_ref?: string;
+  applied_files: string[];
+  validation_required: boolean;
+  validation_summary: string;
+}
+
+export interface ConflictExplanationResult extends ParsedAiResultBase {
+  feature_type: 'conflict_explanation';
+  cause_summary: string;
+  detailed_explanation: string;
+  related_files: string[];
+  recommended_resolution_direction: string;
+  risk_level: RiskLevel;
+}
+
+export interface MergeMediationResult extends ParsedAiResultBase {
+  feature_type: 'merge_mediation';
+  recommended_option: string;
+  tradeoffs: string[];
+  recommended_next_action: string;
+}
+
+export interface RecommendationResult extends ParsedAiResultBase {
+  feature_type: 'recommendation';
+  recommendation_type: RecommendationType;
+  primary_text: string;
+  alternative_texts: string[];
+  generation_basis_summary?: string;
+}
+
+export type ParsedAiResult =
+  | MergePatchDraftResult
+  | ConflictExplanationResult
+  | MergeMediationResult
+  | RecommendationResult;
