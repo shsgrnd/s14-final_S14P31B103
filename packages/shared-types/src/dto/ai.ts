@@ -278,3 +278,13 @@ export type ParsedAiResult =
   | ConflictExplanationResult
   | MergeMediationResult
   | RecommendationResult;
+
+// ==========================================
+// 12. Diff 결과 (DiffResult)
+// ==========================================
+
+export const DiffResultSchema = z.object({
+  file_path: z.string(),
+  hunks: z.array(z.string()),
+});
+export type DiffResult = z.infer<typeof DiffResultSchema>;
