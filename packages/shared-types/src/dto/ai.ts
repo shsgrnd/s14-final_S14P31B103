@@ -220,7 +220,41 @@ export const ProposalFeedbackSchema = z.object({
 export type ProposalFeedback = z.infer<typeof ProposalFeedbackSchema>;
 
 // ==========================================
-// 10. 커밋 추천 결과 (AI pipeline 내부)
+// 10. 학습 후보 payload (training_candidate_payload)
+// ==========================================
+
+export const TrainingCandidatePayloadSchema = z.object({
+  training_candidate_id: z.string(),
+  proposal_id: z.string(),
+  feedback_id: z.string().optional(),
+  dataset_type: DatasetTypeEnum,
+  source_type: SourceTypeEnum,
+  prompt_ref: z.string().optional(),
+  chosen_ref: z.string().optional(),
+  rejected_ref: z.string().optional(),
+  is_approved: z.boolean().optional(),
+  is_exported: z.boolean().optional(),
+}).superRefine((data, ctx) => {
+  if ((data.dataset_type === 'sft' || data.dataset_type === 'dpo') && !data.chosen_ref) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['chosen_ref'],
+      message: 'chosen_ref is required when dataset_type is sft or dpo',
+    });
+  }
+
+  if (data.dataset_type === 'dpo' && !data.rejected_ref) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      path: ['rejected_ref'],
+      message: 'rejected_ref is required when dataset_type is dpo',
+    });
+  }
+});
+export type TrainingCandidatePayload = z.infer<typeof TrainingCandidatePayloadSchema>;
+
+// ==========================================
+// 11. 커밋 추천 결과 (AI pipeline 내부)
 // ==========================================
 
 export const CommitSuggestionSchema = z.object({
@@ -231,7 +265,7 @@ export const CommitSuggestionSchema = z.object({
 export type CommitSuggestion = z.infer<typeof CommitSuggestionSchema>;
 
 // ==========================================
-// 11. Parsed AI 결과 (Service 간 전달용 DTO)
+// 12. Parsed AI 결과 (Service 간 전달용 DTO)
 // ==========================================
 
 export interface ParsedAiResultBase {
@@ -278,6 +312,8 @@ export interface RecommendationResult extends ParsedAiResultBase {
   primary_text: string;
   alternative_texts: string[];
   generation_basis_summary?: string;
+  format_notes?: string;
+  warnings?: string[];
 }
 
 export type ParsedAiResult =
@@ -287,7 +323,7 @@ export type ParsedAiResult =
   | RecommendationResult;
 
 // ==========================================
-// 12. Diff 결과 (DiffResult)
+// 13. Diff 결과 (DiffResult)
 // ==========================================
 
 export const DiffResultSchema = z.object({

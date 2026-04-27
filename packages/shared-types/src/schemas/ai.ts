@@ -57,6 +57,8 @@ export const RecommendationResultSchema = ParsedAiResultBaseSchema.extend({
   primary_text: z.string(),
   alternative_texts: z.array(z.string()),
   generation_basis_summary: z.string().optional(),
+  format_notes: z.string().optional(),
+  warnings: z.array(z.string()).optional(),
 });
 
 export const ParsedAiResultSchema = z.discriminatedUnion('feature_type', [
