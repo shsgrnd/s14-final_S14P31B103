@@ -32,7 +32,10 @@ export class MergeAiService {
   /**
    * 입력 페이로드를 기반으로 AI 결과를 생성하고 파싱하는 주 진입점
    */
-  async processMergeRequest(payload: AiInputPayload): Promise<ParsedAiResult> {
+  async processMergeRequest(
+    payload: AiInputPayload,
+    options: { workspaceRoot?: string } = {},
+  ): Promise<ParsedAiResult> {
     // 1. Zod를 사용하여 입력 페이로드 검증
     const validatedPayload = AiInputPayloadSchema.parse(payload);
 
@@ -43,7 +46,12 @@ export class MergeAiService {
     const rawResponse = await this.client.generateResponse(validatedPayload.feature_type, prompt);
 
     // 4. Zod를 사용하여 출력 파싱 및 검증
-    const parsedResult = this.parser.parse(rawResponse, validatedPayload.feature_type, validatedPayload.session_id);
+    const parsedResult = await this.parser.parse(
+      rawResponse,
+      validatedPayload.feature_type,
+      validatedPayload.session_id,
+      { workspaceRoot: options.workspaceRoot },
+    );
 
     return parsedResult;
   }

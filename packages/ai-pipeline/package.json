@@ -14,6 +14,8 @@
     "@gitcat/shared-types": "workspace:*",
     "openai": "^4.20.0",
     "simple-git": "^3.22.0",
+    "@gitcat/shared-types": "workspace:*",
+    "@gitcat/storage": "workspace:*",
     "tiktoken": "^1.0.22"
   },
   "devDependencies": {
