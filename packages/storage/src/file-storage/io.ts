@@ -3,10 +3,11 @@ import * as path from 'path';
 import { flattenPath } from './path-utils';
 
 const GITCAT_SNAPSHOTS_DIR = '.vscode/gitcat/snapshots';
+const GITCAT_MERGE_SESSIONS_DIR = '.vscode/gitcat/merge-sessions';
 
 /**
  * TODO(core-storage):
- * 현재 file-storage는 snapshot originals만 다룬다.
+ * 현재 file-storage는 snapshot originals와 merge draft artifact 저장까지 다룬다.
  *
  * 문서 기준으로 이후 Core 담당자가 확장해야 할 후보:
  * - writeSnapshotMetadata / readSnapshotMetadata
@@ -15,13 +16,11 @@ const GITCAT_SNAPSHOTS_DIR = '.vscode/gitcat/snapshots';
  *   -> diff://local/{session_id}/working.diff
  * - writeAiResponse / readAiResponse
  *   -> response://local/{ai_request_id}/raw.json
- * - writePatchFile / readPatchFile
- *   -> patch://local/{proposal_id}/merge.patch
  * - writeFinalCode / readFinalCode
  *   -> code://local/{feedback_id}/final.ts
  *
  * 인프라/AI 담당자는 AI 저장 계약 관점에서 ref 형식만 먼저 제안했고,
- * 실제 함수 시그니처와 디렉터리 책임 분리는 Core 담당자와 합의 후 구현한다.
+ * merge_patch_draft 시연용 patch/code artifact만 먼저 구현했다.
  */
 
 /**
@@ -55,4 +54,93 @@ export async function readSnapshotFile(
   const targetPath = path.join(workspaceRoot, GITCAT_SNAPSHOTS_DIR, snapshotId, 'originals', flattenedName);
   
   return await fs.readFile(targetPath, 'utf8');
+}
+
+function getMergeProposalArtifactDir(
+  workspaceRoot: string,
+  sessionId: string,
+  proposalId: string,
+): string {
+  return path.join(
+    workspaceRoot,
+    GITCAT_MERGE_SESSIONS_DIR,
+    sessionId,
+    'ai-results',
+    proposalId,
+  );
+}
+
+function normalizeArtifactFileName(fileName: string): string {
+  return fileName.replace(/[^A-Za-z0-9._-]/g, '_');
+}
+
+export interface StoredArtifactRef {
+  ref: string;
+  absolute_path: string;
+}
+
+export async function writeMergePatchFile(
+  workspaceRoot: string,
+  sessionId: string,
+  proposalId: string,
+  content: string,
+): Promise<StoredArtifactRef> {
+  const targetDir = getMergeProposalArtifactDir(workspaceRoot, sessionId, proposalId);
+  const fileName = 'merge.patch';
+
+  await fs.mkdir(targetDir, { recursive: true });
+
+  const absolutePath = path.join(targetDir, fileName);
+  await fs.writeFile(absolutePath, content, 'utf8');
+
+  return {
+    ref: `patch://local/${proposalId}/${fileName}`,
+    absolute_path: absolutePath,
+  };
+}
+
+export async function writeMergedCodeFile(
+  workspaceRoot: string,
+  sessionId: string,
+  proposalId: string,
+  relativeFilePath: string | undefined,
+  content: string,
+): Promise<StoredArtifactRef> {
+  const targetDir = getMergeProposalArtifactDir(workspaceRoot, sessionId, proposalId);
+  const flattenedName = relativeFilePath
+    ? `merged__${flattenPath(relativeFilePath)}`
+    : 'merged_code.txt';
+  const fileName = normalizeArtifactFileName(flattenedName);
+
+  await fs.mkdir(targetDir, { recursive: true });
+
+  const absolutePath = path.join(targetDir, fileName);
+  await fs.writeFile(absolutePath, content, 'utf8');
+
+  return {
+    ref: `code://local/${proposalId}/${fileName}`,
+    absolute_path: absolutePath,
+  };
+}
+
+export function resolveProposalArtifactPath(
+  workspaceRoot: string,
+  sessionId: string,
+  proposalId: string,
+  ref: string,
+): string {
+  const match = ref.match(/^(patch|code):\/\/local\/([^/]+)\/(.+)$/);
+  if (!match) {
+    throw new Error(`Unsupported local artifact ref: ${ref}`);
+  }
+
+  const [, , refProposalId, rawFileName] = match;
+  if (refProposalId !== proposalId) {
+    throw new Error(
+      `Artifact ref proposal_id mismatch: expected ${proposalId}, received ${refProposalId}`,
+    );
+  }
+
+  const fileName = normalizeArtifactFileName(rawFileName);
+  return path.join(getMergeProposalArtifactDir(workspaceRoot, sessionId, proposalId), fileName);
 }

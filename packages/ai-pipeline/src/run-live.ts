@@ -1,4 +1,6 @@
 import { AiInputPayloadSchema } from '@gitcat/shared-types';
+import { resolveProposalArtifactPath } from '@gitcat/storage/file-storage/io';
+import path from 'path';
 import { loadRootEnv } from './config/load-root-env';
 import { liveDemoScenarios, listLiveDemoScenarioNames } from './demo/live-inputs';
 import { MergeAiService } from './merge-proposal/MergeAiService';
@@ -13,6 +15,7 @@ function printUsage(): void {
 
 async function main(): Promise<void> {
   loadRootEnv();
+  const workspaceRoot = path.resolve(__dirname, '../../..');
 
   const args = process.argv.slice(2).filter((arg) => arg !== '--');
   const scenarioName = args[0];
@@ -44,9 +47,31 @@ async function main(): Promise<void> {
     console.log(`[GitCat AI] Recommendation type: ${payload.recommendation_type}`);
   }
 
-  const result = await service.processMergeRequest(payload);
+  const result = await service.processMergeRequest(payload, { workspaceRoot });
   console.log('[GitCat AI] Parsed result:');
   console.log(JSON.stringify(result, null, 2));
+  if (result.feature_type === 'merge_patch_draft') {
+    if (result.diff_patch_ref) {
+      console.log(
+        `[GitCat AI] Saved diff patch artifact: ${resolveProposalArtifactPath(
+          workspaceRoot,
+          result.session_id,
+          result.proposal_id,
+          result.diff_patch_ref,
+        )}`,
+      );
+    }
+    if (result.merged_code_ref) {
+      console.log(
+        `[GitCat AI] Saved merged code artifact: ${resolveProposalArtifactPath(
+          workspaceRoot,
+          result.session_id,
+          result.proposal_id,
+          result.merged_code_ref,
+        )}`,
+      );
+    }
+  }
 }
 
 main().catch((error) => {

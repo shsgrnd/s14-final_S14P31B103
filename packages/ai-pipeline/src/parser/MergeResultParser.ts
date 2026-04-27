@@ -1,14 +1,20 @@
 import { FeatureType, ParsedAiResult, ParsedAiResultSchema } from '@gitcat/shared-types';
+import { materializeAiArtifacts } from '../artifacts/merge-result-artifacts';
+
+export interface ParseAiResultOptions {
+  workspaceRoot?: string;
+}
 
 export class MergeResultParser {
   /**
    * 원시 LLM JSON 텍스트를 정규화된 ParsedAiResult로 파싱
    */
-  parse(
+  async parse(
     rawText: string,
     featureType: FeatureType,
-    sessionId: string
-  ): ParsedAiResult {
+    sessionId: string,
+    options: ParseAiResultOptions = {},
+  ): Promise<ParsedAiResult> {
     let parsedJson: any;
     try {
       // 마크다운 코드 블록(```json ... ```)에서 JSON 추출 시도
@@ -33,9 +39,16 @@ export class MergeResultParser {
       proposal_status: 'parsed',
       parser_version: '1.0.0',
     };
+    const materializedData = await materializeAiArtifacts({
+      workspaceRoot: options.workspaceRoot,
+      proposalId: enrichedData.proposal_id,
+      sessionId,
+      featureType,
+      parsedJson: enrichedData,
+    });
 
     // Zod 스키마를 사용하여 검증
-    const result = ParsedAiResultSchema.parse(enrichedData);
+    const result = ParsedAiResultSchema.parse(materializedData);
     return result as ParsedAiResult;
   }
 }

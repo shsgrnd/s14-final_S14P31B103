@@ -91,6 +91,8 @@ export function getMergePatchDraftSystemPrompt(): string {
     'The JSON must match the merge_patch_draft parsed_ai_result contract.',
     'Required JSON fields: title, summary, applied_files, validation_required, validation_summary.',
     'At least one of diff_patch_ref or merged_code_ref must be included.',
+    'When possible, also include diff_patch as unified diff text or merged_code as the full merged file content so the platform can store a real local artifact.',
+    'If you include diff_patch or merged_code, still keep applied_files accurate.',
     'Optional JSON fields: explanation, confidence_score.',
     'applied_files must be an array of file paths present in the payload context.',
   ].join(' ');
@@ -141,6 +143,7 @@ export function buildMergePatchDraftUserPrompt(payload: MergeProposalInput): str
     '- Propose a merge draft that integrates the source and target changes safely.',
     '- Prefer minimal edits that preserve behavior unless the context clearly requires a larger change.',
     '- Identify which files should be applied and whether human validation is required.',
+    '- Prefer returning diff_patch as a unified diff. If that is not practical, return merged_code for the primary file instead.',
   ].join('\n');
 }
 

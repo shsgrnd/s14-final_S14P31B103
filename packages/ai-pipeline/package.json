@@ -13,7 +13,8 @@
   "dependencies": {
     "openai": "^4.20.0",
     "simple-git": "^3.22.0",
-    "@gitcat/shared-types": "workspace:*"
+    "@gitcat/shared-types": "workspace:*",
+    "@gitcat/storage": "workspace:*"
   },
   "devDependencies": {
     "typescript": "^5.3.3",
