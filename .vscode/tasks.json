@@ -1,0 +1,49 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "pnpm compile",
+            "type": "shell",
+            "command": "pnpm",
+            "args": [
+                "run",
+                "compile"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}/apps/extension"
+            },
+            "group": "build",
+            "presentation": {
+                "panel": "dedicated",
+                "reveal": "never"
+            },
+            "problemMatcher": [
+                "$tsc"
+            ]
+        },
+        {
+            "label": "pnpm watch",
+            "type": "shell",
+            "command": "pnpm",
+            "args": [
+                "run",
+                "watch"
+            ],
+            "options": {
+                "cwd": "${workspaceFolder}/apps/extension"
+            },
+            "isBackground": true,
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
+            "presentation": {
+                "panel": "dedicated",
+                "reveal": "never"
+            },
+            "problemMatcher": [
+                "$tsc-watch"
+            ]
+        }
+    ]
+}
