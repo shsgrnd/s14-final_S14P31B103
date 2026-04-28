@@ -4,11 +4,7 @@
         {
             "label": "pnpm compile",
             "type": "shell",
-            "command": "pnpm",
-            "args": [
-                "run",
-                "compile"
-            ],
+            "command": "pnpm --filter @gitcat/storage run build; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; pnpm --filter @gitcat/shared-types run build; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; pnpm run compile",
             "options": {
                 "cwd": "${workspaceFolder}/apps/extension"
             },
