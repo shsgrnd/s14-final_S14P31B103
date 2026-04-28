@@ -23,6 +23,22 @@ export const InboundMessageTypeEnum = z.enum([
   'REFRESH_STATUS',
   'GET_SNAPSHOT_LIST',
   'GET_BRANCH_LIST',
+  // 추가된 메시지 타입
+  'CREATE_SNAPSHOT',
+  'RENAME_SNAPSHOT',
+  'TOGGLE_SNAPSHOT_STAR',
+  'GET_SNAPSHOT_FILES',
+  'OPEN_FILE_DIFF',
+  'EXECUTE_PULL',
+  'OPEN_DIFF_EDITOR',
+  'SET_CONFIG',
+  'GET_AI_DRAFT',
+  'EXECUTE_COMMIT',
+  'GIT_ADD_ALL',
+  'GIT_PUSH',
+  'OPEN_MERGE_PANEL',
+  'CHECKOUT_BRANCH',
+  'REJECT_AI_DRAFT',
 ]);
 export type InboundMessageType = z.infer<typeof InboundMessageTypeEnum>;
 
@@ -46,5 +62,6 @@ export const OutboundMessageTypeEnum = z.enum([
   'BRANCH_LIST',
   'ERROR',
   'LOADING',
+  'NOTIFICATION',
 ]);
 export type OutboundMessageType = z.infer<typeof OutboundMessageTypeEnum>;

@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useGitCatStore } from './store/useGitCatStore';
-import { useVsCodeApi } from './hooks/useVsCodeApi';
+import { useVsCodeApi, sendMessage } from './hooks/useVsCodeApi';
 import { SnapshotTimeline } from './components/safety/SnapshotTimeline';
 import { ConflictAnalysisView } from './components/merge/ConflictAnalysisView';
 import { AIDraftPanel } from './components/merge/AIDraftPanel';
@@ -20,9 +20,13 @@ declare global {
  * GitCat WebView의 메인 엔트리 포인트입니다.
  */
 function App() {
-  const { handleMessage, snapshots, branches } = useGitCatStore();
-  const { sendMessage } = useVsCodeApi();
+  console.log('[Webview] App Rendering...');
+  const handleMessage = useGitCatStore(state => state.handleMessage);
+  const snapshots = useGitCatStore(state => state.snapshots);
+  const branches = useGitCatStore(state => state.branches);
+  
   const [activeMainView, setActiveMainView] = useState<'draft' | 'commit'>('draft');
+  const initialFetchDone = useRef(false);
 
   // Sidebar Sections Expanded States
   const [expanded, setExpanded] = useState({
@@ -33,12 +37,19 @@ function App() {
 
   useEffect(() => {
     window.addEventListener('message', handleMessage);
-    sendMessage('GET_SNAPSHOTS');
-    sendMessage('GET_BRANCHES');
     return () => {
       window.removeEventListener('message', handleMessage);
     };
-  }, [handleMessage, sendMessage]);
+  }, [handleMessage]);
+
+  useEffect(() => {
+    if (initialFetchDone.current) return;
+    initialFetchDone.current = true;
+    
+    console.log('[Webview] Sending initial fetch requests...');
+    sendMessage('GET_SNAPSHOT_LIST', {});
+    sendMessage('GET_BRANCH_LIST', {});
+  }, []); // Only run once on mount
 
   const viewMode = window.VIEW_MODE || 'sidebar';
 

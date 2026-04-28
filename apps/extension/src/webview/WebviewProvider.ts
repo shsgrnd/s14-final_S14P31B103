@@ -1,10 +1,13 @@
 import * as vscode from 'vscode';
-import { MessageRouter } from './MessageRouter';
+import { MessageRouter } from '../core/MessageRouter';
 
 export class WebviewProvider {
     private panel: vscode.WebviewPanel | undefined;
 
-    constructor(private context: vscode.ExtensionContext) { }
+    constructor(
+        private context: vscode.ExtensionContext,
+        private readonly messageRouter: MessageRouter
+    ) { }
 
     public createOrShow() {
         const column = vscode.window.activeTextEditor
@@ -31,7 +34,7 @@ export class WebviewProvider {
         // 프론트엔드로부터 오는 메시지 수신 (Message Router로 전달)
         this.panel.webview.onDidReceiveMessage(
             message => {
-                MessageRouter.route(message, this.panel!.webview);
+                this.messageRouter.route(message, this.panel!.webview);
             },
             null,
             this.context.subscriptions
