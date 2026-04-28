@@ -19,17 +19,28 @@ import {
   materializeFeedbackArtifacts,
 } from '../artifacts/feedback-artifacts';
 import {
+  MaterializedTrainingCandidateArtifacts,
+  materializeTrainingCandidateArtifacts,
+} from '../artifacts/training-candidate-artifacts';
+import {
   normalizeProposalStatusForSelection,
   selectionStatusToLifecycleEvent,
   transitionProposalStatus,
 } from './proposal-lifecycle';
-import { buildTrainingCandidatePayload } from './training-candidate';
+import {
+  buildTrainingCandidatePayload,
+  generateTrainingCandidateId,
+} from './training-candidate';
 
 export interface TrainingCandidatePlanInput {
   dataset_type: DatasetType;
   prompt_ref?: string;
   chosen_ref?: string;
   rejected_ref?: string;
+  // 실제 prompt 원문이 있으면 artifact 파일로 저장한 뒤 prompt_ref로 바꿉니다.
+  prompt_text?: string;
+  // DPO 비교용 rejected artifact에 남길 간단한 사유 메모입니다.
+  rejected_reason?: string;
   training_candidate_id?: string;
   is_approved?: boolean;
   is_exported?: boolean;
@@ -65,6 +76,7 @@ export interface FeedbackPersistencePlan {
 
 export interface MaterializedFeedbackPersistencePlan extends FeedbackPersistencePlan {
   materialized_feedback_artifacts: MaterializedFeedbackArtifacts;
+  materialized_training_candidate_artifacts?: MaterializedTrainingCandidateArtifacts;
 }
 
 /**
@@ -136,14 +148,63 @@ export async function buildMaterializedFeedbackPersistencePlan(
     relativeFilePath: input.final_code_file_path,
   });
 
-  const persistencePlan = buildFeedbackPersistencePlan({
+  const feedbackReadyInput: BuildFeedbackPersistencePlanInput = {
     ...input,
     feedback_id: feedbackId,
     final_code_ref: input.final_code_ref ?? materializedArtifacts.final_code_ref,
+  };
+
+  const feedbackPlan = buildFeedbackPersistencePlan({
+    ...feedbackReadyInput,
+    training_candidate: undefined,
+  });
+  let materializedTrainingCandidateArtifacts:
+    | MaterializedTrainingCandidateArtifacts
+    | undefined;
+  // training candidate는 ref 생성 전에 ID가 먼저 고정돼야
+  // 실제 저장 파일과 payload가 같은 경로를 가리킬 수 있습니다.
+  const trainingCandidateId = input.training_candidate
+    ? input.training_candidate.training_candidate_id ?? generateTrainingCandidateId()
+    : undefined;
+
+  if (input.training_candidate) {
+    if (trainingCandidateId) {
+      materializedTrainingCandidateArtifacts =
+        await materializeTrainingCandidateArtifacts({
+          workspaceRoot: input.workspace_root,
+          parsedResult: input.parsed_result,
+          feedback: feedbackPlan.proposal_feedback_payload,
+          datasetType: input.training_candidate.dataset_type,
+          trainingCandidateId,
+          promptText: input.training_candidate.prompt_text,
+          rejectedReason: input.training_candidate.rejected_reason,
+        });
+    }
+  }
+
+  const persistencePlan = buildFeedbackPersistencePlan({
+    ...feedbackReadyInput,
+    training_candidate: input.training_candidate
+      ? {
+          ...input.training_candidate,
+          // 파일로 구체화한 ref가 있으면 payload 생성 시 그 값을 우선 사용합니다.
+          training_candidate_id: trainingCandidateId,
+          prompt_ref:
+            input.training_candidate.prompt_ref ??
+            materializedTrainingCandidateArtifacts?.prompt_ref,
+          chosen_ref:
+            input.training_candidate.chosen_ref ??
+            materializedTrainingCandidateArtifacts?.chosen_ref,
+          rejected_ref:
+            input.training_candidate.rejected_ref ??
+            materializedTrainingCandidateArtifacts?.rejected_ref,
+        }
+      : undefined,
   });
 
   return {
     ...persistencePlan,
     materialized_feedback_artifacts: materializedArtifacts,
+    materialized_training_candidate_artifacts: materializedTrainingCandidateArtifacts,
   };
 }

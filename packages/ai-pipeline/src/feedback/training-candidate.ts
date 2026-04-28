@@ -23,7 +23,7 @@ export interface BuildTrainingCandidatePayloadInput {
  * training_candidate_payload 식별자를 생성합니다.
  * feedback/proposal과 같은 방식으로 로컬 MVP 문서의 ID 규칙을 따릅니다.
  */
-function generateTrainingCandidateId(now: Date = new Date()): string {
+export function generateTrainingCandidateId(now: Date = new Date()): string {
   const yyyymmdd = now.toISOString().slice(0, 10).replace(/-/g, '');
   const suffix = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
   return `tc_${yyyymmdd}_${suffix}`;
