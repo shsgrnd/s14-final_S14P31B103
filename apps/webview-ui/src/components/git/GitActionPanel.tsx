@@ -28,7 +28,7 @@ export const GitActionPanel: React.FC = () => {
   const handleCommit = () => {
     if (showCommitForm) {
       if (!commitMessage.trim()) return;
-      sendMessage('GIT_COMMIT', { message: commitMessage });
+      sendMessage('EXECUTE_COMMIT', { message: commitMessage });
       showStatus('Git commit이 완료되었습니다.', true);
       setCommitMessage('');
       setShowCommitForm(false);
@@ -49,7 +49,7 @@ export const GitActionPanel: React.FC = () => {
 
   const handleCreateBranch = () => {
     if (!newBranchName.trim()) return;
-    sendMessage('CREATE_BRANCH', { name: newBranchName });
+    sendMessage('APPLY_BRANCH', { name: newBranchName });
     setNewBranchName('');
     setShowNewBranch(false);
   };
@@ -277,7 +277,7 @@ export const GitActionPanel: React.FC = () => {
           />
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
             <button
-              onClick={() => { sendMessage('AI_SUGGEST_BRANCH', { prompt: aiPrompt }); setShowBranchAI(false); }}
+              onClick={() => { sendMessage('RECOMMEND_BRANCH', { purpose: aiPrompt }); setShowBranchAI(false); }}
               style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', padding: '6px 14px', background: 'var(--vscode-charts-purple)', color: '#fff', border: 'none', borderRadius: '3px', cursor: 'pointer' }}
             >
               <CornerDownRight size={13} /> 엔터

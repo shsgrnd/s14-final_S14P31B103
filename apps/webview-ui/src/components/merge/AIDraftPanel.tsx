@@ -20,7 +20,10 @@ export const AIDraftPanel: React.FC = () => {
   }
 
   const handleApprove = () => {
-    sendMessage('APPROVE_AI_DRAFT', { id: currentAIDraft.id });
+    sendMessage('ACCEPT_MERGE', {
+      filePath: currentAIDraft.filePath,
+      code: currentAIDraft.proposedContent
+    });
     setAIDraft(null);
   };
 
@@ -37,9 +40,9 @@ export const AIDraftPanel: React.FC = () => {
           <span className="px-2 py-0.5 rounded bg-[var(--vscode-charts-purple)] bg-opacity-20 text-[var(--vscode-charts-purple)] text-[10px] font-bold uppercase tracking-widest shrink-0">AI Mediation</span>
           <h1 className="text-[13px] font-bold truncate">{currentAIDraft.filePath}</h1>
         </div>
-        
+
         <div className="flex items-center space-x-2">
-          <button 
+          <button
             onClick={handleReject}
             className="flex items-center space-x-1.5 px-3 py-1.5 rounded bg-[var(--secondary)] hover:bg-[var(--secondary-hover)] text-[11px] font-bold transition-all"
           >
@@ -50,7 +53,7 @@ export const AIDraftPanel: React.FC = () => {
             <Edit3 size={14} />
             <span>수정 후 반영</span>
           </button>
-          <button 
+          <button
             onClick={handleApprove}
             className="flex items-center space-x-1.5 px-4 py-1.5 rounded bg-[var(--primary)] hover:bg-[var(--primary-hover)] text-[var(--primary-foreground)] text-[11px] font-bold shadow-lg transition-all"
           >
@@ -95,7 +98,7 @@ export const AIDraftPanel: React.FC = () => {
           </div>
           <div className="flex-1 p-4 font-mono text-[12px] overflow-auto custom-scrollbar relative">
             <pre className="leading-5">{currentAIDraft.proposedContent}</pre>
-            
+
             {/* Inline AI Opinion Floating Card */}
             <div className="absolute bottom-4 left-4 right-4 p-4 rounded-lg bg-[var(--card)] border border-[var(--vscode-charts-purple)] border-opacity-30 shadow-2xl animate-fade-in">
               <div className="flex items-start space-x-3">

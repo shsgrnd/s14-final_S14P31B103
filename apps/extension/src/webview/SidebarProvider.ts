@@ -1,10 +1,13 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
-import { MessageRouter } from './MessageRouter';
+import { MessageRouter } from '../core/MessageRouter';
 
 export class SidebarProvider implements vscode.WebviewViewProvider {
-    constructor(private readonly context: vscode.ExtensionContext) {}
+    constructor(
+        private readonly context: vscode.ExtensionContext,
+        private readonly messageRouter: MessageRouter
+    ) {}
 
     public resolveWebviewView(
         webviewView: vscode.WebviewView,
@@ -25,7 +28,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         // 프론트엔드 메시지 라우터 연결
         webviewView.webview.onDidReceiveMessage(
             message => {
-                MessageRouter.route(message, webviewView.webview);
+                this.messageRouter.route(message, webviewView.webview);
             },
             undefined,
             this.context.subscriptions

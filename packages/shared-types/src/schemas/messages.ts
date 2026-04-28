@@ -6,6 +6,12 @@ import {
   ConflictCandidateSchema,
   MergeProposalSchema,
 } from '../dto/ai';
+import {
+  SnapshotSchema,
+  ConflictAnalysisSchema,
+  AIDraftSchema,
+  BranchSchema,
+} from '../dto/git';
 
 /**
  * 메시지 공통 봉투(envelope) 구조입니다.
@@ -43,6 +49,22 @@ export const InboundPayloadSchemaMap = {
   REFRESH_STATUS: z.object({}).strict(),
   GET_SNAPSHOT_LIST: z.object({}).strict(),
   GET_BRANCH_LIST: z.object({}).strict(),
+  // 추가된 메시지 스키마
+  CREATE_SNAPSHOT: z.object({ title: z.string().optional() }),
+  RENAME_SNAPSHOT: z.object({ snapshotId: z.string(), newTitle: z.string() }),
+  TOGGLE_SNAPSHOT_STAR: z.object({ snapshotId: z.string() }),
+  GET_SNAPSHOT_FILES: z.object({ snapshotId: z.string() }),
+  OPEN_FILE_DIFF: z.object({ filePath: z.string(), snapshotId: z.string().optional() }),
+  EXECUTE_PULL: z.object({}).strict(),
+  OPEN_DIFF_EDITOR: z.object({ filePath: z.string() }),
+  SET_CONFIG: z.object({ config: z.any() }),
+  GET_AI_DRAFT: z.object({ filePath: z.string() }),
+  EXECUTE_COMMIT: z.object({ message: z.string() }),
+  GIT_ADD_ALL: z.object({}).strict(),
+  GIT_PUSH: z.object({}).strict(),
+  OPEN_MERGE_PANEL: z.object({}).strict(),
+  CHECKOUT_BRANCH: z.object({ name: z.string() }),
+  REJECT_AI_DRAFT: z.object({ id: z.string() }),
 } as const;
 
 /**
@@ -53,18 +75,19 @@ export const InboundPayloadSchemaMap = {
  */
 export const OutboundPayloadSchemaMap = {
   GIT_STATUS_UPDATED: z.object({ status: z.unknown() }),
-  SNAPSHOT_LIST: z.object({ snapshots: z.array(z.unknown()) }),
-  SNAPSHOT_CREATED: z.object({ snapshot: z.unknown() }),
+  SNAPSHOT_LIST: z.object({ snapshots: z.array(SnapshotSchema) }),
+  SNAPSHOT_CREATED: z.object({ snapshot: SnapshotSchema }),
   RESTORE_DONE: z.object({ snapshotId: z.string() }),
-  CONFLICT_RESULT: z.object({ candidates: z.array(ConflictCandidateSchema) }),
-  MERGE_PROPOSAL: z.object({ proposals: z.array(MergeProposalSchema) }),
+  CONFLICT_RESULT: z.object({ candidates: z.array(ConflictAnalysisSchema) }),
+  MERGE_PROPOSAL: z.object({ proposals: z.array(AIDraftSchema) }),
   MERGE_COMPLETE: z.object({}),
   COMMIT_SUGGESTIONS: z.object({ suggestions: CommitSuggestionSchema }),
   BRANCH_SUGGESTIONS: z.object({ names: z.array(z.string()) }),
   PR_SUGGESTION: z.object({ markdown: z.string() }),
-  BRANCH_LIST: z.object({ branches: z.array(z.unknown()) }),
+  BRANCH_LIST: z.object({ branches: z.array(BranchSchema) }),
   ERROR: z.object({ code: ErrorCodeEnum, message: z.string() }),
   LOADING: z.object({ target: z.string(), loading: z.boolean() }),
+  NOTIFICATION: z.object({ type: z.enum(['info', 'warning', 'error']), message: z.string() }),
 } as const;
 
 /**

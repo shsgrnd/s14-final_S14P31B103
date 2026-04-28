@@ -1,7 +1,7 @@
 import React from 'react';
 import { useGitCatStore } from '../../store/useGitCatStore';
 import { useVsCodeApi } from '../../hooks/useVsCodeApi';
-import { ConflictAnalysis } from '../../types/GitCatMessage';
+import { ConflictAnalysis } from '@gitcat/shared-types';
 
 /**
  * ConflictAnalysisView 컴포넌트
@@ -14,11 +14,9 @@ export const ConflictAnalysisView: React.FC = () => {
 
   const handleFocusConflict = (conflict: ConflictAnalysis) => {
     // 에디터에서 해당 위치로 이동 요청
-    sendMessage('NOTIFICATION', { 
-      message: `Moving to ${conflict.filePath}:${conflict.lineRange[0]}`,
-      type: 'info'
+    sendMessage('OPEN_FILE_DIFF', { 
+      filePath: conflict.filePath
     });
-    // 실제로는 별도의 FOCUS_LINE 명령이 필요할 수 있음
   };
 
   return (

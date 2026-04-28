@@ -2,6 +2,7 @@ import React from 'react';
 import { FileText, Rewind, ChevronRight, BrainCircuit, ShieldCheck, User, Merge, Plus, Edit2, Trash2, Star, History, Check } from 'lucide-react';
 import { useGitCatStore } from '../../store/useGitCatStore';
 import { useVsCodeApi } from '../../hooks/useVsCodeApi';
+import { Snapshot } from '@gitcat/shared-types';
 
 export const SnapshotTimeline: React.FC = () => {
   const { snapshots, expandedSnapshotId, setExpandedSnapshotId } = useGitCatStore();
@@ -22,30 +23,30 @@ export const SnapshotTimeline: React.FC = () => {
 
   const getTypeIcon = (type: string) => {
     switch (type) {
-      case 'AI_TASK':      return <BrainCircuit size={14} style={{ color: 'var(--vscode-charts-purple)', flexShrink: 0 }} />;
+      case 'AI_TASK': return <BrainCircuit size={14} style={{ color: 'var(--vscode-charts-purple)', flexShrink: 0 }} />;
       case 'BEFORE_MERGE': return <Merge size={14} style={{ color: 'var(--vscode-charts-blue)', flexShrink: 0 }} />;
-      case 'MANUAL':       return <User size={14} style={{ color: 'var(--vscode-charts-green)', flexShrink: 0 }} />;
-      case 'SAFETY_BACKUP':return <ShieldCheck size={14} style={{ color: 'var(--vscode-charts-red)', flexShrink: 0 }} />;
-      default:             return <FileText size={14} style={{ flexShrink: 0 }} />;
+      case 'MANUAL': return <User size={14} style={{ color: 'var(--vscode-charts-green)', flexShrink: 0 }} />;
+      case 'SAFETY_BACKUP': return <ShieldCheck size={14} style={{ color: 'var(--vscode-charts-red)', flexShrink: 0 }} />;
+      default: return <FileText size={14} style={{ flexShrink: 0 }} />;
     }
   };
 
-  const handleRename = (id: string, currentTitle: string) => {
+  const handleRename = (snapshotId: string, currentTitle: string) => {
     // VS Code Webview에서는 window.prompt가 차단되므로 프론트 자체 상태로 변경하거나 임의 텍스트로 대체합니다.
     const newTitle = currentTitle + ' (수정됨)';
-    sendMessage('RENAME_SNAPSHOT', { id, newTitle });
+    sendMessage('RENAME_SNAPSHOT', { snapshotId, newTitle });
     showStatus('이름이 임시로 변경되었습니다.', true);
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = (snapshotId: string) => {
     // window.confirm 차단 우회
-    sendMessage('DELETE_SNAPSHOT', { id });
+    sendMessage('DELETE_SNAPSHOT', { snapshotId });
     showStatus('스냅샷이 삭제되었습니다.', true);
   };
 
-  const handleRestore = (snapshot: any) => {
+  const handleRestore = (snapshot: Snapshot) => {
     // window.confirm 차단 우회
-    sendMessage('RESTORE_SNAPSHOT', { id: snapshot.id, title: snapshot.title });
+    sendMessage('RESTORE_SNAPSHOT', { snapshotId: snapshot.id });
     showStatus(`'${snapshot.title}' 시점으로 원복 완료! (안전 백업 생성됨)`, true);
   };
 
@@ -154,7 +155,7 @@ export const SnapshotTimeline: React.FC = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0, marginTop: '2px' }}
                   onClick={e => e.stopPropagation()}>
                   <button
-                    onClick={() => sendMessage('TOGGLE_SNAPSHOT_STAR', { id: snapshot.id })}
+                    onClick={() => sendMessage('TOGGLE_SNAPSHOT_STAR', { snapshotId: snapshot.id })}
                     title="즐겨찾기"
                     style={{ ...iconBtnStyle, color: snapshot.isStarred ? 'var(--vscode-charts-yellow)' : undefined }}
                   >
@@ -180,7 +181,7 @@ export const SnapshotTimeline: React.FC = () => {
                     snapshot.files.map((file: any, idx: number) => (
                       <div
                         key={idx}
-                        onClick={() => sendMessage('OPEN_FILE_DIFF', { snapshotId: snapshot.id, filePath: file.path, status: file.status })}
+                        onClick={() => sendMessage('OPEN_FILE_DIFF', { snapshotId: snapshot.id, filePath: file.path })}
                         style={{
                           display: 'flex', alignItems: 'center', gap: '8px',
                           padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px',
@@ -196,8 +197,8 @@ export const SnapshotTimeline: React.FC = () => {
                         <span style={{
                           fontSize: '11px', fontWeight: 700, flexShrink: 0,
                           color: file.status === 'MODIFIED' ? 'var(--vscode-gitDecoration-modifiedResourceForeground)' :
-                                 file.status === 'ADDED'    ? 'var(--vscode-gitDecoration-addedResourceForeground)' :
-                                                              'var(--vscode-gitDecoration-deletedResourceForeground)',
+                            file.status === 'ADDED' ? 'var(--vscode-gitDecoration-addedResourceForeground)' :
+                              'var(--vscode-gitDecoration-deletedResourceForeground)',
                         }}>
                           {getStatusLabel(file.status)}
                         </span>
@@ -208,7 +209,7 @@ export const SnapshotTimeline: React.FC = () => {
                       변경된 파일이 없습니다.
                     </div>
                   )}
-                  
+
                   {/* Restore Button */}
                   <button
                     onClick={() => handleRestore(snapshot)}
@@ -243,8 +244,8 @@ export const SnapshotTimeline: React.FC = () => {
             borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
             transition: 'all 0.2s'
           }}
-          onMouseOver={e => { e.currentTarget.style.background = 'var(--vscode-list-hoverBackground)'; e.currentTarget.style.color = 'var(--vscode-foreground)' }}
-          onMouseOut={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--vscode-descriptionForeground)' }}
+            onMouseOver={e => { e.currentTarget.style.background = 'var(--vscode-list-hoverBackground)'; e.currentTarget.style.color = 'var(--vscode-foreground)' }}
+            onMouseOut={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--vscode-descriptionForeground)' }}
           >
             <History size={14} />
             모든 기록 보기

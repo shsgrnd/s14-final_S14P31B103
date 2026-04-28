@@ -1,4 +1,5 @@
 export * from './dto/ai';
+export * from './dto/git';
 export * from './dto/messages';
 export * from './dto/storage';
 export * from './enums/ai';
