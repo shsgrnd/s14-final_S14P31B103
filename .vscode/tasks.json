@@ -6,7 +6,14 @@
             "type": "shell",
             "command": "pnpm --filter @gitcat/storage run build; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; pnpm --filter @gitcat/shared-types run build; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; pnpm run compile",
             "options": {
-                "cwd": "${workspaceFolder}/apps/extension"
+                "cwd": "${workspaceFolder}/apps/extension",
+                "shell": {
+                    "executable": "powershell.exe",
+                    "args": [
+                        "-NoProfile",
+                        "-Command"
+                    ]
+                }
             },
             "group": "build",
             "presentation": {
