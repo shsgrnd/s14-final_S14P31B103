@@ -124,3 +124,9 @@
 - proposal_feedbacks는 DB 저장 유지
 - 두 테이블은 이후 AI 요청 시 참고 이력으로 조회 가능해야 한다
 - 단, 실제 제안 코드 전체나 긴 설명 원문은 DB가 아니라 로컬 proposals.json에 저장한다
+
+### 관련 상세 기준서
+
+AI artifact ref의 의미, 생성 시점, 로컬 파일 저장 위치, 학습 후보 수집 범위, 후속 SQLite 연계 기준은 아래 공식 문서를 따른다.
+
+- [11_ai_artifact_ref_storage_strategy.md](/mnt/c/Users/SSAFY/Desktop/1435544/3rd_pjt/s14-final_S14P31B103/docs/architecture/11_ai_artifact_ref_storage_strategy.md)
