@@ -6,13 +6,17 @@ import {
   ProposalFeedback,
   ParsedAiResult,
 } from '@gitcat/shared-types';
+import * as path from 'path';
 import { MergeAiService } from '../merge-proposal/MergeAiService';
 import { MergeResultParser } from '../parser/MergeResultParser';
 import {
   buildProposalFeedbackPayload,
   toCreateProposalFeedbackInput,
 } from '../feedback/proposal-feedback';
-import { buildFeedbackPersistencePlan } from '../feedback/feedback-persistence-plan';
+import {
+  buildFeedbackPersistencePlan,
+  buildMaterializedFeedbackPersistencePlan,
+} from '../feedback/feedback-persistence-plan';
 import { buildTrainingCandidatePayload } from '../feedback/training-candidate';
 import { buildDisplayReadyResult } from '../feedback/result-display';
 import { buildParsedResultStoragePlan } from '../feedback/result-storage-plan';
@@ -172,6 +176,13 @@ export const mockProposalFeedbacks: ProposalFeedback[] = [
     decided_at: "2026-04-27T10:45:00+09:00",
   },
 ];
+
+function getMockWorkspaceRoot(): string {
+  // test:mock는 packages/ai-pipeline에서 실행되지만,
+  // 실제 저장 경로 검증은 저장소 루트를 workspace root로 보는 편이
+  // extension 런타임과 동일한 조건을 재현하기 쉽습니다.
+  return path.resolve(__dirname, '../../../..');
+}
 
 // --- 검증 함수들 ---
 
@@ -418,6 +429,34 @@ function testFeedbackPersistencePlan() {
   );
 }
 
+async function testMaterializedFeedbackPersistencePlan() {
+  console.log("\n--- [STEP 6-1] 최종 코드 artifact 연동 검증 시작 ---");
+  console.log("목표: final code 저장과 feedback persistence plan 생성을 한 흐름으로 묶을 수 있는지 확인");
+
+  const persistencePlan = await buildMaterializedFeedbackPersistencePlan({
+    project_id: mockAiInputPayload.project_id,
+    parsed_result: mockParsedAiResults[0],
+    selection_status: "edited",
+    final_code: "export function login() { return 'ok'; }\n",
+    final_code_file_path: "src/auth/service.ts",
+    final_explanation: "최종 수동 수정본을 feedback artifact로 저장",
+    quality_tag: "partially_useful",
+    feedback_note: "artifact materialization 연결 테스트",
+    feedback_id: "fb_20260427_601",
+    decided_at: "2026-04-27T11:40:00+09:00",
+    workspace_root: getMockWorkspaceRoot(),
+  });
+
+  console.log(`[PASS] materialized feedback persistence plan 생성 완료`);
+  console.log(`      - Feedback ID: ${persistencePlan.proposal_feedback_payload.feedback_id}`);
+  console.log(
+    `      - Final Code Ref: ${persistencePlan.proposal_feedback_payload.final_code_ref ?? "none"}`
+  );
+  console.log(
+    `      - Stored Path: ${persistencePlan.materialized_feedback_artifacts.final_code_absolute_path ?? "none"}`
+  );
+}
+
 function testDisplayReadyResult() {
   console.log("\n--- [STEP 7] 표시 구조 생성기 검증 시작 ---");
   console.log("목표: parsed_ai_result를 UI 표시 직전 형태로 정리하고 상태를 displayed로 전환할 수 있는지 확인");
@@ -626,6 +665,7 @@ export async function runMockAiPipelineDemo() {
   testFeedbackBuilder();
   testTrainingCandidateBuilder();
   testFeedbackPersistencePlan();
+  await testMaterializedFeedbackPersistencePlan();
   testDisplayReadyResult();
   testParsedResultStoragePlan();
   testParsedResultRepositoryInputDraft();

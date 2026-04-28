@@ -16,11 +16,11 @@ const GITCAT_MERGE_SESSIONS_DIR = '.vscode/gitcat/merge-sessions';
  *   -> diff://local/{session_id}/working.diff
  * - writeAiResponse / readAiResponse
  *   -> response://local/{ai_request_id}/raw.json
- * - writeFinalCode / readFinalCode
+ * - readFinalCode
  *   -> code://local/{feedback_id}/final.ts
  *
- * 인프라/AI 담당자는 AI 저장 계약 관점에서 ref 형식만 먼저 제안했고,
- * merge_patch_draft 시연용 patch/code artifact만 먼저 구현했다.
+ * 인프라/AI 담당자는 AI 저장 계약 관점에서 ref 형식을 먼저 제안했고,
+ * 현재는 merge_patch_draft proposal artifact와 feedback final code artifact까지 구현했다.
  */
 
 /**
@@ -67,6 +67,22 @@ function getMergeProposalArtifactDir(
     sessionId,
     'ai-results',
     proposalId,
+  );
+}
+
+function getFeedbackArtifactDir(
+  workspaceRoot: string,
+  sessionId: string,
+  feedbackId: string,
+): string {
+  // proposal 원본 artifact와 사용자의 최종 채택본을 분리하기 위해
+  // feedback 결과물은 feedback_id 기준의 별도 폴더에 저장합니다.
+  return path.join(
+    workspaceRoot,
+    GITCAT_MERGE_SESSIONS_DIR,
+    sessionId,
+    'feedback-results',
+    feedbackId,
   );
 }
 
@@ -123,6 +139,32 @@ export async function writeMergedCodeFile(
   };
 }
 
+export async function writeFinalCodeFile(
+  workspaceRoot: string,
+  sessionId: string,
+  feedbackId: string,
+  relativeFilePath: string | undefined,
+  content: string,
+): Promise<StoredArtifactRef> {
+  const targetDir = getFeedbackArtifactDir(workspaceRoot, sessionId, feedbackId);
+  // 최종 코드가 특정 파일에 대응되면 원래 파일 경로를 이름에 남기고,
+  // 그렇지 않으면 generic 파일명으로 저장합니다.
+  const flattenedName = relativeFilePath
+    ? `final__${flattenPath(relativeFilePath)}`
+    : 'final_code.txt';
+  const fileName = normalizeArtifactFileName(flattenedName);
+
+  await fs.mkdir(targetDir, { recursive: true });
+
+  const absolutePath = path.join(targetDir, fileName);
+  await fs.writeFile(absolutePath, content, 'utf8');
+
+  return {
+    ref: `code://local/${feedbackId}/${fileName}`,
+    absolute_path: absolutePath,
+  };
+}
+
 export function resolveProposalArtifactPath(
   workspaceRoot: string,
   sessionId: string,
@@ -143,4 +185,28 @@ export function resolveProposalArtifactPath(
 
   const fileName = normalizeArtifactFileName(rawFileName);
   return path.join(getMergeProposalArtifactDir(workspaceRoot, sessionId, proposalId), fileName);
+}
+
+export function resolveFinalCodeArtifactPath(
+  workspaceRoot: string,
+  sessionId: string,
+  feedbackId: string,
+  ref: string,
+): string {
+  // final_code_ref는 code://local/{feedback_id}/{fileName} 규칙만 허용합니다.
+  // feedback_id가 다르면 다른 선택 결과를 잘못 읽는 상황이므로 바로 막습니다.
+  const match = ref.match(/^code:\/\/local\/([^/]+)\/(.+)$/);
+  if (!match) {
+    throw new Error(`Unsupported final code artifact ref: ${ref}`);
+  }
+
+  const [, refFeedbackId, rawFileName] = match;
+  if (refFeedbackId !== feedbackId) {
+    throw new Error(
+      `Artifact ref feedback_id mismatch: expected ${feedbackId}, received ${refFeedbackId}`,
+    );
+  }
+
+  const fileName = normalizeArtifactFileName(rawFileName);
+  return path.join(getFeedbackArtifactDir(workspaceRoot, sessionId, feedbackId), fileName);
 }

@@ -11,8 +11,13 @@ import type { CreateProposalFeedbackInput } from '@gitcat/shared-types';
 import {
   BuildProposalFeedbackPayloadInput,
   buildProposalFeedbackPayload,
+  generateFeedbackId,
   toCreateProposalFeedbackInput,
 } from './proposal-feedback';
+import {
+  MaterializedFeedbackArtifacts,
+  materializeFeedbackArtifacts,
+} from '../artifacts/feedback-artifacts';
 import {
   normalizeProposalStatusForSelection,
   selectionStatusToLifecycleEvent,
@@ -44,11 +49,22 @@ export interface BuildFeedbackPersistencePlanInput {
   training_candidate?: TrainingCandidatePlanInput;
 }
 
+export interface BuildMaterializedFeedbackPersistencePlanInput
+  extends BuildFeedbackPersistencePlanInput {
+  workspace_root?: string;
+  final_code?: string;
+  final_code_file_path?: string;
+}
+
 export interface FeedbackPersistencePlan {
   proposal_feedback_payload: ProposalFeedback;
   proposal_feedback_input: CreateProposalFeedbackInput;
   next_proposal_status: MergeProposalStatus;
   training_candidate_payload?: TrainingCandidatePayload;
+}
+
+export interface MaterializedFeedbackPersistencePlan extends FeedbackPersistencePlan {
+  materialized_feedback_artifacts: MaterializedFeedbackArtifacts;
 }
 
 /**
@@ -97,5 +113,37 @@ export function buildFeedbackPersistencePlan(
     proposal_feedback_input: proposalFeedbackInput,
     next_proposal_status: nextProposalStatus,
     training_candidate_payload: trainingCandidatePayload,
+  };
+}
+
+/**
+ * 최종 코드 artifact 저장과 proposal_feedback persistence plan 생성을
+ * 같은 호출 흐름으로 묶는 orchestration helper입니다.
+ *
+ * 상위 계층은 이 함수를 호출해 feedback_id를 먼저 확정하고,
+ * 필요할 때 final_code_ref를 실제 파일 저장 결과로 자동 채울 수 있습니다.
+ */
+export async function buildMaterializedFeedbackPersistencePlan(
+  input: BuildMaterializedFeedbackPersistencePlanInput,
+): Promise<MaterializedFeedbackPersistencePlan> {
+  const feedbackId = input.feedback_id ?? generateFeedbackId();
+  const materializedArtifacts = await materializeFeedbackArtifacts({
+    workspaceRoot: input.workspace_root,
+    parsedResult: input.parsed_result,
+    selectionStatus: input.selection_status,
+    feedbackId,
+    finalCode: input.final_code,
+    relativeFilePath: input.final_code_file_path,
+  });
+
+  const persistencePlan = buildFeedbackPersistencePlan({
+    ...input,
+    feedback_id: feedbackId,
+    final_code_ref: input.final_code_ref ?? materializedArtifacts.final_code_ref,
+  });
+
+  return {
+    ...persistencePlan,
+    materialized_feedback_artifacts: materializedArtifacts,
   };
 }
