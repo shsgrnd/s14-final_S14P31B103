@@ -6,6 +6,7 @@ import {
   ProposalFeedback,
   ParsedAiResult,
 } from '@gitcat/shared-types';
+import * as path from 'path';
 import { MergeAiService } from '../merge-proposal/MergeAiService';
 import { MergeResultParser } from '../parser/MergeResultParser';
 import {
@@ -175,6 +176,13 @@ export const mockProposalFeedbacks: ProposalFeedback[] = [
     decided_at: "2026-04-27T10:45:00+09:00",
   },
 ];
+
+function getMockWorkspaceRoot(): string {
+  // test:mock는 packages/ai-pipeline에서 실행되지만,
+  // 실제 저장 경로 검증은 저장소 루트를 workspace root로 보는 편이
+  // extension 런타임과 동일한 조건을 재현하기 쉽습니다.
+  return path.resolve(__dirname, '../../../..');
+}
 
 // --- 검증 함수들 ---
 
@@ -436,7 +444,7 @@ async function testMaterializedFeedbackPersistencePlan() {
     feedback_note: "artifact materialization 연결 테스트",
     feedback_id: "fb_20260427_601",
     decided_at: "2026-04-27T11:40:00+09:00",
-    workspace_root: process.cwd(),
+    workspace_root: getMockWorkspaceRoot(),
   });
 
   console.log(`[PASS] materialized feedback persistence plan 생성 완료`);
