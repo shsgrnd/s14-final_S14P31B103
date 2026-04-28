@@ -6,6 +6,8 @@
     "outDir": "./dist",
     "baseUrl": ".",
     "paths": {
+      "@gitcat/storage": ["../storage/src/index.ts"],
+      "@gitcat/storage/*": ["../storage/src/*"],
       "@gitcat/shared-types": ["../shared-types/src/index.ts"],
       "@gitcat/shared-types/*": ["../shared-types/src/*"]
     }

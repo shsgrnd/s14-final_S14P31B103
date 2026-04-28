@@ -24,7 +24,7 @@ export interface BuildProposalFeedbackPayloadInput {
  * 저장소 구현 전에도 mock/서비스 레이어에서 같은 형식의 식별자를 쓸 수 있도록
  * 문서의 `fb_YYYYMMDD_001` 규칙과 비슷한 형태를 유지합니다.
  */
-function generateFeedbackId(now: Date = new Date()): string {
+export function generateFeedbackId(now: Date = new Date()): string {
   const yyyymmdd = now.toISOString().slice(0, 10).replace(/-/g, '');
   const suffix = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
   return `fb_${yyyymmdd}_${suffix}`;

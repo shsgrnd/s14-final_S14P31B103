@@ -6,15 +6,21 @@ import {
   ProposalFeedback,
   ParsedAiResult,
 } from '@gitcat/shared-types';
+import * as path from 'path';
 import { MergeAiService } from '../merge-proposal/MergeAiService';
 import { MergeResultParser } from '../parser/MergeResultParser';
 import {
   buildProposalFeedbackPayload,
   toCreateProposalFeedbackInput,
 } from '../feedback/proposal-feedback';
-import { buildFeedbackPersistencePlan } from '../feedback/feedback-persistence-plan';
+import {
+  buildFeedbackPersistencePlan,
+  buildMaterializedFeedbackPersistencePlan,
+} from '../feedback/feedback-persistence-plan';
 import { buildTrainingCandidatePayload } from '../feedback/training-candidate';
 import { buildDisplayReadyResult } from '../feedback/result-display';
+import { buildParsedResultStoragePlan } from '../feedback/result-storage-plan';
+import { buildParsedResultRepositoryInputDraft } from '../feedback/result-repository-input';
 import {
   getAllowedProposalLifecycleEvents,
   isTerminalProposalStatus,
@@ -171,6 +177,13 @@ export const mockProposalFeedbacks: ProposalFeedback[] = [
   },
 ];
 
+function getMockWorkspaceRoot(): string {
+  // test:mock는 packages/ai-pipeline에서 실행되지만,
+  // 실제 저장 경로 검증은 저장소 루트를 workspace root로 보는 편이
+  // extension 런타임과 동일한 조건을 재현하기 쉽습니다.
+  return path.resolve(__dirname, '../../../..');
+}
+
 // --- 검증 함수들 ---
 
 function testInputSchema() {
@@ -200,16 +213,16 @@ function testInputSchema() {
   });
 }
 
-function testParser() {
+async function testParser() {
   console.log("\n--- [STEP 2] 파서 단독 검증 시작 ---");
   console.log("목표: LLM 응답(JSON)을 ParsedAiResultSchema에 맞게 정규화하는지 확인");
 
   const parser = new MergeResultParser();
   const sessionId = "test-session";
 
-  invalidResponseMocks.forEach(mock => {
+  for (const mock of invalidResponseMocks) {
     try {
-      parser.parse(mock.rawResponse, mock.featureType as any, sessionId);
+      await parser.parse(mock.rawResponse, mock.featureType as any, sessionId);
       console.log(`[FAIL] ${mock.name}: 에러가 발생해야 하는데 통과됨`);
     } catch (err: any) {
       const firstError = err.errors?.[0];
@@ -217,7 +230,7 @@ function testParser() {
       console.log(`      - 감지된 필드: ${firstError?.path?.join('.') || "unknown"}`);
       console.log(`      - 에러 메시지: ${firstError?.message || "Parsing Error"}`);
     }
-  });
+  }
 }
 
 function testDocumentedMocks() {
@@ -416,6 +429,34 @@ function testFeedbackPersistencePlan() {
   );
 }
 
+async function testMaterializedFeedbackPersistencePlan() {
+  console.log("\n--- [STEP 6-1] 최종 코드 artifact 연동 검증 시작 ---");
+  console.log("목표: final code 저장과 feedback persistence plan 생성을 한 흐름으로 묶을 수 있는지 확인");
+
+  const persistencePlan = await buildMaterializedFeedbackPersistencePlan({
+    project_id: mockAiInputPayload.project_id,
+    parsed_result: mockParsedAiResults[0],
+    selection_status: "edited",
+    final_code: "export function login() { return 'ok'; }\n",
+    final_code_file_path: "src/auth/service.ts",
+    final_explanation: "최종 수동 수정본을 feedback artifact로 저장",
+    quality_tag: "partially_useful",
+    feedback_note: "artifact materialization 연결 테스트",
+    feedback_id: "fb_20260427_601",
+    decided_at: "2026-04-27T11:40:00+09:00",
+    workspace_root: getMockWorkspaceRoot(),
+  });
+
+  console.log(`[PASS] materialized feedback persistence plan 생성 완료`);
+  console.log(`      - Feedback ID: ${persistencePlan.proposal_feedback_payload.feedback_id}`);
+  console.log(
+    `      - Final Code Ref: ${persistencePlan.proposal_feedback_payload.final_code_ref ?? "none"}`
+  );
+  console.log(
+    `      - Stored Path: ${persistencePlan.materialized_feedback_artifacts.final_code_absolute_path ?? "none"}`
+  );
+}
+
 function testDisplayReadyResult() {
   console.log("\n--- [STEP 7] 표시 구조 생성기 검증 시작 ---");
   console.log("목표: parsed_ai_result를 UI 표시 직전 형태로 정리하고 상태를 displayed로 전환할 수 있는지 확인");
@@ -431,8 +472,72 @@ function testDisplayReadyResult() {
   });
 }
 
+function testParsedResultStoragePlan() {
+  console.log("\n--- [STEP 8] 결과 저장 계획 생성기 검증 시작 ---");
+  console.log("목표: parsed_ai_result를 SQLite 메타데이터와 로컬 ref 기준으로 분리할 수 있는지 확인");
+
+  [mockParsedAiResults[0], mockParsedAiResults[2]].forEach((result) => {
+    const storagePlan = buildParsedResultStoragePlan(result);
+
+    console.log(`[PASS] result storage plan 생성 완료`);
+    console.log(`      - Proposal ID: ${storagePlan.proposal_id}`);
+    console.log(`      - Storage Target: ${storagePlan.storage_target}`);
+    console.log(`      - Pending Linkage: ${storagePlan.pending_linkage_fields.join(", ")}`);
+    console.log(`      - Local Artifact Ref Count: ${storagePlan.local_artifact_refs.length}`);
+  });
+}
+
+function testParsedResultRepositoryInputDraft() {
+  console.log("\n--- [STEP 9] repository 입력 초안 생성기 검증 시작 ---");
+  console.log("목표: parsed_ai_result를 공식 문서 기준 저장 입력 초안으로 변환할 수 있는지 확인");
+
+  // mock 배열은 union 타입으로 선언돼 있어서,
+  // 테스트에서는 feature별 샘플을 한 번 더 좁혀 준 뒤 overload helper를 호출합니다.
+  const mergePatchResult = mockParsedAiResults[0];
+  if (mergePatchResult.feature_type !== "merge_patch_draft") {
+    throw new Error("Expected merge_patch_draft mock at index 0");
+  }
+
+  const recommendationResult = mockParsedAiResults[2];
+  if (recommendationResult.feature_type !== "recommendation") {
+    throw new Error("Expected recommendation mock at index 2");
+  }
+
+  const mergeProposalDraft = buildParsedResultRepositoryInputDraft(
+    mergePatchResult,
+    {
+      conflict_candidate_id: "cc_20260427_001",
+      inference_run_id: "ir_20260427_001",
+      file_path: "src/auth/service.ts",
+      parsed_at: "2026-04-27T11:45:00+09:00",
+    },
+  );
+
+  const recommendationDraft = buildParsedResultRepositoryInputDraft(
+    recommendationResult,
+    {
+      project_id: mockAiInputPayload.project_id,
+      session_id: recommendationResult.session_id,
+      ai_request_id: recommendationResult.ai_request_id,
+      input_summary: "auth service and merge panel integration changes",
+      followup_notes: "reuse recent branch naming history when available",
+      created_at: "2026-04-27T11:46:00+09:00",
+    },
+  );
+
+  console.log(`[PASS] merge proposal repository draft 생성 완료`);
+  console.log(`      - Proposal ID: ${mergeProposalDraft.proposal_id}`);
+  console.log(`      - File Path: ${mergeProposalDraft.file_path}`);
+  console.log(`      - Diff Patch Ref: ${mergeProposalDraft.diff_patch_ref ?? "none"}`);
+
+  console.log(`[PASS] recommendation repository draft 생성 완료`);
+  console.log(`      - Recommendation ID: ${recommendationDraft.recommendation_id}`);
+  console.log(`      - Project ID: ${recommendationDraft.project_id}`);
+  console.log(`      - Result Text: ${recommendationDraft.result_text}`);
+}
+
 function testProposalLifecycle() {
-  console.log("\n--- [STEP 8] 상태 전이 규칙 검증 시작 ---");
+  console.log("\n--- [STEP 10] 상태 전이 규칙 검증 시작 ---");
   console.log("목표: displayed/accepted/edited/rejected/completed 흐름이 한 곳에서 일관되게 계산되는지 확인");
 
   const displayedStatus = transitionProposalStatus("parsed", "display");
@@ -449,7 +554,7 @@ function testProposalLifecycle() {
 }
 
 function testInvalidFeedbackAndTrainingRules() {
-  console.log("\n--- [STEP 9] feedback/save 실패 규칙 검증 시작 ---");
+  console.log("\n--- [STEP 11] feedback/save 실패 규칙 검증 시작 ---");
   console.log("목표: edited/ref 규칙과 training candidate 조건 위반이 즉시 감지되는지 확인");
 
   invalidFeedbackBuilderMocks.forEach((mock) => {
@@ -505,7 +610,7 @@ function testInvalidFeedbackAndTrainingRules() {
 }
 
 async function testFullServiceFlow() {
-  console.log("\n--- [STEP 10] 서비스 전체 흐름 검증 시작 ---");
+  console.log("\n--- [STEP 12] 서비스 전체 흐름 검증 시작 ---");
   console.log("목표: 입력 -> Prompt -> Client -> Parser -> Result 전체 과정을 시뮬레이션");
 
   const service = new MergeAiService();
@@ -555,12 +660,15 @@ export async function runMockAiPipelineDemo() {
   console.log("=".repeat(50));
 
   testInputSchema();
-  testParser();
+  await testParser();
   testDocumentedMocks();
   testFeedbackBuilder();
   testTrainingCandidateBuilder();
   testFeedbackPersistencePlan();
+  await testMaterializedFeedbackPersistencePlan();
   testDisplayReadyResult();
+  testParsedResultStoragePlan();
+  testParsedResultRepositoryInputDraft();
   testProposalLifecycle();
   testInvalidFeedbackAndTrainingRules();
   await testFullServiceFlow();
