@@ -75,18 +75,17 @@ export function getMergePatchDraftSystemPrompt(): string {
     '- Preserve intent of both branches.',
     '- Prefer minimal changes; do not rewrite unrelated code.',
     '- Return valid JSON ONLY. No markdown, no prose, no ```json blocks.',
+    '- Do NOT include IDs (proposal_id, session_id, etc.) or static fields (status, version).',
     '',
     'Output Schema:',
     JSON.stringify({
       title: "string",
       summary: "string",
-      applied_files: ["string"],
-      validation_required: "boolean",
-      validation_summary: "string",
-      diff_patch: "string (optional)",
-      merged_code: "string (optional)",
-      explanation: "string (optional)",
-      confidence_score: "number (optional)"
+      explanation: "string (short reasoning)",
+      confidence_score: 0.9,
+      diff_patch: "string (unified diff)",
+      validation_summary: "string (short)",
+      applied_files: ["string"]
     }, null, 2)
   ].join('\n');
 }
@@ -134,8 +133,8 @@ export function buildMergePatchDraftUserPrompt(payload: MergeProposalInput): str
     '',
     'Task:',
     '- Propose a safe merge draft integrating source and target changes.',
-    '- Use diff_patch (unified diff) or merged_code for primary files.',
-    '- Identify if human validation is required.',
+    '- Use diff_patch (unified diff) for the primary resolution.',
+    '- Keep all explanations and summaries extremely concise.',
   ].join('\n');
 }
 
