@@ -406,6 +406,12 @@ AI 파트의 인터페이스 이름과 전체 구조는 이미 정해져 있다.
 - `merge_patch_draft`에서 `edited`이면 `final_code_ref`는 필수이다.
 - `conflict_explanation`, `merge_mediation`에서 `edited`이면 `final_explanation` 사용을 권장한다.
 
+### 저장 해석 기준
+- `final_text`는 recommendation 계열의 최종 채택 텍스트를 뜻한다.
+- `final_explanation`은 explanation/mediation 계열에서 사용자가 최종 판단과 함께 남긴 설명을 뜻한다.
+- `final_code_ref`는 proposal 원본 artifact가 아니라, 사용자가 수정 또는 채택한 최종 코드 산출물을 가리킨다.
+- `final_code_ref`는 `feedback_id` 기준 로컬 파일 ref로 관리하며, proposal 원본 `diff_patch_ref` / `merged_code_ref`와 분리한다.
+
 ### 선택 필드
 - `quality_tag`: enum
 - `feedback_note`: string
