@@ -7,6 +7,7 @@ export * from './merge-proposal/MergeAiService';
 export * from './provider/AiClient';
 export * from './parser/MergeResultParser';
 export * from './artifacts/feedback-artifacts';
+export * from './artifacts/training-candidate-artifacts';
 export * from './input/application/ConflictAnalyzer';
 export * from './input/application/AiInputService';
 export * from './input/application/TokenCounter';
