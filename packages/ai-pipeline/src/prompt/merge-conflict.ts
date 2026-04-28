@@ -5,28 +5,18 @@ import { ConflictCandidate, MergeProposalInput } from '@gitcat/shared-types';
  * LLM이 구조화된 입력을 잃지 않도록 "프로젝트/브랜치/파일/충돌 후보" 순서로 고정합니다.
  */
 function buildSharedMergeContext(payload: MergeProposalInput): string {
-  const relatedFiles =
-    payload.related_files.length > 0
-      ? payload.related_files.map((file) => `- ${file}`).join('\n')
-      : '- none';
-
   const conflictCandidates = payload.conflict_candidates
     .map((candidate, index) => formatConflictCandidate(candidate, index))
     .join('\n\n');
 
   return [
-    `Project ID: ${payload.project_id}`,
-    `Session ID: ${payload.session_id}`,
-    `Schema Version: ${payload.schema_version}`,
-    `Feature Type: ${payload.feature_type}`,
-    `Current Branch: ${payload.current_branch}`,
-    `Target Branch: ${payload.target_branch}`,
-    `Workspace Summary: ${payload.workspace_summary ?? 'Not provided'}`,
-    `Risk Summary: ${payload.risk_summary ?? 'Not provided'}`,
-    `Working Tree Diff Ref: ${payload.working_tree_diff_ref}`,
-    '',
-    'Related Files:',
-    relatedFiles,
+    `Context:`,
+    `- Feature: ${payload.feature_type}`,
+    `- Current: ${payload.current_branch}`,
+    `- Target: ${payload.target_branch}`,
+    `- Workspace: ${payload.workspace_summary ?? 'N/A'}`,
+    `- Risk: ${payload.risk_summary ?? 'N/A'}`,
+    `- Diff: ${payload.working_tree_diff_ref}`,
     '',
     'Conflict Candidates:',
     conflictCandidates,
@@ -42,20 +32,16 @@ function formatConflictCandidate(candidate: ConflictCandidate, index: number): s
   const location = `${candidate.file_path}:${candidate.line_start}-${candidate.line_end}`;
 
   return [
-    `Candidate ${index + 1}`,
-    `- candidate_id: ${candidate.candidate_id}`,
-    `- analysis_id: ${candidate.analysis_id}`,
+    `Candidate ${index + 1}:`,
     `- location: ${location}`,
-    `- detected_by: ${candidate.detected_by}`,
-    `- conflict_type: ${candidate.conflict_type ?? 'Not provided'}`,
-    `- risk_level: ${candidate.risk_level ?? 'Not provided'}`,
-    `- reason_summary: ${candidate.reason_summary ?? 'Not provided'}`,
+    `- type: ${candidate.conflict_type ?? 'N/A'}`,
+    `- reason: ${candidate.reason_summary ?? 'N/A'}`,
     `- source_code:`,
     candidate.source_code,
     `- target_code:`,
     candidate.target_code,
     `- base_code:`,
-    candidate.base_code ?? 'Not provided',
+    candidate.base_code ?? 'N/A',
   ].join('\n');
 }
 
@@ -84,18 +70,25 @@ export function getConflictExplanationSystemPrompt(): string {
  */
 export function getMergePatchDraftSystemPrompt(): string {
   return [
-    'You are an expert developer and Git merge resolution assistant.',
-    'Analyze the merge context and propose a safe merge draft.',
-    'Return ONLY a valid JSON object.',
-    'Do not include markdown code blocks.',
-    'The JSON must match the merge_patch_draft parsed_ai_result contract.',
-    'Required JSON fields: title, summary, applied_files, validation_required, validation_summary.',
-    'At least one of diff_patch_ref or merged_code_ref must be included.',
-    'When possible, also include diff_patch as unified diff text or merged_code as the full merged file content so the platform can store a real local artifact.',
-    'If you include diff_patch or merged_code, still keep applied_files accurate.',
-    'Optional JSON fields: explanation, confidence_score.',
-    'applied_files must be an array of file paths present in the payload context.',
-  ].join(' ');
+    'Task: Draft a merge patch to resolve conflicts between branches.',
+    'Rules:',
+    '- Preserve intent of both branches.',
+    '- Prefer minimal changes; do not rewrite unrelated code.',
+    '- Return valid JSON ONLY. No markdown, no prose, no ```json blocks.',
+    '',
+    'Output Schema:',
+    JSON.stringify({
+      title: "string",
+      summary: "string",
+      applied_files: ["string"],
+      validation_required: "boolean",
+      validation_summary: "string",
+      diff_patch: "string (optional)",
+      merged_code: "string (optional)",
+      explanation: "string (optional)",
+      confidence_score: "number (optional)"
+    }, null, 2)
+  ].join('\n');
 }
 
 /**
@@ -140,10 +133,9 @@ export function buildMergePatchDraftUserPrompt(payload: MergeProposalInput): str
     buildSharedMergeContext(payload),
     '',
     'Task:',
-    '- Propose a merge draft that integrates the source and target changes safely.',
-    '- Prefer minimal edits that preserve behavior unless the context clearly requires a larger change.',
-    '- Identify which files should be applied and whether human validation is required.',
-    '- Prefer returning diff_patch as a unified diff. If that is not practical, return merged_code for the primary file instead.',
+    '- Propose a safe merge draft integrating source and target changes.',
+    '- Use diff_patch (unified diff) or merged_code for primary files.',
+    '- Identify if human validation is required.',
   ].join('\n');
 }
 
