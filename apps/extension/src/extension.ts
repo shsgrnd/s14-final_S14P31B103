@@ -3,9 +3,10 @@ import { GitCatDatabase } from '@gitcat/storage';
 import { CommandRegistry } from './commands';
 import { EventRegistry } from './events';
 import { WebviewProvider } from './webview/WebviewProvider';
-import { GitCatTreeProvider } from './views/GitCatTreeProvider';
-import { SafetyTreeProvider } from './views/SafetyTreeProvider';
-import { BranchTreeProvider } from './views/BranchTreeProvider';
+import { SidebarProvider } from './webview/SidebarProvider';
+// import { GitCatTreeProvider } from './views/GitCatTreeProvider';
+// import { SafetyTreeProvider } from './views/SafetyTreeProvider';
+// import { BranchTreeProvider } from './views/BranchTreeProvider';
 
 export function activate(context: vscode.ExtensionContext) {
   console.log('GitCat Extension is now active!');
@@ -39,7 +40,11 @@ export function activate(context: vscode.ExtensionContext) {
   // Webview Provider 등록 (상세 팝업용)
   const webviewProvider = new WebviewProvider(context);
 
-  // Tree View Provider 등록 (사이드바 메인 UI)
+  // 사이드바 메인 UI (WebviewViewProvider 등록 - 프론트엔드 React 연동)
+  const sidebarProvider = new SidebarProvider(context);
+  vscode.window.registerWebviewViewProvider('gitcat-sidebar-webview', sidebarProvider);
+
+  /* 백엔드 네이티브 트리뷰 (Webview 전환으로 인해 주석 처리)
   const gitCatProvider = new GitCatTreeProvider();
   vscode.window.registerTreeDataProvider('gitcat-git-view', gitCatProvider);
 
@@ -48,6 +53,7 @@ export function activate(context: vscode.ExtensionContext) {
 
   const branchProvider = new BranchTreeProvider();
   vscode.window.registerTreeDataProvider('gitcat-branch-view', branchProvider);
+  */
 
   // 명령어(Commands) 일괄 등록
   CommandRegistry.registerAll(context, webviewProvider);
