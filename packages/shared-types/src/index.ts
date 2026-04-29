@@ -4,6 +4,8 @@ export * from './dto/messages';
 export * from './dto/storage';
 export * from './enums/ai';
 export * from './enums/messages';
+export * from './enums/git';
+export * from './enums/error-codes';
 export * from './interfaces/message-validator';
 export * from './interfaces/repositories';
 export * from './interfaces/services';

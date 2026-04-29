@@ -46,15 +46,65 @@ export class SimpleGitAdapter implements GitClient {
       const git = repoPath ? simpleGit(repoPath) : this.git;
       const summary = await git.status();
 
+      const staged: any[] = [];
+      const unstaged: any[] = [];
+      const untracked: any[] = [];
+      const conflicted: any[] = [];
+
+      const mapCodeToType = (code: string): any => {
+        switch (code.toUpperCase()) {
+          case 'A': return 'ADDED';
+          case 'D': return 'DELETED';
+          case 'R': return 'RENAMED';
+          case 'U': return 'CONFLICTED';
+          case '?': return 'UNTRACKED';
+          case 'M':
+          default:
+            return 'MODIFIED';
+        }
+      };
+
+      summary.files.forEach((file) => {
+        const path = file.path;
+
+        // Conflicted (U)
+        if (file.index === 'U' || file.working_dir === 'U') {
+          conflicted.push({ path, status: 'CONFLICTED' });
+          return;
+        }
+
+        // Staged (Index)
+        if (file.index !== ' ' && file.index !== '?') {
+          staged.push({
+            path,
+            status: mapCodeToType(file.index),
+          });
+        }
+
+        // Unstaged (Working Directory)
+        if (file.working_dir !== ' ' && file.working_dir !== '?') {
+          unstaged.push({
+            path,
+            status: mapCodeToType(file.working_dir),
+          });
+        }
+
+        // Untracked
+        if (file.index === '?' && file.working_dir === '?') {
+          untracked.push({
+            path,
+            status: 'UNTRACKED',
+          });
+        }
+      });
+
       return {
-        current: summary.current || '',
-        staged: summary.staged,
-        unstaged: [
-          ...summary.modified.filter((f) => !summary.staged.includes(f)),
-          ...summary.deleted.filter((f) => !summary.staged.includes(f)),
-        ],
-        untracked: summary.not_added,
-        conflicted: summary.conflicted,
+        branch: summary.current || '',
+        isMergeInProgress: summary.conflicted.length > 0,
+        staged,
+        unstaged,
+        untracked,
+        conflicted,
       };
     } catch (error) {
       console.error('[AiPipeline:GitAdapter] getStatus 실패', error);
@@ -115,7 +165,7 @@ export class SimpleGitAdapter implements GitClient {
    */
   private parseRawDiff(rawDiff: string): DiffResult[] {
     if (!rawDiff) return [];
-    
+
     const results: DiffResult[] = [];
     const fileDiffs = rawDiff.split(/^diff --git/m).filter(Boolean);
 

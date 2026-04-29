@@ -1,4 +1,72 @@
 import { z } from 'zod';
+import { BranchStatusEnum, GitFileStatusTypeEnum } from '../enums/git';
+
+/**
+ * Git 파일의 개별 상태 정보
+ */
+export const GitFileStatusSchema = z.object({
+  path: z.string(),
+  status: GitFileStatusTypeEnum,
+  additions: z.number().optional(),
+  deletions: z.number().optional(),
+});
+export type GitFileStatus = z.infer<typeof GitFileStatusSchema>;
+
+/**
+ * 전체 Git 상태 인터페이스
+ */
+export const GitStatusSchema = z.object({
+  branch: z.string(),
+  isMergeInProgress: z.boolean(),
+  staged: z.array(GitFileStatusSchema),
+  unstaged: z.array(GitFileStatusSchema),
+  untracked: z.array(GitFileStatusSchema),
+  conflicted: z.array(GitFileStatusSchema),
+});
+export type GitStatus = z.infer<typeof GitStatusSchema>;
+
+/**
+ * 브랜치 데이터 인터페이스
+ */
+export const BranchSchema = z.object({
+  name: z.string(),
+  isCurrent: z.boolean(),
+  isRemote: z.boolean(),
+  status: BranchStatusEnum,
+  lastActivity: z.string(), // ISO Date String
+  lastCommitHash: z.string().optional(),
+});
+export type Branch = z.infer<typeof BranchSchema>;
+
+/**
+ * 워크트리 데이터 인터페이스
+ */
+export const WorktreeInfoSchema = z.object({
+  path: z.string(),
+  branch: z.string().optional(),
+  isMain: z.boolean(),
+  isLocked: z.boolean().optional(),
+});
+export type WorktreeInfo = z.infer<typeof WorktreeInfoSchema>;
+
+/**
+ * Git 명령 실행 결과
+ */
+export const GitResultSchema = z.object({
+  success: z.boolean(),
+  message: z.string().optional(),
+  error: z.string().optional(),
+});
+export type GitResult = z.infer<typeof GitResultSchema>;
+
+/**
+ * 병합 실행 결과
+ */
+export const MergeResultSchema = GitResultSchema.extend({
+  hasConflicts: z.boolean(),
+  conflictFiles: z.array(z.string()).optional(),
+});
+export type MergeResult = z.infer<typeof MergeResultSchema>;
 
 /**
  * 스냅샷 내 개별 파일 정보
@@ -51,13 +119,3 @@ export const AIDraftSchema = z.object({
   mediationOpinion: z.string(),
 });
 export type AIDraft = z.infer<typeof AIDraftSchema>;
-
-/**
- * 브랜치 데이터 인터페이스
- */
-export const BranchSchema = z.object({
-  name: z.string(),
-  status: z.enum(['merged', 'stale', 'active', 'protected']),
-  lastActivity: z.string(),
-});
-export type Branch = z.infer<typeof BranchSchema>;

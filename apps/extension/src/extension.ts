@@ -22,7 +22,8 @@ export function activate(context: vscode.ExtensionContext) {
       dbInstance = database.getInstance();
       console.log('GitCat Database initialized successfully at:', rootPath);
 
-      // 도메인별 Repository 구현체 생성 및 dbInstance 주입 (Constructor Injection)
+      // 도메인별 Repository 구현체 생성 및 dbInstance 주입 (Construc
+      // tor Injection)
       // const sessionRepo = new WorkSessionRepositoryImpl(dbInstance);
       // const snapshotRepo = new SnapshotRepositoryImpl(dbInstance);
 

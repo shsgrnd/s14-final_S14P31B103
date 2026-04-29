@@ -10,7 +10,8 @@
     "verify:sqlite": "node ./scripts/verify-better-sqlite3.cjs"
   },
   "dependencies": {
-    "better-sqlite3": "^12.9.0"
+    "better-sqlite3": "^12.9.0",
+    "@gitcat/shared-types": "workspace:*"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
