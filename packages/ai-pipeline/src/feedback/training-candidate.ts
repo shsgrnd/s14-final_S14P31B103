@@ -46,7 +46,6 @@ function resolveSourceType(parsedResult: ParsedAiResult): SourceType {
   // conflict_explanation : 충돌 원인 설명 결과 → 'conflict_explanation'
   // recommendation : 커밋/브랜치명 등 추천 결과 → 'recommendation'
   // merge_mediation : 병합 중재안 결과 → 'merge_mediation'
-  //   (2026-04-29 Task 24: 사용자 채택/수정/거절 흐름이 존재하므로 자동 후보화 대상에 포함 확정)
   switch (parsedResult.feature_type) {
     case 'merge_patch_draft':
       return 'merge_proposal';
