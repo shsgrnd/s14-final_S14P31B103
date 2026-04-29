@@ -33,6 +33,12 @@ importers:
 
   apps/extension:
     dependencies:
+      '@gitcat/git-client-cli':
+        specifier: workspace:*
+        version: link:../../packages/git-client-cli
+      '@gitcat/git-core':
+        specifier: workspace:*
+        version: link:../../packages/git-core
       '@gitcat/shared-types':
         specifier: workspace:*
         version: link:../../packages/shared-types
@@ -126,15 +132,15 @@ importers:
 
   packages/git-client-cli:
     dependencies:
+      '@gitcat/git-core':
+        specifier: workspace:*
+        version: link:../git-core
       simple-git:
         specifier: ^3.22.0
         version: 3.36.0
 
   packages/git-core:
     dependencies:
-      '@gitcat/git-client-cli':
-        specifier: workspace:*
-        version: link:../git-client-cli
       '@gitcat/shared-types':
         specifier: workspace:*
         version: link:../shared-types

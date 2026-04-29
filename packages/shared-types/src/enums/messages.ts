@@ -39,6 +39,17 @@ export const InboundMessageTypeEnum = z.enum([
   'OPEN_MERGE_PANEL',
   'CHECKOUT_BRANCH',
   'REJECT_AI_DRAFT',
+  // 1단계 추가: stash 작업 (Backend 1 추가 — Backend 2 확인 필요)
+  'GET_STASH_LIST',
+  'STASH_SAVE',
+  'STASH_APPLY',
+  'STASH_POP',
+  'STASH_DROP',
+  // 1단계 추가: unstage 작업
+  'GIT_UNSTAGE',
+  // 1단계 추가: merge abort / continue
+  'MERGE_ABORT',
+  'MERGE_CONTINUE',
 ]);
 export type InboundMessageType = z.infer<typeof InboundMessageTypeEnum>;
 
@@ -63,5 +74,7 @@ export const OutboundMessageTypeEnum = z.enum([
   'ERROR',
   'LOADING',
   'NOTIFICATION',
+  // 1단계 추가: stash 목록 응답 (Backend 1 추가 — Backend 2 확인 필요)
+  'STASH_LIST',
 ]);
 export type OutboundMessageType = z.infer<typeof OutboundMessageTypeEnum>;

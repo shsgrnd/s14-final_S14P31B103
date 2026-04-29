@@ -56,6 +56,8 @@
     "typescript": "^5.0.0"
   },
   "dependencies": {
+    "@gitcat/git-client-cli": "workspace:*",
+    "@gitcat/git-core": "workspace:*",
     "@gitcat/shared-types": "workspace:*",
     "@gitcat/storage": "workspace:*"
   }

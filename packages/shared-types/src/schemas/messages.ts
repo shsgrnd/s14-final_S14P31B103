@@ -65,6 +65,17 @@ export const InboundPayloadSchemaMap = {
   OPEN_MERGE_PANEL: z.object({}).strict(),
   CHECKOUT_BRANCH: z.object({ name: z.string() }),
   REJECT_AI_DRAFT: z.object({ id: z.string() }),
+  // 1단계 추가: stash
+  GET_STASH_LIST: z.object({}).strict(),
+  STASH_SAVE: z.object({ message: z.string().optional() }),
+  STASH_APPLY: z.object({ ref: z.string().optional() }),
+  STASH_POP: z.object({ ref: z.string().optional() }),
+  STASH_DROP: z.object({ ref: z.string().optional() }),
+  // 1단계 추가: unstage
+  GIT_UNSTAGE: z.object({ filePaths: z.array(z.string().min(1)).min(1) }),
+  // 1단계 추가: merge control
+  MERGE_ABORT: z.object({}).strict(),
+  MERGE_CONTINUE: z.object({}).strict(),
 } as const;
 
 /**
@@ -88,6 +99,16 @@ export const OutboundPayloadSchemaMap = {
   ERROR: z.object({ code: ErrorCodeEnum, message: z.string() }),
   LOADING: z.object({ target: z.string(), loading: z.boolean() }),
   NOTIFICATION: z.object({ type: z.enum(['info', 'warning', 'error']), message: z.string() }),
+  // 1단계 추가: stash 목록 응답
+  STASH_LIST: z.object({
+    stashes: z.array(z.object({
+      index: z.number(),
+      ref: z.string(),
+      message: z.string(),
+      branch: z.string(),
+      date: z.string(),
+    })),
+  }),
 } as const;
 
 /**
