@@ -70,10 +70,9 @@ export const invalidFeedbackBuilderMocks = [
 // ==========================================
 // training candidate 생성 규칙 위반 mock (STEP 11 검증용)
 // buildTrainingCandidatePayload의 dataset_type별 필수 ref 규칙을 확인합니다.
-//
+// 
 // [변경 이력]
-// 2026-04-29 Task 24: merge_mediation source_type 포함 확정으로
-//   "merge_mediation - source_type 미정" 케이스를 실패 mock에서 제거함.
+// merge_mediation source_type 포함 확정으로 "merge_mediation - source_type 미정" 케이스를 실패 mock에서 제거함.
 // ==========================================
 export const invalidTrainingCandidateBuilderMocks = [
   {
