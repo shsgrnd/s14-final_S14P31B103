@@ -37,6 +37,7 @@ const proposalLifecycleMap: Record<
   },
   completed: {},
   failed: {},
+  archived: {},
 };
 
 /**
@@ -93,13 +94,12 @@ export function normalizeProposalStatusForSelection(
 }
 
 /**
- * completed / failed 이후에는 더 이상 사용자 선택을 받지 않는다는 가정을 둡니다.
- * 추후 archived 상태가 공식화되면 여기서 terminal 집합만 확장하면 됩니다.
+ * completed / failed / archived 이후에는 더 이상 사용자 선택을 받지 않는다는 가정을 둡니다.
  */
 export function isTerminalProposalStatus(
   status: MergeProposalStatus,
 ): boolean {
-  return status === 'completed' || status === 'failed';
+  return status === 'completed' || status === 'failed' || status === 'archived';
 }
 
 /**

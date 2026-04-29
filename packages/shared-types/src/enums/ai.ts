@@ -42,7 +42,9 @@ export type SessionType = z.infer<typeof SessionTypeEnum>;
 // ai_requests.request_status
 export const RequestStatusEnum = z.enum([
   'queued',
+  'analyzing',
   'calling',
+  'completed',
   'succeeded',
   'failed',
   'timeout',
@@ -58,6 +60,8 @@ export const MergeProposalStatusEnum = z.enum([
   'accepted',
   'edited',
   'rejected',
+  'completed',
+  'failed',
   'archived',
 ]);
 export type MergeProposalStatus = z.infer<typeof MergeProposalStatusEnum>;
