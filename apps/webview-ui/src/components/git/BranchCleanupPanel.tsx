@@ -222,25 +222,47 @@ export const BranchCleanupPanel: React.FC = () => {
         borderTop: '1px solid var(--vscode-panel-border)' 
       }}>
         <span style={{ fontSize: '12px', color: 'var(--vscode-descriptionForeground)' }}>자동 정리 활성화</span>
-        
-        {/* Custom Toggle Switch */}
-        <div 
+
+        <button
           onClick={() => setAutoCleanup(!autoCleanup)}
           style={{
-            width: '32px', height: '16px', borderRadius: '8px',
-            background: autoCleanup ? 'var(--vscode-button-background)' : 'var(--vscode-input-background)',
-            position: 'relative', cursor: 'pointer', transition: 'background 0.2s',
-            border: '1px solid var(--vscode-panel-border)'
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '8px',
+            minWidth: '92px',
+            height: '28px',
+            padding: '0 10px 0 8px',
+            borderRadius: '999px',
+            border: `1px solid ${autoCleanup ? 'rgba(78, 201, 176, 0.45)' : 'var(--vscode-panel-border)'}`,
+            background: autoCleanup ? 'rgba(78, 201, 176, 0.14)' : 'var(--vscode-input-background)',
+            color: autoCleanup ? '#4ec9b0' : 'var(--vscode-descriptionForeground)',
+            cursor: 'pointer',
+            transition: 'all 0.2s ease',
           }}
         >
-          <div style={{
-            width: '12px', height: '12px', borderRadius: '50%',
-            background: autoCleanup ? 'var(--vscode-button-foreground)' : 'var(--vscode-descriptionForeground)',
-            position: 'absolute', top: '1px', 
-            left: autoCleanup ? 'calc(100% - 13px)' : '1px',
-            transition: 'all 0.2s ease'
-          }} />
-        </div>
+          <span style={{
+            width: '18px',
+            height: '18px',
+            borderRadius: '50%',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: autoCleanup ? '#4ec9b0' : 'var(--vscode-panel-border)',
+            color: autoCleanup ? '#1e1e1e' : 'var(--vscode-descriptionForeground)',
+            flexShrink: 0,
+          }}>
+            <Sparkles size={10} />
+          </span>
+          <span style={{
+            fontSize: '11px',
+            fontWeight: 700,
+            letterSpacing: '0.02em',
+            lineHeight: 1,
+          }}>
+            {autoCleanup ? 'AUTO ON' : 'AUTO OFF'}
+          </span>
+        </button>
       </div>
     </div>
   );
