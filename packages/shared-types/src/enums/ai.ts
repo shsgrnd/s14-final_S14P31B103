@@ -181,10 +181,12 @@ export const DatasetTypeEnum = z.enum([
 export type DatasetType = z.infer<typeof DatasetTypeEnum>;
 
 // training_candidates.source_type
+// 어떤 feature_type의 AI 결과가 학습 후보로 전환되었는지를 나타냅니다.
 export const SourceTypeEnum = z.enum([
-  'merge_proposal',
-  'conflict_explanation',
-  'recommendation',
+  'merge_proposal',       // feature_type: merge_patch_draft  → 병합 초안 생성 결과
+  'conflict_explanation', // feature_type: conflict_explanation → 충돌 원인 설명 결과
+  'recommendation',       // feature_type: recommendation      → 커밋/브랜치명 등 추천 결과
+  'merge_mediation',      // feature_type: merge_mediation     → 병합 중재안 결과 (2026-04-29 Task 24 추가)
 ]);
 export type SourceType = z.infer<typeof SourceTypeEnum>;
 
