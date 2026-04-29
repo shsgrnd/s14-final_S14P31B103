@@ -18,7 +18,8 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         webviewView.webview.options = {
             enableScripts: true,
             localResourceRoots: [
-                vscode.Uri.file(path.join(this.context.extensionPath, '..', 'webview-ui', 'dist'))
+                vscode.Uri.file(path.join(this.context.extensionPath, '..', 'webview-ui', 'dist')),
+                vscode.Uri.file(path.join(this.context.extensionPath, 'media'))
             ]
         };
 
@@ -39,6 +40,9 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         const distPath = vscode.Uri.file(
             path.join(this.context.extensionPath, '..', 'webview-ui', 'dist')
         );
+        const logoPath = vscode.Uri.file(
+            path.join(this.context.extensionPath, 'media', 'GitCat_icon.png')
+        );
         const indexPath = path.join(distPath.fsPath, 'index.html');
 
         if (!fs.existsSync(indexPath)) {
@@ -55,6 +59,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         }
 
         let html = fs.readFileSync(indexPath, 'utf-8');
+        const logoUri = webview.asWebviewUri(logoPath);
 
         // Vite 에셋 경로(./assets/... 또는 /assets/...)를 VS Code Webview URI로 변환
         html = html.replace(/(href|src)="(?:\.\/)?assets\/([^"]+)"/g, (match, attr, assetName) => {
@@ -63,6 +68,11 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
             );
             return `${attr}="${assetUri}"`;
         });
+
+        html = html.replace(
+            '</head>',
+            `<script>window.GITCAT_LOGO_URI = "${logoUri.toString()}";</script></head>`
+        );
 
         return html;
     }
