@@ -8,7 +8,9 @@
  * simple-git / CLI 세부 사항은 알 필요 없다.
  */
 
-import type { IGitClient, BranchInfo, LogEntry, MergeResult } from '@gitcat/git-core';
+import type { IGitClient, BranchInfo, LogEntry, MergeResult, FileStatusEntry } from '@gitcat/git-core';
+import type { GitFileStatus, GitFileStatusType, WorktreeInfo } from '@gitcat/shared-types';
+import type { GitMetadataSyncService } from './GitMetadataSyncService';
 
 // ─── Webview 응답용 DTO ───────────────────────────────────────────────────────
 
@@ -22,10 +24,10 @@ export interface GitStatusResponse {
   isDetachedHead: boolean;
   ahead: number;
   behind: number;
-  staged: Array<{ path: string; index: string; working_dir: string }>;
-  unstaged: Array<{ path: string; index: string; working_dir: string }>;
-  untracked: string[];
-  conflicted: string[];
+  staged: GitFileStatus[];
+  unstaged: GitFileStatus[];
+  untracked: GitFileStatus[];
+  conflicted: GitFileStatus[];
   isMergeInProgress: boolean;
   isMerging: boolean;
   isRebasing: boolean;
@@ -47,6 +49,8 @@ export interface BranchInfoResponse {
   /** UI 표시용 상태 레이블 */
   status: 'active' | 'merged' | 'stale' | 'protected';
 }
+
+export type WorktreeInfoResponse = WorktreeInfo;
 
 /** Stash 목록 항목 */
 export interface StashEntryResponse {
@@ -76,7 +80,10 @@ export interface GitCommandResult {
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 export class GitService {
-  constructor(private readonly gitClient: IGitClient) {}
+  constructor(
+    private readonly gitClient: IGitClient,
+    private readonly metadataSync?: GitMetadataSyncService,
+  ) {}
 
   // ─── Status & Branch ─────────────────────────────────────────────────────
 
@@ -88,10 +95,10 @@ export class GitService {
       isDetachedHead: status.isDetachedHead,
       ahead: status.ahead,
       behind: status.behind,
-      staged: status.staged,
-      unstaged: status.unstaged,
-      untracked: status.untracked,
-      conflicted: status.conflicted,
+      staged: status.staged.map((entry) => this.toGitFileStatus(entry, entry.index)),
+      unstaged: status.unstaged.map((entry) => this.toGitFileStatus(entry, entry.working_dir)),
+      untracked: status.untracked.map((path) => ({ path, status: 'UNTRACKED' })),
+      conflicted: status.conflicted.map((path) => ({ path, status: 'CONFLICTED' })),
       isMergeInProgress: status.isMerging,
       isMerging: status.isMerging,
       isRebasing: status.isRebasing,
@@ -100,6 +107,7 @@ export class GitService {
 
   async getBranches(): Promise<BranchInfoResponse[]> {
     const branches = await this.gitClient.getBranches();
+    await this.metadataSync?.syncBranches(branches);
     return branches.map((b) => ({
       name: b.name,
       isCurrent: b.isCurrent,
@@ -122,6 +130,31 @@ export class GitService {
 
   private isProtectedBranch(name: string): boolean {
     return ['main', 'master', 'develop', 'dev'].includes(name);
+  }
+
+  private toGitFileStatus(entry: FileStatusEntry, code: string): GitFileStatus {
+    return {
+      path: entry.path,
+      status: this.toGitFileStatusType(code),
+    };
+  }
+
+  private toGitFileStatusType(code: string): GitFileStatusType {
+    switch (code.trim()[0]) {
+      case 'A':
+        return 'ADDED';
+      case 'D':
+        return 'DELETED';
+      case 'R':
+        return 'RENAMED';
+      case 'U':
+        return 'CONFLICTED';
+      case '?':
+        return 'UNTRACKED';
+      case 'M':
+      default:
+        return 'MODIFIED';
+    }
   }
 
   // ─── Stage / Unstage ─────────────────────────────────────────────────────
@@ -149,6 +182,7 @@ export class GitService {
    */
   async applyBranch(name: string): Promise<GitCommandResult> {
     const branches = await this.gitClient.getBranches();
+    await this.metadataSync?.syncBranches(branches);
     const exists = branches.some((b) => b.name === name);
     if (exists) {
       await this.gitClient.checkoutBranch(name);
@@ -165,6 +199,7 @@ export class GitService {
 
   async createBranch(name: string): Promise<GitCommandResult> {
     await this.gitClient.createBranch(name);
+    await this.getBranches();
     return { success: true, message: `브랜치 "${name}"이 생성되었습니다.` };
   }
 
@@ -186,6 +221,7 @@ export class GitService {
         }
 
         await this.gitClient.deleteBranch(name, force);
+        await this.metadataSync?.deleteBranch(name);
       } catch (err: any) {
         errors.push(`${name}: ${err.message}`);
       }
@@ -297,5 +333,16 @@ export class GitService {
   /** 병합 완료 브랜치 목록 (브랜치 정리 기능용) */
   async getMergedBranches(): Promise<string[]> {
     return this.gitClient.getMergedBranches();
+  }
+
+  async getWorktrees(): Promise<WorktreeInfoResponse[]> {
+    const worktrees = await this.gitClient.getWorktrees();
+    await this.metadataSync?.syncWorktrees(worktrees);
+    return worktrees.map((worktree) => ({
+      path: worktree.path,
+      branch: worktree.branch,
+      isMain: worktree.isMain,
+      isLocked: worktree.isLocked,
+    }));
   }
 }

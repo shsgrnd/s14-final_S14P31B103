@@ -13,6 +13,7 @@ import {
   BranchSchema,
   GitResultSchema,
   GitStatusSchema,
+  WorktreeInfoSchema,
 } from '../dto/git';
 
 /**
@@ -60,6 +61,7 @@ export const InboundPayloadSchemaMap = {
   REFRESH_STATUS: z.object({}).strict(),
   GET_SNAPSHOT_LIST: z.object({}).strict(),
   GET_BRANCH_LIST: z.object({}).strict(),
+  GET_WORKTREE_LIST: z.object({}).strict(),
   // 추가된 메시지 스키마
   CREATE_SNAPSHOT: z.object({ title: z.string().optional() }),
   RENAME_SNAPSHOT: z.object({ snapshotId: z.string(), newTitle: z.string() }),
@@ -107,6 +109,7 @@ export const OutboundPayloadSchemaMap = {
   BRANCH_SUGGESTIONS: z.object({ names: z.array(z.string()) }),
   PR_SUGGESTION: z.object({ markdown: z.string() }),
   BRANCH_LIST: z.object({ branches: z.array(BranchSchema) }),
+  WORKTREE_LIST: z.object({ worktrees: z.array(WorktreeInfoSchema) }),
   GIT_OPERATION_RESULT: z.object({ operation: z.string(), result: GitResultSchema }),
   ERROR: z.object({ code: ErrorCodeEnum, message: z.string() }),
   LOADING: z.object({ target: z.string(), loading: z.boolean() }),

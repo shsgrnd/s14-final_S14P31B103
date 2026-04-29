@@ -32,6 +32,7 @@ export const InboundMessageTypeEnum = z.enum([
   'REFRESH_STATUS',
   'GET_SNAPSHOT_LIST',
   'GET_BRANCH_LIST',
+  'GET_WORKTREE_LIST',
   // 추가된 메시지 타입
   'CREATE_SNAPSHOT',
   'RENAME_SNAPSHOT',
@@ -80,6 +81,7 @@ export const OutboundMessageTypeEnum = z.enum([
   'BRANCH_SUGGESTIONS',
   'PR_SUGGESTION',
   'BRANCH_LIST',
+  'WORKTREE_LIST',
   'GIT_OPERATION_RESULT',
   'ERROR',
   'LOADING',

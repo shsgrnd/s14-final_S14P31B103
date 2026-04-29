@@ -14,6 +14,7 @@ export const ErrorCodeEnum = z.enum([
   // Git 관련 에러
   'GIT_NOT_FOUND',
   'GIT_NOT_REPOSITORY',
+  'GIT_OPERATION_FAILED',
   'GIT_BRANCH_NOT_FOUND',
   'GIT_BRANCH_ALREADY_EXISTS',
   'GIT_WORKING_TREE_DIRTY',

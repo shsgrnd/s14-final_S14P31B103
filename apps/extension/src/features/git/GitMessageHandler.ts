@@ -32,6 +32,10 @@ export class GitMessageHandler {
         await this.handleGetBranchList(webview);
         return true;
 
+      case 'GET_WORKTREE_LIST':
+        await this.handleGetWorktreeList(webview);
+        return true;
+
       // ─── 브랜치 작업 ─────────────────────────────────────────────────────
       case 'APPLY_BRANCH':
         await this.handleApplyBranch(payload, webview);
@@ -158,10 +162,24 @@ export class GitMessageHandler {
     }
   }
 
+  private async handleGetWorktreeList(webview: vscode.Webview): Promise<void> {
+    this.sendLoading(webview, 'worktrees', true);
+    try {
+      const worktrees = await this.gitService.getWorktrees();
+      webview.postMessage({
+        type: 'WORKTREE_LIST',
+        payload: { worktrees },
+      });
+    } finally {
+      this.sendLoading(webview, 'worktrees', false);
+    }
+  }
+
   private async handleApplyBranch(payload: { name: string }, webview: vscode.Webview): Promise<void> {
     this.sendLoading(webview, 'branch', true);
     try {
       const result = await this.gitService.applyBranch(payload.name);
+      this.sendOperationResult(webview, 'APPLY_BRANCH', result);
       if (result.success) {
         this.sendNotification(webview, 'info', result.message ?? '브랜치가 전환되었습니다.');
         // 상태 갱신
@@ -179,6 +197,7 @@ export class GitMessageHandler {
     this.sendLoading(webview, 'branch', true);
     try {
       const result = await this.gitService.checkoutBranch(payload.name);
+      this.sendOperationResult(webview, 'CHECKOUT_BRANCH', result);
       if (result.success) {
         this.sendNotification(webview, 'info', result.message ?? '브랜치가 전환되었습니다.');
         await this.handleRefreshStatus(webview);
@@ -198,6 +217,7 @@ export class GitMessageHandler {
     this.sendLoading(webview, 'branches', true);
     try {
       const result = await this.gitService.deleteBranches(payload.names, payload.force);
+      this.sendOperationResult(webview, 'DELETE_BRANCHES', result);
       if (result.success) {
         this.sendNotification(webview, 'info', result.message ?? '브랜치가 삭제되었습니다.');
         await this.handleGetBranchList(webview);
@@ -213,6 +233,7 @@ export class GitMessageHandler {
     this.sendLoading(webview, 'stage', true);
     try {
       await this.gitService.stageAll();
+      this.sendOperationResult(webview, 'GIT_ADD_ALL', { success: true });
       this.sendNotification(webview, 'info', '모든 변경사항이 스테이징되었습니다.');
       await this.handleRefreshStatus(webview);
     } finally {
@@ -228,6 +249,7 @@ export class GitMessageHandler {
     this.sendLoading(webview, 'stage', true);
     try {
       await this.gitService.stageFiles(filePaths);
+      this.sendOperationResult(webview, 'GIT_STAGE_FILES', { success: true });
       this.sendNotification(webview, 'info', `${filePaths.length} file(s) staged.`);
       await this.handleRefreshStatus(webview);
     } finally {
@@ -243,6 +265,7 @@ export class GitMessageHandler {
     this.sendLoading(webview, 'stage', true);
     try {
       await this.gitService.unstageFiles(filePaths);
+      this.sendOperationResult(webview, 'GIT_UNSTAGE_FILES', { success: true });
       this.sendNotification(webview, 'info', `${filePaths.length} file(s) unstaged.`);
       await this.handleRefreshStatus(webview);
     } finally {
@@ -257,6 +280,7 @@ export class GitMessageHandler {
     this.sendLoading(webview, 'commit', true);
     try {
       const result = await this.gitService.runCommit(payload.message, payload.body);
+      this.sendOperationResult(webview, 'EXECUTE_COMMIT', result);
       if (result.success) {
         this.sendNotification(webview, 'info', result.message ?? '커밋이 완료되었습니다.');
         await this.handleRefreshStatus(webview);
@@ -272,6 +296,7 @@ export class GitMessageHandler {
     this.sendLoading(webview, 'push', true);
     try {
       const result = await this.gitService.push();
+      this.sendOperationResult(webview, 'GIT_PUSH', result);
       if (result.success) {
         this.sendNotification(webview, 'info', result.message ?? 'Push가 완료되었습니다.');
         await this.handleRefreshStatus(webview);
@@ -287,6 +312,7 @@ export class GitMessageHandler {
     this.sendLoading(webview, 'pull', true);
     try {
       const result = await this.gitService.pull();
+      this.sendOperationResult(webview, 'EXECUTE_PULL', result);
       if (result.success) {
         this.sendNotification(webview, 'info', result.message ?? 'Pull이 완료되었습니다.');
         await this.handleRefreshStatus(webview);
@@ -305,6 +331,11 @@ export class GitMessageHandler {
     this.sendLoading(webview, 'merge', true);
     try {
       const result = await this.gitService.runMerge(payload.source);
+      this.sendOperationResult(webview, 'RUN_MERGE', {
+        success: result.success,
+        message: result.success ? result.stdout : undefined,
+        error: result.success ? undefined : result.stderr,
+      });
       if (result.success) {
         webview.postMessage({ type: 'MERGE_COMPLETE', payload: {} });
         this.sendNotification(webview, 'info', '병합이 완료되었습니다.');
@@ -326,6 +357,7 @@ export class GitMessageHandler {
     this.sendLoading(webview, 'merge', true);
     try {
       const result = await this.gitService.mergeAbort();
+      this.sendOperationResult(webview, 'MERGE_ABORT', result);
       if (result.success) {
         this.sendNotification(webview, 'info', result.message ?? '병합이 취소되었습니다.');
       } else {
@@ -341,6 +373,7 @@ export class GitMessageHandler {
     this.sendLoading(webview, 'merge', true);
     try {
       const result = await this.gitService.mergeContinue();
+      this.sendOperationResult(webview, 'MERGE_CONTINUE', result);
       if (result.success) {
         this.sendNotification(webview, 'info', result.message ?? '병합이 계속 진행됩니다.');
         webview.postMessage({ type: 'MERGE_COMPLETE', payload: {} });
@@ -372,6 +405,7 @@ export class GitMessageHandler {
     this.sendLoading(webview, 'stash', true);
     try {
       const result = await this.gitService.stashSave(payload.message);
+      this.sendOperationResult(webview, 'STASH_SAVE', result);
       if (result.success) {
         this.sendNotification(webview, 'info', result.message ?? 'Stash가 저장되었습니다.');
         await this.handleRefreshStatus(webview);
@@ -391,6 +425,7 @@ export class GitMessageHandler {
     this.sendLoading(webview, 'stash', true);
     try {
       const result = await this.gitService.stashApply(payload.ref ?? payload.stashRef);
+      this.sendOperationResult(webview, 'STASH_APPLY', result);
       if (result.success) {
         this.sendNotification(webview, 'info', result.message ?? 'Stash가 적용되었습니다.');
         await this.handleRefreshStatus(webview);
@@ -409,6 +444,7 @@ export class GitMessageHandler {
     this.sendLoading(webview, 'stash', true);
     try {
       const result = await this.gitService.stashPop(payload.ref ?? payload.stashRef);
+      this.sendOperationResult(webview, 'STASH_POP', result);
       if (result.success) {
         this.sendNotification(webview, 'info', result.message ?? 'Stash가 적용 및 제거되었습니다.');
         await this.handleRefreshStatus(webview);
@@ -428,6 +464,7 @@ export class GitMessageHandler {
     this.sendLoading(webview, 'stash', true);
     try {
       const result = await this.gitService.stashDrop(payload.ref ?? payload.stashRef);
+      this.sendOperationResult(webview, 'STASH_DROP', result);
       if (result.success) {
         this.sendNotification(webview, 'info', result.message ?? 'Stash 항목이 삭제되었습니다.');
         await this.handleGetStashList(webview);
@@ -448,6 +485,7 @@ export class GitMessageHandler {
     this.sendLoading(webview, 'stage', true);
     try {
       await this.gitService.unstageFiles(payload.filePaths);
+      this.sendOperationResult(webview, 'GIT_UNSTAGE', { success: true });
       this.sendNotification(webview, 'info', `${payload.filePaths.length}개 파일이 unstage되었습니다.`);
       await this.handleRefreshStatus(webview);
     } finally {
@@ -467,6 +505,17 @@ export class GitMessageHandler {
     message: string,
   ): void {
     webview.postMessage({ type: 'NOTIFICATION', payload: { type, message } });
+  }
+
+  private sendOperationResult(
+    webview: vscode.Webview,
+    operation: string,
+    result: { success: boolean; message?: string; error?: string },
+  ): void {
+    webview.postMessage({
+      type: 'GIT_OPERATION_RESULT',
+      payload: { operation, result },
+    });
   }
 
   private sendError(webview: vscode.Webview, message: string): void {

@@ -8,6 +8,7 @@ import { SidebarProvider } from './webview/SidebarProvider';
 import { MessageRouter } from './core/MessageRouter';
 import { GitService } from './features/git/GitService';
 import { GitMessageHandler } from './features/git/GitMessageHandler';
+import { GitMetadataSyncService } from './features/git/GitMetadataSyncService';
 
 export function activate(context: vscode.ExtensionContext) {
   console.log('GitCat Extension is now active!');
@@ -46,7 +47,10 @@ export function activate(context: vscode.ExtensionContext) {
   if (rootPath) {
     try {
       const gitClient = new GitCliClient(rootPath);
-      const gitService = new GitService(gitClient);
+      const gitMetadataSync = dbInstance
+        ? new GitMetadataSyncService(dbInstance, rootPath)
+        : undefined;
+      const gitService = new GitService(gitClient, gitMetadataSync);
       gitMessageHandler = new GitMessageHandler(gitService);
       console.log('GitCat Git layer initialized at:', rootPath);
     } catch (error) {
