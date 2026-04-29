@@ -17,6 +17,7 @@ import type { IGitClient, BranchInfo, LogEntry, MergeResult } from '@gitcat/git-
  * (OutboundPayloadSchemaMap.GIT_STATUS_UPDATED.status 에 매핑)
  */
 export interface GitStatusResponse {
+  branch: string;
   currentBranch: string;
   isDetachedHead: boolean;
   ahead: number;
@@ -25,6 +26,7 @@ export interface GitStatusResponse {
   unstaged: Array<{ path: string; index: string; working_dir: string }>;
   untracked: string[];
   conflicted: string[];
+  isMergeInProgress: boolean;
   isMerging: boolean;
   isRebasing: boolean;
 }
@@ -40,6 +42,7 @@ export interface BranchInfoResponse {
   trackingBranch?: string;
   lastCommitHash?: string;
   lastCommitMessage?: string;
+  lastActivity: string;
   isMerged?: boolean;
   /** UI 표시용 상태 레이블 */
   status: 'active' | 'merged' | 'stale' | 'protected';
@@ -80,6 +83,7 @@ export class GitService {
   async getStatus(): Promise<GitStatusResponse> {
     const status = await this.gitClient.getStatus();
     return {
+      branch: status.currentBranch,
       currentBranch: status.currentBranch,
       isDetachedHead: status.isDetachedHead,
       ahead: status.ahead,
@@ -88,6 +92,7 @@ export class GitService {
       unstaged: status.unstaged,
       untracked: status.untracked,
       conflicted: status.conflicted,
+      isMergeInProgress: status.isMerging,
       isMerging: status.isMerging,
       isRebasing: status.isRebasing,
     };
@@ -102,15 +107,21 @@ export class GitService {
       trackingBranch: b.trackingBranch,
       lastCommitHash: b.lastCommitHash,
       lastCommitMessage: b.lastCommitMessage,
+      lastActivity: b.lastCommitDate ?? '',
       isMerged: b.isMerged,
       status: this.toBranchStatus(b),
     }));
   }
 
   private toBranchStatus(b: BranchInfo): BranchInfoResponse['status'] {
-    if (b.isMerged) return 'merged';
     if (b.isCurrent) return 'active';
+    if (this.isProtectedBranch(b.name)) return 'protected';
+    if (b.isMerged) return 'merged';
     return 'stale';
+  }
+
+  private isProtectedBranch(name: string): boolean {
+    return ['main', 'master', 'develop', 'dev'].includes(name);
   }
 
   // ─── Stage / Unstage ─────────────────────────────────────────────────────
@@ -159,8 +170,21 @@ export class GitService {
 
   async deleteBranches(names: string[], force: boolean): Promise<GitCommandResult> {
     const errors: string[] = [];
+    const branches = await this.gitClient.getBranches();
+    const branchMap = new Map(branches.map((branch) => [branch.name, branch]));
+
     for (const name of names) {
       try {
+        const branch = branchMap.get(name);
+        if (branch?.isCurrent) {
+          errors.push(`${name}: cannot delete the currently checked out branch`);
+          continue;
+        }
+        if (this.isProtectedBranch(name)) {
+          errors.push(`${name}: protected branch`);
+          continue;
+        }
+
         await this.gitClient.deleteBranch(name, force);
       } catch (err: any) {
         errors.push(`${name}: ${err.message}`);

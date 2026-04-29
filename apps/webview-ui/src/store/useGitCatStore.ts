@@ -75,6 +75,9 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
       case 'BRANCH_LIST':
         set({ branches: payload.branches });
         break;
+      case 'GIT_STATUS_UPDATED':
+        set({ currentBranch: payload.status.branch ?? payload.status.currentBranch ?? 'HEAD' });
+        break;
       case 'CONFLICT_RESULT':
         set({ conflicts: payload.candidates });
         break;

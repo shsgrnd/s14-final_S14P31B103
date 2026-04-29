@@ -73,7 +73,9 @@ export const BranchCleanupPanel: React.FC = () => {
 
   const handleDelete = () => {
     if (selected.size === 0) return;
-    sendMessage('DELETE_BRANCHES', { names: Array.from(selected), force: false });
+    const selectedBranches = branches.filter((branch) => selected.has(branch.name));
+    const force = selectedBranches.some((branch) => branch.status === 'stale');
+    sendMessage('DELETE_BRANCHES', { names: Array.from(selected), force });
     setSelected(new Set());
   };
 

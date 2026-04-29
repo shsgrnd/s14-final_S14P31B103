@@ -50,6 +50,14 @@ export class GitMessageHandler {
         await this.handleGitAddAll(webview);
         return true;
 
+      case 'GIT_STAGE_FILES':
+        await this.handleGitStageFiles(payload, webview);
+        return true;
+
+      case 'GIT_UNSTAGE_FILES':
+        await this.handleGitUnstageFiles(payload, webview);
+        return true;
+
       // ─── Commit / Push / Pull ─────────────────────────────────────────────
       case 'APPLY_COMMIT':
         await this.handleCommit(payload, webview);
@@ -73,10 +81,12 @@ export class GitMessageHandler {
         return true;
 
       case 'MERGE_ABORT':
+      case 'GIT_MERGE_ABORT':
         await this.handleMergeAbort(webview);
         return true;
 
       case 'MERGE_CONTINUE':
+      case 'GIT_MERGE_CONTINUE':
         await this.handleMergeContinue(webview);
         return true;
 
@@ -91,18 +101,22 @@ export class GitMessageHandler {
         return true;
 
       case 'STASH_SAVE':
+      case 'GIT_STASH_SAVE':
         await this.handleStashSave(payload, webview);
         return true;
 
       case 'STASH_APPLY':
+      case 'GIT_STASH_APPLY':
         await this.handleStashApply(payload, webview);
         return true;
 
       case 'STASH_POP':
+      case 'GIT_STASH_POP':
         await this.handleStashPop(payload, webview);
         return true;
 
       case 'STASH_DROP':
+      case 'GIT_STASH_DROP':
         await this.handleStashDrop(payload, webview);
         return true;
 
@@ -200,6 +214,36 @@ export class GitMessageHandler {
     try {
       await this.gitService.stageAll();
       this.sendNotification(webview, 'info', '모든 변경사항이 스테이징되었습니다.');
+      await this.handleRefreshStatus(webview);
+    } finally {
+      this.sendLoading(webview, 'stage', false);
+    }
+  }
+
+  private async handleGitStageFiles(
+    payload: { paths?: string[]; filePaths?: string[] },
+    webview: vscode.Webview,
+  ): Promise<void> {
+    const filePaths = payload.paths ?? payload.filePaths ?? [];
+    this.sendLoading(webview, 'stage', true);
+    try {
+      await this.gitService.stageFiles(filePaths);
+      this.sendNotification(webview, 'info', `${filePaths.length} file(s) staged.`);
+      await this.handleRefreshStatus(webview);
+    } finally {
+      this.sendLoading(webview, 'stage', false);
+    }
+  }
+
+  private async handleGitUnstageFiles(
+    payload: { paths?: string[]; filePaths?: string[] },
+    webview: vscode.Webview,
+  ): Promise<void> {
+    const filePaths = payload.paths ?? payload.filePaths ?? [];
+    this.sendLoading(webview, 'stage', true);
+    try {
+      await this.gitService.unstageFiles(filePaths);
+      this.sendNotification(webview, 'info', `${filePaths.length} file(s) unstaged.`);
       await this.handleRefreshStatus(webview);
     } finally {
       this.sendLoading(webview, 'stage', false);
@@ -341,12 +385,12 @@ export class GitMessageHandler {
   }
 
   private async handleStashApply(
-    payload: { ref?: string },
+    payload: { ref?: string; stashRef?: string },
     webview: vscode.Webview,
   ): Promise<void> {
     this.sendLoading(webview, 'stash', true);
     try {
-      const result = await this.gitService.stashApply(payload.ref);
+      const result = await this.gitService.stashApply(payload.ref ?? payload.stashRef);
       if (result.success) {
         this.sendNotification(webview, 'info', result.message ?? 'Stash가 적용되었습니다.');
         await this.handleRefreshStatus(webview);
@@ -359,12 +403,12 @@ export class GitMessageHandler {
   }
 
   private async handleStashPop(
-    payload: { ref?: string },
+    payload: { ref?: string; stashRef?: string },
     webview: vscode.Webview,
   ): Promise<void> {
     this.sendLoading(webview, 'stash', true);
     try {
-      const result = await this.gitService.stashPop(payload.ref);
+      const result = await this.gitService.stashPop(payload.ref ?? payload.stashRef);
       if (result.success) {
         this.sendNotification(webview, 'info', result.message ?? 'Stash가 적용 및 제거되었습니다.');
         await this.handleRefreshStatus(webview);
@@ -378,12 +422,12 @@ export class GitMessageHandler {
   }
 
   private async handleStashDrop(
-    payload: { ref?: string },
+    payload: { ref?: string; stashRef?: string },
     webview: vscode.Webview,
   ): Promise<void> {
     this.sendLoading(webview, 'stash', true);
     try {
-      const result = await this.gitService.stashDrop(payload.ref);
+      const result = await this.gitService.stashDrop(payload.ref ?? payload.stashRef);
       if (result.success) {
         this.sendNotification(webview, 'info', result.message ?? 'Stash 항목이 삭제되었습니다.');
         await this.handleGetStashList(webview);

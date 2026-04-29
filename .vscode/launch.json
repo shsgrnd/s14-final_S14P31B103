@@ -1,17 +1,18 @@
 {
-    "version": "0.2.0",
-    "configurations": [
-        {
-            "name": "Run GitCat Extension",
-            "type": "extensionHost",
-            "request": "launch",
-            "args": [
-                "--extensionDevelopmentPath=c:/workspace/2학기_자율_PJT/s14-final_S14P31B103/apps/extension"
-            ],
-            "outFiles": [
-                "c:/workspace/2학기_자율_PJT/s14-final_S14P31B103/apps/extension/dist/**/*.js"
-            ],
-            "preLaunchTask": "pnpm compile"
-        }
-    ]
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run GitCat Extension",
+      "type": "extensionHost",
+      "request": "launch",
+      "args": [
+        "--extensionDevelopmentPath=${workspaceFolder}/apps/extension",
+        "${workspaceFolder}"
+      ],
+      "outFiles": [
+        "${workspaceFolder}/apps/extension/dist/**/*.js"
+      ],
+      "preLaunchTask": "pnpm compile"
+    }
+  ]
 }
