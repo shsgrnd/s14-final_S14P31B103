@@ -137,11 +137,11 @@ export class MessageRouter {
 
         default:
           console.warn(`[GitCat] Unhandled message type: ${message.type}`);
-          this.postError(webview, `Unhandled message type: ${message.type}`);
+          this.postError(webview, 'INTERNAL_ERROR', `Unhandled message type: ${message.type}`);
       }
     } catch (error: any) {
       console.error(`[GitCat] Error handling message ${message.type}:`, error);
-      this.postError(webview, error?.message ?? String(error));
+      this.postError(webview, 'INTERNAL_ERROR', error?.message ?? String(error));
     }
   }
 
