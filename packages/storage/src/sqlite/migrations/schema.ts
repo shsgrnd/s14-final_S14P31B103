@@ -1,6 +1,6 @@
 /**
  * GitCat SQLite 데이터베이스 테이블 스키마 정의 (DDL)
- *
+ * 
  * 참고 문서:
  * - docs/architecture/data/08_ERD_SQLITE.md
  * - docs/api/ai/AI_work_breakdown.md
@@ -18,177 +18,223 @@
  *   컬럼명, nullable 여부, 인덱스, 마이그레이션 전략을 최종 확정해야 한다.
  */
 export const SCHEMAS = [
-  // ==========================================
-  // 1. CORE (코어 시스템)
-  // ==========================================
-  `CREATE TABLE IF NOT EXISTS Project (
-    id TEXT PRIMARY KEY,
-    name TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  `CREATE TABLE IF NOT EXISTS users (
+    user_id TEXT PRIMARY KEY,
+    email TEXT,
+    name TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
   );`,
-  `CREATE TABLE IF NOT EXISTS Session (
-    id TEXT PRIMARY KEY,
+  `CREATE TABLE IF NOT EXISTS devices (
+    device_id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    device_name TEXT,
+    device_type TEXT,
+    os_type TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+  );`,
+  `CREATE TABLE IF NOT EXISTS projects (
+    project_id TEXT PRIMARY KEY,
+    user_id TEXT NOT NULL,
+    project_name TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(user_id)
+  );`,
+  `CREATE TABLE IF NOT EXISTS project_workspaces (
+    project_workspace_id TEXT PRIMARY KEY,
+    device_id TEXT NOT NULL,
     project_id TEXT NOT NULL,
-    status TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(project_id) REFERENCES Project(id)
+    workspace_root_path TEXT NOT NULL,
+    git_root_path TEXT NOT NULL,
+    last_opened_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (device_id) REFERENCES devices(device_id),
+    FOREIGN KEY (project_id) REFERENCES projects(project_id)
   );`,
-  `CREATE TABLE IF NOT EXISTS Snapshot (
-    id TEXT PRIMARY KEY,
+  `CREATE TABLE IF NOT EXISTS branches (
+    branch_id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    branch_name TEXT NOT NULL,
+    is_remote INTEGER NOT NULL DEFAULT 0,
+    tracking_branch_name TEXT,
+    last_commit_hash TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (project_id) REFERENCES projects(project_id),
+    UNIQUE(project_id, branch_name)
+  );`,
+  `CREATE TABLE IF NOT EXISTS worktrees (
+    worktree_id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    worktree_path TEXT NOT NULL,
+    is_main INTEGER NOT NULL DEFAULT 0,
+    is_active INTEGER NOT NULL DEFAULT 1,
+    last_opened_at TEXT,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (project_id) REFERENCES projects(project_id)
+  );`,
+  `CREATE TABLE IF NOT EXISTS worktree_instances (
+    worktree_instance_id TEXT PRIMARY KEY,
+    worktree_id TEXT NOT NULL,
+    branch_id TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (worktree_id) REFERENCES worktrees(worktree_id),
+    FOREIGN KEY (branch_id) REFERENCES branches(branch_id)
+  );`,
+  `CREATE TABLE IF NOT EXISTS work_sessions (
+    session_id TEXT PRIMARY KEY,
+    worktree_instance_id TEXT NOT NULL,
+    session_type TEXT NOT NULL,
+    base_snapshot_id TEXT,
+    description TEXT,
+    status TEXT NOT NULL,
+    started_at TEXT NOT NULL,
+    ended_at TEXT,
+    FOREIGN KEY (worktree_instance_id) REFERENCES worktree_instances(worktree_instance_id)
+  );`,
+  `CREATE TABLE IF NOT EXISTS snapshots (
+    snapshot_id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    reason TEXT NOT NULL,
+    is_checkpoint INTEGER NOT NULL DEFAULT 0,
+    label TEXT,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (session_id) REFERENCES work_sessions(session_id)
+  );`,
+  `CREATE TABLE IF NOT EXISTS snapshot_files (
+    snapshot_file_id TEXT PRIMARY KEY,
+    snapshot_id TEXT NOT NULL,
+    original_path TEXT NOT NULL,
+    stored_path TEXT NOT NULL,
+    file_name TEXT NOT NULL,
+    content_hash TEXT,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (snapshot_id) REFERENCES snapshots(snapshot_id)
+  );`,
+  `CREATE TABLE IF NOT EXISTS change_records (
+    record_id TEXT PRIMARY KEY,
     session_id TEXT NOT NULL,
     branch_name TEXT,
-    reason TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(session_id) REFERENCES Session(id)
+    description TEXT,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (session_id) REFERENCES work_sessions(session_id)
   );`,
-  `CREATE TABLE IF NOT EXISTS SnapshotFile (
-    id TEXT PRIMARY KEY,
-    snapshot_id TEXT NOT NULL,
+  `CREATE TABLE IF NOT EXISTS changed_files (
+    changed_file_id TEXT PRIMARY KEY,
+    record_id TEXT NOT NULL,
     file_path TEXT NOT NULL,
-    stored_path TEXT,
-    FOREIGN KEY(snapshot_id) REFERENCES Snapshot(id)
+    change_type TEXT NOT NULL,
+    location TEXT,
+    summary TEXT,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (record_id) REFERENCES change_records(record_id)
   );`,
-  `CREATE TABLE IF NOT EXISTS ChangeRecord (
-    id TEXT PRIMARY KEY,
-    session_id TEXT NOT NULL,
-    snapshot_id TEXT NOT NULL,
-    reason TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(session_id) REFERENCES Session(id),
-    FOREIGN KEY(snapshot_id) REFERENCES Snapshot(id)
+  `CREATE TABLE IF NOT EXISTS restore_histories (
+    restore_history_id TEXT PRIMARY KEY,
+    target_snapshot_id TEXT NOT NULL,
+    pre_restore_snapshot_id TEXT,
+    restored_at TEXT NOT NULL,
+    FOREIGN KEY (target_snapshot_id) REFERENCES snapshots(snapshot_id),
+    FOREIGN KEY (pre_restore_snapshot_id) REFERENCES snapshots(snapshot_id)
   );`,
-  `CREATE TABLE IF NOT EXISTS ChangedFile (
-    id TEXT PRIMARY KEY,
-    change_record_id TEXT NOT NULL,
-    file_path TEXT NOT NULL,
-    change_type TEXT,
-    FOREIGN KEY(change_record_id) REFERENCES ChangeRecord(id)
-  );`,
-  `CREATE TABLE IF NOT EXISTS RestoreHistory (
-    id TEXT PRIMARY KEY,
-    snapshot_id TEXT NOT NULL,
-    restored_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(snapshot_id) REFERENCES Snapshot(id)
-  );`,
-
-  // ==========================================
-  // 2. MERGE ANALYSIS (병합 분석)
-  // ==========================================
-  `CREATE TABLE IF NOT EXISTS MergeAnalysis (
-    id TEXT PRIMARY KEY,
-    session_id TEXT NOT NULL,
-    base_branch TEXT NOT NULL,
-    target_branch TEXT NOT NULL,
+  `CREATE TABLE IF NOT EXISTS merge_analyses (
+    analysis_id TEXT PRIMARY KEY,
+    source_worktree_instance_id TEXT NOT NULL,
+    target_worktree_instance_id TEXT NOT NULL,
     merge_base TEXT,
-    status TEXT,
-    source_worktree_instance_id TEXT,
-    target_worktree_instance_id TEXT,
+    status TEXT NOT NULL,
     analysis_artifact_path TEXT,
-    proposal_artifact_path TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(session_id) REFERENCES Session(id)
+    proposals_artifact_path TEXT,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (source_worktree_instance_id) REFERENCES worktree_instances(worktree_instance_id),
+    FOREIGN KEY (target_worktree_instance_id) REFERENCES worktree_instances(worktree_instance_id)
   );`,
-  `CREATE TABLE IF NOT EXISTS ConflictCandidate (
-    id TEXT PRIMARY KEY,
-    merge_analysis_id TEXT NOT NULL,
+  `CREATE TABLE IF NOT EXISTS conflict_candidates (
+    candidate_id TEXT PRIMARY KEY,
+    analysis_id TEXT NOT NULL,
     file_path TEXT NOT NULL,
     line_start INTEGER,
     line_end INTEGER,
-    conflict_type TEXT,
-    reason_summary TEXT,
-    risk_level TEXT,
-    detected_by TEXT,
-    source_code_ref TEXT,
-    target_code_ref TEXT,
-    base_code_ref TEXT,
-    FOREIGN KEY(merge_analysis_id) REFERENCES MergeAnalysis(id)
+    detected_by TEXT NOT NULL,
+    confidence_score REAL,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (analysis_id) REFERENCES merge_analyses(analysis_id)
   );`,
-
-  // ==========================================
-  // 3. AI & FEEDBACK (AI 추론 및 피드백 추적)
-  // ==========================================
-  // TODO(core-storage): ai_request_id FK 대상 테이블이 정식으로 추가되면 외래키 연결을 보강한다.
-  // AI 모델 1회 호출 단위의 메타데이터 및 응답 참조 기록
-  `CREATE TABLE IF NOT EXISTS InferenceRun (
-    id TEXT PRIMARY KEY,
-    session_id TEXT NOT NULL,
+  `CREATE TABLE IF NOT EXISTS merge_proposals (
+    proposal_id TEXT PRIMARY KEY,
+    candidate_id TEXT NOT NULL,
     ai_request_id TEXT,
-    parent_inference_run_id TEXT,
-    run_type TEXT NOT NULL,
-    input_summary TEXT,
-    status TEXT,
-    tokens_used INTEGER,
-    latency_ms INTEGER,
-    response_ref TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(session_id) REFERENCES Session(id),
-    FOREIGN KEY(parent_inference_run_id) REFERENCES InferenceRun(id)
-  );`,
-  // TODO(core-storage): title/explanation_summary/diff_patch_ref/merged_code_ref는
-  // AI 결과 표시 및 피드백 저장을 위한 초안 필드다. 실제 repository 설계 시 저장/조회 책임을 재검토한다.
-  // AI가 생성한 병합 초안 메타데이터. 실제 코드/patch는 로컬 파일 참조로 저장한다.
-  `CREATE TABLE IF NOT EXISTS MergeProposal (
-    id TEXT PRIMARY KEY,
-    conflict_candidate_id TEXT NOT NULL,
-    inference_run_id TEXT NOT NULL,
     file_path TEXT NOT NULL,
     feature_type TEXT NOT NULL,
-    title TEXT,
+    title TEXT NOT NULL,
     explanation_summary TEXT,
-    diff_patch_ref TEXT,
-    merged_code_ref TEXT,
     confidence_score REAL,
-    validation_required INTEGER DEFAULT 0,
+    validation_required INTEGER NOT NULL DEFAULT 0,
     validation_summary TEXT,
     status TEXT NOT NULL,
-    parsed_at DATETIME,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(conflict_candidate_id) REFERENCES ConflictCandidate(id),
-    FOREIGN KEY(inference_run_id) REFERENCES InferenceRun(id)
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (candidate_id) REFERENCES conflict_candidates(candidate_id)
   );`,
-  // 커밋 메시지/브랜치명/작업 설명 추천 결과 이력
-  `CREATE TABLE IF NOT EXISTS RecommendationHistory (
-    id TEXT PRIMARY KEY,
-    inference_run_id TEXT NOT NULL,
-    recommendation_type TEXT NOT NULL,
-    result_summary TEXT,
-    result_text TEXT,
-    response_ref TEXT,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(inference_run_id) REFERENCES InferenceRun(id)
-  );`,
-  // TODO(core-storage): edited_fields는 현재 TEXT(JSON 또는 구분자 문자열) 후보 상태다.
-  // Core 담당자와 저장 포맷을 합의한 뒤 repository 단에서 직렬화 규칙을 고정한다.
-  // AI 결과에 대한 사용자의 최종 판단(수락/수정/거절) 저장
-  `CREATE TABLE IF NOT EXISTS ProposalFeedback (
-    id TEXT PRIMARY KEY,
-    proposal_id TEXT,
-    recommendation_id TEXT,
-    session_id TEXT NOT NULL,
+  `CREATE TABLE IF NOT EXISTS proposal_feedbacks (
+    feedback_id TEXT PRIMARY KEY,
+    proposal_id TEXT NOT NULL,
+    project_id TEXT NOT NULL,
+    merge_proposal_id TEXT,
     selection_status TEXT NOT NULL,
     final_text TEXT,
     final_code_ref TEXT,
     final_explanation TEXT,
     quality_tag TEXT,
-    edited_fields TEXT,
     feedback_note TEXT,
-    decided_by TEXT DEFAULT 'local_user',
-    decided_at DATETIME NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY(proposal_id) REFERENCES MergeProposal(id),
-    FOREIGN KEY(recommendation_id) REFERENCES RecommendationHistory(id),
-    FOREIGN KEY(session_id) REFERENCES Session(id)
+    decided_at TEXT NOT NULL,
+    FOREIGN KEY (proposal_id) REFERENCES merge_proposals(proposal_id),
+    FOREIGN KEY (project_id) REFERENCES projects(project_id),
+    FOREIGN KEY (merge_proposal_id) REFERENCES merge_proposals(proposal_id)
   );`,
-
-  // ==========================================
-  // 4. SETTINGS (앱 설정 및 상태)
-  // ==========================================
-  `CREATE TABLE IF NOT EXISTS AppSetting (
-    setting_key TEXT PRIMARY KEY,
-    setting_value TEXT NOT NULL
+  `CREATE TABLE IF NOT EXISTS recommendation_histories (
+    recommendation_id TEXT PRIMARY KEY,
+    project_id TEXT NOT NULL,
+    session_id TEXT,
+    ai_request_id TEXT,
+    recommendation_type TEXT NOT NULL,
+    input_summary TEXT,
+    result_text TEXT NOT NULL,
+    alternative_texts_json TEXT,
+    generation_basis_summary TEXT,
+    followup_notes TEXT,
+    warnings_json TEXT,
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (project_id) REFERENCES projects(project_id),
+    FOREIGN KEY (session_id) REFERENCES work_sessions(session_id)
   );`,
-  `CREATE TABLE IF NOT EXISTS AppState (
-    state_key TEXT PRIMARY KEY,
-    state_value TEXT NOT NULL
-  );`
+  `CREATE TABLE IF NOT EXISTS app_states (
+    app_state_id TEXT PRIMARY KEY,
+    device_id TEXT NOT NULL,
+    state_key TEXT NOT NULL,
+    state_value_json TEXT,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (device_id) REFERENCES devices(device_id)
+  );`,
+  `CREATE TABLE IF NOT EXISTS app_settings (
+    app_setting_id TEXT PRIMARY KEY,
+    device_id TEXT NOT NULL,
+    setting_key TEXT NOT NULL,
+    setting_value_json TEXT,
+    updated_at TEXT NOT NULL,
+    FOREIGN KEY (device_id) REFERENCES devices(device_id)
+  );`,
+  `CREATE INDEX IF NOT EXISTS idx_recommendation_histories_project_type_created
+    ON recommendation_histories(project_id, recommendation_type, created_at DESC);`,
+  `CREATE INDEX IF NOT EXISTS idx_proposal_feedbacks_project_decided
+    ON proposal_feedbacks(project_id, decided_at DESC);`,
+  `CREATE INDEX IF NOT EXISTS idx_merge_proposals_candidate_status
+    ON merge_proposals(candidate_id, status);`,
+  `CREATE INDEX IF NOT EXISTS idx_conflict_candidates_analysis
+    ON conflict_candidates(analysis_id);`
 ];

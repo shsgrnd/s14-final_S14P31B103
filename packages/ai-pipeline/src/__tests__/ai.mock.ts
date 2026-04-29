@@ -457,6 +457,43 @@ async function testMaterializedFeedbackPersistencePlan() {
   );
 }
 
+async function testMaterializedTrainingCandidatePersistencePlan() {
+  console.log("\n--- [STEP 6-2] training candidate artifact 연동 검증 시작 ---");
+  console.log("목표: prompt/chosen/rejected ref를 실제 로컬 artifact로 저장하고 payload에 연결할 수 있는지 확인");
+
+  const persistencePlan = await buildMaterializedFeedbackPersistencePlan({
+    project_id: mockAiInputPayload.project_id,
+    parsed_result: mockParsedAiResults[1],
+    selection_status: "accepted",
+    final_explanation: "충돌 설명 결과를 기준으로 학습 후보를 남김",
+    quality_tag: "useful",
+    feedback_note: "DPO 비교용 후보 저장 테스트",
+    feedback_id: "fb_20260427_602",
+    decided_at: "2026-04-27T11:42:00+09:00",
+    workspace_root: getMockWorkspaceRoot(),
+    training_candidate: {
+      dataset_type: "dpo",
+      training_candidate_id: "tc_20260427_602",
+      prompt_text: "사용자 입력과 충돌 후보를 바탕으로 conflict explanation을 생성한다.",
+      rejected_reason: "설명은 유용했지만 비교용으로 비채택 후보도 함께 남긴다.",
+    },
+  });
+
+  console.log(`[PASS] materialized training candidate persistence plan 생성 완료`);
+  console.log(
+    `      - Training Candidate ID: ${persistencePlan.training_candidate_payload?.training_candidate_id ?? "none"}`
+  );
+  console.log(
+    `      - Prompt Ref: ${persistencePlan.training_candidate_payload?.prompt_ref ?? "none"}`
+  );
+  console.log(
+    `      - Chosen Ref: ${persistencePlan.training_candidate_payload?.chosen_ref ?? "none"}`
+  );
+  console.log(
+    `      - Rejected Ref: ${persistencePlan.training_candidate_payload?.rejected_ref ?? "none"}`
+  );
+}
+
 function testDisplayReadyResult() {
   console.log("\n--- [STEP 7] 표시 구조 생성기 검증 시작 ---");
   console.log("목표: parsed_ai_result를 UI 표시 직전 형태로 정리하고 상태를 displayed로 전환할 수 있는지 확인");
@@ -666,6 +703,7 @@ export async function runMockAiPipelineDemo() {
   testTrainingCandidateBuilder();
   testFeedbackPersistencePlan();
   await testMaterializedFeedbackPersistencePlan();
+  await testMaterializedTrainingCandidatePersistencePlan();
   testDisplayReadyResult();
   testParsedResultStoragePlan();
   testParsedResultRepositoryInputDraft();

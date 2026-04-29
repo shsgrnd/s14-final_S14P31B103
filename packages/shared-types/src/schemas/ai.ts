@@ -68,6 +68,20 @@ export const ParsedAiResultSchema = z.discriminatedUnion('feature_type', [
   RecommendationResultSchema,
 ]);
 
+/**
+ * LLM이 직접 응답해야 하는 최소화된 데이터 스키마 (merge_patch_draft 전용)
+ */
+export const MinimalMergePatchResponseSchema = z.object({
+  title: z.string(),
+  summary: z.string(),
+  explanation: z.string().optional().default(""),
+  confidence_score: z.number().optional().default(0.5),
+  diff_patch: z.string(),
+  validation_summary: z.string().optional().default(""),
+});
+
+export type MinimalMergePatchResponse = z.infer<typeof MinimalMergePatchResponseSchema>;
+
 // 기존 AiInputPayloadSchema도 통합
 export const AiInputPayloadSchema = z.object({
   project_id: z.string(),

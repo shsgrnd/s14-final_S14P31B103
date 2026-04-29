@@ -4,6 +4,7 @@ import { flattenPath } from './path-utils';
 
 const GITCAT_SNAPSHOTS_DIR = '.vscode/gitcat/snapshots';
 const GITCAT_MERGE_SESSIONS_DIR = '.vscode/gitcat/merge-sessions';
+const GITCAT_TRAINING_CANDIDATES_DIR = '.vscode/gitcat/training-candidates';
 
 /**
  * TODO(core-storage):
@@ -86,6 +87,19 @@ function getFeedbackArtifactDir(
   );
 }
 
+function getTrainingCandidateArtifactDir(
+  workspaceRoot: string,
+  trainingCandidateId: string,
+): string {
+  // training candidate는 session/proposal과 분리된 별도 수집 단위이므로
+  // training_candidate_id 기준 전용 폴더에 모아 둡니다.
+  return path.join(
+    workspaceRoot,
+    GITCAT_TRAINING_CANDIDATES_DIR,
+    trainingCandidateId,
+  );
+}
+
 function normalizeArtifactFileName(fileName: string): string {
   return fileName.replace(/[^A-Za-z0-9._-]/g, '_');
 }
@@ -165,6 +179,72 @@ export async function writeFinalCodeFile(
   };
 }
 
+async function writeTrainingCandidateArtifactFile(
+  workspaceRoot: string,
+  trainingCandidateId: string,
+  fileName: string,
+  content: string,
+  refPrefix: 'prompt' | 'chosen' | 'rejected',
+): Promise<StoredArtifactRef> {
+  const targetDir = getTrainingCandidateArtifactDir(workspaceRoot, trainingCandidateId);
+  const normalizedFileName = normalizeArtifactFileName(fileName);
+
+  await fs.mkdir(targetDir, { recursive: true });
+
+  const absolutePath = path.join(targetDir, normalizedFileName);
+  await fs.writeFile(absolutePath, content, 'utf8');
+
+  return {
+    ref: `${refPrefix}://local/${trainingCandidateId}/${normalizedFileName}`,
+    absolute_path: absolutePath,
+  };
+}
+
+export async function writeTrainingPromptFile(
+  workspaceRoot: string,
+  trainingCandidateId: string,
+  content: string,
+): Promise<StoredArtifactRef> {
+  // prompt artifact는 사람이 다시 읽고 비교하기 쉬운 텍스트 파일로 저장합니다.
+  return writeTrainingCandidateArtifactFile(
+    workspaceRoot,
+    trainingCandidateId,
+    'prompt.txt',
+    content,
+    'prompt',
+  );
+}
+
+export async function writeTrainingChosenFile(
+  workspaceRoot: string,
+  trainingCandidateId: string,
+  content: string,
+): Promise<StoredArtifactRef> {
+  // chosen/rejected는 feature별 구조가 달라질 수 있어
+  // 공통 래퍼 JSON 파일로 저장해 후속 export 단계에서 재해석 가능하게 둡니다.
+  return writeTrainingCandidateArtifactFile(
+    workspaceRoot,
+    trainingCandidateId,
+    'chosen.json',
+    content,
+    'chosen',
+  );
+}
+
+export async function writeTrainingRejectedFile(
+  workspaceRoot: string,
+  trainingCandidateId: string,
+  content: string,
+): Promise<StoredArtifactRef> {
+  return writeTrainingCandidateArtifactFile(
+    workspaceRoot,
+    trainingCandidateId,
+    'rejected.json',
+    content,
+    'rejected',
+  );
+}
+
 export function resolveProposalArtifactPath(
   workspaceRoot: string,
   sessionId: string,
@@ -209,4 +289,28 @@ export function resolveFinalCodeArtifactPath(
 
   const fileName = normalizeArtifactFileName(rawFileName);
   return path.join(getFeedbackArtifactDir(workspaceRoot, sessionId, feedbackId), fileName);
+}
+
+export function resolveTrainingCandidateArtifactPath(
+  workspaceRoot: string,
+  trainingCandidateId: string,
+  ref: string,
+): string {
+  const match = ref.match(/^(prompt|chosen|rejected):\/\/local\/([^/]+)\/(.+)$/);
+  if (!match) {
+    throw new Error(`Unsupported training candidate artifact ref: ${ref}`);
+  }
+
+  const [, , refTrainingCandidateId, rawFileName] = match;
+  if (refTrainingCandidateId !== trainingCandidateId) {
+    throw new Error(
+      `Artifact ref training_candidate_id mismatch: expected ${trainingCandidateId}, received ${refTrainingCandidateId}`,
+    );
+  }
+
+  const fileName = normalizeArtifactFileName(rawFileName);
+  return path.join(
+    getTrainingCandidateArtifactDir(workspaceRoot, trainingCandidateId),
+    fileName,
+  );
 }

@@ -175,6 +175,9 @@ importers:
 
   packages/storage:
     dependencies:
+      '@gitcat/shared-types':
+        specifier: workspace:*
+        version: link:../shared-types
       better-sqlite3:
         specifier: ^12.9.0
         version: 12.9.0

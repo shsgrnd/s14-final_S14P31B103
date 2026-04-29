@@ -37,16 +37,6 @@ export const ChangedFileSchema = z.object({
 });
 export type ChangedFile = z.infer<typeof ChangedFileSchema>;
 
-// 명세서(05번): getStatus() 반환 타입
-export const GitStatusSchema = z.object({
-  current: z.string(),
-  staged: z.array(z.string()),
-  unstaged: z.array(z.string()),
-  untracked: z.array(z.string()),
-  conflicted: z.array(z.string()),
-});
-export type GitStatus = z.infer<typeof GitStatusSchema>;
-
 // ==========================================
 // 2. 충돌 후보 (conflict_candidates 테이블)
 // ==========================================

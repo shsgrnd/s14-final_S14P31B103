@@ -43,19 +43,14 @@ export type SessionType = z.infer<typeof SessionTypeEnum>;
 export const RequestStatusEnum = z.enum([
   'queued',
   'analyzing',
+  'calling',
   'completed',
+  'succeeded',
   'failed',
+  'timeout',
+  'cancelled',
 ]);
 export type RequestStatus = z.infer<typeof RequestStatusEnum>;
-
-// ai message error codes
-export const ErrorCodeEnum = z.enum([
-  'UNKNOWN',
-  'INVALID_INPUT',
-  'NOT_FOUND',
-  'INTERNAL',
-]);
-export type ErrorCode = z.infer<typeof ErrorCodeEnum>;
 
 // merge_proposals.status
 export const MergeProposalStatusEnum = z.enum([
@@ -67,10 +62,20 @@ export const MergeProposalStatusEnum = z.enum([
   'rejected',
   'completed',
   'failed',
+  'archived',
 ]);
 export type MergeProposalStatus = z.infer<typeof MergeProposalStatusEnum>;
 export const ProposalStatusEnum = MergeProposalStatusEnum;
 export type ProposalStatus = MergeProposalStatus;
+
+// work_sessions.status
+export const WorkSessionStatusEnum = z.enum([
+  'active',
+  'completed',
+  'cancelled',
+  'failed',
+]);
+export type WorkSessionStatus = z.infer<typeof WorkSessionStatusEnum>;
 
 // proposal_feedbacks.selection_status
 export const SelectionStatusEnum = z.enum([
@@ -181,10 +186,12 @@ export const DatasetTypeEnum = z.enum([
 export type DatasetType = z.infer<typeof DatasetTypeEnum>;
 
 // training_candidates.source_type
+// 어떤 feature_type의 AI 결과가 학습 후보로 전환되었는지를 나타냅니다.
 export const SourceTypeEnum = z.enum([
-  'merge_proposal',
-  'conflict_explanation',
-  'recommendation',
+  'merge_proposal',       // feature_type: merge_patch_draft  → 병합 초안 생성 결과
+  'conflict_explanation', // feature_type: conflict_explanation → 충돌 원인 설명 결과
+  'recommendation',       // feature_type: recommendation      → 커밋/브랜치명 등 추천 결과
+  'merge_mediation',      // feature_type: merge_mediation     → 병합 중재안 결과
 ]);
 export type SourceType = z.infer<typeof SourceTypeEnum>;
 

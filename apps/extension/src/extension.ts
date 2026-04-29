@@ -25,7 +25,16 @@ export function activate(context: vscode.ExtensionContext) {
     try {
       const database = new GitCatDatabase(rootPath);
       dbInstance = database.getInstance();
-      console.log('GitCat Database initialized at:', rootPath);
+      console.log('GitCat Database initialized successfully at:', rootPath);
+
+      // 도메인별 Repository 구현체 생성 및 dbInstance 주입 (Construc
+      // tor Injection)
+      // const sessionRepo = new WorkSessionRepositoryImpl(dbInstance);
+      // const snapshotRepo = new SnapshotRepositoryImpl(dbInstance);
+
+      // 비즈니스 Service 계층 생성 및 Repository 주입
+      // const sessionService = new SessionService(sessionRepo, snapshotRepo);
+
     } catch (error) {
       console.error('Failed to initialize GitCat Database:', error);
       vscode.window.showErrorMessage('GitCat 로컬 데이터베이스 초기화에 실패했습니다.');

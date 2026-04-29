@@ -1,9 +1,13 @@
 import type {
   CreateProposalFeedbackInput,
   CreateRecommendationHistoryInput,
+  BranchRepository,
   MergeAnalysisRepository,
+  ProjectRepository,
+  ProjectWorkspaceRepository,
   ProposalFeedbackRepository,
   RecommendationHistoryRepository,
+  WorktreeRepository,
 } from './repositories';
 import type { MergeProposalRow, ProposalFeedbackRow, RecommendationHistoryRow } from '../dto/storage';
 
@@ -91,6 +95,10 @@ export interface Backend2Dependencies {
   recommendationHistoryRepository: RecommendationHistoryRepository;
   proposalFeedbackRepository: ProposalFeedbackRepository;
   mergeAnalysisRepository: MergeAnalysisRepository;
+  branchRepository: BranchRepository;
+  worktreeRepository: WorktreeRepository;
+  projectRepository: ProjectRepository;
+  projectWorkspaceRepository: ProjectWorkspaceRepository;
   settingsStore: SettingsStore;
   secretsStore: SecretsStore;
 }

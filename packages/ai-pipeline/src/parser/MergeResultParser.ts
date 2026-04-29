@@ -1,4 +1,9 @@
-import { FeatureType, ParsedAiResult, ParsedAiResultSchema } from '@gitcat/shared-types';
+import {
+  FeatureType,
+  ParsedAiResult,
+  ParsedAiResultSchema,
+  MinimalMergePatchResponseSchema,
+} from '@gitcat/shared-types';
 import { materializeAiArtifacts } from '../artifacts/merge-result-artifacts';
 
 export interface ParseAiResultOptions {
@@ -7,7 +12,50 @@ export interface ParseAiResultOptions {
 
 export class MergeResultParser {
   /**
-   * 원시 LLM JSON 텍스트를 정규화된 ParsedAiResult로 파싱
+   * 원시 LLM 응답 문자열을 정제 (마크다운 제거 등)
+   */
+  private cleanResponse(raw: string): string {
+    const jsonMatch = raw.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    const text = jsonMatch ? jsonMatch[1] : raw;
+    return text.trim();
+  }
+
+  /**
+   * 최소화된 LLM 응답 데이터에 시스템 메타데이터와 기본값을 주입
+   */
+  private buildParsedAiResult(
+    minimalData: any,
+    featureType: FeatureType,
+    sessionId: string,
+  ): any {
+    const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const randomSuffix = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+
+    // 기본 시스템 필드
+    const enriched = {
+      ...minimalData,
+      proposal_id: `aip_${today}_${randomSuffix}`,
+      session_id: sessionId,
+      ai_request_id: `air_${today}_${randomSuffix}`,
+      feature_type: featureType,
+      proposal_status: 'parsed',
+      parser_version: 'v1',
+    };
+
+    // 기능별 추가 로직 (예: merge_patch_draft의 applied_files 등)
+    if (featureType === 'merge_patch_draft') {
+      return {
+        ...enriched,
+        applied_files: minimalData.applied_files ?? [],
+        validation_required: !!minimalData.validation_summary,
+      };
+    }
+
+    return enriched;
+  }
+
+  /**
+   * 원시 LLM JSON 텍스트를 정규화된 ParsedAiResult로 파싱 (2단계 검증)
    */
   async parse(
     rawText: string,
@@ -15,30 +63,24 @@ export class MergeResultParser {
     sessionId: string,
     options: ParseAiResultOptions = {},
   ): Promise<ParsedAiResult> {
-    let parsedJson: any;
+    // 1. 응답 정제 및 JSON 파싱
+    const cleanText = this.cleanResponse(rawText);
+    let rawJson: any;
     try {
-      // 마크다운 코드 블록(```json ... ```)에서 JSON 추출 시도
-      const jsonMatch = rawText.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-      const cleanText = jsonMatch ? jsonMatch[1] : rawText;
-      
-      parsedJson = JSON.parse(cleanText);
+      rawJson = JSON.parse(cleanText);
     } catch (e) {
-      throw new Error("Failed to parse raw AI response as JSON");
+      throw new Error('Failed to parse raw AI response as JSON');
     }
 
-    const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
-    const randomSuffix = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+    // 2. Stage 1: 최소 응답 스키마 검증 (현재 merge_patch_draft만 적용)
+    if (featureType === 'merge_patch_draft') {
+      MinimalMergePatchResponseSchema.parse(rawJson);
+    }
 
-    // LLM이 생성하지 않을 수 있는 필수 기본 필드들을 추가 및 ID 규칙 적용
-    const enrichedData = {
-      ...parsedJson,
-      proposal_id: `aip_${today}_${randomSuffix}`,
-      session_id: sessionId,
-      ai_request_id: `air_${today}_${randomSuffix}`,
-      feature_type: featureType,
-      proposal_status: 'parsed',
-      parser_version: '1.0.0',
-    };
+    // 3. 시스템 필드 주입 (Enrichment)
+    const enrichedData = this.buildParsedAiResult(rawJson, featureType, sessionId);
+
+    // 4. 아티팩트 구체화 (Diff Patch Ref 생성 등)
     const materializedData = await materializeAiArtifacts({
       workspaceRoot: options.workspaceRoot,
       proposalId: enrichedData.proposal_id,
@@ -47,7 +89,7 @@ export class MergeResultParser {
       parsedJson: enrichedData,
     });
 
-    // Zod 스키마를 사용하여 검증
+    // 5. Stage 2: 최종 ParsedAiResult 스키마 검증
     const result = ParsedAiResultSchema.parse(materializedData);
     return result as ParsedAiResult;
   }

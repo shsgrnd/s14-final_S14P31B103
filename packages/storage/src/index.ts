@@ -4,5 +4,6 @@ export * from './file-storage/io';
 
 export * from './sqlite/migrations/schema';
 export * from './sqlite/client/client';
+export * from './sqlite/repositories';
 
 export * from './secrets/manager';

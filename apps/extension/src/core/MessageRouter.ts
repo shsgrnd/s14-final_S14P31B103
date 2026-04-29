@@ -7,9 +7,17 @@
  */
 
 import * as vscode from 'vscode';
-import { InboundMessage } from '@gitcat/shared-types';
 import { GitMessageHandler } from '../features/git/GitMessageHandler';
+import {
+  InboundMessage,
+  InboundMessageSchema,
+  OutboundMessage,
+  ErrorCode
+} from '@gitcat/shared-types';
 
+/**
+ * Webview에서 오는 모든 메시지를 중앙에서 검증하고 각 핸들러로 분기하는 라우터입니다.
+ */
 export class MessageRouter {
   private readonly gitHandler: GitMessageHandler | null;
 
@@ -20,8 +28,18 @@ export class MessageRouter {
     this.gitHandler = gitHandler ?? null;
   }
 
-  public async route(message: InboundMessage, webview: vscode.Webview) {
-    console.log(`[GitCat] Received message: ${message.type}`, message.payload);
+  public async route(rawMessage: any, webview: vscode.Webview) {
+    // 1. Zod를 이용한 메시지 규격 검증
+    const parseResult = InboundMessageSchema.safeParse(rawMessage);
+
+    if (!parseResult.success) {
+      console.error('[GitCat] Invalid inbound message:', parseResult.error);
+      this.postError(webview, 'INVALID_PARAMETER', `메시지 규격이 올바르지 않습니다: ${parseResult.error.message}`);
+      return;
+    }
+
+    const message = parseResult.data as InboundMessage;
+    console.log(`[GitCat] Processing message: ${message.type}`, message.payload);
 
     try {
       // Git 핸들러에 우선 위임
@@ -29,7 +47,6 @@ export class MessageRouter {
         const handled = await this.gitHandler.handle(message.type, message.payload, webview);
         if (handled) return;
       }
-
       // Git 핸들러가 없거나 처리 못 한 메시지 — type별 분기
       switch (message.type) {
         // ─── 스냅샷 관련 (3단계 구현) ─────────────────────────────────────
@@ -142,10 +159,10 @@ export class MessageRouter {
     });
   }
 
-  private postError(webview: vscode.Webview, message: string) {
+  private postError(webview: vscode.Webview, code: ErrorCode, message: string) {
     webview.postMessage({
       type: 'ERROR',
-      payload: { code: 'INTERNAL_ERROR', message },
-    });
+      payload: { code, message }
+    } as OutboundMessage);
   }
 }
