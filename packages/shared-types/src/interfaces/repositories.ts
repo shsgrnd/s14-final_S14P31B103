@@ -1,9 +1,14 @@
 import type {
+  BranchRow,
   ConflictCandidateRow,
   MergeAnalysisRow,
   MergeProposalRow,
+  ProjectRow,
+  ProjectWorkspaceRow,
   ProposalFeedbackRow,
   RecommendationHistoryRow,
+  WorktreeRow,
+  WorktreeInstanceRow,
 } from '../dto/storage';
 import type { InboundMessage, OutboundMessage } from '../dto/messages';
 
@@ -95,6 +100,43 @@ export interface MergeProposalRepository {
   insertMany(proposals: Array<Omit<MergeProposalRow, 'created_at'> & { created_at?: string }>): Promise<void>;
   listByAnalysis(analysisId: string): Promise<MergeProposalRow[]>;
   updateStatus(proposalId: string, status: MergeProposalRow['status']): Promise<void>;
+}
+
+/**
+ * 프로젝트 저장소 계약입니다.
+ */
+export interface ProjectRepository {
+  insert(project: Omit<ProjectRow, 'created_at' | 'updated_at'>): Promise<ProjectRow>;
+  findById(projectId: string): Promise<ProjectRow | null>;
+  findByUserId(userId: string): Promise<ProjectRow[]>;
+}
+
+/**
+ * 프로젝트 워크스페이스 저장소 계약입니다.
+ */
+export interface ProjectWorkspaceRepository {
+  insert(workspace: Omit<ProjectWorkspaceRow, 'created_at' | 'updated_at'>): Promise<ProjectWorkspaceRow>;
+  findByPath(workspaceRootPath: string): Promise<ProjectWorkspaceRow | null>;
+  listByProject(projectId: string): Promise<ProjectWorkspaceRow[]>;
+}
+
+/**
+ * 브랜치 메타데이터 저장소 계약입니다.
+ */
+export interface BranchRepository {
+  upsert(branch: Omit<BranchRow, 'created_at' | 'updated_at'>): Promise<BranchRow>;
+  findByProjectAndName(projectId: string, branchName: string): Promise<BranchRow | null>;
+  listByProject(projectId: string): Promise<BranchRow[]>;
+  deleteByProjectAndName(projectId: string, branchName: string): Promise<void>;
+}
+
+/**
+ * 워크트리 저장소 계약입니다.
+ */
+export interface WorktreeRepository {
+  upsert(worktree: Omit<WorktreeRow, 'created_at' | 'updated_at'>): Promise<WorktreeRow>;
+  findByPath(path: string): Promise<WorktreeRow | null>;
+  listByProject(projectId: string): Promise<WorktreeRow[]>;
 }
 
 /**

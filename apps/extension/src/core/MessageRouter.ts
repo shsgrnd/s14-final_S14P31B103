@@ -1,11 +1,32 @@
 import * as vscode from 'vscode';
-import { InboundMessage, OutboundMessage, InboundMessageType } from '@gitcat/shared-types';
+import { 
+  InboundMessage, 
+  InboundMessageSchema, 
+  OutboundMessage, 
+  ErrorCode 
+} from '@gitcat/shared-types';
 
+/**
+ * Webview에서 오는 모든 메시지를 중앙에서 검증하고 각 핸들러로 분기하는 라우터입니다.
+ */
 export class MessageRouter {
     constructor(private readonly dbInstance: any) { }
 
-    public async route(message: InboundMessage, webview: vscode.Webview) {
-        console.log(`[GitCat] Received message: ${message.type}`, message.payload);
+    /**
+     * 메시지를 수신하여 검증하고 적절한 처리를 수행합니다.
+     */
+    public async route(rawMessage: any, webview: vscode.Webview) {
+        // 1. Zod를 이용한 메시지 규격 검증
+        const parseResult = InboundMessageSchema.safeParse(rawMessage);
+        
+        if (!parseResult.success) {
+            console.error('[GitCat] Invalid inbound message:', parseResult.error);
+            this.postError(webview, 'INVALID_PARAMETER', `메시지 규격이 올바르지 않습니다: ${parseResult.error.message}`);
+            return;
+        }
+
+        const message = parseResult.data as InboundMessage;
+        console.log(`[GitCat] Processing message: ${message.type}`, message.payload);
 
         try {
             switch (message.type) {
@@ -16,27 +37,13 @@ export class MessageRouter {
                 case 'CREATE_SNAPSHOT':
                     await this.handleCreateSnapshot(message.payload, webview);
                     break;
-                case 'DELETE_SNAPSHOT':
-                    await this.handleSimpleAction(message.type, `스냅샷 삭제: ${message.payload.snapshotId}`);
-                    break;
-                case 'RESTORE_SNAPSHOT':
-                    await this.handleSimpleAction(message.type, `스냅샷 복원: ${message.payload.snapshotId}`);
-                    break;
-                case 'RENAME_SNAPSHOT':
-                    await this.handleSimpleAction(message.type, `스냅샷 이름 변경: ${message.payload.newTitle}`);
-                    break;
-                case 'TOGGLE_SNAPSHOT_STAR':
-                    await this.handleSimpleAction(message.type, `스냅샷 즐겨찾기 토글: ${message.payload.snapshotId}`);
-                    break;
-                case 'GET_SNAPSHOT_FILES':
-                    await this.handleSimpleAction(message.type, `스냅샷 파일 목록 조회: ${message.payload.snapshotId}`);
-                    break;
-
+                
                 // 브랜치 관련
                 case 'GET_BRANCH_LIST':
                     await this.handleGetBranchList(webview);
                     break;
                 case 'CHECKOUT_BRANCH':
+                    // TODO: GitCommandHandler 연동
                     await this.handleSimpleAction(message.type, `브랜치 체크아웃: ${message.payload.name}`);
                     break;
                 case 'APPLY_BRANCH':
@@ -63,109 +70,72 @@ export class MessageRouter {
                     await this.handleSimpleAction(message.type, 'Pull 실행');
                     break;
 
-                // AI 및 병합 관련
-                case 'OPEN_MERGE_PANEL':
-                    await this.handleSimpleAction(message.type, '병합 패널 열기');
-                    break;
-                case 'ANALYZE_CONFLICT':
-                    await this.handleSimpleAction(message.type, `충돌 분석 시작: ${message.payload.source} -> ${message.payload.target}`);
-                    break;
-                case 'ACCEPT_MERGE':
-                    await this.handleSimpleAction(message.type, `AI 병합 중재안 수락: ${message.payload.filePath}`);
-                    break;
-                case 'REJECT_MERGE':
-                    await this.handleSimpleAction(message.type, `AI 병합 중재안 거절: ${message.payload.filePath}`);
-                    break;
-                case 'RUN_MERGE':
-                    await this.handleSimpleAction(message.type, `병합 실행: ${message.payload.source} -> ${message.payload.target}`);
-                    break;
-                case 'GET_AI_DRAFT':
-                    await this.handleSimpleAction(message.type, `AI 초안 조회: ${message.payload.filePath}`);
-                    break;
-                case 'REJECT_AI_DRAFT':
-                    await this.handleSimpleAction(message.type, `AI 초안 삭제: ${message.payload.id}`);
-                    break;
-                case 'RECOMMEND_COMMIT':
-                    await this.handleSimpleAction(message.type, '커밋 메시지 추천 요청');
-                    break;
-                case 'RECOMMEND_BRANCH':
-                    await this.handleSimpleAction(message.type, `브랜치명 추천 요청: ${message.payload.purpose}`);
-                    break;
-                case 'RECOMMEND_PR':
-                    await this.handleSimpleAction(message.type, `PR 본문 추천 요청 (base: ${message.payload.base})`);
-                    break;
-                case 'APPLY_COMMIT':
-                    await this.handleSimpleAction(message.type, `추천 커밋 메시지 적용: ${message.payload.message}`);
-                    break;
-                case 'SET_CHECKPOINT':
-                    await this.handleSimpleAction(message.type, `체크포인트 설정: ${message.payload.snapshotId}`);
-                    break;
-
-                // 유틸리티 및 기타
+                // 유틸리티
                 case 'OPEN_FILE_DIFF':
                     await this.handleOpenFileDiff(message.payload);
                     break;
-                case 'OPEN_DIFF_EDITOR':
-                    await this.handleSimpleAction(message.type, `Diff 에디터 열기: ${message.payload.filePath}`);
-                    break;
-                case 'SET_CONFIG':
-                    await this.handleSimpleAction(message.type, '설정 변경');
-                    break;
 
                 default:
-                    console.warn(`[GitCat] Unhandled message type: ${message.type}`);
-                    this.postError(webview, `Unhandled type: ${message.type}`);
+                    // 정의는 되어 있으나 아직 구현되지 않은 타입들
+                    await this.handleSimpleAction(message.type, `미구현 액션: ${message.type}`);
+                    break;
             }
         } catch (error: any) {
-            console.error(`[GitCat] Error handling message ${message.type}:`, error);
-            this.postError(webview, error.message);
+            console.error(`[GitCat] Error processing ${message.type}:`, error);
+            this.postError(webview, 'INTERNAL_ERROR', error.message);
         }
     }
 
     private async handleGetSnapshotList(webview: vscode.Webview) {
-        // 실제 DB에서 스냅샷 목록 조회
-        // 현재는 Mock 데이터 반환
+        // 실제 구현 시 SnapshotRepository 연동
         webview.postMessage({
             type: 'SNAPSHOT_LIST',
             payload: { snapshots: [] }
-        });
+        } as OutboundMessage);
     }
 
     private async handleGetBranchList(webview: vscode.Webview) {
-        // 실제 브랜치 목록 조회
+        // 실제 구현 시 BranchRepository/GitClient 연동
         webview.postMessage({
             type: 'BRANCH_LIST',
             payload: { branches: [] }
-        });
+        } as OutboundMessage);
     }
 
     private async handleRefreshStatus(webview: vscode.Webview) {
-        // Git 상태 갱신
+        // Git 상태 조회 (Mock 데이터)
         webview.postMessage({
             type: 'GIT_STATUS_UPDATED',
-            payload: { status: {} }
-        });
+            payload: {
+                status: {
+                    branch: 'main',
+                    isMergeInProgress: false,
+                    staged: [],
+                    unstaged: [],
+                    untracked: [],
+                    conflicted: []
+                }
+            }
+        } as OutboundMessage);
     }
 
     private async handleCreateSnapshot(payload: any, webview: vscode.Webview) {
-        // 스냅샷 생성 로직
         vscode.window.showInformationMessage(`GitCat: 스냅샷 생성 요청됨 - ${payload.title}`);
     }
 
     private async handleOpenFileDiff(payload: any) {
-        // 파일 Diff 에디터 열기
         vscode.window.showInformationMessage(`GitCat: 파일 비교 요청됨 - ${payload.filePath}`);
     }
 
     private async handleSimpleAction(type: string, logMessage: string) {
-        console.log(`[GitCat] Action triggered: ${type} - ${logMessage}`);
+        console.log(`[GitCat] Action: ${type} - ${logMessage}`);
         vscode.window.showInformationMessage(`GitCat: ${logMessage}`);
     }
 
-    private postError(webview: vscode.Webview, message: string) {
+    private postError(webview: vscode.Webview, code: ErrorCode, message: string) {
         webview.postMessage({
             type: 'ERROR',
-            payload: { code: 'INTERNAL_ERROR', message }
-        });
+            payload: { code, message }
+        } as OutboundMessage);
     }
 }

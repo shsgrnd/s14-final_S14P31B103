@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { ErrorCodeEnum } from '../enums/ai';
+import { ErrorCodeEnum } from '../enums/error-codes';
 import { InboundMessageTypeEnum, OutboundMessageTypeEnum } from '../enums/messages';
 import {
   CommitSuggestionSchema,
@@ -11,6 +11,8 @@ import {
   ConflictAnalysisSchema,
   AIDraftSchema,
   BranchSchema,
+  GitResultSchema,
+  GitStatusSchema,
 } from '../dto/git';
 
 /**
@@ -44,6 +46,15 @@ export const InboundPayloadSchemaMap = {
   APPLY_COMMIT: z.object({ message: z.string().min(1), body: z.string().optional() }),
   APPLY_BRANCH: z.object({ name: z.string().min(1) }),
   DELETE_BRANCHES: z.object({ names: z.array(z.string().min(1)).min(1), force: z.boolean() }),
+  GIT_STAGE_FILES: z.object({ paths: z.array(z.string().min(1)).min(1) }),
+  GIT_UNSTAGE_FILES: z.object({ paths: z.array(z.string().min(1)).min(1) }),
+  GIT_DISCARD_CHANGES: z.object({ paths: z.array(z.string().min(1)).min(1) }),
+  GIT_STASH_SAVE: z.object({ message: z.string().optional(), includeUntracked: z.boolean().optional() }),
+  GIT_STASH_POP: z.object({ stashRef: z.string().optional() }),
+  GIT_STASH_APPLY: z.object({ stashRef: z.string().optional() }),
+  GIT_STASH_DROP: z.object({ stashRef: z.string().optional() }),
+  GIT_MERGE_ABORT: z.object({}).strict(),
+  GIT_MERGE_CONTINUE: z.object({}).strict(),
   DELETE_SNAPSHOT: z.object({ snapshotId: z.string() }),
   SET_CHECKPOINT: z.object({ snapshotId: z.string() }),
   REFRESH_STATUS: z.object({}).strict(),
@@ -74,7 +85,7 @@ export const InboundPayloadSchemaMap = {
  * 라우터/서비스 경계에서 계약 위반을 조기에 발견합니다.
  */
 export const OutboundPayloadSchemaMap = {
-  GIT_STATUS_UPDATED: z.object({ status: z.unknown() }),
+  GIT_STATUS_UPDATED: z.object({ status: GitStatusSchema }),
   SNAPSHOT_LIST: z.object({ snapshots: z.array(SnapshotSchema) }),
   SNAPSHOT_CREATED: z.object({ snapshot: SnapshotSchema }),
   RESTORE_DONE: z.object({ snapshotId: z.string() }),
@@ -85,6 +96,7 @@ export const OutboundPayloadSchemaMap = {
   BRANCH_SUGGESTIONS: z.object({ names: z.array(z.string()) }),
   PR_SUGGESTION: z.object({ markdown: z.string() }),
   BRANCH_LIST: z.object({ branches: z.array(BranchSchema) }),
+  GIT_OPERATION_RESULT: z.object({ operation: z.string(), result: GitResultSchema }),
   ERROR: z.object({ code: ErrorCodeEnum, message: z.string() }),
   LOADING: z.object({ target: z.string(), loading: z.boolean() }),
   NOTIFICATION: z.object({ type: z.enum(['info', 'warning', 'error']), message: z.string() }),

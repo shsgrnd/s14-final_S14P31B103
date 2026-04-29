@@ -43,19 +43,14 @@ export type SessionType = z.infer<typeof SessionTypeEnum>;
 export const RequestStatusEnum = z.enum([
   'queued',
   'analyzing',
+  'calling',
   'completed',
+  'succeeded',
   'failed',
+  'timeout',
+  'cancelled',
 ]);
 export type RequestStatus = z.infer<typeof RequestStatusEnum>;
-
-// ai message error codes
-export const ErrorCodeEnum = z.enum([
-  'UNKNOWN',
-  'INVALID_INPUT',
-  'NOT_FOUND',
-  'INTERNAL',
-]);
-export type ErrorCode = z.infer<typeof ErrorCodeEnum>;
 
 // merge_proposals.status
 export const MergeProposalStatusEnum = z.enum([
@@ -67,10 +62,20 @@ export const MergeProposalStatusEnum = z.enum([
   'rejected',
   'completed',
   'failed',
+  'archived',
 ]);
 export type MergeProposalStatus = z.infer<typeof MergeProposalStatusEnum>;
 export const ProposalStatusEnum = MergeProposalStatusEnum;
 export type ProposalStatus = MergeProposalStatus;
+
+// work_sessions.status
+export const WorkSessionStatusEnum = z.enum([
+  'active',
+  'completed',
+  'cancelled',
+  'failed',
+]);
+export type WorkSessionStatus = z.infer<typeof WorkSessionStatusEnum>;
 
 // proposal_feedbacks.selection_status
 export const SelectionStatusEnum = z.enum([
