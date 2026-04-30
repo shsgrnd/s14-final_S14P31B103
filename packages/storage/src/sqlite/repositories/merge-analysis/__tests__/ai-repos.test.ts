@@ -1,19 +1,21 @@
-import Database from 'better-sqlite3';
-import { SCHEMAS } from '../../../migrations/schema';
+import * as path from 'path';
+
+import { GitCatDatabase } from '../../../client/client';
 import { SqliteMergeProposalRepository } from '../SqliteMergeProposalRepository';
 import { SqliteProposalFeedbackRepository } from '../SqliteProposalFeedbackRepository';
 import type { MergeProposalRow } from '@gitcat/shared-types';
 import type { CreateProposalFeedbackInput } from '@gitcat/shared-types';
 
-function runTest() {
+async function runTest() {
   console.log('--- AI DB Repository 연동 테스트 시작 ---');
   
-  // 1. 메모리 DB 생성 및 스키마 초기화
-  const db = new Database(':memory:');
-  for (const query of SCHEMAS) {
-    db.exec(query);
-  }
-  console.log('✅ 인메모리 DB 스키마 초기화 성공');
+  const testWorkspace = path.join(__dirname, 'test-workspace');
+  
+  // 1. DB 생성 및 스키마 초기화
+  const gitCatDb = await GitCatDatabase.create(testWorkspace);
+  const db = gitCatDb.getInstance();
+  
+  console.log('✅ DB 스키마 초기화 성공');
 
   // 2. 외래키 제약조건을 만족하기 위한 더미 데이터 세팅
   db.exec(`

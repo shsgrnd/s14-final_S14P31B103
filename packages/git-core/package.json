@@ -9,7 +9,6 @@
     "test": "echo \"No tests yet\""
   },
   "dependencies": {
-    "@gitcat/git-client-cli": "workspace:*",
     "@gitcat/shared-types": "workspace:*"
   }
 }

@@ -1,9 +1,11 @@
 import type {
   ConflictCandidateRepository,
+  BranchRepository,
   MergeAnalysisRepository,
   MergeProposalRepository,
   ProposalFeedbackRepository,
   RecommendationHistoryRepository,
+  WorktreeRepository,
 } from '@gitcat/shared-types/src/interfaces/repositories';
 import { SnapshotMeta } from '../core/types';
 
@@ -43,6 +45,8 @@ export interface RepositoryBundle {
   mergeAnalyses: MergeAnalysisRepository;
   conflictCandidates: ConflictCandidateRepository;
   mergeProposals: MergeProposalRepository;
+  branches: BranchRepository;
+  worktrees: WorktreeRepository;
 
   // workSessions: WorkSessionRepository;
   // snapshots: SnapshotRepository;

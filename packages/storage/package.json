@@ -7,18 +7,13 @@
   "scripts": {
     "build": "tsc",
     "lint": "eslint \"src/**/*.ts\"",
-    "verify:sqlite": "node ./scripts/verify-better-sqlite3.cjs",
-    "test:ai-repos": "ts-node src/sqlite/repositories/merge-analysis/__tests__/ai-repos.test.ts",
-    "pretest:ai-repos": "pnpm --filter @gitcat/shared-types build"
+    "verify:sqlite": "node ./scripts/verify-sqlite.cjs"
   },
   "dependencies": {
     "@gitcat/shared-types": "workspace:*",
-    "better-sqlite3": "^12.9.0"
+    "sql.js": "^1.14.1"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.13",
-    "ts-node": "^10.9.2",
-    "tsconfig-paths": "^4.2.0",
     "typescript": "^5.4.0"
   }
 }

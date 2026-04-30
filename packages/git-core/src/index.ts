@@ -1,2 +1,2 @@
-// Minimal entry point to satisfy package build for git-core.
-export {};
+export * from './domain/gitTypes';
+export * from './ports/IGitClient';

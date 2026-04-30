@@ -11,7 +11,11 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onView:gitcat-sidebar-webview",
+    "onCommand:gitcat.openPanel",
+    "onCommand:gitcat.getGitStatus"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
@@ -38,7 +42,8 @@
         {
           "type": "webview",
           "id": "gitcat-sidebar-webview",
-          "name": "GitCat"
+          "name": "GitCat",
+          "icon": "media/GitCat_icon.png"
         }
       ]
     }
@@ -56,6 +61,8 @@
     "typescript": "^5.0.0"
   },
   "dependencies": {
+    "@gitcat/git-client-cli": "workspace:*",
+    "@gitcat/git-core": "workspace:*",
     "@gitcat/shared-types": "workspace:*",
     "@gitcat/storage": "workspace:*"
   }
