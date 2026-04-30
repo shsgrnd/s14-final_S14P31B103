@@ -1,4 +1,4 @@
-import { Database } from 'better-sqlite3';
+import { SQLiteDatabase } from '../../client/client';
 import { 
   ProposalFeedbackRepository, 
   CreateProposalFeedbackInput, 
@@ -12,7 +12,7 @@ import {
  * - 본 Repository는 메타데이터와 결정 상태(status), 최종 코드 파일의 참조(ref) 경로 등을 관리합니다.
  */
 export class SqliteProposalFeedbackRepository implements ProposalFeedbackRepository {
-  constructor(private readonly db: Database) {}
+  constructor(private readonly db: SQLiteDatabase) {}
 
   /**
    * 사용자의 피드백 데이터를 DB에 삽입합니다.

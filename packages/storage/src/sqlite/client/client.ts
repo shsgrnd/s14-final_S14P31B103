@@ -1,6 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import initSqlJs from 'sql.js/dist/sql-asm.js';
+// @ts-ignore
+import initSqlJs from 'sql.js';
 import { SCHEMAS } from '../migrations/schema';
 
 const DB_PATH = '.vscode/gitcat/gitcat.db';
