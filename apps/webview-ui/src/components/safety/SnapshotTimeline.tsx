@@ -3,6 +3,7 @@ import { FileText, Rewind, ChevronRight, BrainCircuit, ShieldCheck, User, Merge,
 import { useGitCatStore } from '../../store/useGitCatStore';
 import { useVsCodeApi } from '../../hooks/useVsCodeApi';
 import { Snapshot } from '@gitcat/shared-types';
+import { iconBtn } from '../../shared/styles';
 
 export const SnapshotTimeline: React.FC = () => {
   const { snapshots, expandedSnapshotId, setExpandedSnapshotId } = useGitCatStore();
@@ -157,14 +158,14 @@ export const SnapshotTimeline: React.FC = () => {
                   <button
                     onClick={() => sendMessage('TOGGLE_SNAPSHOT_STAR', { snapshotId: snapshot.id })}
                     title="즐겨찾기"
-                    style={{ ...iconBtnStyle, color: snapshot.isStarred ? 'var(--vscode-charts-yellow)' : undefined }}
+                    style={{ ...iconBtn, color: snapshot.isStarred ? 'var(--vscode-charts-yellow)' : undefined }}
                   >
                     <Star size={13} style={{ fill: snapshot.isStarred ? 'var(--vscode-charts-yellow)' : 'none' }} />
                   </button>
-                  <button onClick={() => handleRename(snapshot.id, snapshot.title)} title="이름 변경" style={iconBtnStyle}>
+                  <button onClick={() => handleRename(snapshot.id, snapshot.title)} title="이름 변경" style={iconBtn}>
                     <Edit2 size={12} />
                   </button>
-                  <button onClick={() => handleDelete(snapshot.id)} title="삭제" style={{ ...iconBtnStyle, color: 'var(--vscode-errorForeground)' }}>
+                  <button onClick={() => handleDelete(snapshot.id)} title="삭제" style={{ ...iconBtn, color: 'var(--vscode-errorForeground)' }}>
                     <Trash2 size={12} />
                   </button>
                 </div>
@@ -272,8 +273,4 @@ function formatRelativeTime(timestamp: number): string {
   }
 }
 
-const iconBtnStyle: React.CSSProperties = {
-  background: 'none', border: 'none', cursor: 'pointer', padding: '3px',
-  borderRadius: '3px', color: 'var(--vscode-descriptionForeground)',
-  display: 'flex', alignItems: 'center', transition: 'all 0.2s'
-};
+

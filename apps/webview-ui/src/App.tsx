@@ -8,6 +8,7 @@ import { GitActionPanel } from './components/git/GitActionPanel';
 import { BranchCleanupPanel } from './components/git/BranchCleanupPanel';
 import { CommitEditor } from './components/commit/CommitEditor';
 import { Settings, User, ChevronDown, ChevronRight } from 'lucide-react';
+import { footerIconBtn } from './shared/styles';
 
 declare global {
   interface Window {
@@ -127,10 +128,10 @@ function App() {
           background: 'var(--vscode-sideBar-background)',
           flexShrink: 0,
         }}>
-          <button style={footerBtnStyle} title="계정">
+          <button style={footerIconBtn} title="계정">
             <User size={15} />
           </button>
-          <button style={footerBtnStyle} title="설정">
+          <button style={footerIconBtn} title="설정">
             <Settings size={15} />
           </button>
         </footer>
@@ -311,10 +312,5 @@ const TabButton: React.FC<TabButtonProps> = ({ label, active, onClick }) => (
   </button>
 );
 
-const footerBtnStyle: React.CSSProperties = {
-  background: 'none', border: 'none', cursor: 'pointer', padding: '4px',
-  borderRadius: '3px', color: 'var(--vscode-descriptionForeground)',
-  display: 'flex', alignItems: 'center',
-};
 
 export default App;
