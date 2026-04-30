@@ -1,8 +1,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
+import initSqlJs from 'sql.js/dist/sql-asm.js';
 import { SCHEMAS } from '../migrations/schema';
-
-const initSqlJs = require('sql.js/dist/sql-asm.js');
 
 const DB_PATH = '.vscode/gitcat/gitcat.db';
 
@@ -48,10 +47,10 @@ let sqlJsPromise: Promise<SqlJsStatic> | undefined;
 
 function loadSqlJs(): Promise<SqlJsStatic> {
   if (!sqlJsPromise) {
-    sqlJsPromise = initSqlJs();
+    sqlJsPromise = initSqlJs() as Promise<SqlJsStatic>;
   }
 
-  return sqlJsPromise as Promise<SqlJsStatic>;
+  return sqlJsPromise;
 }
 
 class SqlJsStatement implements SQLiteStatement {
