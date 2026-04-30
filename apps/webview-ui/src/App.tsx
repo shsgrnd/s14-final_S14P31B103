@@ -1,14 +1,14 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useGitCatStore } from './store/useGitCatStore';
 import { sendMessage } from './hooks/useVsCodeApi';
+import { useViewMode } from './app/ViewModeContext';
 import { SidebarLayout } from './components/layout/SidebarLayout';
 import { MainPanelLayout } from './components/layout/MainPanelLayout';
 import { LoadingFallback } from './components/common/LoadingFallback';
 
-// window 전역 변수 타입 선언 (VS Code Webview에서 주입됨)
+// GITCAT_LOGO_URI는 LoadingFallback에서 사용하므로 여기서 타입 선언 유지
 declare global {
   interface Window {
-    VIEW_MODE: 'sidebar' | 'main';
     GITCAT_LOGO_URI?: string;
   }
 }
@@ -55,7 +55,8 @@ function App() {
     };
   }, []);
 
-  const viewMode = window.VIEW_MODE ?? 'sidebar';
+  // window.VIEW_MODE 직접 참조 대신 Context Hook 사용
+  const viewMode = useViewMode();
 
   // ── 사이드바 모드 ──
   if (viewMode === 'sidebar') {
