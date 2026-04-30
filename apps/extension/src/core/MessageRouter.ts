@@ -7,6 +7,7 @@
  */
 
 import * as vscode from 'vscode';
+import * as path from 'path';
 import { GitMessageHandler } from '../features/git/GitMessageHandler';
 import {
   InboundMessage,
@@ -125,6 +126,14 @@ export class MessageRouter {
           await this.handleOpenFileDiff((message.payload as any));
           break;
 
+        case 'GET_WORKSPACE_TREE':
+          await this.handleGetWorkspaceTree(webview);
+          break;
+
+        case 'OPEN_WORKSPACE_FILE':
+          await this.handleOpenWorkspaceFile((message.payload as any));
+          break;
+
         case 'OPEN_DIFF_EDITOR':
           vscode.window.showInformationMessage(
             `GitCat: Diff 에디터 열기 — ${(message.payload as any).filePath}`,
@@ -149,6 +158,117 @@ export class MessageRouter {
 
   private async handleOpenFileDiff(payload: { filePath: string; snapshotId?: string }) {
     vscode.window.showInformationMessage(`GitCat: 파일 비교 요청 — ${payload.filePath}`);
+  }
+
+  private async handleGetWorkspaceTree(webview: vscode.Webview): Promise<void> {
+    const folder = vscode.workspace.workspaceFolders?.[0];
+    if (!folder) {
+      webview.postMessage({
+        type: 'WORKSPACE_TREE',
+        payload: { tree: { rootName: 'No workspace', nodes: [], totalFiles: 0, truncated: false } },
+      });
+      return;
+    }
+
+    const maxFiles = 1200;
+    const exclude = '{**/.git/**,**/node_modules/**,**/dist/**,**/build/**,**/.vscode/gitcat/**,**/.next/**,**/coverage/**}';
+    const files = await vscode.workspace.findFiles(new vscode.RelativePattern(folder, '**/*'), exclude, maxFiles);
+    const rootName = path.basename(folder.uri.fsPath) || folder.name;
+    const nodes = this.buildWorkspaceTree(
+      files
+        .map((uri) => path.relative(folder.uri.fsPath, uri.fsPath).replace(/\\/g, '/'))
+        .filter(Boolean)
+        .sort((a, b) => a.localeCompare(b)),
+    );
+
+    webview.postMessage({
+      type: 'WORKSPACE_TREE',
+      payload: {
+        tree: {
+          rootName,
+          nodes,
+          totalFiles: files.length,
+          truncated: files.length >= maxFiles,
+        },
+      },
+    });
+  }
+
+  private buildWorkspaceTree(filePaths: string[]) {
+    type Node = {
+      name: string;
+      path: string;
+      type: 'file' | 'directory';
+      children?: Node[];
+    };
+
+    const root: Node[] = [];
+    const directoryMap = new Map<string, Node[]>();
+    directoryMap.set('', root);
+
+    for (const filePath of filePaths) {
+      const segments = filePath.split('/').filter(Boolean);
+      let currentPath = '';
+
+      segments.forEach((segment, index) => {
+        const parentPath = currentPath;
+        currentPath = currentPath ? `${currentPath}/${segment}` : segment;
+        const siblings = directoryMap.get(parentPath) ?? root;
+        const isFile = index === segments.length - 1;
+
+        if (isFile) {
+          if (!siblings.some((node) => node.path === currentPath)) {
+            siblings.push({ name: segment, path: currentPath, type: 'file' });
+          }
+          return;
+        }
+
+        let directory = siblings.find((node) => node.path === currentPath && node.type === 'directory');
+        if (!directory) {
+          directory = { name: segment, path: currentPath, type: 'directory', children: [] };
+          siblings.push(directory);
+        }
+        if (!directoryMap.has(currentPath)) {
+          directoryMap.set(currentPath, directory.children ?? []);
+        }
+      });
+    }
+
+    const sortNodes = (nodes: Node[]) => {
+      nodes.sort((a, b) => {
+        if (a.type !== b.type) return a.type === 'directory' ? -1 : 1;
+        return a.name.localeCompare(b.name);
+      });
+      nodes.forEach((node) => {
+        if (node.children) sortNodes(node.children);
+      });
+    };
+    sortNodes(root);
+
+    return root;
+  }
+
+  private async handleOpenWorkspaceFile(payload: { filePath: string; status?: string }): Promise<void> {
+    const folder = vscode.workspace.workspaceFolders?.[0];
+    if (!folder) return;
+
+    if (payload.status === 'DELETED') {
+      vscode.window.showInformationMessage(`GitCat: ${payload.filePath} is deleted in the working tree.`);
+      return;
+    }
+
+    const rootPath = path.resolve(folder.uri.fsPath);
+    const targetPath = path.resolve(rootPath, payload.filePath);
+    const isInsideWorkspace = targetPath === rootPath || targetPath.startsWith(`${rootPath}${path.sep}`);
+    if (!isInsideWorkspace) {
+      throw new Error('Cannot open a file outside the workspace.');
+    }
+
+    const targetUri = vscode.Uri.file(targetPath);
+    await vscode.commands.executeCommand('vscode.open', targetUri, {
+      preview: true,
+      preserveFocus: false,
+    });
   }
 
   private sendNotImplemented(webview: vscode.Webview, type: string, description: string) {

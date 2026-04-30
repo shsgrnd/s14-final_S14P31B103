@@ -49,6 +49,32 @@ export const WorktreeInfoSchema = z.object({
 });
 export type WorktreeInfo = z.infer<typeof WorktreeInfoSchema>;
 
+export type WorkspaceFileTreeNode = {
+  name: string;
+  path: string;
+  type: 'file' | 'directory';
+  status?: GitFileStatus['status'];
+  children?: WorkspaceFileTreeNode[];
+};
+
+export const WorkspaceFileTreeNodeSchema: z.ZodType<WorkspaceFileTreeNode> = z.lazy(() =>
+  z.object({
+    name: z.string(),
+    path: z.string(),
+    type: z.enum(['file', 'directory']),
+    status: GitFileStatusTypeEnum.optional(),
+    children: z.array(WorkspaceFileTreeNodeSchema).optional(),
+  }),
+);
+
+export const WorkspaceTreeSchema = z.object({
+  rootName: z.string(),
+  nodes: z.array(WorkspaceFileTreeNodeSchema),
+  totalFiles: z.number(),
+  truncated: z.boolean(),
+});
+export type WorkspaceTree = z.infer<typeof WorkspaceTreeSchema>;
+
 /**
  * Git 명령 실행 결과
  */
