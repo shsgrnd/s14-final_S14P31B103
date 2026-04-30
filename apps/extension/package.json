@@ -42,7 +42,8 @@
         {
           "type": "webview",
           "id": "gitcat-sidebar-webview",
-          "name": "GitCat"
+          "name": "GitCat",
+          "icon": "media/GitCat_icon.png"
         }
       ]
     }

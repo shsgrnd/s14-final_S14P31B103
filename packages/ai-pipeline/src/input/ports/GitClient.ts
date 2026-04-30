@@ -42,4 +42,19 @@ export interface GitClient {
    * @param repoPath 선택적 저장소 경로
    */
   getFileContent(filePath: string, ref: string, repoPath?: string): Promise<string>;
+
+  /**
+   * 현재 작업 트리(Working Tree) 전체의 변경 사항 diff 텍스트를 반환한다.
+   * @param repoPath 선택적 저장소 경로
+   * @returns unified diff 형식의 문자열 (변경이 없으면 빈 문자열)
+   */
+  getWorkingTreeDiff(repoPath?: string): Promise<string>;
+
+  /**
+   *
+   * @param repoPath 선택적 저장소 경로
+   * @returns 변경된 파일의 상대 경로 배열 (예: ["src/auth/service.ts", "src/auth/dto.ts"])
+   */
+  getChangedFileNames(repoPath?: string): Promise<string[]>;
 }
+

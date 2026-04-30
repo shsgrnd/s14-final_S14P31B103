@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { GitBranch, Plus, ArrowUp, GitMerge, Check, Sparkles, ChevronDown, ChevronUp, X, CornerDownRight, Clock } from 'lucide-react';
 import { useGitCatStore } from '../../store/useGitCatStore';
 import { useVsCodeApi } from '../../hooks/useVsCodeApi';
+import { btn, bigBtn, inlineBtn } from '../../shared/styles';
 
 export const GitActionPanel: React.FC = () => {
   const { currentBranch, branches } = useGitCatStore();
@@ -177,7 +178,7 @@ export const GitActionPanel: React.FC = () => {
               closeCommitForm();
               setShowNewBranch(true);
             }}
-            style={bigBtnStyle('primary')}
+            style={bigBtn('primary')}
           >
             <GitBranch size={13} />
             New branch
@@ -194,7 +195,7 @@ export const GitActionPanel: React.FC = () => {
             <span>Create New Branch</span>
             <button
               onClick={() => setShowBranchAI(true)}
-              style={{ ...inlineBtnStyle, color: 'var(--vscode-button-foreground)', background: 'var(--vscode-button-background)' }}
+              style={{ ...inlineBtn, color: 'var(--vscode-button-foreground)', background: 'var(--vscode-button-background)' }}
             >
               <Sparkles size={11} /> AI 추천
             </button>
@@ -221,10 +222,10 @@ export const GitActionPanel: React.FC = () => {
       {/* Create / Cancel buttons when new branch input is open */}
       {!showCommitForm && showNewBranch && (
         <div style={{ margin: '4px 8px', display: 'flex', gap: '8px' }}>
-          <button onClick={handleCreateBranch} style={btnStyle('primary')}>
+          <button onClick={handleCreateBranch} style={btn('primary')}>
             <Check size={13} /> Create
           </button>
-          <button onClick={closeBranchForm} style={btnStyle('secondary')}>
+          <button onClick={closeBranchForm} style={btn('secondary')}>
             <X size={13} /> Cancel
           </button>
         </div>
@@ -241,7 +242,7 @@ export const GitActionPanel: React.FC = () => {
             <span>Create Commit message</span>
             <button
               onClick={() => setShowBranchAI(true)}
-              style={{ ...inlineBtnStyle, color: 'var(--vscode-button-foreground)', background: 'var(--vscode-button-background)' }}
+              style={{ ...inlineBtn, color: 'var(--vscode-button-foreground)', background: 'var(--vscode-button-background)' }}
             >
               <Sparkles size={11} /> AI 추천
             </button>
@@ -262,10 +263,10 @@ export const GitActionPanel: React.FC = () => {
             onBlur={e => (e.target.style.borderColor = 'var(--vscode-panel-border)')}
           />
           <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
-            <button onClick={handleCommit} style={btnStyle('primary')}>
+            <button onClick={handleCommit} style={btn('primary')}>
               <Check size={13} /> Create
             </button>
-            <button onClick={closeCommitForm} style={btnStyle('secondary')}>
+            <button onClick={closeCommitForm} style={btn('secondary')}>
               <X size={13} /> Cancel
             </button>
           </div>
@@ -275,16 +276,16 @@ export const GitActionPanel: React.FC = () => {
       {/* ── Main Action Buttons (Grid) ── */}
       {!showNewBranch && !showCommitForm && (
         <div style={{ margin: '12px 8px 8px 8px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-          <button onClick={handleGitAdd} style={bigBtnStyle('secondary')}>
+          <button onClick={handleGitAdd} style={bigBtn('secondary')}>
             <Plus size={13} /> Git add
           </button>
-          <button onClick={() => setShowCommitForm(true)} style={bigBtnStyle('secondary')}>
+          <button onClick={() => setShowCommitForm(true)} style={bigBtn('secondary')}>
             <Check size={13} /> Git Commit
           </button>
-          <button onClick={handlePush} style={bigBtnStyle('secondary')}>
+          <button onClick={handlePush} style={bigBtn('secondary')}>
             <ArrowUp size={13} /> Git Push
           </button>
-          <button onClick={handleMerge} style={bigBtnStyle('secondary')}>
+          <button onClick={handleMerge} style={bigBtn('secondary')}>
             <GitMerge size={13} /> Merge
           </button>
         </div>
@@ -385,27 +386,4 @@ export const GitActionPanel: React.FC = () => {
   );
 };
 
-const btnStyle = (variant: 'primary' | 'secondary'): React.CSSProperties => ({
-  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-  fontSize: '12px', fontWeight: 500, padding: '6px 12px', borderRadius: '3px',
-  cursor: 'pointer', border: 'none', flex: 1,
-  background: variant === 'primary' ? 'var(--vscode-button-background)' : 'var(--vscode-button-secondaryBackground)',
-  color: variant === 'primary' ? 'var(--vscode-button-foreground)' : 'var(--vscode-button-secondaryForeground)',
-});
 
-const bigBtnStyle = (variant: 'primary' | 'secondary'): React.CSSProperties => ({
-  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-  fontSize: '12px', fontWeight: 500, padding: '8px', borderRadius: '3px',
-  cursor: 'pointer', border: 'none', width: '100%',
-  background: variant === 'primary' ? 'var(--vscode-button-background)' : 'var(--vscode-button-secondaryBackground)',
-  color: variant === 'primary' ? 'var(--vscode-button-foreground)' : 'var(--vscode-button-secondaryForeground)',
-  transition: 'background 0.2s',
-});
-
-const inlineBtnStyle: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: '4px',
-  fontSize: '11px', fontWeight: 600, padding: '4px 8px',
-  background: 'var(--vscode-button-secondaryBackground)',
-  color: 'var(--vscode-button-secondaryForeground)',
-  border: 'none', borderRadius: '3px', cursor: 'pointer',
-};
