@@ -1,5 +1,5 @@
 import * as path from 'path';
-import * as fs from 'fs';
+
 import { GitCatDatabase } from '../../../client/client';
 import { SqliteMergeProposalRepository } from '../SqliteMergeProposalRepository';
 import { SqliteProposalFeedbackRepository } from '../SqliteProposalFeedbackRepository';

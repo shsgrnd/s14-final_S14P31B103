@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-// @ts-ignore
+// @ts-expect-error: sql.js has incomplete typings for module resolution
 import initSqlJs from 'sql.js';
 import { SCHEMAS } from '../migrations/schema';
 
