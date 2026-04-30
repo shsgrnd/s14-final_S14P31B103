@@ -38,7 +38,8 @@
         {
           "type": "webview",
           "id": "gitcat-sidebar-webview",
-          "name": "GitCat"
+          "name": "GitCat",
+          "icon": "media/GitCat_icon.png"
         }
       ]
     }
@@ -48,13 +49,11 @@
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
     "lint": "eslint src --ext ts",
-    "package:vsix": "node ./scripts/package-vsix.cjs",
-    "rebuild:native": "electron-rebuild -f -w better-sqlite3 --version 35.2.0 --dist-url https://electronjs.org/headers/download"
+    "package:vsix": "node ./scripts/package-vsix.cjs"
   },
   "devDependencies": {
     "@types/vscode": "^1.80.0",
     "@types/node": "18.x",
-    "@electron/rebuild": "^3.7.1",
     "typescript": "^5.0.0"
   },
   "dependencies": {
