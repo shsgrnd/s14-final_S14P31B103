@@ -139,11 +139,17 @@ export class GitMessageHandler {
   private async handleRefreshStatus(webview: vscode.Webview): Promise<void> {
     this.sendLoading(webview, 'status', true);
     try {
-      const status = await this.gitService.getStatus();
+      const status = await this.gitService.getStatusWithWorktrees();
       webview.postMessage({
         type: 'GIT_STATUS_UPDATED',
         payload: { status },
       });
+      if (status.worktrees) {
+        webview.postMessage({
+          type: 'WORKTREE_LIST',
+          payload: { worktrees: status.worktrees },
+        });
+      }
     } finally {
       this.sendLoading(webview, 'status', false);
     }

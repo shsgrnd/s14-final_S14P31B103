@@ -20,12 +20,29 @@ import {
  */
 export class MessageRouter {
   private readonly gitHandler: GitMessageHandler | null;
+  private readonly webviews = new Set<vscode.Webview>();
 
   constructor(
     private readonly dbInstance: any,
     gitHandler?: GitMessageHandler,
   ) {
     this.gitHandler = gitHandler ?? null;
+  }
+
+  public registerWebview(webview: vscode.Webview): vscode.Disposable {
+    this.webviews.add(webview);
+    return new vscode.Disposable(() => {
+      this.webviews.delete(webview);
+    });
+  }
+
+  public broadcast(message: OutboundMessage | { type: string; payload?: unknown }): void {
+    for (const webview of this.webviews) {
+      webview.postMessage(message).then(
+        undefined,
+        (error) => console.warn('[GitCat] Failed to post message to webview:', error),
+      );
+    }
   }
 
   public async route(rawMessage: any, webview: vscode.Webview) {

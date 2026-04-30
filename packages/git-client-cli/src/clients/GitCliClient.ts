@@ -39,9 +39,10 @@ export class GitCliClient implements IGitClient {
   // ─── Query ──────────────────────────────────────────────────────────────
 
   async getStatus(): Promise<GitStatus> {
-    const [status, branchResult] = await Promise.all([
+    const [status, repoRoot, currentWorktreePath] = await Promise.all([
       this.git.status(),
-      this.git.branch(['-v', '--no-abbrev']),
+      this.getRepoRoot(),
+      this.getCurrentWorktreePath(),
     ]);
 
     const mapEntry = (item: { path: string; index: string; working_dir: string }): FileStatusEntry => ({
@@ -50,10 +51,15 @@ export class GitCliClient implements IGitClient {
       working_dir: item.working_dir,
     });
 
-    const isMerging = await this.fileExists('.git/MERGE_HEAD');
-    const isRebasing = await this.fileExists('.git/rebase-merge') || await this.fileExists('.git/rebase-apply');
+    const gitDir = await this.getGitDir();
+    const isMerging = await this.fileExistsInGitDir(gitDir, 'MERGE_HEAD');
+    const isRebasing = await this.fileExistsInGitDir(gitDir, 'rebase-merge')
+      || await this.fileExistsInGitDir(gitDir, 'rebase-apply');
+    const conflicted = status.conflicted;
 
     return {
+      repoRoot,
+      currentWorktreePath,
       currentBranch: status.current ?? 'HEAD',
       isDetachedHead: status.detached,
       ahead: status.ahead,
@@ -61,7 +67,8 @@ export class GitCliClient implements IGitClient {
       staged: status.staged.map((p) => ({ path: p, index: 'M', working_dir: ' ' })),
       unstaged: status.modified.map((p) => ({ path: p, index: ' ', working_dir: 'M' })),
       untracked: status.not_added,
-      conflicted: status.conflicted,
+      conflicted,
+      isConflict: conflicted.length > 0,
       isMerging,
       isRebasing,
     };
@@ -296,11 +303,31 @@ export class GitCliClient implements IGitClient {
 
   // ─── Helpers ─────────────────────────────────────────────────────────────
 
-  private async fileExists(relativePath: string): Promise<boolean> {
+  private async getRepoRoot(): Promise<string> {
+    return (await this.git.revparse(['--show-toplevel'])).trim();
+  }
+
+  private async getCurrentWorktreePath(): Promise<string> {
+    return (await this.git.revparse(['--show-toplevel'])).trim();
+  }
+
+  private async getGitDir(): Promise<string> {
+    const fs = await import('fs/promises');
+    const path = await import('path');
+    const rawGitDir = (await this.git.revparse(['--git-dir'])).trim();
+    const gitDir = path.isAbsolute(rawGitDir) ? rawGitDir : path.resolve(this.repoPath, rawGitDir);
+    const stat = await fs.stat(gitDir);
+    if (stat.isDirectory()) {
+      return gitDir;
+    }
+    return path.dirname(gitDir);
+  }
+
+  private async fileExistsInGitDir(gitDir: string, relativePath: string): Promise<boolean> {
     const fs = await import('fs/promises');
     const path = await import('path');
     try {
-      await fs.access(path.join(this.repoPath, relativePath));
+      await fs.access(path.join(gitDir, relativePath));
       return true;
     } catch {
       return false;
