@@ -15,6 +15,7 @@ export * from './input/application/TokenConfig';
 export * from './input/application/ContextMinimizer';
 export * from './input/application/WorkingTreeDiffManager';
 export * from './input/application/RelatedFilesCollector';
+export * from './input/application/TokenBudgetGuard';
 export * from './feedback/proposal-feedback';
 export * from './feedback/training-candidate';
 export * from './feedback/feedback-persistence-plan';

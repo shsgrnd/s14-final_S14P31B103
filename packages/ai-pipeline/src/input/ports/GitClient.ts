@@ -57,3 +57,4 @@ export interface GitClient {
    */
   getChangedFileNames(repoPath?: string): Promise<string[]>;
 }
+
