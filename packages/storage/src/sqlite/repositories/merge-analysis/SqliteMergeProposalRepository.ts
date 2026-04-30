@@ -1,4 +1,4 @@
-import { Database } from 'better-sqlite3';
+import { SQLiteDatabase } from '../../client/client';
 import { MergeProposalRepository, MergeProposalRow } from '@gitcat/shared-types';
 
 /**
@@ -8,7 +8,7 @@ import { MergeProposalRepository, MergeProposalRow } from '@gitcat/shared-types'
  * - 본문 텍스트나 코드 패치 원본 등 대용량 데이터는 파일로 저장되고, DB에는 메타데이터와 파일 참조 경로만 남깁니다.
  */
 export class SqliteMergeProposalRepository implements MergeProposalRepository {
-  constructor(private readonly db: Database) {}
+  constructor(private readonly db: SQLiteDatabase) {}
 
   /**
    * 다수의 병합 제안(Merge Proposals)을 트랜잭션으로 묶어서 DB에 삽입합니다.
@@ -68,13 +68,8 @@ export class SqliteMergeProposalRepository implements MergeProposalRepository {
       ORDER BY p.created_at DESC
     `);
     
-    const rows = stmt.all(analysisId) as any[];
-    
-    // SQLite에서 1/0으로 저장된 boolean 값을 TypeScript 타입에 맞게 boolean으로 복원합니다.
-    return rows.map(row => ({
-      ...row,
-      validation_required: row.validation_required === 1
-    }));
+    const rows = stmt.all(analysisId) as MergeProposalRow[];
+    return rows;
   }
 
   /**

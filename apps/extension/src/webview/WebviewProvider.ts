@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import * as path from 'path';
+import * as fs from 'fs';
 import { MessageRouter } from '../core/MessageRouter';
 
 export class WebviewProvider {
@@ -19,6 +21,8 @@ export class WebviewProvider {
             return;
         }
 
+        const distPath = path.join(this.context.extensionPath, '..', 'webview-ui', 'dist');
+
         this.panel = vscode.window.createWebviewPanel(
             'gitcat',
             'GitCat',
@@ -26,12 +30,12 @@ export class WebviewProvider {
             {
                 enableScripts: true,
                 retainContextWhenHidden: true,
+                localResourceRoots: [vscode.Uri.file(distPath)],
             }
         );
 
-        this.panel.webview.html = this.getHtmlForWebview();
+        this.panel.webview.html = this.getHtmlForWebview(this.panel.webview, 'main');
 
-        // 프론트엔드로부터 오는 메시지 수신 (Message Router로 전달)
         this.panel.webview.onDidReceiveMessage(
             message => {
                 this.messageRouter.route(message, this.panel!.webview);
@@ -49,24 +53,36 @@ export class WebviewProvider {
         );
     }
 
-    private getHtmlForWebview(): string {
-        // 실제 Svelte/React 빌드 파일 연동 예정
-        return `<!DOCTYPE html>
+    private getHtmlForWebview(webview: vscode.Webview, viewMode: 'sidebar' | 'main'): string {
+        const distPath = vscode.Uri.file(
+            path.join(this.context.extensionPath, '..', 'webview-ui', 'dist')
+        );
+        const indexPath = path.join(distPath.fsPath, 'index.html');
+
+        if (!fs.existsSync(indexPath)) {
+            return `<!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <title>GitCat MVP</title>
-</head>
 <body>
-    <h1>GitCat Webview Placeholder</h1>
-    <button id="testBtn">Send Test Message</button>
-    <script>
-        const vscode = acquireVsCodeApi();
-        document.getElementById('testBtn').addEventListener('click', () => {
-            vscode.postMessage({ type: 'I-01-GET_SNAPSHOT_LIST' });
-        });
-    </script>
+    <div style="padding: 20px;">
+        <h2>GitCat webview build is missing.</h2>
+        <p>Run <code>corepack pnpm --filter @gitcat/webview-ui run build</code>.</p>
+    </div>
 </body>
 </html>`;
+        }
+
+        let html = fs.readFileSync(indexPath, 'utf-8');
+        html = html.replace(
+            /<head>/,
+            `<head><script>window.VIEW_MODE = "${viewMode}";</script>`
+        );
+        html = html.replace(/(href|src)="(?:\.\/)?assets\/([^"]+)"/g, (_match, attr, assetName) => {
+            const assetUri = webview.asWebviewUri(
+                vscode.Uri.file(path.join(distPath.fsPath, 'assets', assetName))
+            );
+            return `${attr}="${assetUri}"`;
+        });
+
+        return html;
     }
 }

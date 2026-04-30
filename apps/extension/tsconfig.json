@@ -10,7 +10,12 @@
     "rootDir": "src",
     "outDir": "dist",
     "strict": true,
-    "esModuleInterop": true
+    "esModuleInterop": true,
+    "baseUrl": ".",
+    "paths": {
+      "@gitcat/git-core": ["../../packages/git-core/dist"],
+      "@gitcat/git-client-cli": ["../../packages/git-client-cli/dist"]
+    }
   },
   "exclude": [
     "node_modules",

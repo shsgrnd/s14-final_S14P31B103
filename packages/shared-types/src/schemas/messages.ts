@@ -13,6 +13,7 @@ import {
   BranchSchema,
   GitResultSchema,
   GitStatusSchema,
+  WorktreeInfoSchema,
 } from '../dto/git';
 
 /**
@@ -60,6 +61,7 @@ export const InboundPayloadSchemaMap = {
   REFRESH_STATUS: z.object({}).strict(),
   GET_SNAPSHOT_LIST: z.object({}).strict(),
   GET_BRANCH_LIST: z.object({}).strict(),
+  GET_WORKTREE_LIST: z.object({}).strict(),
   // 추가된 메시지 스키마
   CREATE_SNAPSHOT: z.object({ title: z.string().optional() }),
   RENAME_SNAPSHOT: z.object({ snapshotId: z.string(), newTitle: z.string() }),
@@ -76,6 +78,17 @@ export const InboundPayloadSchemaMap = {
   OPEN_MERGE_PANEL: z.object({}).strict(),
   CHECKOUT_BRANCH: z.object({ name: z.string() }),
   REJECT_AI_DRAFT: z.object({ id: z.string() }),
+  // 1단계 추가: stash
+  GET_STASH_LIST: z.object({}).strict(),
+  STASH_SAVE: z.object({ message: z.string().optional() }),
+  STASH_APPLY: z.object({ ref: z.string().optional() }),
+  STASH_POP: z.object({ ref: z.string().optional() }),
+  STASH_DROP: z.object({ ref: z.string().optional() }),
+  // 1단계 추가: unstage
+  GIT_UNSTAGE: z.object({ filePaths: z.array(z.string().min(1)).min(1) }),
+  // 1단계 추가: merge control
+  MERGE_ABORT: z.object({}).strict(),
+  MERGE_CONTINUE: z.object({}).strict(),
 } as const;
 
 /**
@@ -96,10 +109,21 @@ export const OutboundPayloadSchemaMap = {
   BRANCH_SUGGESTIONS: z.object({ names: z.array(z.string()) }),
   PR_SUGGESTION: z.object({ markdown: z.string() }),
   BRANCH_LIST: z.object({ branches: z.array(BranchSchema) }),
+  WORKTREE_LIST: z.object({ worktrees: z.array(WorktreeInfoSchema) }),
   GIT_OPERATION_RESULT: z.object({ operation: z.string(), result: GitResultSchema }),
   ERROR: z.object({ code: ErrorCodeEnum, message: z.string() }),
   LOADING: z.object({ target: z.string(), loading: z.boolean() }),
   NOTIFICATION: z.object({ type: z.enum(['info', 'warning', 'error']), message: z.string() }),
+  // 1단계 추가: stash 목록 응답
+  STASH_LIST: z.object({
+    stashes: z.array(z.object({
+      index: z.number(),
+      ref: z.string(),
+      message: z.string(),
+      branch: z.string(),
+      date: z.string(),
+    })),
+  }),
 } as const;
 
 /**

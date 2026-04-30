@@ -51,6 +51,7 @@ function App() {
     
     console.log('[Webview] Sending initial fetch requests...');
     sendMessage('GET_SNAPSHOT_LIST', {});
+    sendMessage('REFRESH_STATUS', {});
     sendMessage('GET_BRANCH_LIST', {});
   }, []); // Only run once on mount
 

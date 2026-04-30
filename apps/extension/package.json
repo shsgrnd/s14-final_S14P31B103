@@ -11,7 +11,11 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": [],
+  "activationEvents": [
+    "onView:gitcat-sidebar-webview",
+    "onCommand:gitcat.openPanel",
+    "onCommand:gitcat.getGitStatus"
+  ],
   "main": "./dist/extension.js",
   "contributes": {
     "commands": [
@@ -56,6 +60,8 @@
     "typescript": "^5.0.0"
   },
   "dependencies": {
+    "@gitcat/git-client-cli": "workspace:*",
+    "@gitcat/git-core": "workspace:*",
     "@gitcat/shared-types": "workspace:*",
     "@gitcat/storage": "workspace:*"
   }

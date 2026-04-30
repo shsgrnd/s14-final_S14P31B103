@@ -1,9 +1,9 @@
-import { Database } from 'better-sqlite3';
 import { BranchRepository } from '@gitcat/shared-types';
 import { BranchRow } from '@gitcat/shared-types';
+import type { SQLiteDatabase } from '../../client/client';
 
 export class SqliteBranchRepository implements BranchRepository {
-  constructor(private readonly db: Database) {}
+  constructor(private readonly db: SQLiteDatabase) {}
 
   async upsert(branch: Omit<BranchRow, 'created_at' | 'updated_at'>): Promise<BranchRow> {
     const now = new Date().toISOString();
