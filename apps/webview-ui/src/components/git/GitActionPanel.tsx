@@ -20,6 +20,23 @@ export const GitActionPanel: React.FC = () => {
     setTimeout(() => setStatusMsg(null), 3000);
   };
 
+  const closeAIPrompt = () => {
+    setShowBranchAI(false);
+    setAiPrompt('');
+  };
+
+  const closeBranchForm = () => {
+    setShowNewBranch(false);
+    setNewBranchName('');
+    closeAIPrompt();
+  };
+
+  const closeCommitForm = () => {
+    setShowCommitForm(false);
+    setCommitMessage('');
+    closeAIPrompt();
+  };
+
   const handleGitAdd = () => {
     sendMessage('GIT_ADD_ALL');
     showStatus('Git add가 완료되었습니다.', true);
@@ -30,9 +47,9 @@ export const GitActionPanel: React.FC = () => {
       if (!commitMessage.trim()) return;
       sendMessage('EXECUTE_COMMIT', { message: commitMessage });
       showStatus('Git commit이 완료되었습니다.', true);
-      setCommitMessage('');
-      setShowCommitForm(false);
+      closeCommitForm();
     } else {
+      closeBranchForm();
       setShowCommitForm(true);
     }
   };
@@ -50,9 +67,27 @@ export const GitActionPanel: React.FC = () => {
   const handleCreateBranch = () => {
     if (!newBranchName.trim()) return;
     sendMessage('APPLY_BRANCH', { name: newBranchName });
-    setNewBranchName('');
-    setShowNewBranch(false);
+    closeBranchForm();
   };
+
+  const selectableBranches = branches.filter((branch) => branch.name !== currentBranch);
+
+  const handleAISubmit = () => {
+    const prompt = aiPrompt.trim();
+    if (!prompt) return;
+
+    if (showCommitForm) {
+      sendMessage('RECOMMEND_COMMIT', { purpose: prompt });
+    } else {
+      sendMessage('RECOMMEND_BRANCH', { purpose: prompt });
+    }
+
+    closeAIPrompt();
+  };
+
+  const aiPromptPlaceholder = showCommitForm
+    ? '어떤 기능을 구현하셨나요? commit에 넣을 내용을 정리해서 입력해주세요.'
+    : '어떤 기능을 구현하실 예정인가요? branch에 넣을 내용을 정리해서 입력해주세요.';
 
   return (
     <div className="animate-fade-in" style={{ padding: '8px 4px' }}>
@@ -60,8 +95,11 @@ export const GitActionPanel: React.FC = () => {
       <div 
         onClick={() => setIsBranchListOpen(!isBranchListOpen)}
         style={{
-          margin: '0 8px 8px 8px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '8px 10px', borderRadius: '4px', border: '1px solid var(--vscode-panel-border)',
+          margin: isBranchListOpen ? '0 8px 0 8px' : '0 8px 8px 8px',
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+          padding: '8px 10px',
+          borderRadius: isBranchListOpen ? '4px 4px 0 0' : '4px',
+          border: '1px solid var(--vscode-panel-border)',
           background: 'var(--vscode-input-background)', cursor: 'pointer', transition: 'all 0.2s'
         }}
         onMouseOver={e => e.currentTarget.style.borderColor = 'var(--vscode-focusBorder)'}
@@ -79,58 +117,75 @@ export const GitActionPanel: React.FC = () => {
       </div>
 
       {/* ── Branch List Accordion Content ── */}
-      {isBranchListOpen && (
-        <div style={{ 
-          margin: '0 8px 12px 8px', border: '1px solid var(--vscode-panel-border)', borderRadius: '4px', 
-          overflow: 'hidden', background: 'var(--vscode-editor-background)' 
-        }}>
-          {branches.map(b => {
-            const isActive = currentBranch === b.name;
-            return (
-              <div 
-                key={b.name}
-                onClick={() => { sendMessage('CHECKOUT_BRANCH', { name: b.name }); setIsBranchListOpen(false); }}
-                style={{ 
-                  padding: '8px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', 
-                  cursor: 'pointer', borderBottom: '1px solid var(--vscode-panel-border)', 
-                  background: isActive ? 'var(--vscode-list-activeSelectionBackground)' : 'transparent', 
-                  color: isActive ? 'var(--vscode-list-activeSelectionForeground)' : 'inherit' 
-                }}
-                onMouseOver={e => { if(!isActive) e.currentTarget.style.background = 'var(--vscode-list-hoverBackground)' }}
-                onMouseOut={e => { if(!isActive) e.currentTarget.style.background = 'transparent' }}
-              >
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <GitBranch size={12} style={{ color: 'var(--vscode-descriptionForeground)' }} />
-                  <span style={{ fontSize: '12px' }}>{b.name}</span>
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '10px', color: 'var(--vscode-descriptionForeground)' }}>
-                  <Clock size={10} /> {b.lastActivity}
-                </div>
+      <div
+        style={{
+          margin: isBranchListOpen ? '0 8px 12px 8px' : '0 8px 0 8px',
+          border: '1px solid var(--vscode-panel-border)',
+          borderTop: 'none',
+          borderRadius: '0 0 4px 4px',
+          overflow: 'hidden',
+          background: 'var(--vscode-editor-background)',
+          maxHeight: isBranchListOpen ? '220px' : '0px',
+          opacity: isBranchListOpen ? 1 : 0,
+          transform: isBranchListOpen ? 'translateY(0)' : 'translateY(-6px)',
+          transition: 'max-height 0.22s ease, opacity 0.18s ease, transform 0.22s ease, margin 0.22s ease',
+        }}
+      >
+        {selectableBranches.length === 0 ? (
+          <div style={{
+            padding: '10px 12px',
+            fontSize: '12px',
+            color: 'var(--vscode-descriptionForeground)',
+            opacity: 0.65,
+            textAlign: 'left',
+          }}>
+            다른 branch가 존재하지 않습니다.
+          </div>
+        ) : selectableBranches.map(b => {
+          const isActive = currentBranch === b.name;
+          return (
+            <div 
+              key={b.name}
+              onClick={() => { sendMessage('CHECKOUT_BRANCH', { name: b.name }); setIsBranchListOpen(false); }}
+              style={{ 
+                padding: '8px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', 
+                cursor: 'pointer',
+                borderBottom: b === selectableBranches[selectableBranches.length - 1] ? 'none' : '1px solid var(--vscode-panel-border)',
+                background: isActive ? 'var(--vscode-list-activeSelectionBackground)' : 'transparent', 
+                color: isActive ? 'var(--vscode-list-activeSelectionForeground)' : 'inherit' 
+              }}
+              onMouseOver={e => { if(!isActive) e.currentTarget.style.background = 'var(--vscode-list-hoverBackground)' }}
+              onMouseOut={e => { if(!isActive) e.currentTarget.style.background = 'transparent' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <GitBranch size={12} style={{ color: 'var(--vscode-descriptionForeground)' }} />
+                <span style={{ fontSize: '12px' }}>{b.name}</span>
               </div>
-            );
-          })}
-        </div>
-      )}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '10px', color: 'var(--vscode-descriptionForeground)' }}>
+                <Clock size={10} /> {b.lastActivity}
+              </div>
+            </div>
+          );
+        })}
+      </div>
 
       {/* ── New Branch Row ── */}
-      {!showNewBranch ? (
-        <div style={{ margin: '4px 8px', display: 'flex', alignItems: 'center', padding: '4px' }}>
+      {!showCommitForm && !showNewBranch ? (
+        <div style={{ margin: '8px 8px 4px 8px' }}>
           <button
-            onClick={() => setShowNewBranch(true)}
-            style={{
-              display: 'flex', alignItems: 'center', gap: '6px',
-              fontSize: '12px', color: 'var(--vscode-descriptionForeground)',
-              background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+            onClick={() => {
+              closeCommitForm();
+              setShowNewBranch(true);
             }}
-            onMouseOver={e => (e.currentTarget.style.color = 'var(--vscode-foreground)')}
-            onMouseOut={e => (e.currentTarget.style.color = 'var(--vscode-descriptionForeground)')}
+            style={bigBtnStyle('primary')}
           >
-            <Plus size={13} />
-            Create new branch
+            <GitBranch size={13} />
+            New branch
           </button>
         </div>
       ) : (
-        <div style={{ margin: '8px' }}>
+        !showCommitForm && (
+          <div style={{ margin: '8px' }}>
           <div style={{
             fontSize: '12px', marginBottom: '6px',
             color: 'var(--vscode-descriptionForeground)',
@@ -148,7 +203,7 @@ export const GitActionPanel: React.FC = () => {
             autoFocus
             value={newBranchName}
             onChange={e => setNewBranchName(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') handleCreateBranch(); if (e.key === 'Escape') setShowNewBranch(false); }}
+            onKeyDown={e => { if (e.key === 'Enter') handleCreateBranch(); if (e.key === 'Escape') closeBranchForm(); }}
             placeholder="생성할 브랜치명을 작성해주세요"
             style={{
               width: '100%', boxSizing: 'border-box',
@@ -159,16 +214,17 @@ export const GitActionPanel: React.FC = () => {
               borderRadius: '3px', outline: 'none',
             }}
           />
-        </div>
+          </div>
+        )
       )}
 
       {/* Create / Cancel buttons when new branch input is open */}
-      {showNewBranch && (
+      {!showCommitForm && showNewBranch && (
         <div style={{ margin: '4px 8px', display: 'flex', gap: '8px' }}>
           <button onClick={handleCreateBranch} style={btnStyle('primary')}>
             <Check size={13} /> Create
           </button>
-          <button onClick={() => setShowNewBranch(false)} style={btnStyle('secondary')}>
+          <button onClick={closeBranchForm} style={btnStyle('secondary')}>
             <X size={13} /> Cancel
           </button>
         </div>
@@ -197,7 +253,7 @@ export const GitActionPanel: React.FC = () => {
             placeholder="생성할 커밋명을 작성해주세요"
             rows={3}
             style={{
-              width: '100%', boxSizing: 'border-box', resize: 'vertical', fontSize: '12px',
+              width: '100%', boxSizing: 'border-box', resize: 'none', fontSize: '12px',
               padding: '8px', background: 'var(--vscode-input-background)',
               color: 'var(--vscode-input-foreground)', border: '1px solid var(--vscode-panel-border)',
               borderRadius: '3px', outline: 'none', fontFamily: 'inherit',
@@ -209,7 +265,7 @@ export const GitActionPanel: React.FC = () => {
             <button onClick={handleCommit} style={btnStyle('primary')}>
               <Check size={13} /> Create
             </button>
-            <button onClick={() => setShowCommitForm(false)} style={btnStyle('secondary')}>
+            <button onClick={closeCommitForm} style={btnStyle('secondary')}>
               <X size={13} /> Cancel
             </button>
           </div>
@@ -254,33 +310,73 @@ export const GitActionPanel: React.FC = () => {
           boxShadow: '0 0 10px rgba(197, 134, 192, 0.1)',
           borderRadius: '4px',
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px', fontSize: '12px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '10px', fontSize: '12px' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--vscode-charts-purple)', fontWeight: 600 }}>
               <Sparkles size={14} /> AI 텍스트 추천
             </div>
-            <button onClick={() => setShowBranchAI(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--vscode-descriptionForeground)' }}>
-              <X size={14} />
-            </button>
           </div>
           <textarea
             autoFocus
             value={aiPrompt}
             onChange={e => setAiPrompt(e.target.value)}
-            placeholder="어떤 기능을 구현하셨나요? 프롬프트를 입력해주세요."
-            rows={3}
+            onKeyDown={e => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                handleAISubmit();
+              }
+              if (e.key === 'Escape') {
+                closeAIPrompt();
+              }
+            }}
+            placeholder={aiPromptPlaceholder}
+            rows={4}
             style={{
-              width: '100%', boxSizing: 'border-box', resize: 'vertical', fontSize: '12px',
+              width: '100%', boxSizing: 'border-box', resize: 'none', fontSize: '12px',
               padding: '8px', background: 'var(--vscode-input-background)',
               color: 'var(--vscode-input-foreground)', border: '1px solid var(--vscode-panel-border)',
               borderRadius: '3px', outline: 'none', fontFamily: 'inherit',
             }}
           />
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '10px' }}>
+          <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
             <button
-              onClick={() => { sendMessage('RECOMMEND_BRANCH', { purpose: aiPrompt }); setShowBranchAI(false); }}
-              style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '12px', padding: '6px 14px', background: 'var(--vscode-charts-purple)', color: '#fff', border: 'none', borderRadius: '3px', cursor: 'pointer' }}
+              onClick={handleAISubmit}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                flex: 1,
+                fontSize: '12px',
+                fontWeight: 500,
+                padding: '6px 12px',
+                background: 'var(--vscode-charts-purple)',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '3px',
+                cursor: 'pointer'
+              }}
             >
-              <CornerDownRight size={13} /> 엔터
+              <CornerDownRight size={13} /> Enter
+            </button>
+            <button
+              onClick={closeAIPrompt}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px',
+                flex: 1,
+                fontSize: '12px',
+                fontWeight: 500,
+                padding: '6px 12px',
+                background: 'var(--vscode-button-secondaryBackground)',
+                color: 'var(--vscode-button-secondaryForeground)',
+                border: 'none',
+                borderRadius: '3px',
+                cursor: 'pointer'
+              }}
+            >
+              <X size={13} /> Cancel
             </button>
           </div>
         </div>

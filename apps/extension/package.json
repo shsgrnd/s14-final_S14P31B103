@@ -42,7 +42,7 @@
         {
           "type": "webview",
           "id": "gitcat-sidebar-webview",
-          "name": "GitCat Core"
+          "name": "GitCat"
         }
       ]
     }

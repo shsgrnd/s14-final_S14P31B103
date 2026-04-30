@@ -8,7 +8,8 @@
   "scripts": {
     "build": "tsc",
     "test:mock": "ts-node -r tsconfig-paths/register src/run-mock.ts",
-    "test:live": "ts-node -r tsconfig-paths/register src/run-live.ts"
+    "test:live": "ts-node -r tsconfig-paths/register src/run-live.ts",
+    "export:mock": "ts-node -r tsconfig-paths/register src/run-export-mock.ts"
   },
   "dependencies": {
     "@gitcat/shared-types": "workspace:*",

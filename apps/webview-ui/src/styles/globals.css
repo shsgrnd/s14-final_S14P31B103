@@ -4,6 +4,19 @@
 
 @layer base {
   :root {
+    /* GitCat UI normalization palette (editor-agnostic) */
+    --gc-bg: #111315;
+    --gc-surface: #17191c;
+    --gc-surface-2: #1d2024;
+    --gc-border: #2a2f36;
+    --gc-text: #d6d9de;
+    --gc-text-muted: #9ba3ad;
+    --gc-primary: #6d9fe0;
+    --gc-primary-hover: #79a9e8;
+    --gc-secondary: #6a6a6a;
+    --gc-secondary-hover: #777777;
+    --gc-focus: #6d9fe0;
+
     /* VS Code Theme Variables Mapping */
     --background: var(--vscode-sideBar-background);
     --foreground: var(--vscode-sideBar-foreground);
@@ -26,6 +39,33 @@
     /* Description Text */
     --description: var(--vscode-descriptionForeground);
   }
+}
+
+/* Force stable color tokens across VS Code/Cursor/other hosts */
+body {
+  --vscode-sideBar-background: var(--gc-bg) !important;
+  --vscode-sideBar-foreground: var(--gc-text) !important;
+  --vscode-editor-background: var(--gc-surface) !important;
+  --vscode-editor-foreground: var(--gc-text) !important;
+  --vscode-panel-border: var(--gc-border) !important;
+  --vscode-input-background: var(--gc-surface-2) !important;
+  --vscode-input-foreground: var(--gc-text) !important;
+  --vscode-descriptionForeground: var(--gc-text-muted) !important;
+  --vscode-focusBorder: var(--gc-focus) !important;
+  --vscode-button-background: var(--gc-primary) !important;
+  --vscode-button-foreground: #f5f8ff !important;
+  --vscode-button-hoverBackground: var(--gc-primary-hover) !important;
+  --vscode-button-secondaryBackground: var(--gc-secondary) !important;
+  --vscode-button-secondaryForeground: #eeeeee !important;
+  --vscode-button-secondaryHoverBackground: var(--gc-secondary-hover) !important;
+  --vscode-list-hoverBackground: #22262c !important;
+  --vscode-list-activeSelectionBackground: #2a3240 !important;
+  --vscode-list-activeSelectionForeground: #eaf1ff !important;
+  --vscode-badge-background: #2f3f57 !important;
+  --vscode-badge-foreground: #d9e6ff !important;
+  --vscode-charts-blue: #6d9fe0 !important;
+  --vscode-charts-green: #6ec8a3 !important;
+  --vscode-charts-purple: #9f7ad6 !important;
 }
 
 body {
