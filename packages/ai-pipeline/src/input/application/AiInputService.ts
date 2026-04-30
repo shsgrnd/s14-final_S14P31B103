@@ -1,13 +1,13 @@
-import { 
-  MergeProposalInput, 
+import {
+  MergeProposalInput,
   MergeProposalInputSchema,
-  ConflictCandidate 
+  ConflictCandidate
 } from '@gitcat/shared-types';
 import { GitClient } from '../ports/GitClient';
 import { ConflictAnalyzer } from './ConflictAnalyzer';
-import { TokenCounter } from './TokenCounter';
-import { ContextMinimizer } from './ContextMinimizer';
-import { getDefaultModelConfig } from './TokenConfig';
+import { WorkingTreeDiffManager } from './WorkingTreeDiffManager';
+import { RelatedFilesCollector } from './RelatedFilesCollector';
+import { TokenBudgetGuard } from './TokenBudgetGuard';
 
 /**
  * AI 입력을 위한 최종 Payload(Context)를 조립하는 오케스트레이션 서비스.
@@ -15,10 +15,20 @@ import { getDefaultModelConfig } from './TokenConfig';
  * 데이터를 취합하고 규격에 맞게 검증하는 역할을 수행합니다.
  */
 export class AiInputService {
+  /** working.diff 파일 생성 및 ref 반환 */
+  private readonly workingTreeDiffManager: WorkingTreeDiffManager;
+  /** related_files 수집, 필터링, 개수 제한 */
+  private readonly relatedFilesCollector: RelatedFilesCollector;
+  private readonly tokenBudgetGuard: TokenBudgetGuard;
+
   constructor(
     private readonly gitClient: GitClient,
     private readonly conflictAnalyzer: ConflictAnalyzer
-  ) {}
+  ) {
+    this.workingTreeDiffManager = new WorkingTreeDiffManager(gitClient);
+    this.relatedFilesCollector = new RelatedFilesCollector(gitClient);
+    this.tokenBudgetGuard = new TokenBudgetGuard();
+  }
 
   /**
    * 병합 제안 및 충돌 분석 기능을 위한 AI 입력 Payload를 생성합니다.
@@ -33,11 +43,13 @@ export class AiInputService {
     targetBranch: string;
     analysisId: string;
     repoPath?: string;
+    /** VS Code 워크스페이스 루트 절대 경로. working.diff 파일 저장 위치의 기준이 됩니다. */
+    workspaceRoot?: string;
     workspaceSummary?: string;
   }): Promise<MergeProposalInput> {
-    const { 
-      projectId, sessionId, currentBranch, targetBranch, 
-      analysisId, repoPath, workspaceSummary 
+    const {
+      projectId, sessionId, currentBranch, targetBranch,
+      analysisId, repoPath, workspaceRoot, workspaceSummary
     } = params;
 
     console.log(`[AiInputService] Building payload for session: ${sessionId}, analysis: ${analysisId}`);
@@ -45,20 +57,57 @@ export class AiInputService {
     // 1. 충돌 분석기 호출 (Domain Service 호출)
     // 3-Way Diff 및 AST 분석 결과를 가져옵니다.
     const candidates: ConflictCandidate[] = await this.conflictAnalyzer.analyze(
-      currentBranch, 
-      targetBranch, 
-      analysisId, 
+      currentBranch,
+      targetBranch,
+      analysisId,
       repoPath
     );
 
-    // 2. 관련 파일 목록 추출 (중복 제거)
-    const relatedFiles = Array.from(new Set(candidates.map(c => c.file_path)));
+    // ── Step 2: related_files 수집 (RelatedFilesCollector) ──────────────────────
+    //
+    // 기존 방식: candidates에서 file_path만 추출 → conflict 파일만 포함
+    // 새 방식  : conflict 파일(우선) + git 변경 파일(보조) 합산
+    //            + 바이너리/lock/빌드 폴더 제외 + 최대 50개 제한
+    const conflictFilePaths = candidates.map(c => c.file_path);
+    const relatedFilesResult = await this.relatedFilesCollector.collect(
+      conflictFilePaths,
+      repoPath
+    );
+    const relatedFiles = relatedFilesResult.files;
 
-    // 3. 작업 트리 변경 사항(Diff) 수집 (Infrastructure Port 호출)
-    // 현재 staged 된 변경 사항 등을 참고용으로 수집합니다.
-    const workingTreeDiff = await this.gitClient.getStagedDiff(repoPath);
 
-    // 4. 최종 Payload 조립
+    let workingTreeDiffRef = '';
+
+    if (workspaceRoot) {
+      try {
+        const diffResult = await this.workingTreeDiffManager.saveDiffAndGetRef(
+          sessionId,
+          workspaceRoot,
+          repoPath
+        );
+        workingTreeDiffRef = diffResult.ref;
+
+        // diff가 잘렸을 때 risk_summary에 경고를 남깁니다.
+        // 이 정보는 AI가 "diff가 완전하지 않을 수 있다"는 맥락을 갖게 해줍니다.
+        if (diffResult.truncated) {
+          console.warn(
+            `[AiInputService] working.diff truncated: ${diffResult.lineCount}줄로 제한됨. ` +
+            `risk_summary에 경고 추가.`
+          );
+        }
+      } catch (diffError) {
+        // diff 파일 저장 실패 시 파이프라인 전체를 멈추지 않습니다.
+        // working_tree_diff_ref가 없어도 conflict_candidates 정보만으로 AI 분석은 가능합니다.
+        console.error('[AiInputService] working.diff 저장 실패 (파이프라인은 계속 진행합니다):', diffError);
+      }
+    } else {
+      console.warn(
+        '[AiInputService] workspaceRoot가 없어 working.diff 파일 저장을 건너뜁니다. ' +
+        'buildMergeProposalInput()에 workspaceRoot를 전달하면 활성화됩니다.'
+      );
+    }
+
+    // ── Step 4: 최종 Payload 조립 ────────────────────────────────────────────────
     const rawPayload: MergeProposalInput = {
       project_id: projectId,
       session_id: sessionId,
@@ -68,38 +117,21 @@ export class AiInputService {
       workspace_summary: workspaceSummary || '',
       related_files: relatedFiles,
       conflict_candidates: candidates,
-      working_tree_diff_ref: workingTreeDiff || '',
-      risk_summary: '', // 추후 분석 결과에 따라 채워질 수 있음
+      working_tree_diff_ref: workingTreeDiffRef,
+      risk_summary: '', // TokenBudgetGuard에서 추가될 수 있음
       schema_version: '1.0.0',
     };
 
-    // 5. 토큰 사용량 측정 및 지능적 절단 (Step 3)
-    const tokenCounter = new TokenCounter();
-    const currentTokens = tokenCounter.countPayloadTokens(rawPayload);
-    const modelConfig = getDefaultModelConfig();
+    // ── Step 5: 토큰 사용량 측정 및 지능적 절단 (TokenBudgetGuard) ───────────────
+    const optimizedPayload = this.tokenBudgetGuard.enforce(rawPayload);
 
-    console.log(`[AiInputService] Initial payload tokens: ${currentTokens} / Safe threshold: ${modelConfig.safeThresholdTokens}`);
-
-    if (currentTokens > modelConfig.safeThresholdTokens) {
-      console.warn(`[AiInputService] Payload exceeds safe threshold! Truncating code snippets...`);
-      const minimizer = new ContextMinimizer();
-      
-      // 후보군의 코드를 압축 (윈도우 사이즈: 20줄)
-      const optimizedCandidates = rawPayload.conflict_candidates.map(candidate => 
-        minimizer.minimizeCandidate(candidate, 20)
-      );
-      
-      rawPayload.conflict_candidates = optimizedCandidates;
-      rawPayload.risk_summary = `주의: 데이터가 너무 커서 분석 컨텍스트 최적화(Truncation)가 적용되었습니다.`;
-      
-      const newTokens = tokenCounter.countPayloadTokens(rawPayload);
-      console.log(`[AiInputService] Truncation complete. New token count: ${newTokens}`);
-    }
-
-    // 6. 데이터 무결성 검증 (Zod Validation)
+    // ── Step 6: 데이터 무결성 검증 (Zod Validation) ─────────────────────────────
+    //
+    // Zod 스키마가 모든 필드의 타입과 형식을 최종 검증합니다.
+    // 이 검증을 통과하면 AI 호출에 안전하게 사용할 수 있는 payload입니다.
     try {
       console.log(`[AiInputService] Validating payload with Zod...`);
-      return MergeProposalInputSchema.parse(rawPayload);
+      return MergeProposalInputSchema.parse(optimizedPayload);
     } catch (error) {
       console.error(`[AiInputService] Payload validation failed!`, error);
       throw new Error(`AI 입력 데이터 규격이 올바르지 않습니다. (Zod Schema Error)`);

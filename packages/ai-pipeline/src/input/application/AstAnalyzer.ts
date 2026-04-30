@@ -133,6 +133,32 @@ export class AstAnalyzer {
   }
 
   /**
+   * 두 변경 구간(sRange, tRange) 중 하나라도 논리 블록의 시그니처 영역(첫 N줄)을 건드렸는지 판별합니다.
+   * 함수/메서드 선언부의 앞부분(파라미터, 반환 타입 등)이 변경된 경우를 signature_change로 분류하기 위해 사용합니다.
+   *
+   * @param block 포함 논리 블록
+   * @param sRange source 브랜치의 변경 라인 범위
+   * @param tRange target 브랜치의 변경 라인 범위
+   * @param signatureLineCount 시그니처로 간주할 블록 상단 라인 수 (기본값: 3)
+   * @returns 둘 중 하나라도 시그니처 영역에 걸치면 true
+   */
+  isSignatureModified(
+    block: AstBlock,
+    sRange: { start: number; end: number },
+    tRange: { start: number; end: number },
+    signatureLineCount: number = 3
+  ): boolean {
+    // 시그니처 영역: 블록 시작 라인 ~ 시작 라인 + signatureLineCount - 1
+    const sigStart = block.startLine;
+    const sigEnd = block.startLine + signatureLineCount - 1;
+
+    const sOverlaps = sRange.start <= sigEnd && sRange.end >= sigStart;
+    const tOverlaps = tRange.start <= sigEnd && tRange.end >= sigStart;
+
+    return sOverlaps || tOverlaps;
+  }
+
+  /**
    * AST 노드(Node)를 AstBlock 객체로 변환하는 내부 헬퍼 메서드.
    */
   private nodeToBlock(node: ts.Node, sourceFile: ts.SourceFile): AstBlock | null {

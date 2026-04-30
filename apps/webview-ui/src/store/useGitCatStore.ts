@@ -71,7 +71,6 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
   handleMessage: (event) => {
     // 실제 백엔드 이벤트 수신 처리
     const { type, payload } = event.data;
-    console.log('[Webview] Received message from extension:', type, payload);
     
     // TODO: type별로 상태 업데이트 로직 추가
     switch (type) {

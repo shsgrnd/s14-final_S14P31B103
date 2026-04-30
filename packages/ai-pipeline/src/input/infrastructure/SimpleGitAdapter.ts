@@ -37,6 +37,85 @@ export class SimpleGitAdapter implements GitClient {
   }
 
   /**
+   * HEAD 기준 전체 작업 트리 변경 사항(staged + unstaged) diff 텍스트를 반환한다.
+   *
+   * @param repoPath 선택적 저장소 경로 (기본값: 생성자 주입 경로)
+   * @returns unified diff 형식의 문자열. 변경사항이 전혀 없으면 빈 문자열('')을 반환합니다.
+   */
+  async getWorkingTreeDiff(repoPath?: string): Promise<string> {
+    try {
+      const git = repoPath ? simpleGit(repoPath) : this.git;
+
+      // `git diff HEAD -U5` : HEAD 기준 staged + unstaged 변경 사항을 모두 가져옵니다.
+      // -U5 옵션: 변경 라인 주변 5줄의 context를 포함해 AI가 맥락을 파악하기 쉽게 합니다.
+      const diffText = await git.diff(['HEAD', '-U5']);
+
+      if (diffText === null || diffText === undefined) {
+        console.warn('[AiPipeline:GitAdapter] getWorkingTreeDiff: git diff HEAD 결과 없음, staged diff로 fallback합니다.');
+        return await git.diff(['--staged', '-U5']);
+      }
+
+      return diffText;
+    } catch (error) {
+      console.warn('[AiPipeline:GitAdapter] getWorkingTreeDiff 실패, staged diff로 fallback합니다:', error);
+      try {
+        const git = repoPath ? simpleGit(repoPath) : this.git;
+        return await git.diff(['--staged']);
+      } catch (fallbackError) {
+        console.error('[AiPipeline:GitAdapter] fallback getStagedDiff도 실패:', fallbackError);
+        return '';
+      }
+    }
+  }
+
+  /**
+   * HEAD 기준으로 변경된 파일 경로 목록만 반환한다.
+   *
+   * `git diff HEAD --name-only` 명령을 실행합니다.
+   * 파일 이름 목록만 필요한 경우 전체 diff보다 훨씬 빠르고 메모리를 적게 사용합니다.
+   * RelatedFilesCollector에서 related_files 목록을 구성할 때 사용됩니다.
+   *
+   * @param repoPath 선택적 저장소 경로
+   * @returns 변경된 파일의 상대 경로 배열 (중복 없음, 빈 줄 제외)
+   */
+  async getChangedFileNames(repoPath?: string): Promise<string[]> {
+    try {
+      const git = repoPath ? simpleGit(repoPath) : this.git;
+
+      // HEAD 기준 staged + unstaged 변경 파일 이름 목록
+      const headOutput = await git.diff(['HEAD', '--name-only']);
+      const fromHead = this.parseFileNames(headOutput);
+
+      // HEAD가 없는 초기 저장소에서는 staged-only 목록도 포함합니다.
+      const stagedOutput = await git.diff(['--staged', '--name-only']);
+      const fromStaged = this.parseFileNames(stagedOutput);
+
+      // 두 목록을 합쳐 중복을 제거합니다.
+      return Array.from(new Set([...fromHead, ...fromStaged]));
+    } catch (error) {
+      console.warn('[AiPipeline:GitAdapter] getChangedFileNames HEAD 조회 실패, staged만 반환합니다:', error);
+      try {
+        const git = repoPath ? simpleGit(repoPath) : this.git;
+        const stagedOutput = await git.diff(['--staged', '--name-only']);
+        return this.parseFileNames(stagedOutput);
+      } catch {
+        return [];
+      }
+    }
+  }
+
+  /**
+   * `git diff --name-only` 출력을 파일 경로 배열로 파싱하는 내부 헬퍼.
+   * 빈 줄과 공백만 있는 줄을 제거합니다.
+   */
+  private parseFileNames(output: string): string[] {
+    return output
+      .split('\n')
+      .map(line => line.trim())
+      .filter(line => line.length > 0);
+  }
+
+  /**
    * 현재 브랜치 및 staged/unstaged/untracked 상태를 반환한다.
    * @spec I-03-getStatus: getStatus(): Promise<GitStatus>
    * @param repoPath 선택적 저장소 경로 (기본값: 생성자 주입 경로)

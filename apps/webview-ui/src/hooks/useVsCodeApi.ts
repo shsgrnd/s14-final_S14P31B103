@@ -21,7 +21,7 @@ export const sendMessage = <T>(type: InboundMessageType, payload?: T) => {
   if (vscodeApi) {
     vscodeApi.postMessage({ type, payload });
   } else {
-    console.log(`[Message Sent (No VS Code API)]: ${type}`, payload);
+    // VS Code API 미연결 환경(브라우저 개발 모드): 메시지 전송 생략
   }
 };
 
