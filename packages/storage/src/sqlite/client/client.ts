@@ -1,49 +1,213 @@
-import Database from 'better-sqlite3';
-import * as path from 'path';
 import * as fs from 'fs';
+import * as path from 'path';
 import { SCHEMAS } from '../migrations/schema';
 
-/**
- * GitCat 전용 로컬 SQLite 데이터베이스 파일 경로
- */
+const initSqlJs = require('sql.js/dist/sql-asm.js');
+
 const DB_PATH = '.vscode/gitcat/gitcat.db';
 
-/**
- * GitCat의 로컬 메타데이터(SQLite)를 제어하는 클라이언트 클래스입니다.
- * 
- * [주의사항]
- * 백엔드/AI 파트 개발자 분들은 이 클래스의 인스턴스를 생성하여
- * `getInstance()`를 통해 DB 객체를 받아 직접 쿼리를 수행하시면 됩니다.
- * 테이블은 최초 생성 시 자동으로 초기화됩니다.
- */
-export class GitCatDatabase {
-  private db: Database.Database;
+type SqlJsStatic = {
+  Database: new (data?: Uint8Array) => SqlJsRawDatabase;
+};
 
-  /**
-   * @param workspaceRoot 사용자의 현재 VS Code 워크스페이스 루트 경로
-   */
-  constructor(workspaceRoot: string) {
-    const dbFilePath = path.join(workspaceRoot, DB_PATH);
-    const dbDir = path.dirname(dbFilePath);
-    
-    // DB 파일을 담을 .vscode/gitcat 폴더가 존재하지 않으면 먼저 생성합니다.
+type SqlJsRawDatabase = {
+  exec(sql: string): Array<{ columns: string[]; values: unknown[][] }>;
+  export(): Uint8Array;
+  prepare(sql: string): SqlJsRawStatement;
+  close(): void;
+};
+
+type SqlJsRawStatement = {
+  bind(values?: unknown[] | Record<string, unknown>): boolean;
+  free(): boolean;
+  getAsObject(): Record<string, unknown>;
+  run(values?: unknown[] | Record<string, unknown>): void;
+  step(): boolean;
+};
+
+export interface SQLiteRunResult {
+  changes: number;
+}
+
+export interface SQLiteStatement {
+  run(...params: unknown[]): SQLiteRunResult;
+  get(...params: unknown[]): Record<string, unknown> | undefined;
+  all(...params: unknown[]): Array<Record<string, unknown>>;
+}
+
+export interface SQLiteDatabase {
+  exec(sql: string): void;
+  prepare(sql: string): SQLiteStatement;
+  transaction<TArgs extends unknown[], TResult>(
+    fn: (...args: TArgs) => TResult
+  ): (...args: TArgs) => TResult;
+  close(): void;
+}
+
+let sqlJsPromise: Promise<SqlJsStatic> | undefined;
+
+function loadSqlJs(): Promise<SqlJsStatic> {
+  if (!sqlJsPromise) {
+    sqlJsPromise = initSqlJs();
+  }
+
+  return sqlJsPromise as Promise<SqlJsStatic>;
+}
+
+class SqlJsStatement implements SQLiteStatement {
+  constructor(
+    private readonly db: SqlJsDatabaseAdapter,
+    private readonly sql: string
+  ) {}
+
+  run(...params: unknown[]): SQLiteRunResult {
+    const statement = this.db.prepareRaw(this.sql);
+
+    try {
+      statement.run(params);
+      this.db.persist();
+      return { changes: 0 };
+    } finally {
+      statement.free();
+    }
+  }
+
+  get(...params: unknown[]): Record<string, unknown> | undefined {
+    const statement = this.db.prepareRaw(this.sql);
+
+    try {
+      statement.bind(params);
+      return statement.step() ? statement.getAsObject() : undefined;
+    } finally {
+      statement.free();
+    }
+  }
+
+  all(...params: unknown[]): Array<Record<string, unknown>> {
+    const statement = this.db.prepareRaw(this.sql);
+    const rows: Array<Record<string, unknown>> = [];
+
+    try {
+      statement.bind(params);
+
+      while (statement.step()) {
+        rows.push(statement.getAsObject());
+      }
+
+      return rows;
+    } finally {
+      statement.free();
+    }
+  }
+}
+
+class SqlJsDatabaseAdapter implements SQLiteDatabase {
+  private transactionDepth = 0;
+
+  constructor(
+    private readonly rawDb: SqlJsRawDatabase,
+    private readonly dbFilePath: string
+  ) {}
+
+  exec(sql: string): void {
+    this.rawDb.exec(sql);
+    this.persist();
+  }
+
+  prepare(sql: string): SQLiteStatement {
+    return new SqlJsStatement(this, sql);
+  }
+
+  transaction<TArgs extends unknown[], TResult>(
+    fn: (...args: TArgs) => TResult
+  ): (...args: TArgs) => TResult {
+    return (...args: TArgs) => {
+      const isOuterTransaction = this.transactionDepth === 0;
+
+      if (isOuterTransaction) {
+        this.rawDb.exec('BEGIN');
+      }
+
+      this.transactionDepth += 1;
+
+      try {
+        const result = fn(...args);
+        this.transactionDepth -= 1;
+
+        if (isOuterTransaction) {
+          this.rawDb.exec('COMMIT');
+          this.persist();
+        }
+
+        return result;
+      } catch (error) {
+        this.transactionDepth -= 1;
+
+        if (isOuterTransaction) {
+          this.rawDb.exec('ROLLBACK');
+          this.persist();
+        }
+
+        throw error;
+      }
+    };
+  }
+
+  close(): void {
+    this.persist();
+    this.rawDb.close();
+  }
+
+  prepareRaw(sql: string): SqlJsRawStatement {
+    return this.rawDb.prepare(sql);
+  }
+
+  persist(): void {
+    if (this.transactionDepth > 0) {
+      return;
+    }
+
+    const data = this.rawDb.export();
+    fs.writeFileSync(this.dbFilePath, Buffer.from(data));
+  }
+}
+
+export class GitCatDatabase {
+  private constructor(private readonly db: SQLiteDatabase) {}
+
+  public static getDatabasePath(workspaceRoot: string): string {
+    return path.join(workspaceRoot, DB_PATH);
+  }
+
+  public static getDatabaseDirectory(workspaceRoot: string): string {
+    return path.dirname(GitCatDatabase.getDatabasePath(workspaceRoot));
+  }
+
+  public static async create(workspaceRoot: string): Promise<GitCatDatabase> {
+    const dbFilePath = GitCatDatabase.getDatabasePath(workspaceRoot);
+    const dbDir = GitCatDatabase.getDatabaseDirectory(workspaceRoot);
+
     if (!fs.existsSync(dbDir)) {
       fs.mkdirSync(dbDir, { recursive: true });
     }
 
-    // SQLite DB 연결 (지정된 경로에 db 파일이 없으면 자동으로 빈 db 파일이 생성됨)
-    this.db = new Database(dbFilePath);
-    
-    // DB 연결 직후, 누락된 테이블이 없는지 확인하고 스키마를 초기화합니다.
-    this.initializeSchema();
+    try {
+      const SQL = await loadSqlJs();
+      const data = fs.existsSync(dbFilePath) ? fs.readFileSync(dbFilePath) : undefined;
+      const rawDb = data ? new SQL.Database(data) : new SQL.Database();
+      const database = new GitCatDatabase(new SqlJsDatabaseAdapter(rawDb, dbFilePath));
+
+      database.initializeSchema();
+      database.assertDatabaseFileCreated(dbFilePath);
+
+      return database;
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`Failed to open GitCat database at ${dbFilePath}: ${message}`);
+    }
   }
 
-  /**
-   * schema.ts에 정의된 15개의 릴레이션 테이블을 생성합니다.
-   * 이미 존재하는 테이블은 `IF NOT EXISTS` 구문으로 인해 건너뜁니다.
-   * 안전하고 빠른 일괄 처리를 위해 트랜잭션(transaction)을 사용합니다.
-   */
-  private initializeSchema() {
+  private initializeSchema(): void {
     const initTransaction = this.db.transaction(() => {
       for (const query of SCHEMAS) {
         this.db.exec(query);
@@ -53,14 +217,20 @@ export class GitCatDatabase {
     initTransaction();
   }
 
-  /**
-   * 쿼리를 수행할 수 있는 better-sqlite3 DB 인스턴스를 반환합니다.
-   * 
-   * @example
-   * const db = new GitCatDatabase(root).getInstance();
-   * const sessions = db.prepare('SELECT * FROM Session').all();
-   */
-  public getInstance(): Database.Database {
+  private assertDatabaseFileCreated(dbFilePath: string): void {
+    try {
+      const stat = fs.statSync(dbFilePath);
+
+      if (!stat.isFile()) {
+        throw new Error('database path exists but is not a file');
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(`GitCat database file was not created at ${dbFilePath}: ${message}`);
+    }
+  }
+
+  public getInstance(): SQLiteDatabase {
     return this.db;
   }
 }

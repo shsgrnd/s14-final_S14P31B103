@@ -1,8 +1,8 @@
-import { Database } from 'better-sqlite3';
 import { WorktreeRepository, WorktreeRow } from '@gitcat/shared-types';
+import type { SQLiteDatabase } from '../../client/client';
 
 export class SqliteWorktreeRepository implements WorktreeRepository {
-  constructor(private readonly db: Database) {}
+  constructor(private readonly db: SQLiteDatabase) {}
 
   async upsert(worktree: Omit<WorktreeRow, 'created_at' | 'updated_at'>): Promise<WorktreeRow> {
     const now = new Date().toISOString();

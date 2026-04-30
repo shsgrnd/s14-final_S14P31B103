@@ -7,14 +7,13 @@
   "scripts": {
     "build": "tsc",
     "lint": "eslint \"src/**/*.ts\"",
-    "verify:sqlite": "node ./scripts/verify-better-sqlite3.cjs"
+    "verify:sqlite": "node ./scripts/verify-sqlite.cjs"
   },
   "dependencies": {
-    "better-sqlite3": "^12.9.0",
-    "@gitcat/shared-types": "workspace:*"
+    "@gitcat/shared-types": "workspace:*",
+    "sql.js": "^1.14.1"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.13",
     "typescript": "^5.4.0"
   }
 }

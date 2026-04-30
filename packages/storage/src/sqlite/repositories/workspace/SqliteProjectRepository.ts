@@ -1,8 +1,8 @@
-import { Database } from 'better-sqlite3';
 import { ProjectRepository, ProjectRow } from '@gitcat/shared-types';
+import type { SQLiteDatabase } from '../../client/client';
 
 export class SqliteProjectRepository implements ProjectRepository {
-  constructor(private readonly db: Database) {}
+  constructor(private readonly db: SQLiteDatabase) {}
 
   async insert(project: Omit<ProjectRow, 'created_at' | 'updated_at'>): Promise<ProjectRow> {
     const now = new Date().toISOString();
