@@ -7,9 +7,7 @@ import { GitClient } from '../ports/GitClient';
 import { ConflictAnalyzer } from './ConflictAnalyzer';
 import { WorkingTreeDiffManager } from './WorkingTreeDiffManager';
 import { RelatedFilesCollector } from './RelatedFilesCollector';
-import { TokenCounter } from './TokenCounter';
-import { ContextMinimizer } from './ContextMinimizer';
-import { getDefaultModelConfig } from './TokenConfig';
+import { TokenBudgetGuard } from './TokenBudgetGuard';
 
 /**
  * AI 입력을 위한 최종 Payload(Context)를 조립하는 오케스트레이션 서비스.
@@ -21,6 +19,7 @@ export class AiInputService {
   private readonly workingTreeDiffManager: WorkingTreeDiffManager;
   /** related_files 수집, 필터링, 개수 제한 */
   private readonly relatedFilesCollector: RelatedFilesCollector;
+  private readonly tokenBudgetGuard: TokenBudgetGuard;
 
   constructor(
     private readonly gitClient: GitClient,
@@ -28,6 +27,7 @@ export class AiInputService {
   ) {
     this.workingTreeDiffManager = new WorkingTreeDiffManager(gitClient);
     this.relatedFilesCollector = new RelatedFilesCollector(gitClient);
+    this.tokenBudgetGuard = new TokenBudgetGuard();
   }
 
   /**
@@ -117,37 +117,13 @@ export class AiInputService {
       workspace_summary: workspaceSummary || '',
       related_files: relatedFiles,
       conflict_candidates: candidates,
-      // 기존의 workingTreeDiff 원문 대신, 파일 ref 문자열을 사용합니다.
       working_tree_diff_ref: workingTreeDiffRef,
-      risk_summary: '', // 추후 분석 결과에 따라 채워질 수 있음
+      risk_summary: '', // TokenBudgetGuard에서 추가될 수 있음
       schema_version: '1.0.0',
     };
 
-    // ── Step 5: 토큰 사용량 측정 및 지능적 절단 ────────────────────────────────────
-    //
-    // conflict_candidates의 source_code / target_code / base_code 부분이
-    // 너무 많은 토큰을 차지하면 ContextMinimizer로 줄입니다.
-    const tokenCounter = new TokenCounter();
-    const currentTokens = tokenCounter.countPayloadTokens(rawPayload);
-    const modelConfig = getDefaultModelConfig();
-
-    console.log(`[AiInputService] Initial payload tokens: ${currentTokens} / Safe threshold: ${modelConfig.safeThresholdTokens}`);
-
-    if (currentTokens > modelConfig.safeThresholdTokens) {
-      console.warn(`[AiInputService] Payload exceeds safe threshold! Truncating code snippets...`);
-      const minimizer = new ContextMinimizer();
-
-      // 후보군의 코드를 압축 (윈도우 사이즈: 20줄)
-      const optimizedCandidates = rawPayload.conflict_candidates.map(candidate =>
-        minimizer.minimizeCandidate(candidate, 20)
-      );
-
-      rawPayload.conflict_candidates = optimizedCandidates;
-      rawPayload.risk_summary = `주의: 데이터가 너무 커서 분석 컨텍스트 최적화(Truncation)가 적용되었습니다.`;
-
-      const newTokens = tokenCounter.countPayloadTokens(rawPayload);
-      console.log(`[AiInputService] Truncation complete. New token count: ${newTokens}`);
-    }
+    // ── Step 5: 토큰 사용량 측정 및 지능적 절단 (TokenBudgetGuard) ───────────────
+    const optimizedPayload = this.tokenBudgetGuard.enforce(rawPayload);
 
     // ── Step 6: 데이터 무결성 검증 (Zod Validation) ─────────────────────────────
     //
@@ -155,7 +131,7 @@ export class AiInputService {
     // 이 검증을 통과하면 AI 호출에 안전하게 사용할 수 있는 payload입니다.
     try {
       console.log(`[AiInputService] Validating payload with Zod...`);
-      return MergeProposalInputSchema.parse(rawPayload);
+      return MergeProposalInputSchema.parse(optimizedPayload);
     } catch (error) {
       console.error(`[AiInputService] Payload validation failed!`, error);
       throw new Error(`AI 입력 데이터 규격이 올바르지 않습니다. (Zod Schema Error)`);
