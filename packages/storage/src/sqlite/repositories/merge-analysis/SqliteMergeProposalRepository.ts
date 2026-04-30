@@ -68,13 +68,8 @@ export class SqliteMergeProposalRepository implements MergeProposalRepository {
       ORDER BY p.created_at DESC
     `);
     
-    const rows = stmt.all(analysisId) as Array<Omit<MergeProposalRow, 'validation_required'> & { validation_required: number }>;
-    
-    // SQLite에서 1/0으로 저장된 boolean 값을 TypeScript 타입에 맞게 boolean으로 복원합니다.
-    return rows.map(row => ({
-      ...row,
-      validation_required: row.validation_required === 1
-    }));
+    const rows = stmt.all(analysisId) as MergeProposalRow[];
+    return rows;
   }
 
   /**
