@@ -11,6 +11,7 @@
 import type { IGitClient, BranchInfo, LogEntry, MergeResult, FileStatusEntry, DiffResult } from '@gitcat/git-core';
 import type { GitFileStatus, GitStatusSummary, GitFileStatusType, WorktreeInfo } from '@gitcat/shared-types';
 import type { GitMetadataSyncService } from './GitMetadataSyncService';
+import * as vscode from 'vscode';
 
 // ─── Webview 응답용 DTO ───────────────────────────────────────────────────────
 
@@ -84,10 +85,21 @@ export interface GitCommandResult {
 // ─── Service ──────────────────────────────────────────────────────────────────
 
 export class GitService {
+  private cachedDefaultBranch: string | null = null;
+  private hasCachedDefaultBranch = false;
+
   constructor(
     private readonly gitClient: IGitClient,
     private readonly metadataSync?: GitMetadataSyncService,
-  ) {}
+  ) { }
+
+  private async getDefaultBranch(): Promise<string | null> {
+    if (!this.hasCachedDefaultBranch) {
+      this.cachedDefaultBranch = await this.gitClient.getDefaultBranch();
+      this.hasCachedDefaultBranch = true;
+    }
+    return this.cachedDefaultBranch;
+  }
 
   // ─── Status & Branch ─────────────────────────────────────────────────────
 
@@ -179,6 +191,7 @@ export class GitService {
   }
 
   async getBranches(): Promise<BranchInfoResponse[]> {
+    const defaultBranch = await this.getDefaultBranch();
     const branches = await this.gitClient.getBranches();
     await this.metadataSync?.syncBranches(branches);
     return branches.map((b) => ({
@@ -188,21 +201,26 @@ export class GitService {
       trackingBranch: b.trackingBranch,
       lastCommitHash: b.lastCommitHash,
       lastCommitMessage: b.lastCommitMessage,
-      lastActivity: b.lastCommitDate ?? '',
+      lastActivity: b.lastCommitDate ? b.lastCommitDate.split(' ')[0] : '',
       isMerged: b.isMerged,
-      status: this.toBranchStatus(b),
+      status: this.toBranchStatus(b, defaultBranch),
     }));
   }
 
-  private toBranchStatus(b: BranchInfo): BranchInfoResponse['status'] {
+  private toBranchStatus(b: BranchInfo, defaultBranch: string | null): BranchInfoResponse['status'] {
     if (b.isCurrent) return 'active';
-    if (this.isProtectedBranch(b.name)) return 'protected';
+    if (this.isProtectedBranch(b.name, defaultBranch)) return 'protected';
     if (b.isMerged) return 'merged';
     return 'stale';
   }
 
-  private isProtectedBranch(name: string): boolean {
-    return ['main', 'master', 'develop', 'dev'].includes(name);
+  private isProtectedBranch(name: string, defaultBranch: string | null): boolean {
+    const config = vscode.workspace.getConfiguration('gitcat.branchCleanup');
+    const protectedBranches = config.get<string[]>('protectedBranches', ['main', 'master', 'develop', 'dev', 'release']);
+    if (defaultBranch && name === defaultBranch) {
+      return true;
+    }
+    return protectedBranches.includes(name);
   }
 
   private toStatusSummaryNextAction(input: {
@@ -308,6 +326,7 @@ export class GitService {
   }
 
   async deleteBranches(names: string[], force: boolean): Promise<GitCommandResult> {
+    const defaultBranch = await this.getDefaultBranch();
     const errors: string[] = [];
     const branches = await this.gitClient.getBranches();
     const branchMap = new Map(branches.map((branch) => [branch.name, branch]));
@@ -319,7 +338,7 @@ export class GitService {
           errors.push(`${name}: cannot delete the currently checked out branch`);
           continue;
         }
-        if (this.isProtectedBranch(name)) {
+        if (this.isProtectedBranch(name, defaultBranch)) {
           errors.push(`${name}: protected branch`);
           continue;
         }

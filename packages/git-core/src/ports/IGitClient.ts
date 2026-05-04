@@ -26,6 +26,9 @@ export interface IGitClient {
   /** 로컬 브랜치 목록 반환 */
   getBranches(): Promise<BranchInfo[]>;
 
+  /** 기본 브랜치(master, main 등) 감지 후 반환 */
+  getDefaultBranch(): Promise<string | null>;
+
   /** 병합 완료된 브랜치명 목록 반환 */
   getMergedBranches(): Promise<string[]>;
 

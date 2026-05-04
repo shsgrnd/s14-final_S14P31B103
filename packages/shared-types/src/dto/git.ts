@@ -186,3 +186,57 @@ export const AIDraftSchema = z.object({
   mediationOpinion: z.string(),
 });
 export type AIDraft = z.infer<typeof AIDraftSchema>;
+
+/**
+ * 브랜치 자동 정리 설정
+ */
+export const BranchCleanupSettingsSchema = z.object({
+  enabled: z.boolean(),
+  olderThanValue: z.number(),
+  olderThanUnit: z.enum(['week', 'month']),
+  deleteMergedBranches: z.boolean(),
+  deleteGoneRemoteBranches: z.boolean(),
+  protectedBranches: z.array(z.string()),
+});
+export type BranchCleanupSettings = z.infer<typeof BranchCleanupSettingsSchema>;
+
+/**
+ * 브랜치 정리 후보
+ */
+export const BranchCleanupCandidateSchema = z.object({
+  branchName: z.string(),
+  isCurrent: z.boolean(),
+  isProtected: z.boolean(),
+  lastCommitDate: z.string(), // ISO Date String
+  isOlderThanThreshold: z.boolean(),
+  isMerged: z.boolean(),
+  isGoneRemote: z.boolean(),
+  shouldDelete: z.boolean(),
+  reasons: z.array(z.string()),
+  skipReason: z.string().optional(),
+});
+export type BranchCleanupCandidate = z.infer<typeof BranchCleanupCandidateSchema>;
+
+/**
+ * 브랜치 정리 미리보기 결과
+ */
+export const BranchCleanupPreviewResultSchema = z.object({
+  settings: BranchCleanupSettingsSchema,
+  baseBranch: z.string(),
+  candidates: z.array(BranchCleanupCandidateSchema),
+  deletableCount: z.number(),
+  skippedCount: z.number(),
+});
+export type BranchCleanupPreviewResult = z.infer<typeof BranchCleanupPreviewResultSchema>;
+
+/**
+ * 브랜치 정리 실행 결과
+ */
+export const BranchCleanupExecuteResultSchema = z.object({
+  deletedBranches: z.array(z.string()),
+  failedBranches: z.array(z.string()),
+  skippedBranches: z.array(z.string()),
+  summary: z.string(),
+});
+export type BranchCleanupExecuteResult = z.infer<typeof BranchCleanupExecuteResultSchema>;
+

@@ -13,9 +13,13 @@
 
 import * as vscode from 'vscode';
 import { GitService } from './GitService';
+import { BranchCleanupService } from './BranchCleanupService';
 
 export class GitMessageHandler {
-  constructor(private readonly gitService: GitService) {}
+  constructor(
+    private readonly gitService: GitService,
+    private readonly branchCleanupService: BranchCleanupService
+  ) {}
 
   /**
    * Git 관련 메시지를 라우팅하고 응답을 전송한다.
@@ -131,6 +135,23 @@ export class GitMessageHandler {
       // ─── Unstage ─────────────────────────────────────────────────────────
       case 'GIT_UNSTAGE':
         await this.handleGitUnstage(payload, webview);
+        return true;
+
+      // ─── 로컬 브랜치 정리 ────────────────────────────────────────────────
+      case 'GET_BRANCH_CLEANUP_SETTINGS':
+        await this.handleGetBranchCleanupSettings(webview);
+        return true;
+
+      case 'SAVE_BRANCH_CLEANUP_SETTINGS':
+        await this.handleSaveBranchCleanupSettings(payload, webview);
+        return true;
+
+      case 'GET_BRANCH_CLEANUP_CANDIDATES':
+        await this.handleGetBranchCleanupCandidates(webview);
+        return true;
+
+      case 'EXECUTE_BRANCH_CLEANUP':
+        await this.handleExecuteBranchCleanup(payload, webview);
         return true;
 
       default:
@@ -532,6 +553,78 @@ export class GitMessageHandler {
       await this.handleRefreshStatus(webview);
     } finally {
       this.sendLoading(webview, 'stage', false);
+    }
+  }
+
+  // ─── 로컬 브랜치 자동 정리 ────────────────────────────────────────────────
+
+  private async handleGetBranchCleanupSettings(webview: vscode.Webview): Promise<void> {
+    try {
+      const settings = this.branchCleanupService.getSettings();
+      webview.postMessage({
+        type: 'BRANCH_CLEANUP_SETTINGS',
+        payload: { settings },
+      });
+    } catch (err: any) {
+      this.sendError(webview, err?.message ?? 'Failed to get branch cleanup settings.');
+    }
+  }
+
+  private async handleSaveBranchCleanupSettings(
+    payload: any,
+    webview: vscode.Webview,
+  ): Promise<void> {
+    this.sendLoading(webview, 'branchCleanup', true);
+    try {
+      const { settings } = payload;
+      await this.branchCleanupService.saveSettings(settings);
+      this.sendNotification(webview, 'info', '브랜치 정리 설정이 저장되었습니다.');
+      // 변경된 설정 다시 전송
+      await this.handleGetBranchCleanupSettings(webview);
+    } catch (err: any) {
+      this.sendError(webview, err?.message ?? 'Failed to save branch cleanup settings.');
+    } finally {
+      this.sendLoading(webview, 'branchCleanup', false);
+    }
+  }
+
+  private async handleGetBranchCleanupCandidates(webview: vscode.Webview): Promise<void> {
+    this.sendLoading(webview, 'branchCleanup', true);
+    try {
+      const result = await this.branchCleanupService.getCandidates();
+      webview.postMessage({
+        type: 'BRANCH_CLEANUP_CANDIDATES',
+        payload: { result },
+      });
+    } catch (err: any) {
+      this.sendError(webview, err?.message ?? 'Failed to get branch cleanup candidates.');
+    } finally {
+      this.sendLoading(webview, 'branchCleanup', false);
+    }
+  }
+
+  private async handleExecuteBranchCleanup(
+    payload: { branchNames: string[] },
+    webview: vscode.Webview,
+  ): Promise<void> {
+    this.sendLoading(webview, 'branchCleanup', true);
+    try {
+      const result = await this.branchCleanupService.executeCleanup(payload.branchNames);
+      webview.postMessage({
+        type: 'BRANCH_CLEANUP_RESULT',
+        payload: { result },
+      });
+      this.sendNotification(
+        webview,
+        result.failedBranches.length === 0 ? 'info' : 'warning',
+        result.summary
+      );
+      // 삭제 후 브랜치 목록과 상태 갱신
+      await this.handleGetBranchList(webview);
+    } catch (err: any) {
+      this.sendError(webview, err?.message ?? 'Failed to execute branch cleanup.');
+    } finally {
+      this.sendLoading(webview, 'branchCleanup', false);
     }
   }
 
