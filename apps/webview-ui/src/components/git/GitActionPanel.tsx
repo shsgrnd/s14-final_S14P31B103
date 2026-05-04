@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
-import { GitBranch, Plus, ArrowUp, GitMerge, Check, Sparkles, ChevronDown, ChevronUp, X, CornerDownRight, Clock } from 'lucide-react';
+import { GitBranch, Plus, ArrowUp, GitMerge, Check, Sparkles, ChevronDown, ChevronUp, X, CornerDownRight, Clock, RefreshCw } from 'lucide-react';
 import { useGitCatStore } from '../../store/useGitCatStore';
 import { useVsCodeApi } from '../../hooks/useVsCodeApi';
 import { btn, bigBtn, inlineBtn } from '../../shared/styles';
 
 export const GitActionPanel: React.FC = () => {
-  const { currentBranch, branches } = useGitCatStore();
+  const { currentBranch, branches, isRefreshingStatus, lastStatusRefreshAt } = useGitCatStore();
   const { sendMessage } = useVsCodeApi();
   const [showNewBranch, setShowNewBranch] = useState(false);
   const [newBranchName, setNewBranchName] = useState('');
@@ -15,6 +15,7 @@ export const GitActionPanel: React.FC = () => {
   const [commitMessage, setCommitMessage] = useState('');
   const [statusMsg, setStatusMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [isBranchListOpen, setIsBranchListOpen] = useState(false);
+  const [isRefreshPressed, setIsRefreshPressed] = useState(false);
 
   const showStatus = (text: string, ok: boolean) => {
     setStatusMsg({ text, ok });
@@ -65,6 +66,13 @@ export const GitActionPanel: React.FC = () => {
     showStatus('Merge가 완료되었습니다.', true);
   };
 
+  const handleRefreshStatus = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    setIsRefreshPressed(true);
+    sendMessage('REFRESH_STATUS', { fetchRemote: true });
+    window.setTimeout(() => setIsRefreshPressed(false), 700);
+  };
+
   const handleCreateBranch = () => {
     if (!newBranchName.trim()) return;
     sendMessage('APPLY_BRANCH', { name: newBranchName });
@@ -90,15 +98,22 @@ export const GitActionPanel: React.FC = () => {
     ? '어떤 기능을 구현하셨나요? commit에 넣을 내용을 정리해서 입력해주세요.'
     : '어떤 기능을 구현하실 예정인가요? branch에 넣을 내용을 정리해서 입력해주세요.';
 
+  const refreshStatusLabel = isRefreshingStatus
+    ? 'Refreshing Git status...'
+    : lastStatusRefreshAt
+      ? `Updated ${formatRefreshTime(lastStatusRefreshAt)}`
+      : 'Not refreshed yet';
+  const isRefreshActive = isRefreshingStatus || isRefreshPressed;
+
   return (
     <div className="animate-fade-in" style={{ padding: '8px 4px' }}>
       {/* ── Branch Selector Accordion Header ── */}
       <div 
         onClick={() => setIsBranchListOpen(!isBranchListOpen)}
         style={{
-          margin: isBranchListOpen ? '0 8px 0 8px' : '0 8px 8px 8px',
+          margin: isBranchListOpen ? '0 8px 0 8px' : '0 8px 4px 8px',
           display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '8px 10px',
+          padding: '7px 8px 7px 10px',
           borderRadius: isBranchListOpen ? '4px 4px 0 0' : '4px',
           border: '1px solid var(--vscode-panel-border)',
           background: 'var(--vscode-input-background)', cursor: 'pointer', transition: 'all 0.2s'
@@ -112,9 +127,62 @@ export const GitActionPanel: React.FC = () => {
             {currentBranch || 'main'}
           </span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <button
+            type="button"
+            aria-label="Refresh Git status"
+            title="Refresh Git status"
+            onClick={handleRefreshStatus}
+            disabled={isRefreshingStatus}
+            style={iconBtnStyle(isRefreshActive)}
+          >
+            <RefreshCw
+              size={13}
+              style={{
+                color: isRefreshActive ? 'var(--vscode-button-foreground)' : 'var(--vscode-descriptionForeground)',
+                animation: isRefreshActive ? 'gitcat-refresh-spin 0.7s ease-in-out' : 'none',
+                transition: 'color 0.18s ease',
+              }}
+            />
+          </button>
           {isBranchListOpen ? <ChevronUp size={14} style={{ color: 'var(--vscode-descriptionForeground)' }} /> : <ChevronDown size={14} style={{ color: 'var(--vscode-descriptionForeground)' }} />}
         </div>
+      </div>
+      <div style={{
+        margin: '0 10px 8px 10px',
+        minHeight: '14px',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        fontSize: '10px',
+        color: 'var(--vscode-descriptionForeground)',
+        opacity: 0.82,
+      }}>
+        <style>{`
+          @keyframes gitcat-refresh-spin {
+            from { transform: rotate(0deg); }
+            to { transform: rotate(360deg); }
+          }
+        `}</style>
+        <span style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: '5px',
+          color: isRefreshActive ? 'var(--vscode-charts-blue)' : 'var(--vscode-descriptionForeground)',
+          opacity: isRefreshActive ? 1 : 0.82,
+        }}>
+          {isRefreshActive && (
+            <span style={{
+              width: '5px',
+              height: '5px',
+              borderRadius: '50%',
+              background: 'var(--vscode-charts-blue)',
+              boxShadow: '0 0 0 2px rgba(111, 179, 224, 0.18)',
+            }} />
+          )}
+          {refreshStatusLabel}
+        </span>
+        <span style={{ color: 'var(--vscode-descriptionForeground)', opacity: 0.82 }}>Auto every 20s</span>
       </div>
 
       {/* ── Branch List Accordion Content ── */}
@@ -387,3 +455,43 @@ export const GitActionPanel: React.FC = () => {
 };
 
 
+const bigBtnStyle = (variant: 'primary' | 'secondary'): React.CSSProperties => ({
+  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+  fontSize: '12px', fontWeight: 500, padding: '8px', borderRadius: '3px',
+  cursor: 'pointer', border: 'none', width: '100%',
+  background: variant === 'primary' ? 'var(--vscode-button-background)' : 'var(--vscode-button-secondaryBackground)',
+  color: variant === 'primary' ? 'var(--vscode-button-foreground)' : 'var(--vscode-button-secondaryForeground)',
+  transition: 'background 0.2s',
+});
+
+const inlineBtnStyle: React.CSSProperties = {
+  display: 'flex', alignItems: 'center', gap: '4px',
+  fontSize: '11px', fontWeight: 600, padding: '4px 8px',
+  background: 'var(--vscode-button-secondaryBackground)',
+  color: 'var(--vscode-button-secondaryForeground)',
+  border: 'none', borderRadius: '3px', cursor: 'pointer',
+};
+
+const iconBtnStyle = (active: boolean): React.CSSProperties => ({
+  width: '24px',
+  height: '24px',
+  padding: 0,
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  border: active ? '1px solid var(--vscode-focusBorder)' : '1px solid transparent',
+  borderRadius: '3px',
+  background: active ? 'var(--vscode-button-background)' : 'transparent',
+  cursor: active ? 'default' : 'pointer',
+  opacity: 1,
+  boxShadow: active ? '0 0 0 2px rgba(111, 179, 224, 0.16)' : 'none',
+  transition: 'background 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease',
+});
+
+function formatRefreshTime(timestamp: number): string {
+  return new Date(timestamp).toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+}

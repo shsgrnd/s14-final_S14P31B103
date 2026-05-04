@@ -1,10 +1,14 @@
 import * as vscode from 'vscode';
 import { PanelCommandHandler } from './PanelCommandHandler';
-import { GitCommandHandler } from './GitCommandHandler';
 import { WebviewProvider } from '../webview/WebviewProvider';
+import { GitService } from '../features/git/GitService';
 
 export class CommandRegistry {
-    static registerAll(context: vscode.ExtensionContext, webviewProvider: WebviewProvider) {
+    static registerAll(
+        context: vscode.ExtensionContext,
+        webviewProvider: WebviewProvider,
+        gitService?: GitService,
+    ) {
 
         // Webview 패널 오픈 커맨드 (I-10-gitcat.openPanel)
         context.subscriptions.push(
@@ -16,7 +20,7 @@ export class CommandRegistry {
         // Git 관련 더미/API 호출 커맨드 (Tree View UI 등에서 호출)
         context.subscriptions.push(
             vscode.commands.registerCommand('gitcat.getGitStatus', async () => {
-                return await GitCommandHandler.handleGetStatus();
+                return await gitService?.getStatusWithWorktrees({ fetchRemote: true });
             })
         );
 

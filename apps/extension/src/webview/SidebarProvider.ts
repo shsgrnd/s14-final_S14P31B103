@@ -25,6 +25,8 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 
         // HTML 렌더링
         webviewView.webview.html = this.getHtmlForWebview(webviewView.webview);
+        const webviewRegistration = this.messageRouter.registerWebview(webviewView.webview);
+        webviewView.onDidDispose(() => webviewRegistration.dispose());
 
         // 프론트엔드 메시지 라우터 연결
         webviewView.webview.onDidReceiveMessage(

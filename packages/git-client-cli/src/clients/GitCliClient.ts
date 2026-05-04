@@ -7,7 +7,7 @@
  * 에러는 GitError로 래핑해서 throw 한다.
  */
 
-import simpleGit, { SimpleGit, SimpleGitOptions, BranchSummary } from 'simple-git';
+import simpleGit, { SimpleGit, SimpleGitOptions } from 'simple-git';
 // ⚠️  @gitcat/git-core는 pnpm workspace 심볼릭 링크로 연결됩니다.
 // 상대 경로(../../git-core/src)로 변경하면 빌드 에러가 발생합니다.
 // 올바른 경로: node_modules/@gitcat/git-core → packages/git-core
@@ -39,9 +39,10 @@ export class GitCliClient implements IGitClient {
   // ─── Query ──────────────────────────────────────────────────────────────
 
   async getStatus(): Promise<GitStatus> {
-    const [status, branchResult] = await Promise.all([
+    const [status, repoRoot, currentWorktreePath] = await Promise.all([
       this.git.status(),
-      this.git.branch(['-v', '--no-abbrev']),
+      this.getRepoRoot(),
+      this.getCurrentWorktreePath(),
     ]);
 
     const mapEntry = (item: { path: string; index: string; working_dir: string }): FileStatusEntry => ({
@@ -50,10 +51,15 @@ export class GitCliClient implements IGitClient {
       working_dir: item.working_dir,
     });
 
-    const isMerging = await this.fileExists('.git/MERGE_HEAD');
-    const isRebasing = await this.fileExists('.git/rebase-merge') || await this.fileExists('.git/rebase-apply');
+    const gitDir = await this.getGitDir();
+    const isMerging = await this.fileExistsInGitDir(gitDir, 'MERGE_HEAD');
+    const isRebasing = await this.fileExistsInGitDir(gitDir, 'rebase-merge')
+      || await this.fileExistsInGitDir(gitDir, 'rebase-apply');
+    const conflicted = status.conflicted;
 
     return {
+      repoRoot,
+      currentWorktreePath,
       currentBranch: status.current ?? 'HEAD',
       isDetachedHead: status.detached,
       ahead: status.ahead,
@@ -61,15 +67,28 @@ export class GitCliClient implements IGitClient {
       staged: status.staged.map((p) => ({ path: p, index: 'M', working_dir: ' ' })),
       unstaged: status.modified.map((p) => ({ path: p, index: ' ', working_dir: 'M' })),
       untracked: status.not_added,
-      conflicted: status.conflicted,
+      conflicted,
+      isConflict: conflicted.length > 0,
       isMerging,
       isRebasing,
     };
   }
 
+  async fetchAllPrune(): Promise<void> {
+    await this.git.raw(['fetch', '--all', '--prune']);
+  }
+
   async getBranches(): Promise<BranchInfo[]> {
-    const summary: BranchSummary = await this.git.branchLocal();
-    const mergedRaw = await this.git.raw(['branch', '--merged']).catch(() => '');
+    const [status, refsRaw, mergedRaw] = await Promise.all([
+      this.git.status(),
+      this.git.raw([
+        'for-each-ref',
+        '--format=%(refname)%00%(refname:short)%00%(objectname:short)%00%(subject)%00%(upstream:short)%00%(committerdate:iso8601)',
+        'refs/heads',
+        'refs/remotes',
+      ]),
+      this.git.raw(['branch', '--merged']).catch(() => ''),
+    ]);
     const mergedSet = new Set(
       mergedRaw
         .split('\n')
@@ -77,14 +96,26 @@ export class GitCliClient implements IGitClient {
         .filter(Boolean),
     );
 
-    return Object.entries(summary.branches).map(([name, b]) => ({
-      name,
-      isCurrent: b.current,
-      isRemote: false,
-      lastCommitHash: b.commit,
-      lastCommitMessage: b.label,
-      isMerged: mergedSet.has(name),
-    }));
+    return refsRaw
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const [refName, shortName, commit, subject, upstream, lastCommitDate] = line.split('\x00');
+        const isRemote = refName.startsWith('refs/remotes/');
+        const name = shortName ?? '';
+        return {
+          name,
+          isCurrent: !isRemote && name === status.current,
+          isRemote,
+          trackingBranch: upstream || undefined,
+          lastCommitHash: commit || undefined,
+          lastCommitMessage: subject || undefined,
+          lastCommitDate: lastCommitDate || undefined,
+          isMerged: !isRemote && mergedSet.has(name),
+        };
+      })
+      .filter((branch) => branch.name && !branch.name.endsWith('/HEAD'));
   }
 
   async getMergedBranches(): Promise<string[]> {
@@ -296,11 +327,31 @@ export class GitCliClient implements IGitClient {
 
   // ─── Helpers ─────────────────────────────────────────────────────────────
 
-  private async fileExists(relativePath: string): Promise<boolean> {
+  private async getRepoRoot(): Promise<string> {
+    return (await this.git.revparse(['--show-toplevel'])).trim();
+  }
+
+  private async getCurrentWorktreePath(): Promise<string> {
+    return (await this.git.revparse(['--show-toplevel'])).trim();
+  }
+
+  private async getGitDir(): Promise<string> {
+    const fs = await import('fs/promises');
+    const path = await import('path');
+    const rawGitDir = (await this.git.revparse(['--git-dir'])).trim();
+    const gitDir = path.isAbsolute(rawGitDir) ? rawGitDir : path.resolve(this.repoPath, rawGitDir);
+    const stat = await fs.stat(gitDir);
+    if (stat.isDirectory()) {
+      return gitDir;
+    }
+    return path.dirname(gitDir);
+  }
+
+  private async fileExistsInGitDir(gitDir: string, relativePath: string): Promise<boolean> {
     const fs = await import('fs/promises');
     const path = await import('path');
     try {
-      await fs.access(path.join(this.repoPath, relativePath));
+      await fs.access(path.join(gitDir, relativePath));
       return true;
     } catch {
       return false;
