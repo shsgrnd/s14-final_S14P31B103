@@ -1,0 +1,9 @@
+{
+  "title": "파서 출력 필드 명명 규칙 충돌",
+  "summary": "파서가 생성하는 결과 객체의 필드명이 snake_case(HEAD)에서 camelCase(feature)로 변경되며 발생한 충돌입니다.",
+  "cause_summary": "필드 명명 규칙 변경 및 신규 데이터 필드 추가",
+  "detailed_explanation": "기존의 raw_code와 meta_info 필드가 각각 sourceCode와 metadata로 변경되었습니다. 또한 feature 브랜치에서는 파싱 시점을 기록하는 parsedAt 필드가 새롭게 도입되어 두 구조 간의 직접적인 병합이 어렵습니다.",
+  "related_files": ["packages/ai-pipeline/src/parsers/JsonParser.ts", "packages/shared-types/src/dto/parser.ts"],
+  "recommended_resolution_direction": "프로젝트의 최신 코딩 컨벤션인 camelCase를 따르기 위해 feature 브랜치의 변경 사항을 채택할 것을 권장합니다.",
+  "risk_level": "low"
+}

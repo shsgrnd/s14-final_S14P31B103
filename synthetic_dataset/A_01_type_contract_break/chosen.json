@@ -1,0 +1,7 @@
+{
+  "title": "Git 병합 결과 DTO 필드 표준화 및 통합",
+  "summary": "기존의 conflictFiles와 isSuccess 필드를 새로운 규격인 conflicts와 status로 전환하고, 유틸리티 필드인 latencyMs를 추가했습니다.",
+  "explanation": "feat 브랜치에서 도입된 표준화된 상태(status) 정의와 필드명(conflicts)을 우선 채택하였습니다. 다만 기존 에러 메시지 처리를 위해 errorMessage 필드는 선택적으로 유지하여 하위 호환성을 확보했습니다.",
+  "merged_code": "export interface GitMergeResult {\n  conflicts: string[];\n  status: \"success\" | \"failure\" | \"conflict\";\n  errorMessage?: string;\n  latencyMs: number;\n}",
+  "validation_summary": "변경된 필드명에 따라 이 인터페이스를 참조하는 모든 서비스 레이어의 업데이트가 필요합니다."
+}

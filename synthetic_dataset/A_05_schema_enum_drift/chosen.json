@@ -1,0 +1,8 @@
+{
+  "title": "병합 상태값 Enum 명명 규칙 및 값 표준화 중재",
+  "summary": "대문자 상수(HEAD)와 소문자 기반의 표준 명명 규칙(feature)이 충돌하고 있습니다.",
+  "explanation": "기존 시스템은 대문자 상수를 사용해 왔으나, 최신 표준화 작업(feat/standardize-naming-convention)에서는 가독성과 일관성을 위해 소문자 값을 도입하고자 합니다.",
+  "recommended_option": "Option 2: 최신 표준 명명 규칙(소문자) 채택",
+  "tradeoffs": "이 옵션을 선택할 경우 기존 DB에 저장된 상태값과의 호환성을 맞추기 위한 마이그레이션이 필요하지만, 장기적으로는 코드의 일관성이 향상됩니다.",
+  "recommended_next_action": "DB 데이터 마이그레이션 스크립트 작성 및 프론트엔드 상태값 매핑 확인"
+}
