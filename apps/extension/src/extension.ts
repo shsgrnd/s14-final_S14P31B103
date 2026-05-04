@@ -11,6 +11,10 @@ import { GitMessageHandler } from './features/git/GitMessageHandler';
 import { GitMetadataSyncService } from './features/git/GitMetadataSyncService';
 import { GitStatusRefreshController } from './features/git/GitStatusRefreshController';
 import { BranchCleanupService } from './features/git/BranchCleanupService';
+import { SqliteRecommendationHistoryRepository } from '@gitcat/storage';
+import { DummyAIClient } from './features/recommendation/DummyAIClient';
+import { RecommendationService } from './features/recommendation/RecommendationService';
+import { RecommendationHandler } from './features/recommendation/RecommendationHandler';
 
 export async function activate(context: vscode.ExtensionContext) {
   console.log('GitCat Extension is now active!');
@@ -54,7 +58,26 @@ export async function activate(context: vscode.ExtensionContext) {
     }
   }
 
-  const messageRouter = new MessageRouter(dbInstance, gitMessageHandler);
+  let recommendationHandler: RecommendationHandler | undefined;
+  if (rootPath && gitService && dbInstance) {
+    try {
+      const historyRepository = new SqliteRecommendationHistoryRepository(dbInstance);
+      const aiClient = new DummyAIClient();
+      const projectId = `project_${require('crypto').createHash('sha1').update(rootPath).digest('hex').slice(0, 16)}`;
+      const recommendationService = new RecommendationService(
+        gitService,
+        aiClient,
+        historyRepository,
+        projectId
+      );
+      recommendationHandler = new RecommendationHandler(recommendationService);
+      console.log('GitCat Recommendation layer initialized');
+    } catch (error) {
+      console.error('Failed to initialize GitCat Recommendation layer:', error);
+    }
+  }
+
+  const messageRouter = new MessageRouter(dbInstance, gitMessageHandler, recommendationHandler);
 
   if (gitService) {
     const gitStatusRefreshController = new GitStatusRefreshController(gitService, messageRouter);

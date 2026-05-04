@@ -1,7 +1,12 @@
 import type {
   RecommendationServiceContract,
 } from '@gitcat/shared-types/src/interfaces/services';
-import type { RecommendationInput, RecommendationHistory } from '@gitcat/shared-types/src/dto/ai';
+import type {
+  RecommendationInput,
+  RecommendationHistory,
+  PRRecommendationInput,
+  PRRecommendationResult,
+} from '@gitcat/shared-types/src/dto/ai';
 
 /**
  * 추천 오케스트레이터 계약입니다.
@@ -31,4 +36,18 @@ export interface RecommendationOrchestrator extends RecommendationServiceContrac
     recommendationType: RecommendationInput['recommendation_type'],
     limit?: number,
   ): Promise<RecommendationHistory[]>;
+
+  /**
+   * PR 추천 실행 (Git 데이터 수집 -> AI 호출 -> 이력 저장 -> 반환)
+   */
+  recommendPR(base: string): Promise<PRRecommendationResult>;
+}
+
+/**
+ * AI Provider 호출을 추상화하는 클라이언트 인터페이스 (껍데기)
+ * AI 담당자가 실제 구현체를 작성할 예정입니다.
+ */
+export interface IAIClient {
+  recommendPR(input: PRRecommendationInput): Promise<PRRecommendationResult>;
+  // TODO: recommendCommit, recommendBranch 등 다른 기능들도 여기에 추가
 }

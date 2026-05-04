@@ -167,6 +167,10 @@ export class GitCliClient implements IGitClient {
     return parseNameStatusDiff(raw);
   }
 
+  async getDiffText(base: string, branch: string): Promise<string> {
+    return this.git.diff([`${base}...${branch}`]);
+  }
+
   async getUnpushedFiles(): Promise<DiffResult[]> {
     const upstream = await this.git
       .raw(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'])
@@ -202,6 +206,41 @@ export class GitCliClient implements IGitClient {
     const raw = await this.git.raw([
       'log',
       `-${limit}`,
+      `--format=${format}%x01`,
+    ]);
+
+    return raw
+      .split('\x01')
+      .map((s) => s.trim())
+      .filter(Boolean)
+      .map((entry) => {
+        const parts = entry.split('\x00');
+        return {
+          hash: parts[0] ?? '',
+          shortHash: parts[1] ?? '',
+          message: parts[2] ?? '',
+          author: parts[3] ?? '',
+          authorEmail: parts[4] ?? '',
+          date: parts[5] ?? '',
+          body: parts[6]?.trim() || undefined,
+        };
+      });
+  }
+
+  async getLogBetween(base: string, branch: string): Promise<LogEntry[]> {
+    const format = [
+      '%H',   // hash
+      '%h',   // shortHash
+      '%s',   // subject
+      '%an',  // author
+      '%ae',  // authorEmail
+      '%aI',  // date (ISO 8601)
+      '%b',   // body
+    ].join('%x00');
+
+    const raw = await this.git.raw([
+      'log',
+      `${base}..${branch}`,
       `--format=${format}%x01`,
     ]);
 
