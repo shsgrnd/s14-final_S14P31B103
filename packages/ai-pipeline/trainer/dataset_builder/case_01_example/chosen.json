@@ -1,0 +1,7 @@
+{
+  "title": "API 엔드포인트 v2 업데이트 병합",
+  "summary": "충돌이 발생한 API URL을 v2 GraphQL 엔드포인트로 병합했습니다.",
+  "explanation": "feature 브랜치의 v2 업데이트가 최신 규격이므로 이를 채택합니다.",
+  "merged_code": "const apiUrl = \"https://api.v2.com/graphql\";",
+  "validation_summary": "v2 엔드포인트 변경에 따른 다른 파일의 호출부 확인이 필요합니다."
+}
