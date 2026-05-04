@@ -23,16 +23,14 @@ interface GitCatState {
   currentAIDraft: AIDraft | null;
   currentBranch: string;
   isAnalyzing: boolean;
+  isRefreshingStatus: boolean;
+  lastStatusRefreshAt: number | null;
 
   // Phase 2 New Data
   branches: Branch[];
   aiCommitSuggestion: string;
   expandedSections: string[];
   expandedSnapshotId: string | null;
-
-  // Refresh status
-  isRefreshingStatus: boolean;
-  lastStatusRefreshAt: number | null;
 
   // 전역 알림 (백엔드 ERROR / NOTIFICATION / GIT_OPERATION_RESULT 수신 시 설정)
   globalNotification: GlobalNotification | null;
