@@ -19,7 +19,10 @@ export const sendMessage = <T>(type: InboundMessageType, payload?: T) => {
   }
 
   if (vscodeApi) {
-    vscodeApi.postMessage({ type, payload });
+    // payload가 undefined인 경우 {} 를 fallback으로 전달합니다.
+    // 백엔드 Zod 스키마가 payload를 required로 검증하므로
+    // undefined 전송 시 "expected object, received undefined" 오류가 발생합니다.
+    vscodeApi.postMessage({ type, payload: payload ?? {} });
   } else {
     // VS Code API 미연결 환경(브라우저 개발 모드): 메시지 전송 생략
   }

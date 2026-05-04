@@ -3,6 +3,7 @@ import { Settings, User } from 'lucide-react';
 import { GitActionPanel } from '../git/GitActionPanel';
 import { SnapshotTimeline } from '../safety/SnapshotTimeline';
 import { BranchCleanupPanel } from '../git/BranchCleanupPanel';
+import { StashPanel } from '../git/StashPanel';
 import { SectionHeader } from '../common/SectionHeader';
 import { footerIconBtn } from '../../shared/styles';
 import { useGitCatStore } from '../../store/useGitCatStore';
@@ -21,11 +22,13 @@ import { useGitCatStore } from '../../store/useGitCatStore';
 export const SidebarLayout: React.FC = () => {
   const snapshots = useGitCatStore(state => state.snapshots);
   const branches = useGitCatStore(state => state.branches);
+  const stashes = useGitCatStore(state => state.stashes);
 
   const [expanded, setExpanded] = useState({
     git: true,
     safety: false,
     branch: false,
+    stash: false,
   });
 
   return (
@@ -68,6 +71,17 @@ export const SidebarLayout: React.FC = () => {
             onToggle={() => setExpanded(p => ({ ...p, branch: !p.branch }))}
           />
           {expanded.branch && <div style={{ flex: 1, overflowY: 'auto' }}><BranchCleanupPanel /></div>}
+        </section>
+
+        {/* ── Section 4: Git Stash ── */}
+        <section style={{ display: 'flex', flexDirection: 'column', flex: expanded.stash ? '1 1 0' : 'none', overflow: 'hidden' }}>
+          <SectionHeader
+            label="Git Stash"
+            expanded={expanded.stash}
+            badge={stashes.length > 0 ? stashes.length : undefined}
+            onToggle={() => setExpanded(p => ({ ...p, stash: !p.stash }))}
+          />
+          {expanded.stash && <div style={{ flex: 1, overflowY: 'auto' }}><StashPanel /></div>}
         </section>
 
       </div>

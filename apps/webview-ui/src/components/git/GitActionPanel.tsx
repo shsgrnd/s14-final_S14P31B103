@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
-import { GitBranch, Plus, ArrowUp, GitMerge, Check, Sparkles, ChevronDown, ChevronUp, X, CornerDownRight, Clock, RefreshCw } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { GitBranch, Plus, ArrowUp, GitMerge, Check, Sparkles, ChevronDown, ChevronUp, X, CornerDownRight, Clock, AlertCircle, Info, RefreshCw } from 'lucide-react';
 import { useGitCatStore } from '../../store/useGitCatStore';
 import { useVsCodeApi } from '../../hooks/useVsCodeApi';
 import { btn, bigBtn, inlineBtn } from '../../shared/styles';
 
 export const GitActionPanel: React.FC = () => {
-  const { currentBranch, branches, isRefreshingStatus, lastStatusRefreshAt } = useGitCatStore();
+  const { currentBranch, branches, globalNotification, clearGlobalNotification, isRefreshingStatus, lastStatusRefreshAt } = useGitCatStore();
   const { sendMessage } = useVsCodeApi();
   const [showNewBranch, setShowNewBranch] = useState(false);
   const [newBranchName, setNewBranchName] = useState('');
@@ -15,7 +15,24 @@ export const GitActionPanel: React.FC = () => {
   const [commitMessage, setCommitMessage] = useState('');
   const [statusMsg, setStatusMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [isBranchListOpen, setIsBranchListOpen] = useState(false);
+  const [checkoutingBranch, setCheckoutingBranch] = useState<string | null>(null);
+  const [showMergeForm, setShowMergeForm] = useState(false);
+  // source: 병합할 브랜치(FROM), target: 기준 브랜치(INTO, 기본값: currentBranch)
+  const [mergeSource, setMergeSource] = useState('');
+  const [mergeTarget, setMergeTarget] = useState(currentBranch);
   const [isRefreshPressed, setIsRefreshPressed] = useState(false);
+
+  // 백엔드 globalNotification이 설정되면 5초 후 자동 소거
+  useEffect(() => {
+    if (!globalNotification) return;
+    const timer = setTimeout(() => clearGlobalNotification(), 5000);
+    return () => clearTimeout(timer);
+  }, [globalNotification, clearGlobalNotification]);
+
+  // 브랜치 체크아웃 완료 시 로딩 상태 해제
+  useEffect(() => {
+    setCheckoutingBranch(null);
+  }, [currentBranch]);
 
   const showStatus = (text: string, ok: boolean) => {
     setStatusMsg({ text, ok });
@@ -39,8 +56,14 @@ export const GitActionPanel: React.FC = () => {
     closeAIPrompt();
   };
 
+  const closeMergeForm = () => {
+    setShowMergeForm(false);
+    setMergeSource('');
+    setMergeTarget(currentBranch);
+  };
+
   const handleGitAdd = () => {
-    sendMessage('GIT_ADD_ALL');
+    sendMessage('GIT_ADD_ALL', {});
     showStatus('Git add가 완료되었습니다.', true);
   };
 
@@ -57,15 +80,37 @@ export const GitActionPanel: React.FC = () => {
   };
 
   const handlePush = () => {
-    sendMessage('GIT_PUSH');
+    sendMessage('GIT_PUSH', {});
     showStatus('Git push가 완료되었습니다.', true);
   };
 
   const handleMerge = () => {
-    sendMessage('OPEN_MERGE_PANEL');
-    showStatus('Merge가 완료되었습니다.', true);
+    // Merge 버튼 클릭 → 브랜치 선택 폼 표시
+    closeBranchForm();
+    closeCommitForm();
+    setMergeTarget(currentBranch);
+    setMergeSource('');
+    setShowMergeForm(true);
   };
 
+  const handleRunMerge = () => {
+    if (!mergeSource || !mergeTarget) return;
+    if (mergeSource === mergeTarget) {
+      showStatus('같은 브랜치는 머지할 수 없습니다.', false);
+      return;
+    }
+    sendMessage('RUN_MERGE', { source: mergeSource, target: mergeTarget });
+    showStatus(`'${mergeSource}' → '${mergeTarget}' Merge 요청을 보냈습니다.`, true);
+    closeMergeForm();
+  };
+
+  const refreshStatusLabel = isRefreshingStatus 
+    ? 'Refreshing Git status...' 
+    : lastStatusRefreshAt 
+      ? `Updated ${formatRefreshTime(lastStatusRefreshAt)}` 
+      : 'Not refreshed yet';
+      
+  const isRefreshActive = isRefreshingStatus || isRefreshPressed;
   const handleRefreshStatus = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
     setIsRefreshPressed(true);
@@ -86,8 +131,10 @@ export const GitActionPanel: React.FC = () => {
     if (!prompt) return;
 
     if (showCommitForm) {
-      sendMessage('RECOMMEND_COMMIT', { purpose: prompt });
+      // RECOMMEND_COMMIT 스키마: { diffText: string, tag?: string }
+      sendMessage('RECOMMEND_COMMIT', { diffText: prompt });
     } else {
+      // RECOMMEND_BRANCH 스키마: { purpose: string }
       sendMessage('RECOMMEND_BRANCH', { purpose: prompt });
     }
 
@@ -98,91 +145,92 @@ export const GitActionPanel: React.FC = () => {
     ? '어떤 기능을 구현하셨나요? commit에 넣을 내용을 정리해서 입력해주세요.'
     : '어떤 기능을 구현하실 예정인가요? branch에 넣을 내용을 정리해서 입력해주세요.';
 
-  const refreshStatusLabel = isRefreshingStatus
-    ? 'Refreshing Git status...'
-    : lastStatusRefreshAt
-      ? `Updated ${formatRefreshTime(lastStatusRefreshAt)}`
-      : 'Not refreshed yet';
-  const isRefreshActive = isRefreshingStatus || isRefreshPressed;
+  const isGitConnected = currentBranch !== '';
 
   return (
     <div className="animate-fade-in" style={{ padding: '8px 4px' }}>
       {/* ── Branch Selector Accordion Header ── */}
-      <div 
-        onClick={() => setIsBranchListOpen(!isBranchListOpen)}
-        style={{
-          margin: isBranchListOpen ? '0 8px 0 8px' : '0 8px 4px 8px',
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '7px 8px 7px 10px',
-          borderRadius: isBranchListOpen ? '4px 4px 0 0' : '4px',
-          border: '1px solid var(--vscode-panel-border)',
-          background: 'var(--vscode-input-background)', cursor: 'pointer', transition: 'all 0.2s'
-        }}
-        onMouseOver={e => e.currentTarget.style.borderColor = 'var(--vscode-focusBorder)'}
-        onMouseOut={e => e.currentTarget.style.borderColor = 'var(--vscode-panel-border)'}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
-          <GitBranch size={15} style={{ color: 'var(--vscode-charts-blue)', flexShrink: 0 }} />
-          <span style={{ fontSize: '13px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-            {currentBranch || 'main'}
-          </span>
+      <div>
+        <div 
+          onClick={() => setIsBranchListOpen(!isBranchListOpen)}
+          style={{
+            margin: isBranchListOpen ? '0 8px 0 8px' : '0 8px 0 8px',
+            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            padding: '7px 8px 7px 10px',
+            borderRadius: isBranchListOpen ? '4px 4px 0 0' : '4px',
+            border: '1px solid var(--vscode-panel-border)',
+            background: 'var(--vscode-input-background)', cursor: 'pointer', transition: 'all 0.2s'
+          }}
+          onMouseOver={e => e.currentTarget.style.borderColor = 'var(--vscode-focusBorder)'}
+          onMouseOut={e => e.currentTarget.style.borderColor = 'var(--vscode-panel-border)'}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
+            <GitBranch size={15} style={{ color: isGitConnected ? 'var(--vscode-charts-blue)' : 'var(--vscode-descriptionForeground)', flexShrink: 0 }} />
+            <span style={{ 
+              fontSize: '13px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              color: isGitConnected ? 'inherit' : 'var(--vscode-descriptionForeground)'
+            }}>
+              {isGitConnected ? currentBranch : '저장소가 연결되지 않음'}
+            </span>
+          </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <button
+              type="button"
+              aria-label="Refresh Git status"
+              title="Refresh Git status"
+              onClick={handleRefreshStatus}
+              disabled={isRefreshingStatus || !isGitConnected}
+              style={iconBtnStyle(isRefreshActive)}
+            >
+              <RefreshCw 
+                size={13} 
+                style={{ 
+                  color: isRefreshActive ? 'var(--vscode-button-foreground)' : 'var(--vscode-descriptionForeground)',
+                  animation: isRefreshActive ? 'gitcat-refresh-spin 0.7s ease-in-out' : 'none',
+                  transition: 'color 0.18s ease'
+                }} 
+              />
+            </button>
+            {isBranchListOpen ? <ChevronUp size={14} style={{ color: 'var(--vscode-descriptionForeground)' }} /> : <ChevronDown size={14} style={{ color: 'var(--vscode-descriptionForeground)' }} />}
+          </div>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-          <button
-            type="button"
-            aria-label="Refresh Git status"
-            title="Refresh Git status"
-            onClick={handleRefreshStatus}
-            disabled={isRefreshingStatus}
-            style={iconBtnStyle(isRefreshActive)}
-          >
-            <RefreshCw
-              size={13}
-              style={{
-                color: isRefreshActive ? 'var(--vscode-button-foreground)' : 'var(--vscode-descriptionForeground)',
-                animation: isRefreshActive ? 'gitcat-refresh-spin 0.7s ease-in-out' : 'none',
-                transition: 'color 0.18s ease',
-              }}
-            />
-          </button>
-          {isBranchListOpen ? <ChevronUp size={14} style={{ color: 'var(--vscode-descriptionForeground)' }} /> : <ChevronDown size={14} style={{ color: 'var(--vscode-descriptionForeground)' }} />}
-        </div>
-      </div>
-      <div style={{
-        margin: '0 10px 8px 10px',
-        minHeight: '14px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        fontSize: '10px',
-        color: 'var(--vscode-descriptionForeground)',
-        opacity: 0.82,
-      }}>
-        <style>{`
-          @keyframes gitcat-refresh-spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-          }
-        `}</style>
-        <span style={{
+
+        <div style={{
+          margin: '0 10px 8px 10px',
+          minHeight: '14px',
           display: 'flex',
           alignItems: 'center',
-          gap: '5px',
-          color: isRefreshActive ? 'var(--vscode-charts-blue)' : 'var(--vscode-descriptionForeground)',
-          opacity: isRefreshActive ? 1 : 0.82,
+          justifyContent: 'space-between',
+          fontSize: '10px',
+          color: 'var(--vscode-descriptionForeground)',
+          opacity: 0.82,
         }}>
-          {isRefreshActive && (
-            <span style={{
-              width: '5px',
-              height: '5px',
-              borderRadius: '50%',
-              background: 'var(--vscode-charts-blue)',
-              boxShadow: '0 0 0 2px rgba(111, 179, 224, 0.18)',
-            }} />
-          )}
-          {refreshStatusLabel}
-        </span>
-        <span style={{ color: 'var(--vscode-descriptionForeground)', opacity: 0.82 }}>Auto every 20s</span>
+          <style>{`
+            @keyframes gitcat-refresh-spin {
+              from { transform: rotate(0deg); }
+              to { transform: rotate(360deg); }
+            }
+          `}</style>
+          <span style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '5px',
+            color: isRefreshActive ? 'var(--vscode-charts-blue)' : 'var(--vscode-descriptionForeground)',
+            opacity: isRefreshActive ? 1 : 0.82,
+          }}>
+            {isRefreshActive && (
+              <span style={{
+                width: '5px',
+                height: '5px',
+                borderRadius: '50%',
+                background: 'var(--vscode-charts-blue)',
+                boxShadow: '0 0 0 2px rgba(111, 179, 224, 0.18)',
+              }} />
+            )}
+            {refreshStatusLabel}
+          </span>
+          <span style={{ color: 'var(--vscode-descriptionForeground)', opacity: 0.82 }}>Auto every 20s</span>
+        </div>
       </div>
 
       {/* ── Branch List Accordion Content ── */}
@@ -215,7 +263,11 @@ export const GitActionPanel: React.FC = () => {
           return (
             <div 
               key={b.name}
-              onClick={() => { sendMessage('CHECKOUT_BRANCH', { name: b.name }); setIsBranchListOpen(false); }}
+              onClick={() => {
+                sendMessage('CHECKOUT_BRANCH', { name: b.name });
+                setCheckoutingBranch(b.name);
+                setIsBranchListOpen(false);
+              }}
               style={{ 
                 padding: '8px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', 
                 cursor: 'pointer',
@@ -229,6 +281,9 @@ export const GitActionPanel: React.FC = () => {
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <GitBranch size={12} style={{ color: 'var(--vscode-descriptionForeground)' }} />
                 <span style={{ fontSize: '12px' }}>{b.name}</span>
+                {checkoutingBranch === b.name && (
+                  <span style={{ fontSize: '10px', color: 'var(--vscode-descriptionForeground)', marginLeft: '2px' }}>전환 중...</span>
+                )}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '10px', color: 'var(--vscode-descriptionForeground)' }}>
                 <Clock size={10} /> {b.lastActivity}
@@ -243,10 +298,16 @@ export const GitActionPanel: React.FC = () => {
         <div style={{ margin: '8px 8px 4px 8px' }}>
           <button
             onClick={() => {
+              if (!isGitConnected) return;
               closeCommitForm();
               setShowNewBranch(true);
             }}
-            style={bigBtn('primary')}
+            disabled={!isGitConnected}
+            style={{ 
+              ...bigBtn('primary'), 
+              opacity: isGitConnected ? 1 : 0.5,
+              cursor: isGitConnected ? 'pointer' : 'not-allowed'
+            }}
           >
             <GitBranch size={13} />
             New branch
@@ -342,19 +403,195 @@ export const GitActionPanel: React.FC = () => {
       )}
 
       {/* ── Main Action Buttons (Grid) ── */}
-      {!showNewBranch && !showCommitForm && (
+      {!showNewBranch && !showCommitForm && !showMergeForm && (
         <div style={{ margin: '12px 8px 8px 8px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-          <button onClick={handleGitAdd} style={bigBtn('secondary')}>
+          <button 
+            onClick={handleGitAdd} 
+            disabled={!isGitConnected}
+            style={{ ...bigBtn('secondary'), opacity: isGitConnected ? 1 : 0.5, cursor: isGitConnected ? 'pointer' : 'not-allowed' }}
+          >
             <Plus size={13} /> Git add
           </button>
-          <button onClick={() => setShowCommitForm(true)} style={bigBtn('secondary')}>
+          <button 
+            onClick={() => isGitConnected && setShowCommitForm(true)} 
+            disabled={!isGitConnected}
+            style={{ ...bigBtn('secondary'), opacity: isGitConnected ? 1 : 0.5, cursor: isGitConnected ? 'pointer' : 'not-allowed' }}
+          >
             <Check size={13} /> Git Commit
           </button>
-          <button onClick={handlePush} style={bigBtn('secondary')}>
+          <button 
+            onClick={handlePush} 
+            disabled={!isGitConnected}
+            style={{ ...bigBtn('secondary'), opacity: isGitConnected ? 1 : 0.5, cursor: isGitConnected ? 'pointer' : 'not-allowed' }}
+          >
             <ArrowUp size={13} /> Git Push
           </button>
-          <button onClick={handleMerge} style={bigBtn('secondary')}>
+          <button 
+            onClick={handleMerge} 
+            disabled={!isGitConnected}
+            style={{ ...bigBtn('secondary'), opacity: isGitConnected ? 1 : 0.5, cursor: isGitConnected ? 'pointer' : 'not-allowed' }}
+          >
             <GitMerge size={13} /> Merge
+          </button>
+        </div>
+      )}
+
+      {/* ── No Git Guide (Empty State) ── */}
+      {!isGitConnected && (
+        <div style={{ 
+          margin: '20px 12px', padding: '16px', 
+          borderRadius: '6px', border: '1px dashed var(--vscode-panel-border)',
+          textAlign: 'center', background: 'rgba(255,255,255,0.02)'
+        }}>
+          <AlertCircle size={24} style={{ color: 'var(--vscode-descriptionForeground)', marginBottom: '10px', opacity: 0.5 }} />
+          <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '6px', color: 'var(--vscode-foreground)' }}>
+            Git 저장소를 찾을 수 없습니다
+          </div>
+          <div style={{ fontSize: '11px', color: 'var(--vscode-descriptionForeground)', lineHeight: '1.5' }}>
+            .git 폴더가 포함된 프로젝트 폴더를<br/>
+            [File] &gt; [Open Folder...]로 열어주세요.
+          </div>
+        </div>
+      )}
+
+      {/* ── Merge 브랜치 선택 폼 ── */}
+      {showMergeForm && (
+        <div style={{ margin: '8px' }}>
+          <div style={{
+            fontSize: '12px', marginBottom: '10px', fontWeight: 600,
+            color: 'var(--vscode-foreground)',
+            display: 'flex', alignItems: 'center', gap: '6px',
+          }}>
+            <GitMerge size={14} style={{ color: 'var(--vscode-charts-blue)' }} />
+            Merge 브랜치 선택
+          </div>
+
+          {/* 병합할 브랜치 (source: FROM) */}
+          <div style={{ marginBottom: '8px' }}>
+            <label style={{ fontSize: '11px', color: 'var(--vscode-descriptionForeground)', display: 'block', marginBottom: '4px' }}>
+              병합할 브랜치 (이 브랜치를 가져옵니다)
+            </label>
+            <select
+              value={mergeSource}
+              onChange={e => setMergeSource(e.target.value)}
+              style={{
+                width: '100%', boxSizing: 'border-box',
+                fontSize: '12px', padding: '6px 8px',
+                background: 'var(--vscode-input-background)',
+                color: 'var(--vscode-input-foreground)',
+                border: `1px solid ${mergeSource ? 'var(--vscode-focusBorder)' : 'var(--vscode-panel-border)'}`,
+                borderRadius: '3px', outline: 'none',
+              }}
+            >
+              <option value="">브랜치를 선택하세요</option>
+              {branches
+                .filter(b => b.name !== mergeTarget)
+                .map(b => (
+                  <option key={b.name} value={b.name}>{b.name}</option>
+                ))
+              }
+            </select>
+          </div>
+
+          {/* 기준 브랜치 (target: INTO) */}
+          <div style={{ marginBottom: '10px' }}>
+            <label style={{ fontSize: '11px', color: 'var(--vscode-descriptionForeground)', display: 'block', marginBottom: '4px' }}>
+              기준 브랜치 (여기에 합쳐집니다)
+            </label>
+            <select
+              value={mergeTarget}
+              onChange={e => setMergeTarget(e.target.value)}
+              style={{
+                width: '100%', boxSizing: 'border-box',
+                fontSize: '12px', padding: '6px 8px',
+                background: 'var(--vscode-input-background)',
+                color: 'var(--vscode-input-foreground)',
+                border: '1px solid var(--vscode-panel-border)',
+                borderRadius: '3px', outline: 'none',
+              }}
+            >
+              {branches
+                .filter(b => b.name !== mergeSource)
+                .map(b => (
+                  <option key={b.name} value={b.name}>{b.name}{b.isCurrent ? ' (현재)' : ''}</option>
+                ))
+              }
+            </select>
+          </div>
+
+          {/* Merge 방향 표시 */}
+          {mergeSource && mergeTarget && (
+            <div style={{
+              marginBottom: '10px', padding: '6px 10px',
+              background: 'var(--vscode-editor-background)',
+              border: '1px solid var(--vscode-panel-border)',
+              borderRadius: '3px', fontSize: '11px',
+              color: 'var(--vscode-descriptionForeground)',
+              display: 'flex', alignItems: 'center', gap: '6px',
+            }}>
+              <GitBranch size={11} />
+              <span style={{ fontWeight: 600, color: 'var(--vscode-charts-blue)' }}>{mergeSource}</span>
+              <span>→</span>
+              <GitBranch size={11} />
+              <span style={{ fontWeight: 600, color: 'var(--vscode-charts-green)' }}>{mergeTarget}</span>
+            </div>
+          )}
+
+          {/* 확인/취소 버튼 */}
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              onClick={handleRunMerge}
+              disabled={!mergeSource || !mergeTarget || mergeSource === mergeTarget}
+              style={{
+                ...btn('primary'),
+                opacity: (!mergeSource || !mergeTarget || mergeSource === mergeTarget) ? 0.5 : 1,
+                cursor: (!mergeSource || !mergeTarget || mergeSource === mergeTarget) ? 'not-allowed' : 'pointer',
+              }}
+            >
+              <GitMerge size={13} /> Merge 실행
+            </button>
+            <button onClick={closeMergeForm} style={btn('secondary')}>
+              <X size={13} /> 취소
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* 백엔드 에러 / 알림 표시 (ERROR, NOTIFICATION, GIT_OPERATION_RESULT) */}
+      {globalNotification && (
+        <div style={{
+          margin: '8px',
+          padding: '8px 10px',
+          fontSize: '12px',
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: '8px',
+          borderRadius: '3px',
+          border: `1px solid ${
+            globalNotification.type === 'error' ? 'var(--vscode-inputValidation-errorBorder)'
+            : globalNotification.type === 'warning' ? 'var(--vscode-inputValidation-warningBorder)'
+            : 'var(--vscode-focusBorder)'
+          }`,
+          background: `${
+            globalNotification.type === 'error' ? 'var(--vscode-inputValidation-errorBackground)'
+            : globalNotification.type === 'warning' ? 'var(--vscode-inputValidation-warningBackground)'
+            : 'var(--vscode-inputValidation-infoBackground)'
+          }`,
+          color: `${
+            globalNotification.type === 'error' ? 'var(--vscode-errorForeground)'
+            : 'var(--vscode-foreground)'
+          }`,
+        }}>
+          {globalNotification.type === 'error'
+            ? <AlertCircle size={13} style={{ flexShrink: 0, marginTop: '1px' }} />
+            : <Info size={13} style={{ flexShrink: 0, marginTop: '1px' }} />
+          }
+          <span style={{ flex: 1, lineHeight: 1.4 }}>{globalNotification.message}</span>
+          <button
+            onClick={clearGlobalNotification}
+            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0', color: 'inherit', opacity: 0.7, flexShrink: 0 }}
+          >
+            <X size={12} />
           </button>
         </div>
       )}
@@ -452,24 +689,6 @@ export const GitActionPanel: React.FC = () => {
       )}
     </div>
   );
-};
-
-
-const bigBtnStyle = (variant: 'primary' | 'secondary'): React.CSSProperties => ({
-  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
-  fontSize: '12px', fontWeight: 500, padding: '8px', borderRadius: '3px',
-  cursor: 'pointer', border: 'none', width: '100%',
-  background: variant === 'primary' ? 'var(--vscode-button-background)' : 'var(--vscode-button-secondaryBackground)',
-  color: variant === 'primary' ? 'var(--vscode-button-foreground)' : 'var(--vscode-button-secondaryForeground)',
-  transition: 'background 0.2s',
-});
-
-const inlineBtnStyle: React.CSSProperties = {
-  display: 'flex', alignItems: 'center', gap: '4px',
-  fontSize: '11px', fontWeight: 600, padding: '4px 8px',
-  background: 'var(--vscode-button-secondaryBackground)',
-  color: 'var(--vscode-button-secondaryForeground)',
-  border: 'none', borderRadius: '3px', cursor: 'pointer',
 };
 
 const iconBtnStyle = (active: boolean): React.CSSProperties => ({
