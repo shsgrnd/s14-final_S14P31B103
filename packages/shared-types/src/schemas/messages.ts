@@ -14,6 +14,7 @@ import {
   GitResultSchema,
   GitStatusSchema,
   WorktreeInfoSchema,
+  WorkspaceTreeSchema,
 } from '../dto/git';
 
 /**
@@ -62,12 +63,14 @@ export const InboundPayloadSchemaMap = {
   GET_SNAPSHOT_LIST: z.object({}).strict(),
   GET_BRANCH_LIST: z.object({}).strict(),
   GET_WORKTREE_LIST: z.object({}).strict(),
+  GET_WORKSPACE_TREE: z.object({}).strict(),
   // 추가된 메시지 스키마
   CREATE_SNAPSHOT: z.object({ title: z.string().optional() }),
   RENAME_SNAPSHOT: z.object({ snapshotId: z.string(), newTitle: z.string() }),
   TOGGLE_SNAPSHOT_STAR: z.object({ snapshotId: z.string() }),
   GET_SNAPSHOT_FILES: z.object({ snapshotId: z.string() }),
   OPEN_FILE_DIFF: z.object({ filePath: z.string(), snapshotId: z.string().optional() }),
+  OPEN_WORKSPACE_FILE: z.object({ filePath: z.string(), status: z.string().optional() }),
   EXECUTE_PULL: z.object({}).strict(),
   OPEN_DIFF_EDITOR: z.object({ filePath: z.string() }),
   SET_CONFIG: z.object({ config: z.any() }),
@@ -110,6 +113,7 @@ export const OutboundPayloadSchemaMap = {
   PR_SUGGESTION: z.object({ markdown: z.string() }),
   BRANCH_LIST: z.object({ branches: z.array(BranchSchema) }),
   WORKTREE_LIST: z.object({ worktrees: z.array(WorktreeInfoSchema) }),
+  WORKSPACE_TREE: z.object({ tree: WorkspaceTreeSchema }),
   GIT_OPERATION_RESULT: z.object({ operation: z.string(), result: GitResultSchema }),
   ERROR: z.object({ code: ErrorCodeEnum, message: z.string() }),
   LOADING: z.object({ target: z.string(), loading: z.boolean() }),
