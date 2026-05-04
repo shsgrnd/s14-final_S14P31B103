@@ -6,6 +6,8 @@ import { SidebarLayout } from './components/layout/SidebarLayout';
 import { MainPanelLayout } from './components/layout/MainPanelLayout';
 import { LoadingFallback } from './components/common/LoadingFallback';
 
+const AUTO_STATUS_REFRESH_INTERVAL_MS = 20_000;
+
 // GITCAT_LOGO_URI는 LoadingFallback에서 사용하므로 여기서 타입 선언 유지
 declare global {
   interface Window {
@@ -42,8 +44,16 @@ function App() {
     if (initialFetchDone.current) return;
     initialFetchDone.current = true;
     sendMessage('GET_SNAPSHOT_LIST', {});
-    sendMessage('REFRESH_STATUS', {});
+    sendMessage('REFRESH_STATUS', { fetchRemote: true });
     sendMessage('GET_BRANCH_LIST', {});
+  }, []);
+
+  useEffect(() => {
+    const refreshTimer = window.setInterval(() => {
+      sendMessage('REFRESH_STATUS', { fetchRemote: true });
+    }, AUTO_STATUS_REFRESH_INTERVAL_MS);
+
+    return () => window.clearInterval(refreshTimer);
   }, []);
 
   // ── 로딩 스플래시 타이머 ──

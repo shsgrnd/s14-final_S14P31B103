@@ -35,6 +35,7 @@ export class WebviewProvider {
         );
 
         this.panel.webview.html = this.getHtmlForWebview(this.panel.webview, 'main');
+        const webviewRegistration = this.messageRouter.registerWebview(this.panel.webview);
 
         this.panel.webview.onDidReceiveMessage(
             message => {
@@ -46,6 +47,7 @@ export class WebviewProvider {
 
         this.panel.onDidDispose(
             () => {
+                webviewRegistration.dispose();
                 this.panel = undefined;
             },
             null,

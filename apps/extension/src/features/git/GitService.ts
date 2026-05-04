@@ -19,6 +19,8 @@ import type { GitMetadataSyncService } from './GitMetadataSyncService';
  * (OutboundPayloadSchemaMap.GIT_STATUS_UPDATED.status 에 매핑)
  */
 export interface GitStatusResponse {
+  repoRoot: string;
+  currentWorktreePath: string;
   branch: string;
   currentBranch: string;
   isDetachedHead: boolean;
@@ -28,9 +30,11 @@ export interface GitStatusResponse {
   unstaged: GitFileStatus[];
   untracked: GitFileStatus[];
   conflicted: GitFileStatus[];
+  isConflict: boolean;
   isMergeInProgress: boolean;
   isMerging: boolean;
   isRebasing: boolean;
+  worktrees?: WorktreeInfoResponse[];
 }
 
 /**
@@ -90,6 +94,8 @@ export class GitService {
   async getStatus(): Promise<GitStatusResponse> {
     const status = await this.gitClient.getStatus();
     return {
+      repoRoot: status.repoRoot,
+      currentWorktreePath: status.currentWorktreePath,
       branch: status.currentBranch,
       currentBranch: status.currentBranch,
       isDetachedHead: status.isDetachedHead,
@@ -99,9 +105,31 @@ export class GitService {
       unstaged: status.unstaged.map((entry) => this.toGitFileStatus(entry, entry.working_dir)),
       untracked: status.untracked.map((path) => ({ path, status: 'UNTRACKED' })),
       conflicted: status.conflicted.map((path) => ({ path, status: 'CONFLICTED' })),
+      isConflict: status.isConflict,
       isMergeInProgress: status.isMerging,
       isMerging: status.isMerging,
       isRebasing: status.isRebasing,
+    };
+  }
+
+  async fetchAllPrune(): Promise<GitCommandResult> {
+    await this.gitClient.fetchAllPrune();
+    return { success: true, message: 'Fetch completed.' };
+  }
+
+  async getStatusWithWorktrees(options: { fetchRemote?: boolean } = {}): Promise<GitStatusResponse> {
+    if (options.fetchRemote) {
+      await this.gitClient.fetchAllPrune();
+    }
+
+    const [status, worktrees] = await Promise.all([
+      this.getStatus(),
+      this.getWorktrees(),
+    ]);
+
+    return {
+      ...status,
+      worktrees,
     };
   }
 
@@ -340,6 +368,7 @@ export class GitService {
     await this.metadataSync?.syncWorktrees(worktrees);
     return worktrees.map((worktree) => ({
       path: worktree.path,
+      head: worktree.head,
       branch: worktree.branch,
       isMain: worktree.isMain,
       isLocked: worktree.isLocked,

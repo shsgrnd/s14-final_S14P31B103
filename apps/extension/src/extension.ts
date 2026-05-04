@@ -9,6 +9,7 @@ import { MessageRouter } from './core/MessageRouter';
 import { GitService } from './features/git/GitService';
 import { GitMessageHandler } from './features/git/GitMessageHandler';
 import { GitMetadataSyncService } from './features/git/GitMetadataSyncService';
+import { GitStatusRefreshController } from './features/git/GitStatusRefreshController';
 
 export async function activate(context: vscode.ExtensionContext) {
   console.log('GitCat Extension is now active!');
@@ -35,13 +36,14 @@ export async function activate(context: vscode.ExtensionContext) {
   }
 
   let gitMessageHandler: GitMessageHandler | undefined;
+  let gitService: GitService | undefined;
   if (rootPath) {
     try {
       const gitClient = new GitCliClient(rootPath);
       const gitMetadataSync = dbInstance
         ? new GitMetadataSyncService(dbInstance, rootPath)
         : undefined;
-      const gitService = new GitService(gitClient, gitMetadataSync);
+      gitService = new GitService(gitClient, gitMetadataSync);
       gitMessageHandler = new GitMessageHandler(gitService);
       console.log('GitCat Git layer initialized at:', rootPath);
     } catch (error) {
@@ -51,6 +53,12 @@ export async function activate(context: vscode.ExtensionContext) {
   }
 
   const messageRouter = new MessageRouter(dbInstance, gitMessageHandler);
+
+  if (gitService) {
+    const gitStatusRefreshController = new GitStatusRefreshController(gitService, messageRouter);
+    gitStatusRefreshController.start();
+    context.subscriptions.push(gitStatusRefreshController);
+  }
 
   const webviewProvider = new WebviewProvider(context, messageRouter);
   const sidebarProvider = new SidebarProvider(context, messageRouter);
@@ -62,7 +70,7 @@ export async function activate(context: vscode.ExtensionContext) {
     })
   );
 
-  CommandRegistry.registerAll(context, webviewProvider);
+  CommandRegistry.registerAll(context, webviewProvider, gitService);
   EventRegistry.registerAll(context);
 }
 
