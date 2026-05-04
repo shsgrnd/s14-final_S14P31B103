@@ -126,11 +126,6 @@ export const useGitCatStore = create<GitCatState>((set) => ({
       case 'COMMIT_SUGGESTIONS':
         set({ aiCommitSuggestion: payload.suggestions.description });
         break;
-      case 'LOADING':
-        if (payload.target === 'status') {
-          set({ isRefreshingStatus: payload.loading });
-        }
-        break;
 
       // ── 백엔드 에러 / 알림 수신 처리 ──
 
