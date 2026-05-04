@@ -1,0 +1,7 @@
+{
+  "title": "아티팩트 자동 저장 전환 및 알림 기능 통합",
+  "summary": "내부 스케줄러로 이전된 artifactWriter 호출을 제거하고, 새롭게 추가된 사용자 알림 기능을 통합했습니다.",
+  "explanation": "상위 브랜치(develop)의 아키텍처 변경에 따라 수동 artifactWriter 호출을 삭제하였습니다. 동시에 feature 브랜치에서 도입된 결과 처리 후 알림 전송 로직(notifyUser)을 적용하여 기능을 완성했습니다.",
+  "merged_code": "const saveResults = async (results: any) => {\n  await this.dbWriter.save(results);\n};\n\nexport const handleFinalize = async (data: any) => {\n  const result = await saveResults(data);\n  notifyUser(result);\n  return result;\n};",
+  "validation_summary": "아티팩트가 스케줄러를 통해 정상적으로 비동기 저장되는지, 그리고 저장 후 알림이 누락 없이 발송되는지 확인이 필요합니다."
+}

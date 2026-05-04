@@ -1,0 +1,7 @@
+{
+  "title": "데이터셋 포맷 표준 V2 적용 및 병합",
+  "summary": "데이터셋의 국제화(i18n) 및 가독성 향상을 위해 도입된 Standard V2 규격을 적용하여 영문 지시문 및 구조로 통합했습니다.",
+  "explanation": "기존의 한글 기반 포맷을 feature 브랜치에서 제안된 영문 표준 규격으로 전환하였습니다. prompt.md에는 YAML 프론트매터를 추가하고, 모든 필드 값을 영문으로 통일하여 글로벌 학습 모델과의 호환성을 확보했습니다.",
+  "merged_code": "// synthetic_dataset/A_12_multi_file_prompt_chosen_alignment/prompt.md\n---\n# AI Instruction\nWrite instructions here in English.\n\n// synthetic_dataset/A_12_multi_file_prompt_chosen_alignment/chosen.json\n{\n  \"title\": \"English Title\",\n  \"summary\": \"English Summary\"\n}",
+  "validation_summary": "변경된 데이터셋 규격이 파서(Dataset Builder)에서 정상적으로 인식되는지 최종 확인이 필요합니다."
+}
