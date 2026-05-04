@@ -1,0 +1,8 @@
+{
+  "title": "dataset builder 런타임 의존성 병합",
+  "summary": "zod 버전은 더 최신인 feature 브랜치 값을 채택하고, build 스크립트 실행 편의를 위한 tsx 추가도 함께 유지했습니다.",
+  "explanation": "양쪽 변경은 상충하기보다 상호 보완적입니다. zod는 schema 검증 안정성을 위해 최신 마이너 버전을 따르고, tsx는 데이터셋 빌더나 보조 스크립트를 더 간단히 실행할 수 있게 하므로 devDependency에 함께 두는 편이 안전합니다.",
+  "merged_code": "{\n  \"dependencies\": {\n    \"zod\": \"^3.25.3\",\n    \"better-sqlite3\": \"^11.8.1\"\n  },\n  \"devDependencies\": {\n    \"ts-node\": \"^10.9.2\",\n    \"tsx\": \"^4.19.2\"\n  }\n}",
+  "validation_summary": "pnpm install 후 lockfile 갱신 여부와 zod 관련 타입 체크가 기존 parser/test 환경에 영향이 없는지 확인해야 합니다."
+}
+

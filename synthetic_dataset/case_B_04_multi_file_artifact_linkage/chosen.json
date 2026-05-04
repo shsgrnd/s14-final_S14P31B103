@@ -1,0 +1,9 @@
+{
+  "title": "training candidate artifact ref 연결 방식 중재",
+  "summary": "multi-file 충돌에서 prompt_ref, chosen_ref, rejected_ref를 모두 fallback 우선순위에 맞춰 연결해야 합니다.",
+  "explanation": "HEAD는 prompt_ref fallback을 보존했고, feature 브랜치는 DPO용 rejected_ref 연결을 추가했습니다. 두 변경은 함께 필요합니다. prompt_ref를 잃으면 prompt artifact 경로를 복원하지 못하고, rejected_ref를 잃으면 DPO 후보 생성이 깨집니다.",
+  "recommended_option": "Option 1: prompt_ref와 rejected_ref를 모두 포함하는 결합안으로 병합한다.",
+  "tradeoffs": "payload 조합 로직이 길어지지만, SFT와 DPO 두 경로를 모두 안정적으로 지원할 수 있습니다.",
+  "recommended_next_action": "buildFeedbackPersistencePlan의 training_candidate 조립부에 prompt_ref/chosen_ref/rejected_ref fallback을 모두 넣고, DPO mock 테스트를 추가합니다."
+}
+

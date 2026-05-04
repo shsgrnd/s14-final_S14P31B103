@@ -1,0 +1,9 @@
+{
+  "title": "edited 피드백 저장 규칙 중재",
+  "summary": "코드 병합 초안과 설명형 결과를 모두 수용할 수 있도록 edited 저장 규칙을 feature_type별로 분기하는 중재안을 선택했습니다.",
+  "explanation": "merge_patch_draft는 실제 수정된 코드 추적을 위해 final_code_ref가 계속 필요하지만, conflict_explanation이나 recommendation은 final_text 또는 final_explanation만으로도 저장이 가능합니다. 한 규칙으로 모두 묶으면 코드형 결과의 추적성이 깨지거나 설명형 결과가 불필요하게 실패합니다.",
+  "recommended_option": "Option 2: feature_type별로 edited 저장 필수 필드를 분리한다.",
+  "tradeoffs": "분기 로직이 늘어나 구현은 조금 복잡해지지만, 각 결과 유형의 저장 계약을 더 정확하게 반영할 수 있습니다.",
+  "recommended_next_action": "proposal-feedback helper와 저장 계약 문서에 merge_patch_draft / conflict_explanation / recommendation별 edited 필수 필드를 명시합니다."
+}
+

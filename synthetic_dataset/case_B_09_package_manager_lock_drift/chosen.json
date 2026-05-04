@@ -1,0 +1,9 @@
+{
+  "title": "pnpm 버전과 lockfile drift 중재",
+  "summary": "package.json과 lockfile이 서로 다른 pnpm 상태를 반영하고 있어, 버전 업그레이드와 lockfile 재생성이 함께 필요한 상황입니다.",
+  "explanation": "devDependency의 pnpm 버전만 올리거나 lockfile 조각만 따로 들고 오면 설치 재현성이 깨질 수 있습니다. 이런 경우는 텍스트 병합보다 버전 기준을 먼저 합의하고 lockfile을 다시 생성하는 쪽이 안전합니다.",
+  "recommended_option": "Option 2: 최신 pnpm 버전을 채택하고 lockfile은 재생성 대상으로 본다.",
+  "tradeoffs": "즉시 충돌을 끝내려면 lockfile 수동 병합이 빨라 보일 수 있지만, 재현성 문제를 남길 가능성이 큽니다.",
+  "recommended_next_action": "package.json은 최신 pnpm 버전으로 정리하고, 실제 개발 환경에서 pnpm install을 다시 실행해 lockfile을 재생성합니다."
+}
+
