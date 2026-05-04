@@ -10,6 +10,7 @@ import { GitService } from './features/git/GitService';
 import { GitMessageHandler } from './features/git/GitMessageHandler';
 import { GitMetadataSyncService } from './features/git/GitMetadataSyncService';
 import { GitStatusRefreshController } from './features/git/GitStatusRefreshController';
+import { BranchCleanupService } from './features/git/BranchCleanupService';
 
 export async function activate(context: vscode.ExtensionContext) {
   console.log('GitCat Extension is now active!');
@@ -44,7 +45,8 @@ export async function activate(context: vscode.ExtensionContext) {
         ? new GitMetadataSyncService(dbInstance, rootPath)
         : undefined;
       gitService = new GitService(gitClient, gitMetadataSync);
-      gitMessageHandler = new GitMessageHandler(gitService);
+      const branchCleanupService = new BranchCleanupService(gitService);
+      gitMessageHandler = new GitMessageHandler(gitService, branchCleanupService);
       console.log('GitCat Git layer initialized at:', rootPath);
     } catch (error) {
       console.error('Failed to initialize GitCat Git layer:', error);
