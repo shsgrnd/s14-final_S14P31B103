@@ -28,7 +28,7 @@ describe('AiInputService', () => {
             line_end: 20,
             source_code: 'const a = 1;',
             target_code: 'const a = 2;',
-            detected_by: 'git-merge',
+            detected_by: 'diff',
           }
         ],
         working_tree_diff_ref: 'ref-123',
