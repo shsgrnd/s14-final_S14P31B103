@@ -82,3 +82,9 @@ htmlcov/
 infra/docs/personal/
 packages/shared-types/src/**/*.js
 packages/shared-types/src/**/*.js.map
+
+# AI Training (GPU Server)
+packages/ai-pipeline/trainer/data/
+packages/ai-pipeline/trainer/outputs/
+packages/ai-pipeline/trainer/wandb/
+packages/ai-pipeline/trainer/models/
