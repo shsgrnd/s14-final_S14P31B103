@@ -35,6 +35,8 @@ export interface IGitClient {
   /** 두 브랜치 간 diff 결과 반환 (ConflictAnalyzer 입력용) */
   getDiff(base: string, branch: string): Promise<DiffResult[]>;
 
+  getUnpushedFiles(): Promise<DiffResult[]>;
+
   /** 두 브랜치의 공통 조상 커밋 해시 반환 */
   getMergeBase(source: string, target: string): Promise<string>;
 
