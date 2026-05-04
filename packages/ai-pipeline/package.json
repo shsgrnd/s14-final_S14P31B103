@@ -9,7 +9,8 @@
     "build": "tsc",
     "test:mock": "ts-node -r tsconfig-paths/register src/run-mock.ts",
     "test:live": "ts-node -r tsconfig-paths/register src/run-live.ts",
-    "export:mock": "ts-node -r tsconfig-paths/register src/run-export-mock.ts"
+    "export:mock": "ts-node -r tsconfig-paths/register src/run-export-mock.ts",
+    "eval:baseline": "ts-node -r tsconfig-paths/register src/eval/run-llm-baseline.ts"
   },
   "dependencies": {
     "@gitcat/shared-types": "workspace:*",
