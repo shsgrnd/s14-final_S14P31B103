@@ -135,6 +135,18 @@ export class MessageRouter {
           console.log('[GitCat] SET_CONFIG received', message.payload);
           break;
 
+        // ─── Git 관련 (GitHandler가 없을 때의 기본 응답) ───────────────
+        case 'GET_BRANCH_LIST':
+          webview.postMessage({ type: 'BRANCH_LIST', payload: { branches: [] } });
+          break;
+
+        case 'REFRESH_STATUS':
+          webview.postMessage({ 
+            type: 'GIT_STATUS_UPDATED', 
+            payload: { branch: '', isClean: true, staged: [], unstaged: [] } 
+          });
+          break;
+
         default:
           console.warn(`[GitCat] Unhandled message type: ${message.type}`);
           this.postError(webview, 'INTERNAL_ERROR', `Unhandled message type: ${message.type}`);

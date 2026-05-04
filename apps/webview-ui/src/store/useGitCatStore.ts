@@ -1,6 +1,21 @@
 import { create } from 'zustand';
 import { Snapshot, ConflictAnalysis, AIDraft, Branch, OutboundMessage } from '@gitcat/shared-types';
 
+/** 전역 알림 메시지 타입 */
+export interface GlobalNotification {
+  type: 'info' | 'warning' | 'error' | 'success';
+  message: string;
+}
+
+/** Stash 항목 타입 (STASH_LIST payload에서 수신) */
+export interface StashEntry {
+  index: number;
+  ref: string;
+  message: string;
+  branch: string;
+  date: string;
+}
+
 interface GitCatState {
   // Data
   snapshots: Snapshot[];
@@ -8,12 +23,22 @@ interface GitCatState {
   currentAIDraft: AIDraft | null;
   currentBranch: string;
   isAnalyzing: boolean;
-  
+
   // Phase 2 New Data
   branches: Branch[];
   aiCommitSuggestion: string;
   expandedSections: string[];
   expandedSnapshotId: string | null;
+
+  // Refresh status
+  isRefreshingStatus: boolean;
+  lastStatusRefreshAt: number | null;
+
+  // 전역 알림 (백엔드 ERROR / NOTIFICATION / GIT_OPERATION_RESULT 수신 시 설정)
+  globalNotification: GlobalNotification | null;
+
+  // Stash 목록 (STASH_LIST 수신 시 갱신)
+  stashes: StashEntry[];
 
   // Actions
   setSnapshots: (snapshots: Snapshot[]) => void;
@@ -25,24 +50,27 @@ interface GitCatState {
   setAICommitSuggestion: (suggestion: string) => void;
   toggleSection: (sectionId: string) => void;
   setExpandedSnapshotId: (id: string | null) => void;
-  
-  handleMessage: (event: MessageEvent<OutboundMessage>) => void;
-  
+  clearGlobalNotification: () => void;
+  setStashes: (stashes: StashEntry[]) => void;
+  setRefreshingStatus: (isRefreshingStatus: boolean) => void;
 
+  handleMessage: (event: MessageEvent<OutboundMessage>) => void;
 }
 
-
-
-export const useGitCatStore = create<GitCatState>((set, get) => ({
+export const useGitCatStore = create<GitCatState>((set) => ({
   snapshots: [],
   conflicts: [],
   currentAIDraft: null,
-  currentBranch: 'main',
+  currentBranch: '',
   isAnalyzing: false,
   branches: [],
   aiCommitSuggestion: '',
-  expandedSections: ['git', 'safety', 'branch'],
+  expandedSections: ['safety', 'branch'],
   expandedSnapshotId: null,
+  globalNotification: null,
+  stashes: [],
+  isRefreshingStatus: false,
+  lastStatusRefreshAt: null,
 
   setSnapshots: (snapshots) => set({ snapshots }),
   setConflicts: (conflicts) => set({ conflicts }),
@@ -51,7 +79,10 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
   setAnalyzing: (isAnalyzing) => set({ isAnalyzing }),
   setBranches: (branches) => set({ branches }),
   setAICommitSuggestion: (aiCommitSuggestion) => set({ aiCommitSuggestion }),
-  
+  clearGlobalNotification: () => set({ globalNotification: null }),
+  setStashes: (stashes) => set({ stashes }),
+  setRefreshingStatus: (isRefreshingStatus) => set({ isRefreshingStatus }),
+
   toggleSection: (sectionId) => set((state) => ({
     expandedSections: state.expandedSections.includes(sectionId)
       ? state.expandedSections.filter(id => id !== sectionId)
@@ -63,10 +94,8 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
   })),
 
   handleMessage: (event) => {
-    // 실제 백엔드 이벤트 수신 처리
     const { type, payload } = event.data;
-    
-    // TODO: type별로 상태 업데이트 로직 추가
+
     switch (type) {
       case 'SNAPSHOT_LIST':
         set({ snapshots: payload.snapshots });
@@ -75,13 +104,16 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
         set({ branches: payload.branches });
         break;
       case 'GIT_STATUS_UPDATED':
-        set({ currentBranch: payload.status.branch ?? payload.status.currentBranch ?? 'HEAD' });
+        set({ 
+          currentBranch: payload.status.branch ?? 'HEAD',
+          isRefreshingStatus: false,
+          lastStatusRefreshAt: Date.now()
+        });
         break;
       case 'CONFLICT_RESULT':
         set({ conflicts: payload.candidates });
         break;
       case 'MERGE_PROPOSAL':
-        // MERGE_PROPOSAL은 현재 AIDraft 배열로 처리
         if (payload.proposals && payload.proposals.length > 0) {
           set({ currentAIDraft: payload.proposals[0] });
         }
@@ -89,8 +121,40 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
       case 'COMMIT_SUGGESTIONS':
         set({ aiCommitSuggestion: payload.suggestions.description });
         break;
+      case 'LOADING':
+        if (payload.target === 'status') {
+          set({ isRefreshingStatus: payload.loading });
+        }
+        break;
+
+      // ── 백엔드 에러 / 알림 수신 처리 ──
+
+      case 'ERROR':
+        // 백엔드 Zod 검증 실패, 서비스 오류 등 모든 에러
+        set({ globalNotification: { type: 'error', message: payload.message } });
+        break;
+
+      case 'NOTIFICATION':
+        // 백엔드에서 명시적으로 보내는 info/warning/error 알림
+        set({ globalNotification: { type: payload.type, message: payload.message } });
+        break;
+
+      case 'GIT_OPERATION_RESULT':
+        // git add / push / merge / checkout 등 git 명령 실행 결과
+        if (!payload.result.success) {
+          set({
+            globalNotification: {
+              type: 'error',
+              message: payload.result.error ?? `'${payload.operation}' 작업이 실패했습니다.`,
+            },
+          });
+        }
+        break;
+
+      case 'STASH_LIST':
+        // git stash 목록 수신
+        set({ stashes: payload.stashes });
+        break;
     }
   },
-
-
 }));
