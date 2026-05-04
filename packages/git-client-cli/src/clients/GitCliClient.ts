@@ -125,6 +125,31 @@ export class GitCliClient implements IGitClient {
       .filter((branch) => branch.name && !branch.name.endsWith('/HEAD'));
   }
 
+  async getDefaultBranch(): Promise<string | null> {
+    try {
+      // origin/HEAD 심볼릭 링크 확인 (예: refs/remotes/origin/main)
+      const symbolicRef = await this.git.raw(['symbolic-ref', 'refs/remotes/origin/HEAD']);
+      if (symbolicRef) {
+        const parts = symbolicRef.trim().split('/');
+        return parts[parts.length - 1];
+      }
+    } catch {
+      // 실패 시 무시하고 다음 방법 시도
+    }
+
+    try {
+      // 로컬 설정 확인
+      const defaultConfig = await this.git.raw(['config', '--get', 'init.defaultBranch']);
+      if (defaultConfig) {
+        return defaultConfig.trim();
+      }
+    } catch {
+      // 실패 시 무시
+    }
+
+    return null;
+  }
+
   async getMergedBranches(): Promise<string[]> {
     const raw = await this.git.raw(['branch', '--merged']);
     return raw

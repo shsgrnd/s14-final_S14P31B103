@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { GitBranch, Plus, ArrowUp, GitMerge, Check, Sparkles, ChevronDown, ChevronUp, X, CornerDownRight, Clock, AlertCircle, Info, RefreshCw } from 'lucide-react';
+import { GitBranch, Plus, ArrowUp, GitMerge, Check, Sparkles, ChevronDown, ChevronUp, X, CornerDownRight, Clock, RefreshCw, AlertCircle, Info, RotateCw } from 'lucide-react';
 import { useGitCatStore } from '../../store/useGitCatStore';
 import { useVsCodeApi } from '../../hooks/useVsCodeApi';
 import { btn, bigBtn, inlineBtn } from '../../shared/styles';
@@ -15,12 +15,12 @@ export const GitActionPanel: React.FC = () => {
   const [commitMessage, setCommitMessage] = useState('');
   const [statusMsg, setStatusMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [isBranchListOpen, setIsBranchListOpen] = useState(false);
+  const [isRefreshPressed, setIsRefreshPressed] = useState(false);
   const [checkoutingBranch, setCheckoutingBranch] = useState<string | null>(null);
   const [showMergeForm, setShowMergeForm] = useState(false);
   // source: 병합할 브랜치(FROM), target: 기준 브랜치(INTO, 기본값: currentBranch)
   const [mergeSource, setMergeSource] = useState('');
   const [mergeTarget, setMergeTarget] = useState(currentBranch);
-  const [isRefreshPressed, setIsRefreshPressed] = useState(false);
 
   // 백엔드 globalNotification이 설정되면 5초 후 자동 소거
   useEffect(() => {
@@ -104,12 +104,12 @@ export const GitActionPanel: React.FC = () => {
     closeMergeForm();
   };
 
-  const refreshStatusLabel = isRefreshingStatus 
-    ? 'Refreshing Git status...' 
-    : lastStatusRefreshAt 
-      ? `Updated ${formatRefreshTime(lastStatusRefreshAt)}` 
+  const refreshStatusLabel = isRefreshingStatus
+    ? 'Refreshing Git status...'
+    : lastStatusRefreshAt
+      ? `Updated ${formatRefreshTime(lastStatusRefreshAt)}`
       : 'Not refreshed yet';
-      
+
   const isRefreshActive = isRefreshingStatus || isRefreshPressed;
   const handleRefreshStatus = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
@@ -151,7 +151,7 @@ export const GitActionPanel: React.FC = () => {
     <div className="animate-fade-in" style={{ padding: '8px 4px' }}>
       {/* ── Branch Selector Accordion Header ── */}
       <div>
-        <div 
+        <div
           onClick={() => setIsBranchListOpen(!isBranchListOpen)}
           style={{
             margin: isBranchListOpen ? '0 8px 0 8px' : '0 8px 0 8px',
@@ -166,7 +166,7 @@ export const GitActionPanel: React.FC = () => {
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
             <GitBranch size={15} style={{ color: isGitConnected ? 'var(--vscode-charts-blue)' : 'var(--vscode-descriptionForeground)', flexShrink: 0 }} />
-            <span style={{ 
+            <span style={{
               fontSize: '13px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
               color: isGitConnected ? 'inherit' : 'var(--vscode-descriptionForeground)'
             }}>
@@ -182,18 +182,18 @@ export const GitActionPanel: React.FC = () => {
               disabled={isRefreshingStatus || !isGitConnected}
               style={iconBtnStyle(isRefreshActive)}
             >
-              <RefreshCw 
-                size={13} 
-                style={{ 
+              <RefreshCw
+                size={13}
+                style={{
                   color: isRefreshActive ? 'var(--vscode-button-foreground)' : 'var(--vscode-descriptionForeground)',
                   animation: isRefreshActive ? 'gitcat-refresh-spin 0.7s ease-in-out' : 'none',
                   transition: 'color 0.18s ease'
-                }} 
+                }}
               />
-            </button>
+            </button >
             {isBranchListOpen ? <ChevronUp size={14} style={{ color: 'var(--vscode-descriptionForeground)' }} /> : <ChevronDown size={14} style={{ color: 'var(--vscode-descriptionForeground)' }} />}
-          </div>
-        </div>
+          </div >
+        </div >
 
         <div style={{
           margin: '0 10px 8px 10px',
@@ -231,10 +231,10 @@ export const GitActionPanel: React.FC = () => {
           </span>
           <span style={{ color: 'var(--vscode-descriptionForeground)', opacity: 0.82 }}>Auto every 20s</span>
         </div>
-      </div>
+      </div >
 
       {/* ── Branch List Accordion Content ── */}
-      <div
+      < div
         style={{
           margin: isBranchListOpen ? '0 8px 12px 8px' : '0 8px 0 8px',
           border: '1px solid var(--vscode-panel-border)',
@@ -248,446 +248,463 @@ export const GitActionPanel: React.FC = () => {
           transition: 'max-height 0.22s ease, opacity 0.18s ease, transform 0.22s ease, margin 0.22s ease',
         }}
       >
-        {selectableBranches.length === 0 ? (
-          <div style={{
-            padding: '10px 12px',
-            fontSize: '12px',
-            color: 'var(--vscode-descriptionForeground)',
-            opacity: 0.65,
-            textAlign: 'left',
-          }}>
-            다른 branch가 존재하지 않습니다.
-          </div>
-        ) : selectableBranches.map(b => {
-          const isActive = currentBranch === b.name;
-          return (
-            <div 
-              key={b.name}
-              onClick={() => {
-                sendMessage('CHECKOUT_BRANCH', { name: b.name });
-                setCheckoutingBranch(b.name);
-                setIsBranchListOpen(false);
-              }}
-              style={{ 
-                padding: '8px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', 
-                cursor: 'pointer',
-                borderBottom: b === selectableBranches[selectableBranches.length - 1] ? 'none' : '1px solid var(--vscode-panel-border)',
-                background: isActive ? 'var(--vscode-list-activeSelectionBackground)' : 'transparent', 
-                color: isActive ? 'var(--vscode-list-activeSelectionForeground)' : 'inherit' 
-              }}
-              onMouseOver={e => { if(!isActive) e.currentTarget.style.background = 'var(--vscode-list-hoverBackground)' }}
-              onMouseOut={e => { if(!isActive) e.currentTarget.style.background = 'transparent' }}
-            >
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                <GitBranch size={12} style={{ color: 'var(--vscode-descriptionForeground)' }} />
-                <span style={{ fontSize: '12px' }}>{b.name}</span>
-                {checkoutingBranch === b.name && (
-                  <span style={{ fontSize: '10px', color: 'var(--vscode-descriptionForeground)', marginLeft: '2px' }}>전환 중...</span>
-                )}
-              </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '10px', color: 'var(--vscode-descriptionForeground)' }}>
-                <Clock size={10} /> {b.lastActivity}
-              </div>
+        {
+          selectableBranches.length === 0 ? (
+            <div style={{
+              padding: '10px 12px',
+              fontSize: '12px',
+              color: 'var(--vscode-descriptionForeground)',
+              opacity: 0.65,
+              textAlign: 'left',
+            }}>
+              다른 branch가 존재하지 않습니다.
             </div>
-          );
-        })}
-      </div>
+          ) : selectableBranches.map(b => {
+            const isActive = currentBranch === b.name;
+            return (
+              <div
+                key={b.name}
+                onClick={() => {
+                  sendMessage('CHECKOUT_BRANCH', { name: b.name });
+                  setCheckoutingBranch(b.name);
+                  setIsBranchListOpen(false);
+                }}
+                style={{
+                  padding: '8px 10px', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  cursor: 'pointer',
+                  borderBottom: b === selectableBranches[selectableBranches.length - 1] ? 'none' : '1px solid var(--vscode-panel-border)',
+                  background: isActive ? 'var(--vscode-list-activeSelectionBackground)' : 'transparent',
+                  color: isActive ? 'var(--vscode-list-activeSelectionForeground)' : 'inherit'
+                }}
+                onMouseOver={e => { if (!isActive) e.currentTarget.style.background = 'var(--vscode-list-hoverBackground)' }}
+                onMouseOut={e => { if (!isActive) e.currentTarget.style.background = 'transparent' }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <GitBranch size={12} style={{ color: 'var(--vscode-descriptionForeground)' }} />
+                  <span style={{ fontSize: '12px' }}>{b.name}</span>
+                  {checkoutingBranch === b.name && (
+                    <span style={{ fontSize: '10px', color: 'var(--vscode-descriptionForeground)', marginLeft: '2px' }}>전환 중...</span>
+                  )}
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '10px', color: 'var(--vscode-descriptionForeground)' }}>
+                  <Clock size={10} /> {b.lastActivity}
+                </div>
+              </div>
+            );
+          })
+        }
+      </div >
 
       {/* ── New Branch Row ── */}
-      {!showCommitForm && !showNewBranch ? (
-        <div style={{ margin: '8px 8px 4px 8px' }}>
-          <button
-            onClick={() => {
-              if (!isGitConnected) return;
-              closeCommitForm();
-              setShowNewBranch(true);
-            }}
-            disabled={!isGitConnected}
-            style={{ 
-              ...bigBtn('primary'), 
-              opacity: isGitConnected ? 1 : 0.5,
-              cursor: isGitConnected ? 'pointer' : 'not-allowed'
-            }}
-          >
-            <GitBranch size={13} />
-            New branch
-          </button>
-        </div>
-      ) : (
-        !showCommitForm && (
-          <div style={{ margin: '8px' }}>
-          <div style={{
-            fontSize: '12px', marginBottom: '6px',
-            color: 'var(--vscode-descriptionForeground)',
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          }}>
-            <span>Create New Branch</span>
+      {
+        !showCommitForm && !showNewBranch ? (
+          <div style={{ margin: '8px 8px 4px 8px' }}>
             <button
-              onClick={() => setShowBranchAI(true)}
-              style={{ ...inlineBtn, color: 'var(--vscode-button-foreground)', background: 'var(--vscode-button-background)' }}
+              onClick={() => {
+                if (!isGitConnected) return;
+                closeCommitForm();
+                setShowNewBranch(true);
+              }}
+              disabled={!isGitConnected}
+              style={{
+                ...bigBtn('primary'),
+                opacity: isGitConnected ? 1 : 0.5,
+                cursor: isGitConnected ? 'pointer' : 'not-allowed'
+              }}
             >
-              <Sparkles size={11} /> AI 추천
+              <GitBranch size={13} />
+              New branch
             </button>
           </div>
-          <input
-            autoFocus
-            value={newBranchName}
-            onChange={e => setNewBranchName(e.target.value)}
-            onKeyDown={e => { if (e.key === 'Enter') handleCreateBranch(); if (e.key === 'Escape') closeBranchForm(); }}
-            placeholder="생성할 브랜치명을 작성해주세요"
-            style={{
-              width: '100%', boxSizing: 'border-box',
-              fontSize: '12px', padding: '6px 8px',
-              background: 'var(--vscode-input-background)',
-              color: 'var(--vscode-input-foreground)',
-              border: '1px solid var(--vscode-focusBorder)',
-              borderRadius: '3px', outline: 'none',
-            }}
-          />
-          </div>
+        ) : (
+          !showCommitForm && (
+            <div style={{ margin: '8px' }}>
+              <div style={{
+                fontSize: '12px', marginBottom: '6px',
+                color: 'var(--vscode-descriptionForeground)',
+                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+              }}>
+                <span>Create New Branch</span>
+                <button
+                  onClick={() => setShowBranchAI(true)}
+                  style={{ ...inlineBtn, color: 'var(--vscode-button-foreground)', background: 'var(--vscode-button-background)' }}
+                >
+                  <Sparkles size={11} /> AI 추천
+                </button>
+              </div>
+              <input
+                autoFocus
+                value={newBranchName}
+                onChange={e => setNewBranchName(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter') handleCreateBranch(); if (e.key === 'Escape') closeBranchForm(); }}
+                placeholder="생성할 브랜치명을 작성해주세요"
+                style={{
+                  width: '100%', boxSizing: 'border-box',
+                  fontSize: '12px', padding: '6px 8px',
+                  background: 'var(--vscode-input-background)',
+                  color: 'var(--vscode-input-foreground)',
+                  border: '1px solid var(--vscode-focusBorder)',
+                  borderRadius: '3px', outline: 'none',
+                }}
+              />
+            </div>
+          )
         )
-      )}
+      }
 
       {/* Create / Cancel buttons when new branch input is open */}
-      {!showCommitForm && showNewBranch && (
-        <div style={{ margin: '4px 8px', display: 'flex', gap: '8px' }}>
-          <button onClick={handleCreateBranch} style={btn('primary')}>
-            <Check size={13} /> Create
-          </button>
-          <button onClick={closeBranchForm} style={btn('secondary')}>
-            <X size={13} /> Cancel
-          </button>
-        </div>
-      )}
-
-      {/* ── Commit message form ── */}
-      {showCommitForm && (
-        <div style={{ margin: '8px' }}>
-          <div style={{
-            fontSize: '12px', marginBottom: '6px',
-            color: 'var(--vscode-descriptionForeground)',
-            display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          }}>
-            <span>Create Commit message</span>
-            <button
-              onClick={() => setShowBranchAI(true)}
-              style={{ ...inlineBtn, color: 'var(--vscode-button-foreground)', background: 'var(--vscode-button-background)' }}
-            >
-              <Sparkles size={11} /> AI 추천
-            </button>
-          </div>
-          <textarea
-            autoFocus
-            value={commitMessage}
-            onChange={e => setCommitMessage(e.target.value)}
-            placeholder="생성할 커밋명을 작성해주세요"
-            rows={3}
-            style={{
-              width: '100%', boxSizing: 'border-box', resize: 'none', fontSize: '12px',
-              padding: '8px', background: 'var(--vscode-input-background)',
-              color: 'var(--vscode-input-foreground)', border: '1px solid var(--vscode-panel-border)',
-              borderRadius: '3px', outline: 'none', fontFamily: 'inherit',
-            }}
-            onFocus={e => (e.target.style.borderColor = 'var(--vscode-focusBorder)')}
-            onBlur={e => (e.target.style.borderColor = 'var(--vscode-panel-border)')}
-          />
-          <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
-            <button onClick={handleCommit} style={btn('primary')}>
+      {
+        !showCommitForm && showNewBranch && (
+          <div style={{ margin: '4px 8px', display: 'flex', gap: '8px' }}>
+            <button onClick={handleCreateBranch} style={btn('primary')}>
               <Check size={13} /> Create
             </button>
-            <button onClick={closeCommitForm} style={btn('secondary')}>
+            <button onClick={closeBranchForm} style={btn('secondary')}>
               <X size={13} /> Cancel
             </button>
           </div>
-        </div>
-      )}
+        )
+      }
+
+      {/* ── Commit message form ── */}
+      {
+        showCommitForm && (
+          <div style={{ margin: '8px' }}>
+            <div style={{
+              fontSize: '12px', marginBottom: '6px',
+              color: 'var(--vscode-descriptionForeground)',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            }}>
+              <span>Create Commit message</span>
+              <button
+                onClick={() => setShowBranchAI(true)}
+                style={{ ...inlineBtn, color: 'var(--vscode-button-foreground)', background: 'var(--vscode-button-background)' }}
+              >
+                <Sparkles size={11} /> AI 추천
+              </button>
+            </div>
+            <textarea
+              autoFocus
+              value={commitMessage}
+              onChange={e => setCommitMessage(e.target.value)}
+              placeholder="생성할 커밋명을 작성해주세요"
+              rows={3}
+              style={{
+                width: '100%', boxSizing: 'border-box', resize: 'none', fontSize: '12px',
+                padding: '8px', background: 'var(--vscode-input-background)',
+                color: 'var(--vscode-input-foreground)', border: '1px solid var(--vscode-panel-border)',
+                borderRadius: '3px', outline: 'none', fontFamily: 'inherit',
+              }}
+              onFocus={e => (e.target.style.borderColor = 'var(--vscode-focusBorder)')}
+              onBlur={e => (e.target.style.borderColor = 'var(--vscode-panel-border)')}
+            />
+            <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+              <button onClick={handleCommit} style={btn('primary')}>
+                <Check size={13} /> Create
+              </button>
+              <button onClick={closeCommitForm} style={btn('secondary')}>
+                <X size={13} /> Cancel
+              </button>
+            </div>
+          </div>
+        )
+      }
 
       {/* ── Main Action Buttons (Grid) ── */}
-      {!showNewBranch && !showCommitForm && !showMergeForm && (
-        <div style={{ margin: '12px 8px 8px 8px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-          <button 
-            onClick={handleGitAdd} 
-            disabled={!isGitConnected}
-            style={{ ...bigBtn('secondary'), opacity: isGitConnected ? 1 : 0.5, cursor: isGitConnected ? 'pointer' : 'not-allowed' }}
-          >
-            <Plus size={13} /> Git add
-          </button>
-          <button 
-            onClick={() => isGitConnected && setShowCommitForm(true)} 
-            disabled={!isGitConnected}
-            style={{ ...bigBtn('secondary'), opacity: isGitConnected ? 1 : 0.5, cursor: isGitConnected ? 'pointer' : 'not-allowed' }}
-          >
-            <Check size={13} /> Git Commit
-          </button>
-          <button 
-            onClick={handlePush} 
-            disabled={!isGitConnected}
-            style={{ ...bigBtn('secondary'), opacity: isGitConnected ? 1 : 0.5, cursor: isGitConnected ? 'pointer' : 'not-allowed' }}
-          >
-            <ArrowUp size={13} /> Git Push
-          </button>
-          <button 
-            onClick={handleMerge} 
-            disabled={!isGitConnected}
-            style={{ ...bigBtn('secondary'), opacity: isGitConnected ? 1 : 0.5, cursor: isGitConnected ? 'pointer' : 'not-allowed' }}
-          >
-            <GitMerge size={13} /> Merge
-          </button>
-        </div>
-      )}
+      {
+        !showNewBranch && !showCommitForm && !showMergeForm && (
+          <div style={{ margin: '12px 8px 8px 8px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+            <button
+              onClick={handleGitAdd}
+              disabled={!isGitConnected}
+              style={{ ...bigBtn('secondary'), opacity: isGitConnected ? 1 : 0.5, cursor: isGitConnected ? 'pointer' : 'not-allowed' }}
+            >
+              <Plus size={13} /> Git add
+            </button>
+            <button
+              onClick={() => isGitConnected && setShowCommitForm(true)}
+              disabled={!isGitConnected}
+              style={{ ...bigBtn('secondary'), opacity: isGitConnected ? 1 : 0.5, cursor: isGitConnected ? 'pointer' : 'not-allowed' }}
+            >
+              <Check size={13} /> Git Commit
+            </button>
+            <button
+              onClick={handlePush}
+              disabled={!isGitConnected}
+              style={{ ...bigBtn('secondary'), opacity: isGitConnected ? 1 : 0.5, cursor: isGitConnected ? 'pointer' : 'not-allowed' }}
+            >
+              <ArrowUp size={13} /> Git Push
+            </button>
+            <button
+              onClick={handleMerge}
+              disabled={!isGitConnected}
+              style={{ ...bigBtn('secondary'), opacity: isGitConnected ? 1 : 0.5, cursor: isGitConnected ? 'pointer' : 'not-allowed' }}
+            >
+              <GitMerge size={13} /> Merge
+            </button>
+          </div>
+        )
+      }
 
       {/* ── No Git Guide (Empty State) ── */}
-      {!isGitConnected && (
-        <div style={{ 
-          margin: '20px 12px', padding: '16px', 
-          borderRadius: '6px', border: '1px dashed var(--vscode-panel-border)',
-          textAlign: 'center', background: 'rgba(255,255,255,0.02)'
-        }}>
-          <AlertCircle size={24} style={{ color: 'var(--vscode-descriptionForeground)', marginBottom: '10px', opacity: 0.5 }} />
-          <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '6px', color: 'var(--vscode-foreground)' }}>
-            Git 저장소를 찾을 수 없습니다
+      {
+        !isGitConnected && (
+          <div style={{
+            margin: '20px 12px', padding: '16px',
+            borderRadius: '6px', border: '1px dashed var(--vscode-panel-border)',
+            textAlign: 'center', background: 'rgba(255,255,255,0.02)'
+          }}>
+            <AlertCircle size={24} style={{ color: 'var(--vscode-descriptionForeground)', marginBottom: '10px', opacity: 0.5 }} />
+            <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '6px', color: 'var(--vscode-foreground)' }}>
+              Git 저장소를 찾을 수 없습니다
+            </div>
+            <div style={{ fontSize: '11px', color: 'var(--vscode-descriptionForeground)', lineHeight: '1.5' }}>
+              .git 폴더가 포함된 프로젝트 폴더를<br />
+              [File] &gt; [Open Folder...]로 열어주세요.
+            </div>
           </div>
-          <div style={{ fontSize: '11px', color: 'var(--vscode-descriptionForeground)', lineHeight: '1.5' }}>
-            .git 폴더가 포함된 프로젝트 폴더를<br/>
-            [File] &gt; [Open Folder...]로 열어주세요.
-          </div>
-        </div>
-      )}
+        )
+      }
 
       {/* ── Merge 브랜치 선택 폼 ── */}
-      {showMergeForm && (
-        <div style={{ margin: '8px' }}>
-          <div style={{
-            fontSize: '12px', marginBottom: '10px', fontWeight: 600,
-            color: 'var(--vscode-foreground)',
-            display: 'flex', alignItems: 'center', gap: '6px',
-          }}>
-            <GitMerge size={14} style={{ color: 'var(--vscode-charts-blue)' }} />
-            Merge 브랜치 선택
-          </div>
-
-          {/* 병합할 브랜치 (source: FROM) */}
-          <div style={{ marginBottom: '8px' }}>
-            <label style={{ fontSize: '11px', color: 'var(--vscode-descriptionForeground)', display: 'block', marginBottom: '4px' }}>
-              병합할 브랜치 (이 브랜치를 가져옵니다)
-            </label>
-            <select
-              value={mergeSource}
-              onChange={e => setMergeSource(e.target.value)}
-              style={{
-                width: '100%', boxSizing: 'border-box',
-                fontSize: '12px', padding: '6px 8px',
-                background: 'var(--vscode-input-background)',
-                color: 'var(--vscode-input-foreground)',
-                border: `1px solid ${mergeSource ? 'var(--vscode-focusBorder)' : 'var(--vscode-panel-border)'}`,
-                borderRadius: '3px', outline: 'none',
-              }}
-            >
-              <option value="">브랜치를 선택하세요</option>
-              {branches
-                .filter(b => b.name !== mergeTarget)
-                .map(b => (
-                  <option key={b.name} value={b.name}>{b.name}</option>
-                ))
-              }
-            </select>
-          </div>
-
-          {/* 기준 브랜치 (target: INTO) */}
-          <div style={{ marginBottom: '10px' }}>
-            <label style={{ fontSize: '11px', color: 'var(--vscode-descriptionForeground)', display: 'block', marginBottom: '4px' }}>
-              기준 브랜치 (여기에 합쳐집니다)
-            </label>
-            <select
-              value={mergeTarget}
-              onChange={e => setMergeTarget(e.target.value)}
-              style={{
-                width: '100%', boxSizing: 'border-box',
-                fontSize: '12px', padding: '6px 8px',
-                background: 'var(--vscode-input-background)',
-                color: 'var(--vscode-input-foreground)',
-                border: '1px solid var(--vscode-panel-border)',
-                borderRadius: '3px', outline: 'none',
-              }}
-            >
-              {branches
-                .filter(b => b.name !== mergeSource)
-                .map(b => (
-                  <option key={b.name} value={b.name}>{b.name}{b.isCurrent ? ' (현재)' : ''}</option>
-                ))
-              }
-            </select>
-          </div>
-
-          {/* Merge 방향 표시 */}
-          {mergeSource && mergeTarget && (
+      {
+        showMergeForm && (
+          <div style={{ margin: '8px' }}>
             <div style={{
-              marginBottom: '10px', padding: '6px 10px',
-              background: 'var(--vscode-editor-background)',
-              border: '1px solid var(--vscode-panel-border)',
-              borderRadius: '3px', fontSize: '11px',
-              color: 'var(--vscode-descriptionForeground)',
+              fontSize: '12px', marginBottom: '10px', fontWeight: 600,
+              color: 'var(--vscode-foreground)',
               display: 'flex', alignItems: 'center', gap: '6px',
             }}>
-              <GitBranch size={11} />
-              <span style={{ fontWeight: 600, color: 'var(--vscode-charts-blue)' }}>{mergeSource}</span>
-              <span>→</span>
-              <GitBranch size={11} />
-              <span style={{ fontWeight: 600, color: 'var(--vscode-charts-green)' }}>{mergeTarget}</span>
+              <GitMerge size={14} style={{ color: 'var(--vscode-charts-blue)' }} />
+              Merge 브랜치 선택
             </div>
-          )}
 
-          {/* 확인/취소 버튼 */}
-          <div style={{ display: 'flex', gap: '8px' }}>
-            <button
-              onClick={handleRunMerge}
-              disabled={!mergeSource || !mergeTarget || mergeSource === mergeTarget}
-              style={{
-                ...btn('primary'),
-                opacity: (!mergeSource || !mergeTarget || mergeSource === mergeTarget) ? 0.5 : 1,
-                cursor: (!mergeSource || !mergeTarget || mergeSource === mergeTarget) ? 'not-allowed' : 'pointer',
-              }}
-            >
-              <GitMerge size={13} /> Merge 실행
-            </button>
-            <button onClick={closeMergeForm} style={btn('secondary')}>
-              <X size={13} /> 취소
-            </button>
+            {/* 병합할 브랜치 (source: FROM) */}
+            <div style={{ marginBottom: '8px' }}>
+              <label style={{ fontSize: '11px', color: 'var(--vscode-descriptionForeground)', display: 'block', marginBottom: '4px' }}>
+                병합할 브랜치 (이 브랜치를 가져옵니다)
+              </label>
+              <select
+                value={mergeSource}
+                onChange={e => setMergeSource(e.target.value)}
+                style={{
+                  width: '100%', boxSizing: 'border-box',
+                  fontSize: '12px', padding: '6px 8px',
+                  background: 'var(--vscode-input-background)',
+                  color: 'var(--vscode-input-foreground)',
+                  border: `1px solid ${mergeSource ? 'var(--vscode-focusBorder)' : 'var(--vscode-panel-border)'}`,
+                  borderRadius: '3px', outline: 'none',
+                }}
+              >
+                <option value="">브랜치를 선택하세요</option>
+                {branches
+                  .filter(b => b.name !== mergeTarget)
+                  .map(b => (
+                    <option key={b.name} value={b.name}>{b.name}</option>
+                  ))
+                }
+              </select>
+            </div>
+
+            {/* 기준 브랜치 (target: INTO) */}
+            <div style={{ marginBottom: '10px' }}>
+              <label style={{ fontSize: '11px', color: 'var(--vscode-descriptionForeground)', display: 'block', marginBottom: '4px' }}>
+                기준 브랜치 (여기에 합쳐집니다)
+              </label>
+              <select
+                value={mergeTarget}
+                onChange={e => setMergeTarget(e.target.value)}
+                style={{
+                  width: '100%', boxSizing: 'border-box',
+                  fontSize: '12px', padding: '6px 8px',
+                  background: 'var(--vscode-input-background)',
+                  color: 'var(--vscode-input-foreground)',
+                  border: '1px solid var(--vscode-panel-border)',
+                  borderRadius: '3px', outline: 'none',
+                }}
+              >
+                {branches
+                  .filter(b => b.name !== mergeSource)
+                  .map(b => (
+                    <option key={b.name} value={b.name}>{b.name}{b.isCurrent ? ' (현재)' : ''}</option>
+                  ))
+                }
+              </select>
+            </div>
+
+            {/* Merge 방향 표시 */}
+            {mergeSource && mergeTarget && (
+              <div style={{
+                marginBottom: '10px', padding: '6px 10px',
+                background: 'var(--vscode-editor-background)',
+                border: '1px solid var(--vscode-panel-border)',
+                borderRadius: '3px', fontSize: '11px',
+                color: 'var(--vscode-descriptionForeground)',
+                display: 'flex', alignItems: 'center', gap: '6px',
+              }}>
+                <GitBranch size={11} />
+                <span style={{ fontWeight: 600, color: 'var(--vscode-charts-blue)' }}>{mergeSource}</span>
+                <span>→</span>
+                <GitBranch size={11} />
+                <span style={{ fontWeight: 600, color: 'var(--vscode-charts-green)' }}>{mergeTarget}</span>
+              </div>
+            )}
+
+            {/* 확인/취소 버튼 */}
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                onClick={handleRunMerge}
+                disabled={!mergeSource || !mergeTarget || mergeSource === mergeTarget}
+                style={{
+                  ...btn('primary'),
+                  opacity: (!mergeSource || !mergeTarget || mergeSource === mergeTarget) ? 0.5 : 1,
+                  cursor: (!mergeSource || !mergeTarget || mergeSource === mergeTarget) ? 'not-allowed' : 'pointer',
+                }}
+              >
+                <GitMerge size={13} /> Merge 실행
+              </button>
+              <button onClick={closeMergeForm} style={btn('secondary')}>
+                <X size={13} /> 취소
+              </button>
+            </div>
           </div>
-        </div>
-      )}
+        )
+      }
 
       {/* 백엔드 에러 / 알림 표시 (ERROR, NOTIFICATION, GIT_OPERATION_RESULT) */}
-      {globalNotification && (
-        <div style={{
-          margin: '8px',
-          padding: '8px 10px',
-          fontSize: '12px',
-          display: 'flex',
-          alignItems: 'flex-start',
-          gap: '8px',
-          borderRadius: '3px',
-          border: `1px solid ${
-            globalNotification.type === 'error' ? 'var(--vscode-inputValidation-errorBorder)'
-            : globalNotification.type === 'warning' ? 'var(--vscode-inputValidation-warningBorder)'
-            : 'var(--vscode-focusBorder)'
-          }`,
-          background: `${
-            globalNotification.type === 'error' ? 'var(--vscode-inputValidation-errorBackground)'
-            : globalNotification.type === 'warning' ? 'var(--vscode-inputValidation-warningBackground)'
-            : 'var(--vscode-inputValidation-infoBackground)'
-          }`,
-          color: `${
-            globalNotification.type === 'error' ? 'var(--vscode-errorForeground)'
-            : 'var(--vscode-foreground)'
-          }`,
-        }}>
-          {globalNotification.type === 'error'
-            ? <AlertCircle size={13} style={{ flexShrink: 0, marginTop: '1px' }} />
-            : <Info size={13} style={{ flexShrink: 0, marginTop: '1px' }} />
-          }
-          <span style={{ flex: 1, lineHeight: 1.4 }}>{globalNotification.message}</span>
-          <button
-            onClick={clearGlobalNotification}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0', color: 'inherit', opacity: 0.7, flexShrink: 0 }}
-          >
-            <X size={12} />
-          </button>
-        </div>
-      )}
+      {
+        globalNotification && (
+          <div style={{
+            margin: '8px',
+            padding: '8px 10px',
+            fontSize: '12px',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '8px',
+            borderRadius: '3px',
+            border: `1px solid ${globalNotification.type === 'error' ? 'var(--vscode-inputValidation-errorBorder)'
+              : globalNotification.type === 'warning' ? 'var(--vscode-inputValidation-warningBorder)'
+                : 'var(--vscode-focusBorder)'
+              }`,
+            background: `${globalNotification.type === 'error' ? 'var(--vscode-inputValidation-errorBackground)'
+              : globalNotification.type === 'warning' ? 'var(--vscode-inputValidation-warningBackground)'
+                : 'var(--vscode-inputValidation-infoBackground)'
+              }`,
+            color: `${globalNotification.type === 'error' ? 'var(--vscode-errorForeground)'
+              : 'var(--vscode-foreground)'
+              }`,
+          }}>
+            {globalNotification.type === 'error'
+              ? <AlertCircle size={13} style={{ flexShrink: 0, marginTop: '1px' }} />
+              : <Info size={13} style={{ flexShrink: 0, marginTop: '1px' }} />
+            }
+            <span style={{ flex: 1, lineHeight: 1.4 }}>{globalNotification.message}</span>
+            <button
+              onClick={clearGlobalNotification}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0', color: 'inherit', opacity: 0.7, flexShrink: 0 }}
+            >
+              <X size={12} />
+            </button>
+          </div>
+        )
+      }
 
       {/* Status feedback message */}
-      {statusMsg && (
-        <div style={{
-          margin: '8px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px',
-          color: statusMsg.ok ? 'var(--vscode-charts-green)' : 'var(--vscode-errorForeground)',
-        }}>
-          <Check size={13} />
-          {statusMsg.text}
-        </div>
-      )}
+      {
+        statusMsg && (
+          <div style={{
+            margin: '8px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px',
+            color: statusMsg.ok ? 'var(--vscode-charts-green)' : 'var(--vscode-errorForeground)',
+          }}>
+            <Check size={13} />
+            {statusMsg.text}
+          </div>
+        )
+      }
 
       {/* ── AI Prompt Webview Panel ── */}
-      {showBranchAI && (
-        <div style={{
-          margin: '12px 8px 8px 8px', padding: '12px',
-          background: 'var(--vscode-editor-background)',
-          border: '1px solid var(--vscode-charts-purple)',
-          boxShadow: '0 0 10px rgba(197, 134, 192, 0.1)',
-          borderRadius: '4px',
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', marginBottom: '10px', fontSize: '12px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--vscode-charts-purple)', fontWeight: 600 }}>
-              <Sparkles size={14} /> AI 텍스트 추천
+      {
+        showBranchAI && (
+          <div style={{
+            margin: '12px 8px 8px 8px', padding: '12px',
+            background: 'var(--vscode-editor-background)',
+            border: '1px solid var(--vscode-charts-purple)',
+            boxShadow: '0 0 10px rgba(197, 134, 192, 0.1)',
+            borderRadius: '4px',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', marginBottom: '10px', fontSize: '12px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--vscode-charts-purple)', fontWeight: 600 }}>
+                <Sparkles size={14} /> AI 텍스트 추천
+              </div>
+            </div>
+            <textarea
+              autoFocus
+              value={aiPrompt}
+              onChange={e => setAiPrompt(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleAISubmit();
+                }
+                if (e.key === 'Escape') {
+                  closeAIPrompt();
+                }
+              }}
+              placeholder={aiPromptPlaceholder}
+              rows={4}
+              style={{
+                width: '100%', boxSizing: 'border-box', resize: 'none', fontSize: '12px',
+                padding: '8px', background: 'var(--vscode-input-background)',
+                color: 'var(--vscode-input-foreground)', border: '1px solid var(--vscode-panel-border)',
+                borderRadius: '3px', outline: 'none', fontFamily: 'inherit',
+              }}
+            />
+            <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
+              <button
+                onClick={handleAISubmit}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  flex: 1,
+                  fontSize: '12px',
+                  fontWeight: 500,
+                  padding: '6px 12px',
+                  background: 'var(--vscode-charts-purple)',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '3px',
+                  cursor: 'pointer'
+                }}
+              >
+                <CornerDownRight size={13} /> Enter
+              </button>
+              <button
+                onClick={closeAIPrompt}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  flex: 1,
+                  fontSize: '12px',
+                  fontWeight: 500,
+                  padding: '6px 12px',
+                  background: 'var(--vscode-button-secondaryBackground)',
+                  color: 'var(--vscode-button-secondaryForeground)',
+                  border: 'none',
+                  borderRadius: '3px',
+                  cursor: 'pointer'
+                }}
+              >
+                <X size={13} /> Cancel
+              </button>
             </div>
           </div>
-          <textarea
-            autoFocus
-            value={aiPrompt}
-            onChange={e => setAiPrompt(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleAISubmit();
-              }
-              if (e.key === 'Escape') {
-                closeAIPrompt();
-              }
-            }}
-            placeholder={aiPromptPlaceholder}
-            rows={4}
-            style={{
-              width: '100%', boxSizing: 'border-box', resize: 'none', fontSize: '12px',
-              padding: '8px', background: 'var(--vscode-input-background)',
-              color: 'var(--vscode-input-foreground)', border: '1px solid var(--vscode-panel-border)',
-              borderRadius: '3px', outline: 'none', fontFamily: 'inherit',
-            }}
-          />
-          <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
-            <button
-              onClick={handleAISubmit}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px',
-                flex: 1,
-                fontSize: '12px',
-                fontWeight: 500,
-                padding: '6px 12px',
-                background: 'var(--vscode-charts-purple)',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '3px',
-                cursor: 'pointer'
-              }}
-            >
-              <CornerDownRight size={13} /> Enter
-            </button>
-            <button
-              onClick={closeAIPrompt}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px',
-                flex: 1,
-                fontSize: '12px',
-                fontWeight: 500,
-                padding: '6px 12px',
-                background: 'var(--vscode-button-secondaryBackground)',
-                color: 'var(--vscode-button-secondaryForeground)',
-                border: 'none',
-                borderRadius: '3px',
-                cursor: 'pointer'
-              }}
-            >
-              <X size={13} /> Cancel
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
+        )
+      }
+    </div >
   );
 };
 

@@ -25,7 +25,7 @@ interface GitCatState {
   isAnalyzing: boolean;
   isRefreshingStatus: boolean;
   lastStatusRefreshAt: number | null;
-  
+
   // Phase 2 New Data
   branches: Branch[];
   aiCommitSuggestion: string;
