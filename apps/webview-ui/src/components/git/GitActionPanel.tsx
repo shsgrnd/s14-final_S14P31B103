@@ -124,7 +124,7 @@ export const GitActionPanel: React.FC = () => {
     closeBranchForm();
   };
 
-  const selectableBranches = branches.filter((branch) => branch.name !== currentBranch);
+  const selectableBranches = branches.filter((branch) => branch.name !== currentBranch && !branch.isRemote);
 
   const handleAISubmit = () => {
     const prompt = aiPrompt.trim();
@@ -287,7 +287,7 @@ export const GitActionPanel: React.FC = () => {
                   )}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '10px', color: 'var(--vscode-descriptionForeground)' }}>
-                  <Clock size={10} /> {b.lastActivity}
+                  <Clock size={10} /> {b.lastActivity?.split(' +')[0]}
                 </div>
               </div>
             );
