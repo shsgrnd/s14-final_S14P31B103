@@ -63,7 +63,7 @@ export class BranchCleanupService {
       if (branch.isRemote) continue; // 로컬 브랜치만 대상
 
       const isCurrent = branch.isCurrent;
-      const isProtected = settings.protectedBranches.includes(branch.name);
+      const isProtected = branch.status === 'protected';
 
       const commitDate = branch.lastActivity ? new Date(branch.lastActivity) : new Date();
       const isOlderThanThreshold = commitDate < thresholdDate;
