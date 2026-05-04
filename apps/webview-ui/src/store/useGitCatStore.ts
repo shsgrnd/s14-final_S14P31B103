@@ -32,10 +32,6 @@ interface GitCatState {
   expandedSections: string[];
   expandedSnapshotId: string | null;
 
-  // Refresh status
-  isRefreshingStatus: boolean;
-  lastStatusRefreshAt: number | null;
-
   // 전역 알림 (백엔드 ERROR / NOTIFICATION / GIT_OPERATION_RESULT 수신 시 설정)
   globalNotification: GlobalNotification | null;
 
@@ -55,7 +51,6 @@ interface GitCatState {
   setExpandedSnapshotId: (id: string | null) => void;
   clearGlobalNotification: () => void;
   setStashes: (stashes: StashEntry[]) => void;
-  setRefreshingStatus: (isRefreshingStatus: boolean) => void;
 
   handleMessage: (event: MessageEvent<OutboundMessage>) => void;
 }
@@ -74,8 +69,6 @@ export const useGitCatStore = create<GitCatState>((set) => ({
   expandedSnapshotId: null,
   globalNotification: null,
   stashes: [],
-  isRefreshingStatus: false,
-  lastStatusRefreshAt: null,
 
   setSnapshots: (snapshots) => set({ snapshots }),
   setConflicts: (conflicts) => set({ conflicts }),
@@ -87,7 +80,6 @@ export const useGitCatStore = create<GitCatState>((set) => ({
   setAICommitSuggestion: (aiCommitSuggestion) => set({ aiCommitSuggestion }),
   clearGlobalNotification: () => set({ globalNotification: null }),
   setStashes: (stashes) => set({ stashes }),
-  setRefreshingStatus: (isRefreshingStatus) => set({ isRefreshingStatus }),
 
   toggleSection: (sectionId) => set((state) => ({
     expandedSections: state.expandedSections.includes(sectionId)
@@ -131,11 +123,6 @@ export const useGitCatStore = create<GitCatState>((set) => ({
         break;
       case 'COMMIT_SUGGESTIONS':
         set({ aiCommitSuggestion: payload.suggestions.description });
-        break;
-      case 'LOADING':
-        if (payload.target === 'status') {
-          set({ isRefreshingStatus: payload.loading });
-        }
         break;
 
       // ── 백엔드 에러 / 알림 수신 처리 ──
