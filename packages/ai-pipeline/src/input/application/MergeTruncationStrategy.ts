@@ -21,6 +21,8 @@ export class MergeTruncationStrategy implements ITruncationStrategy<MergeProposa
   ) {}
 
   truncate(payload: MergeProposalInput, config: ModelTokenConfig): MergeProposalInput {
+    // 절단 전 원본 토큰 수를 미리 기록해두어, 3단계 경고 메시지에 정확하게 활용합니다.
+    const initialTokens = this.tokenCounter.countPayloadTokens(payload);
     let result = { ...payload };
 
     // 1단계: conflict_candidates 코드 windowSize 축소
@@ -38,7 +40,6 @@ export class MergeTruncationStrategy implements ITruncationStrategy<MergeProposa
     }
 
     // 3단계: risk_summary에 경고 삽입
-    const initialTokens = this.tokenCounter.countPayloadTokens(payload);
     result = this.stage3_warnOnly(result, initialTokens);
     console.warn('[MergeTruncationStrategy] 3단계까지 절단했으나 여전히 초과. risk_summary에 경고 삽입.');
     return result;
