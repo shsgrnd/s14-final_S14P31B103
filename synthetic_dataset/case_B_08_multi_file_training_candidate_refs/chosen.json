@@ -1,0 +1,8 @@
+{
+  "title": "training candidate ref 동기화 병합",
+  "summary": "prompt_ref와 rejected_ref를 양자택일하지 않고 둘 다 유지하도록 multi-file 병합했습니다.",
+  "explanation": "SFT와 DPO 경로는 필요한 ref가 다릅니다. prompt_ref는 공통 입력 복원에 필요하고, rejected_ref는 DPO 비교쌍 생성에 필요합니다. 한쪽만 선택하면 특정 데이터셋 유형에서 materialization이 불완전해집니다.",
+  "merged_code": "--- FILE: packages/ai-pipeline/src/feedback/training-candidate.ts ---\nconst payload: TrainingCandidatePayload = {\n  training_candidate_id: input.training_candidate_id ?? generateTrainingCandidateId(),\n  proposal_id: input.parsed_result.proposal_id,\n  feedback_id: input.feedback.feedback_id,\n  dataset_type: input.dataset_type,\n  source_type: resolveSourceType(input.parsed_result),\n  prompt_ref: input.prompt_ref,\n  chosen_ref: input.chosen_ref,\n  rejected_ref: input.rejected_ref,\n};\n\n--- FILE: packages/ai-pipeline/src/feedback/feedback-persistence-plan.ts ---\nprompt_ref:\n  input.training_candidate.prompt_ref ??\n  materializedTrainingCandidateArtifacts?.prompt_ref,\nrejected_ref:\n  input.training_candidate.rejected_ref ??\n  materializedTrainingCandidateArtifacts?.rejected_ref,",
+  "validation_summary": "sft와 dpo 두 경로 모두에서 payload 스키마 검증이 통과하는지, prompt/chosen/rejected artifact ref가 실제 파일 경로를 가리키는지 확인해야 합니다."
+}
+

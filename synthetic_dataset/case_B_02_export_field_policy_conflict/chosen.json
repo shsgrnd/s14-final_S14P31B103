@@ -1,0 +1,13 @@
+{
+  "title": "학습용 chosen payload 메타데이터 포함 충돌 분석",
+  "summary": "한쪽은 모델 학습용 본문 필드만 남겼고, 다른 쪽은 proposal_id와 session_id 같은 시스템 메타데이터도 함께 export하려고 했습니다.",
+  "cause_summary": "디버깅 편의와 학습용 데이터 정제 원칙이 충돌했습니다.",
+  "detailed_explanation": "SQLite와 로컬 artifact에는 시스템 메타데이터를 보존해야 하지만, 최종 SFT/DPO JSONL에는 이런 값이 남지 않아야 합니다. 메타데이터가 학습셋에 포함되면 모델이 의미 없는 ID 문자열까지 정답 패턴으로 학습할 위험이 있습니다.",
+  "related_files": [
+    "packages/ai-pipeline/trainer/dataset_builder/build_jsonl.py",
+    "infra/docs/personal/12_export_field_policy.md"
+  ],
+  "recommended_resolution_direction": "디버깅용 메타데이터는 artifact 원본에만 저장하고, export 시점에는 title/summary/explanation/merged_code 같은 학습 본문 필드만 남기도록 유지합니다.",
+  "risk_level": "high"
+}
+

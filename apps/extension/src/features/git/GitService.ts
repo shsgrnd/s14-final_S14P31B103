@@ -8,8 +8,8 @@
  * simple-git / CLI 세부 사항은 알 필요 없다.
  */
 
-import type { IGitClient, BranchInfo, LogEntry, MergeResult, FileStatusEntry } from '@gitcat/git-core';
-import type { GitFileStatus, GitFileStatusType, WorktreeInfo } from '@gitcat/shared-types';
+import type { IGitClient, BranchInfo, LogEntry, MergeResult, FileStatusEntry, DiffResult } from '@gitcat/git-core';
+import type { GitFileStatus, GitStatusSummary, GitFileStatusType, WorktreeInfo } from '@gitcat/shared-types';
 import type { GitMetadataSyncService } from './GitMetadataSyncService';
 
 // ─── Webview 응답용 DTO ───────────────────────────────────────────────────────
@@ -103,8 +103,8 @@ export class GitService {
       behind: status.behind,
       staged: status.staged.map((entry) => this.toGitFileStatus(entry, entry.index)),
       unstaged: status.unstaged.map((entry) => this.toGitFileStatus(entry, entry.working_dir)),
-      untracked: status.untracked.map((path) => ({ path, status: 'UNTRACKED' })),
-      conflicted: status.conflicted.map((path) => ({ path, status: 'CONFLICTED' })),
+      untracked: status.untracked.map((path) => ({ name: this.toFileName(path), path, status: 'UNTRACKED' })),
+      conflicted: status.conflicted.map((path) => ({ name: this.toFileName(path), path, status: 'CONFLICTED' })),
       isConflict: status.isConflict,
       isMergeInProgress: status.isMerging,
       isMerging: status.isMerging,
@@ -130,6 +130,51 @@ export class GitService {
     return {
       ...status,
       worktrees,
+    };
+  }
+
+  async getStatusSummary(options: { fetchRemote?: boolean } = {}): Promise<GitStatusSummary> {
+    const status = await this.getStatusWithWorktrees(options);
+    const unstagedCount = status.unstaged.length;
+    const stagedCount = status.staged.length;
+    const untrackedCount = status.untracked.length;
+    const conflictedCount = status.conflicted.length;
+    const totalChangedCount = unstagedCount + stagedCount + untrackedCount + conflictedCount;
+    const hasConflicts = conflictedCount > 0 || status.isConflict;
+    const canCommit = stagedCount > 0 && !hasConflicts;
+    const canPull = status.behind > 0 && totalChangedCount === 0 && !hasConflicts;
+    const canPush = status.ahead > 0 && status.behind === 0 && totalChangedCount === 0 && !hasConflicts;
+    const pushable = status.ahead > 0
+      ? (await this.gitClient.getUnpushedFiles()).map((entry) => this.toGitFileStatusFromDiff(entry))
+      : [];
+
+    return {
+      branch: status.currentBranch,
+      ahead: status.ahead,
+      behind: status.behind,
+      unstagedCount,
+      stagedCount,
+      pushableCount: pushable.length,
+      untrackedCount,
+      conflictedCount,
+      totalChangedCount,
+      canCommit,
+      canPush,
+      canPull,
+      hasConflicts,
+      nextAction: this.toStatusSummaryNextAction({
+        hasConflicts,
+        unstagedCount,
+        untrackedCount,
+        stagedCount,
+        canPull,
+        canPush,
+      }),
+      unstaged: status.unstaged,
+      staged: status.staged,
+      pushable,
+      untracked: status.untracked,
+      conflicted: status.conflicted,
     };
   }
 
@@ -160,11 +205,42 @@ export class GitService {
     return ['main', 'master', 'develop', 'dev'].includes(name);
   }
 
+  private toStatusSummaryNextAction(input: {
+    hasConflicts: boolean;
+    unstagedCount: number;
+    untrackedCount: number;
+    stagedCount: number;
+    canPull: boolean;
+    canPush: boolean;
+  }): GitStatusSummary['nextAction'] {
+    if (input.hasConflicts) return 'RESOLVE_CONFLICTS';
+    if (input.unstagedCount > 0 || input.untrackedCount > 0) return 'ADD_CHANGES';
+    if (input.stagedCount > 0) return 'COMMIT_CHANGES';
+    if (input.canPull) return 'PULL_CHANGES';
+    if (input.canPush) return 'PUSH_COMMITS';
+    return 'UP_TO_DATE';
+  }
+
   private toGitFileStatus(entry: FileStatusEntry, code: string): GitFileStatus {
     return {
+      name: this.toFileName(entry.path),
       path: entry.path,
       status: this.toGitFileStatusType(code),
     };
+  }
+
+  private toGitFileStatusFromDiff(entry: DiffResult): GitFileStatus {
+    return {
+      name: this.toFileName(entry.filePath),
+      path: entry.filePath,
+      status: this.toGitFileStatusType(entry.status),
+      additions: entry.additions,
+      deletions: entry.deletions,
+    };
+  }
+
+  private toFileName(path: string): string {
+    return path.split(/[\\/]/).filter(Boolean).pop() ?? path;
   }
 
   private toGitFileStatusType(code: string): GitFileStatusType {

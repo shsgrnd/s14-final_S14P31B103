@@ -1,0 +1,8 @@
+{
+  "title": "DPO rejected_ref 필수 규칙 유지",
+  "summary": "DPO dataset은 최종적으로 rejected artifact ref가 반드시 필요하므로, rejected_reason만으로 저장을 통과시키지 않도록 병합했습니다.",
+  "explanation": "rejected_reason은 보조 메모일 뿐이고, 실제 DPO 학습에는 비교 대상 본문이 저장된 rejected_ref가 필요합니다. rejected_reason만 허용하면 payload 검증을 일시적으로 우회할 수는 있어도 export 단계에서 실제 비교 샘플을 만들 수 없습니다.",
+  "merged_code": "if (input.dataset_type === 'dpo' && !input.rejected_ref) {\n  throw new Error('rejected_ref is required for dpo dataset');\n}",
+  "validation_summary": "DPO용 materializeTrainingCandidateArtifacts가 항상 rejected_ref를 생성하는지, buildTrainingCandidatePayload의 스키마 검증과 일치하는지 확인해야 합니다."
+}
+

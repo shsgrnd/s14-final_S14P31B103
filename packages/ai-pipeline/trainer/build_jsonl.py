@@ -3,7 +3,8 @@ import json
 import glob
 
 # 설정
-DATA_DIR = "./"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DATA_DIR = os.path.abspath(os.path.join(BASE_DIR, "..", "..", "..", "synthetic_dataset"))
 OUTPUT_FILE = "../data/synthetic_conflict_dataset.jsonl"
 
 def build_jsonl():

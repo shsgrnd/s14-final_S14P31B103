@@ -191,18 +191,18 @@ AI가 최종적으로 뱉어내야 할 정답지입니다. **단순한 소스 �
 - [ ] 팀원 A: `A_10_artifact_writer_call_removed`
 - [ ] 팀원 A: `A_11_result_status_explanation_gap`
 - [ ] 팀원 A: `A_12_multi_file_prompt_chosen_alignment`
-- [ ] 팀원 B: `B_01_feedback_ref_rule_conflict`
-- [ ] 팀원 B: `B_02_export_field_policy_conflict`
-- [ ] 팀원 B: `B_03_dependency_version_split`
-- [ ] 팀원 B: `B_04_multi_file_artifact_linkage`
-- [ ] 팀원 B: `B_05_final_code_ref_missing_guard`
-- [ ] 팀원 B: `B_06_repository_input_field_rename`
-- [ ] 팀원 B: `B_07_jsonl_export_escape_mismatch`
-- [ ] 팀원 B: `B_08_multi_file_training_candidate_refs`
-- [ ] 팀원 B: `B_09_package_manager_lock_drift`
-- [ ] 팀원 B: `B_10_rejected_ref_required_conflict`
-- [ ] 팀원 B: `B_11_dataset_type_explanation_conflict`
-- [ ] 팀원 B: `B_12_multi_file_feedback_materializer_sync`
+- [x] 팀원 B: `B_01_feedback_ref_rule_conflict`
+- [x] 팀원 B: `B_02_export_field_policy_conflict`
+- [x] 팀원 B: `B_03_dependency_version_split`
+- [x] 팀원 B: `B_04_multi_file_artifact_linkage`
+- [x] 팀원 B: `B_05_final_code_ref_missing_guard`
+- [x] 팀원 B: `B_06_repository_input_field_rename`
+- [x] 팀원 B: `B_07_jsonl_export_escape_mismatch`
+- [x] 팀원 B: `B_08_multi_file_training_candidate_refs`
+- [x] 팀원 B: `B_09_package_manager_lock_drift`
+- [x] 팀원 B: `B_10_rejected_ref_required_conflict`
+- [x] 팀원 B: `B_11_dataset_type_explanation_conflict`
+- [x] 팀원 B: `B_12_multi_file_feedback_materializer_sync`
 - [x] 팀원 C: `C_01_message_contract_drift`
 - [x] 팀원 C: `C_02_async_retry_conflict`
 - [x] 팀원 C: `C_03_formatting_only_conflict`
