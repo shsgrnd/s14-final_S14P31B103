@@ -6,6 +6,8 @@ import { SidebarLayout } from './components/layout/SidebarLayout';
 import { MainPanelLayout } from './components/layout/MainPanelLayout';
 import { LoadingFallback } from './components/common/LoadingFallback';
 
+const AUTO_STATUS_REFRESH_INTERVAL_MS = 20_000;
+
 // GITCAT_LOGO_URI는 LoadingFallback에서 사용하므로 여기서 타입 선언 유지
 declare global {
   interface Window {
@@ -52,9 +54,18 @@ function App() {
     // 3. 연결된 것이 확인되면 나머지 데이터(스냅샷, 브랜치 등)를 가져옴
     initialFetchDone.current = true;
     sendMessage('GET_SNAPSHOT_LIST', {});
+    sendMessage('REFRESH_STATUS', { fetchRemote: true });
     sendMessage('GET_BRANCH_LIST', {});
     sendMessage('GET_STASH_LIST', {}); // 스태시 목록도 함께 요청
   }, [isGitConnected]);
+
+  useEffect(() => {
+    const refreshTimer = window.setInterval(() => {
+      sendMessage('REFRESH_STATUS', { fetchRemote: true });
+    }, AUTO_STATUS_REFRESH_INTERVAL_MS);
+
+    return () => window.clearInterval(refreshTimer);
+  }, []);
 
   // ── 로딩 스플래시 타이머 ──
   useEffect(() => {

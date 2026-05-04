@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { GitBranch, Plus, ArrowUp, GitMerge, Check, Sparkles, ChevronDown, ChevronUp, X, CornerDownRight, Clock, AlertCircle, Info, RotateCw } from 'lucide-react';
+import { GitBranch, Plus, ArrowUp, GitMerge, Check, Sparkles, ChevronDown, ChevronUp, X, CornerDownRight, Clock, AlertCircle, Info, RefreshCw } from 'lucide-react';
 import { useGitCatStore } from '../../store/useGitCatStore';
 import { useVsCodeApi } from '../../hooks/useVsCodeApi';
 import { btn, bigBtn, inlineBtn } from '../../shared/styles';
@@ -104,13 +104,6 @@ export const GitActionPanel: React.FC = () => {
     closeMergeForm();
   };
 
-  const handleRefreshStatus = (event: React.MouseEvent<HTMLButtonElement>) => {
-    event.stopPropagation();
-    setIsRefreshPressed(true);
-    sendMessage('REFRESH_STATUS', {});
-    window.setTimeout(() => setIsRefreshPressed(false), 700);
-  };
-
   const refreshStatusLabel = isRefreshingStatus 
     ? 'Refreshing Git status...' 
     : lastStatusRefreshAt 
@@ -118,6 +111,12 @@ export const GitActionPanel: React.FC = () => {
       : 'Not refreshed yet';
       
   const isRefreshActive = isRefreshingStatus || isRefreshPressed;
+  const handleRefreshStatus = (event: React.MouseEvent<HTMLButtonElement>) => {
+    event.stopPropagation();
+    setIsRefreshPressed(true);
+    sendMessage('REFRESH_STATUS', { fetchRemote: true });
+    window.setTimeout(() => setIsRefreshPressed(false), 700);
+  };
 
   const handleCreateBranch = () => {
     if (!newBranchName.trim()) return;
@@ -183,7 +182,7 @@ export const GitActionPanel: React.FC = () => {
               disabled={isRefreshingStatus || !isGitConnected}
               style={iconBtnStyle(isRefreshActive)}
             >
-              <RotateCw 
+              <RefreshCw 
                 size={13} 
                 style={{ 
                   color: isRefreshActive ? 'var(--vscode-button-foreground)' : 'var(--vscode-descriptionForeground)',

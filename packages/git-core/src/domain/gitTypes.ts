@@ -20,6 +20,8 @@ export interface FileStatusEntry {
  * Webview 로 내보낼 때는 OutboundPayloadSchemaMap.GIT_STATUS_UPDATED.status 에 매핑
  */
 export interface GitStatus {
+  repoRoot: string;
+  currentWorktreePath: string;
   currentBranch: string;
   isDetachedHead: boolean;
   ahead: number;
@@ -28,6 +30,7 @@ export interface GitStatus {
   unstaged: FileStatusEntry[];
   untracked: string[];
   conflicted: string[];
+  isConflict: boolean;
   isMerging: boolean;
   isRebasing: boolean;
 }

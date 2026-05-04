@@ -21,6 +21,8 @@ export interface IGitClient {
   /** 현재 Git 저장소 상태 (staged / unstaged / untracked / currentBranch 등) */
   getStatus(): Promise<GitStatus>;
 
+  fetchAllPrune(): Promise<void>;
+
   /** 로컬 브랜치 목록 반환 */
   getBranches(): Promise<BranchInfo[]>;
 

@@ -23,7 +23,9 @@ interface GitCatState {
   currentAIDraft: AIDraft | null;
   currentBranch: string;
   isAnalyzing: boolean;
-
+  isRefreshingStatus: boolean;
+  lastStatusRefreshAt: number | null;
+  
   // Phase 2 New Data
   branches: Branch[];
   aiCommitSuggestion: string;
@@ -46,6 +48,7 @@ interface GitCatState {
   setAIDraft: (draft: AIDraft | null) => void;
   setCurrentBranch: (branch: string) => void;
   setAnalyzing: (isAnalyzing: boolean) => void;
+  setRefreshingStatus: (isRefreshingStatus: boolean) => void;
   setBranches: (branches: Branch[]) => void;
   setAICommitSuggestion: (suggestion: string) => void;
   toggleSection: (sectionId: string) => void;
@@ -63,6 +66,8 @@ export const useGitCatStore = create<GitCatState>((set) => ({
   currentAIDraft: null,
   currentBranch: '',
   isAnalyzing: false,
+  isRefreshingStatus: false,
+  lastStatusRefreshAt: null,
   branches: [],
   aiCommitSuggestion: '',
   expandedSections: ['safety', 'branch'],
@@ -77,6 +82,7 @@ export const useGitCatStore = create<GitCatState>((set) => ({
   setAIDraft: (currentAIDraft) => set({ currentAIDraft }),
   setCurrentBranch: (currentBranch) => set({ currentBranch }),
   setAnalyzing: (isAnalyzing) => set({ isAnalyzing }),
+  setRefreshingStatus: (isRefreshingStatus) => set({ isRefreshingStatus }),
   setBranches: (branches) => set({ branches }),
   setAICommitSuggestion: (aiCommitSuggestion) => set({ aiCommitSuggestion }),
   clearGlobalNotification: () => set({ globalNotification: null }),
@@ -104,11 +110,16 @@ export const useGitCatStore = create<GitCatState>((set) => ({
         set({ branches: payload.branches });
         break;
       case 'GIT_STATUS_UPDATED':
-        set({ 
-          currentBranch: payload.status.branch ?? 'HEAD',
+        set({
+          currentBranch: payload.status.branch ?? (payload.status as any).currentBranch ?? 'HEAD',
           isRefreshingStatus: false,
-          lastStatusRefreshAt: Date.now()
+          lastStatusRefreshAt: Date.now(),
         });
+        break;
+      case 'LOADING':
+        if (payload.target === 'status') {
+          set({ isRefreshingStatus: payload.loading });
+        }
         break;
       case 'CONFLICT_RESULT':
         set({ conflicts: payload.candidates });
