@@ -44,13 +44,13 @@ function App() {
     if (initialFetchDone.current) return;
     initialFetchDone.current = true;
     sendMessage('GET_SNAPSHOT_LIST', {});
-    sendMessage('REFRESH_STATUS', {});
+    sendMessage('REFRESH_STATUS', { fetchRemote: true });
     sendMessage('GET_BRANCH_LIST', {});
   }, []);
 
   useEffect(() => {
     const refreshTimer = window.setInterval(() => {
-      sendMessage('REFRESH_STATUS', {});
+      sendMessage('REFRESH_STATUS', { fetchRemote: true });
     }, AUTO_STATUS_REFRESH_INTERVAL_MS);
 
     return () => window.clearInterval(refreshTimer);

@@ -142,7 +142,8 @@ export class GitMessageHandler {
   ): Promise<void> {
     this.sendLoading(webview, 'status', true);
     try {
-      if (payload?.fetchRemote) {
+      const fetchRemote = payload?.fetchRemote ?? true;
+      if (fetchRemote) {
         await this.gitService.fetchAllPrune();
       }
       const [status, branches] = await Promise.all([

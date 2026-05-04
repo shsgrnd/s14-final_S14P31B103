@@ -32,6 +32,7 @@ export class GitStatusRefreshController implements vscode.Disposable {
 
     this.isRefreshing = true;
     try {
+      await this.gitService.fetchAllPrune();
       const [status, branches] = await Promise.all([
         this.gitService.getStatusWithWorktrees(),
         this.gitService.getBranches(),
