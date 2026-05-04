@@ -1,0 +1,8 @@
+{
+  "title": "UI 피드백 플로우 확장 중재 - 단순 결과 vs 풍부한 결과 payload",
+  "summary": "extension의 RecommendPanel과 ai-pipeline의 RecommendationService 모두 feature 브랜치 방향(풍부한 결과 payload)으로 중재합니다. 두 파일의 변경이 동일한 feature 브랜치에서 왔으므로 일관되게 채택 가능합니다.",
+  "explanation": "HEAD는 최소한의 결과(primary_text만)를 UI에 전달하는 방식이고, feature/rich-result-payload 브랜치는 대안 텍스트(alternative_texts)와 신뢰도 점수(confidence_score)까지 포함한 풍부한 결과를 전달합니다. UX 개선을 위해 feature 브랜치를 채택하며, RecommendationService의 반환 타입도 전체 RecommendationResult로 확장합니다.",
+  "recommended_option": "Option 2: feature/rich-result-payload 전면 채택. RecommendPanel은 type/payload 구조로, RecommendationService는 전체 RecommendationResult를 반환하도록 통일합니다.",
+  "tradeoffs": "Option 1(HEAD 유지): 구현이 단순하나 UI가 대안 추천을 표시할 수 없어 사용자 경험이 제한됨. Option 2(feature 채택): UI가 풍부한 정보를 표시할 수 있으나, parseFullResult 함수 구현 완성도 검증 필요 및 Webview 프론트엔드 코드도 새 payload 구조에 맞게 수정 필요.",
+  "recommended_next_action": "parseFullResult 함수 구현을 확인하고, Webview 프론트엔드(HTML/JS)에서 alternatives와 confidence를 표시하는 UI 컴포넌트를 추가 구현"
+}

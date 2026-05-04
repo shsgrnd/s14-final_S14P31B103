@@ -1,0 +1,9 @@
+{
+  "title": "AI 호출 재시도(Retry) vs 타임아웃(Timeout) 전략 충돌",
+  "summary": "HEAD는 지수 백오프(exponential backoff) 방식의 3회 재시도 전략을, feature 브랜치는 단일 호출에 5초 타임아웃을 적용하는 전략을 택했습니다.",
+  "cause_summary": "AI 호출 실패 대응 전략의 근본적 설계 차이",
+  "detailed_explanation": "HEAD 브랜치는 일시적 네트워크 에러나 AI 서비스 과부하 상황을 고려하여, 1초/2초/3초 간격으로 총 3번 재시도하는 방어적 전략을 선택했습니다. 반면 feature/timeout-guard 브랜치는 응답 지연 자체를 문제로 보고, 5초 내에 응답이 없으면 즉시 에러를 발생시키는 타임아웃 우선 전략을 도입했습니다. 두 전략은 상호 배타적이지 않으나, 코드 구조가 달라 단순 병합이 불가능합니다.",
+  "related_files": ["packages/ai-pipeline/src/provider/AiClient.ts"],
+  "recommended_resolution_direction": "두 전략을 결합(타임아웃이 적용된 단일 시도를 최대 3회 재시도)하는 방향을 권장합니다. Promise.race와 재시도 루프를 조합하면 두 요구사항을 동시에 충족할 수 있습니다.",
+  "risk_level": "high"
+}

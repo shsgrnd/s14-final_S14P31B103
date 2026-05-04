@@ -1,0 +1,8 @@
+{
+  "title": "AiClient 에러 시 Fallback 유지 vs 제거 중재",
+  "summary": "HEAD는 AI 호출 실패 시 빈 문자열('')을 반환하는 silent fallback을 두고 있고, feature 브랜치는 이를 제거하여 에러를 상위로 전파시킵니다. 두 전략 모두 타당하나 시스템 안정성 관점에서 중재가 필요합니다.",
+  "explanation": "HEAD의 silent fallback 방식은 AI 호출이 실패해도 파이프라인이 멈추지 않는 장점이 있지만, 빈 문자열이 정상 결과로 처리되어 하류 시스템에서 예측 불가능한 동작을 일으킬 위험이 있습니다. feature/remove-silent-fallback은 에러를 즉시 상위에 전파하여 호출자가 명시적으로 처리하도록 강제합니다. 이 편이 타입 안정성과 디버깅 측면에서 유리합니다.",
+  "recommended_option": "Option 2: feature 브랜치 채택 (에러 전파). 단, 호출부(Orchestrator, Service)에서 try-catch로 에러를 반드시 처리하는 책임을 가져야 합니다.",
+  "tradeoffs": "Option 1(silent fallback 유지): 파이프라인 중단 없이 동작하나 빈 응답이 정상 결과로 오인될 수 있음. Option 2(에러 전파): 실패가 명확히 드러나고 호출부가 책임지게 되나, 상위 레이어에 try-catch 추가 필요.",
+  "recommended_next_action": "Orchestrator(generateRecommendation 등)에 try-catch 블록을 추가하고, 실패 시 사용자에게 명확한 에러 메시지를 전달하도록 처리"
+}

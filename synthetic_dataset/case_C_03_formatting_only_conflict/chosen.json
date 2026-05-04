@@ -1,0 +1,7 @@
+{
+  "title": "RecommendPanel 세미콜론 포맷팅 규칙 병합",
+  "summary": "로직은 완전히 동일하며, 세미콜론 유무의 Prettier 설정 차이로 발생한 충돌입니다. 프로젝트 컨벤션인 세미콜론 사용 규칙(feature 브랜치)을 채택합니다.",
+  "explanation": "HEAD 브랜치는 세미콜론 없는 스타일(no-semi)을, feature/enforce-semicolons 브랜치는 세미콜론 필수 스타일을 따릅니다. 코드 로직에는 차이가 없으므로, 프로젝트의 .prettierrc 또는 ESLint 설정에 명시된 컨벤션인 세미콜론 필수 방식을 정답으로 채택합니다.",
+  "merged_code": "export class RecommendPanel {\n  private static instance: RecommendPanel | undefined;\n  private readonly _panel: vscode.WebviewPanel;\n  private _disposables: vscode.Disposable[] = [];\n\n  private constructor(panel: vscode.WebviewPanel, extensionUri: vscode.Uri) {\n    this._panel = panel;\n    this._panel.onDidDispose(() => this.dispose(), null, this._disposables);\n  }\n}",
+  "validation_summary": "로직 변경 없음. 세미콜론 스타일만 통일되었습니다. 프로젝트 전체에 동일한 Prettier 규칙이 적용되어 있는지 확인을 권장합니다."
+}

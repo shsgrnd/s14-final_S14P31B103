@@ -1,0 +1,8 @@
+{
+  "title": "WebviewMessage 타입 계약 불일치 중재",
+  "summary": "extension과 shared-types 사이에서 메시지 payload의 shape이 달라 중재가 필요합니다.",
+  "explanation": "HEAD는 느슨한 any 기반의 command/data 구조를 쓰고, feature 브랜치는 엄격한 type/payload 구조를 도입했습니다. 두 접근 모두 동작하지만 타입 안정성 측면에서 방향이 완전히 다릅니다.",
+  "recommended_option": "Option 2: feature 브랜치의 type/payload 구조 채택 (payload를 optional로 처리하여 하위 호환성 확보)",
+  "tradeoffs": "Option 1(command/data 유지): 기존 extension 코드 수정 불필요, 단 any 타입으로 런타임 에러 위험 존재. Option 2(type/payload 채택): 타입 안정성 향상 및 명확한 메시지 계약, 단 extension 내 기존 WebviewMessage 사용 코드 전수 수정 필요.",
+  "recommended_next_action": "extension 팀과 shared-types 변경 범위 합의 후 payload를 optional(?)로 처리하여 점진적으로 마이그레이션"
+}

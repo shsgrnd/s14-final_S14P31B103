@@ -1,0 +1,7 @@
+{
+  "title": "RecommendationRequestPayload optional 필드 required 전환 병합",
+  "summary": "targetBranch와 workIntent 필드가 HEAD에서는 optional(?)이었으나, feature 브랜치에서 required로 변경되었습니다. 브랜치명 추천 기능에 두 필드가 모두 필수임을 반영하여 feature 브랜치를 채택합니다.",
+  "explanation": "HEAD 브랜치는 초기 구현 단계에서 두 필드를 선택적으로 처리했으나, feature/strict-payload-validation 브랜치는 추천 기능이 정상 동작하려면 두 필드가 반드시 존재해야 함을 명시적으로 강제합니다. 런타임 에러를 사전에 방지하기 위해 required로 선언하는 것이 올바른 방향입니다.",
+  "merged_code": "export interface RecommendationRequestPayload {\n  projectId: string;\n  currentBranch: string;\n  targetBranch: string;\n  workIntent: string;\n}",
+  "validation_summary": "이 타입을 사용하는 모든 호출부(extension 내 WebviewPanel, MessageRouter 등)에서 targetBranch와 workIntent를 누락 없이 전달하고 있는지 확인 필요."
+}

@@ -1,0 +1,7 @@
+{
+  "title": "RetryOptions 인터페이스 필드명 변경 병합",
+  "summary": "maxAttempts/delayMs/backoffFactor가 maxRetries/initialDelayMs/backoffMultiplier로 리네이밍되었습니다. 의미가 더 명확한 feature 브랜치의 필드명을 채택합니다.",
+  "explanation": "feature/rename-retry-options 브랜치에서 필드명을 보다 명확하게 변경했습니다. maxAttempts보다 maxRetries가 '재시도'의 의미를 더 직관적으로 전달하고, initialDelayMs는 초기 대기 시간임을 명확히 하며, backoffMultiplier는 '곱셈 계수'라는 의미가 backoffFactor보다 정확합니다.",
+  "merged_code": "export interface RetryOptions {\n  maxRetries: number;\n  initialDelayMs: number;\n  backoffMultiplier: number;\n}",
+  "validation_summary": "RetryOptions를 사용하는 모든 코드(AiClient 구현체, 호출부 등)에서 필드명을 새 이름으로 일괄 변경해야 합니다. IDE의 전체 리네이밍 기능 사용을 권장합니다."
+}

@@ -1,0 +1,7 @@
+{
+  "title": "MessageRouter와 RecommendationHandler 메시지 타입 동기화 병합",
+  "summary": "extension의 MessageRouter와 ai-pipeline의 RecommendationHandler가 모두 feature 브랜치의 엄격한 타입 기반 메시지 구조(type/payload)를 일관되게 사용하도록 병합합니다.",
+  "explanation": "두 파일 모두 WebviewMessage의 shape 변경(command/data → type/payload)에 연동되어 있으며, 일관성 유지를 위해 feature 브랜치의 구조를 채택해야 합니다.",
+  "merged_code": "--- FILE: packages/extension/src/router/MessageRouter.ts ---\nexport function routeMessage(message: WebviewMessage): void {\n  switch (message.type) {\n    case 'REQUEST_RECOMMENDATION':\n      handleRecommendation(message.payload);\n      break;\n    default:\n      console.warn('Unknown type:', message.type);\n  }\n}\n\n--- FILE: packages/ai-pipeline/src/recommendation/RecommendationHandler.ts ---\nexport async function handleRecommendation(payload: Record<string, unknown>): Promise<void> {\n  const result = await generateRecommendation(payload);\n  postMessageToWebview({ type: 'RECOMMENDATION_RESULT', payload: result });\n}",
+  "validation_summary": "두 파일 모두 feature 브랜치 기준으로 통일. WebviewMessage 타입 정의(shared-types)도 type/payload 구조로 변경되어 있는지 반드시 확인 필요."
+}
