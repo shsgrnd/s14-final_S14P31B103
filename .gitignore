@@ -88,3 +88,4 @@ packages/ai-pipeline/trainer/data/
 packages/ai-pipeline/trainer/outputs/
 packages/ai-pipeline/trainer/wandb/
 packages/ai-pipeline/trainer/models/
+packages/ai-pipeline/data/synthetic_conflict_dataset.jsonl
