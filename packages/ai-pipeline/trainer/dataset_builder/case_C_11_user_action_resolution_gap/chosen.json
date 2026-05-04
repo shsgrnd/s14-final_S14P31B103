@@ -1,0 +1,12 @@
+{
+  "title": "추천 결과 사용자 액션 해석 차이 - 클립보드 복사 vs 직접 Git 적용",
+  "summary": "HEAD는 추천 결과를 클립보드에 복사하는 수동적 방식을 택했고, feature 브랜치는 사용자 확인 후 Git 명령을 직접 실행하는 능동적 방식을 도입했습니다.",
+  "cause_summary": "추천 결과에 대한 사용자 인터랙션 철학의 근본적 차이",
+  "detailed_explanation": "HEAD 브랜치는 추천 결과를 클립보드에 복사하여 사용자가 직접 터미널에 붙여넣도록 하는 비파괴적(non-destructive) 방식을 선택했습니다. 이는 실수로 잘못된 브랜치명이 적용되는 위험이 없지만, 사용자 경험이 불편합니다. 반면 feature/direct-git-apply 브랜치는 확인 다이얼로그 후 gitService를 통해 직접 Git 명령을 실행하는 방식으로, UX는 향상되나 gitService.applyRecommendation 구현이 안정적이지 않을 경우 의도치 않은 Git 상태 변경이 발생할 수 있습니다. 또한 두 브랜치는 WebviewMessage의 shape도 다르게(command vs type) 사용하고 있어 이중 충돌 상황입니다.",
+  "related_files": [
+    "packages/extension/src/webview/RecommendPanel.ts",
+    "packages/ai-pipeline/src/recommendation/gitService.ts"
+  ],
+  "recommended_resolution_direction": "feature 브랜치의 직접 적용 방식을 채택하되, gitService.applyRecommendation의 구현 완성도를 먼저 검증해야 합니다. WebviewMessage shape은 C_01 케이스 해결 방향(type/payload)과 통일합니다.",
+  "risk_level": "high"
+}

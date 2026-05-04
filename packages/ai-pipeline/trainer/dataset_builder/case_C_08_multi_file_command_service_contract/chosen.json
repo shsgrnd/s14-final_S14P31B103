@@ -1,0 +1,7 @@
+{
+  "title": "RecommendCommand 페이로드 확장 및 RecommendationRepository 메타데이터 추가 병합",
+  "summary": "extension의 Command에서 targetBranch/workIntent를 추가 전달하고, storage의 Repository에서 저장 시 recommendation_type과 created_at 메타데이터를 함께 저장하도록 두 파일을 병합합니다.",
+  "explanation": "두 파일의 변경은 서로 다른 feature 브랜치에서 왔으나 모두 추천 기능 완성도를 높이는 방향입니다. 두 변경사항 모두 채택하여 병합합니다.",
+  "merged_code": "--- FILE: packages/extension/src/commands/RecommendCommand.ts ---\nexport async function executeRecommendCommand(context: CommandContext): Promise<void> {\n  const payload: RecommendationRequestPayload = {\n    projectId: context.projectId,\n    currentBranch: context.branch,\n    targetBranch: context.targetBranch,\n    workIntent: context.workIntent,\n  };\n  await recommendationService.request(payload);\n}\n\n--- FILE: packages/storage/src/repository/RecommendationRepository.ts ---\nexport async function saveRecommendation(result: RecommendationResult): Promise<void> {\n  await db.insert('recommendations', {\n    title: result.title,\n    primary_text: result.primary_text,\n    recommendation_type: result.recommendation_type,\n    created_at: new Date().toISOString(),\n  });\n}",
+  "validation_summary": "CommandContext 타입에 targetBranch와 workIntent 필드가 정의되어 있는지 확인 필요. RecommendationResult 타입에 recommendation_type 필드가 존재하는지 shared-types에서 확인 필요."
+}

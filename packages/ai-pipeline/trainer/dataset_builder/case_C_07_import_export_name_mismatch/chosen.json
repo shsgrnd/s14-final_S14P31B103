@@ -1,0 +1,13 @@
+{
+  "title": "RecommendationResult 타입명 및 import 경로 불일치 충돌",
+  "summary": "HEAD는 RecommendationResult를 서브패스(@gitcat/shared-types/recommendation)에서 가져오고, feature 브랜치는 RecommendResult로 이름을 변경하고 루트 경로(@gitcat/shared-types)에서 re-export하는 방식으로 바꿨습니다.",
+  "cause_summary": "shared-types 패키지의 export 구조 변경과 타입명 리네이밍이 동시에 발생한 충돌",
+  "detailed_explanation": "HEAD 브랜치는 기존의 서브패스 방식 import를 유지하며 타입명도 RecommendationResult를 그대로 사용합니다. 반면 feature/refactor-shared-types-exports 브랜치는 shared-types의 index.ts를 통해 모든 타입을 루트에서 한 번에 export하는 방식으로 리팩토링하면서, 타입명도 RecommendResult로 단축하였습니다. 두 브랜치가 공존하면 타입을 찾지 못하는 컴파일 에러가 발생합니다.",
+  "related_files": [
+    "packages/extension/src/index.ts",
+    "packages/shared-types/src/index.ts",
+    "packages/shared-types/src/recommendation.ts"
+  ],
+  "recommended_resolution_direction": "shared-types 패키지의 index.ts에서 RecommendResult를 루트 경로로 re-export하고, extension의 import 경로와 타입명을 feature 브랜치 기준으로 통일합니다.",
+  "risk_level": "medium"
+}

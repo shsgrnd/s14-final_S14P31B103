@@ -1,0 +1,7 @@
+{
+  "title": "ESLint semi 규칙과 Prettier 연동 설정 충돌 병합",
+  "summary": "HEAD는 세미콜론 금지(never)에 Prettier 비활성화를 선택했고, feature 브랜치는 세미콜론 필수(always)와 Prettier 연동을 활성화했습니다. 프로젝트 컨벤션에 맞게 Prettier 연동 방식을 채택합니다.",
+  "explanation": "HEAD는 ESLint 단독으로 포맷팅을 관리하며 세미콜론을 금지하는 방식을 선택했습니다. feature/enforce-prettier-integration 브랜치는 Prettier를 ESLint와 연동하여 세미콜론 필수, singleQuote 등을 Prettier가 통합 관리하도록 전환했습니다. C_03 케이스(RecommendPanel 세미콜론 충돌)와 연관되어 있으며, 프로젝트 전반의 포맷팅 일관성을 위해 Prettier 연동 방식을 채택합니다.",
+  "merged_code": "module.exports = {\n  rules: {\n    'semi': ['error', 'always'],\n    'quotes': ['error', 'single'],\n    'indent': ['error', 2],\n    'prettier/prettier': ['error', { semi: true, singleQuote: true }],\n  },\n};",
+  "validation_summary": "eslint-config-prettier 및 eslint-plugin-prettier 패키지가 devDependencies에 설치되어 있는지 확인 필요. .prettierrc 파일과 ESLint 설정이 충돌하지 않는지 검토 필요."
+}

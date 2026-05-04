@@ -51,23 +51,13 @@ const apiUrl = "https://api.v2.com/graphql";
 당신은 GitCat의 수석 AI 병합 엔지니어입니다. 아래의 충돌이 발생한 코드를 분석하고, 문맥에 맞게 안전하게 병합한 결과를 JSON 형식으로 반환해 주세요.
 
 --- FILE: packages/shared-types/src/dto/ai.ts ---
-<<<<<<< HEAD
-export interface TrainingCandidatePayload {
-  promptRef: string;
-}
-=======
 export interface TrainingCandidatePayload {
   promptRef: string;
   chosenRef: string;
 }
->>>>>>> feature/add-chosen-ref
 
 --- FILE: packages/ai-pipeline/src/feedback/training-candidate.ts ---
-<<<<<<< HEAD
-return { promptRef };
-=======
 return { promptRef, chosenRef };
->>>>>>> feature/add-chosen-ref
 ```
 
 ### 3.2. `chosen.json` (정답 스키마)
@@ -213,15 +203,15 @@ AI가 최종적으로 뱉어내야 할 정답지입니다. **단순한 소스 �
 - [ ] 팀원 B: `B_10_rejected_ref_required_conflict`
 - [ ] 팀원 B: `B_11_dataset_type_explanation_conflict`
 - [ ] 팀원 B: `B_12_multi_file_feedback_materializer_sync`
-- [ ] 팀원 C: `C_01_message_contract_drift`
-- [ ] 팀원 C: `C_02_async_retry_conflict`
-- [ ] 팀원 C: `C_03_formatting_only_conflict`
-- [ ] 팀원 C: `C_04_multi_file_message_router`
-- [ ] 팀원 C: `C_05_webview_payload_optional_gap`
-- [ ] 팀원 C: `C_06_timeout_fallback_removed`
-- [ ] 팀원 C: `C_07_import_export_name_mismatch`
-- [ ] 팀원 C: `C_08_multi_file_command_service_contract`
-- [ ] 팀원 C: `C_09_eslint_prettier_rule_split`
-- [ ] 팀원 C: `C_10_retry_policy_option_rename`
-- [ ] 팀원 C: `C_11_user_action_resolution_gap`
-- [ ] 팀원 C: `C_12_multi_file_ui_feedback_flow`
+- [x] 팀원 C: `C_01_message_contract_drift`
+- [x] 팀원 C: `C_02_async_retry_conflict`
+- [x] 팀원 C: `C_03_formatting_only_conflict`
+- [x] 팀원 C: `C_04_multi_file_message_router`
+- [x] 팀원 C: `C_05_webview_payload_optional_gap`
+- [x] 팀원 C: `C_06_timeout_fallback_removed`
+- [x] 팀원 C: `C_07_import_export_name_mismatch`
+- [x] 팀원 C: `C_08_multi_file_command_service_contract`
+- [x] 팀원 C: `C_09_eslint_prettier_rule_split`
+- [x] 팀원 C: `C_10_retry_policy_option_rename`
+- [x] 팀원 C: `C_11_user_action_resolution_gap`
+- [x] 팀원 C: `C_12_multi_file_ui_feedback_flow`
