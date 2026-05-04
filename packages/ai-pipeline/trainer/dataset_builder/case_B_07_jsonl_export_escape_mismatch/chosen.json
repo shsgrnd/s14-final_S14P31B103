@@ -1,0 +1,12 @@
+{
+  "title": "JSONL 출력 포맷 충돌 분석",
+  "summary": "한쪽은 한 줄 JSONL을 유지했고, 다른 쪽은 사람이 읽기 쉽도록 indent를 넣으려 했습니다.",
+  "cause_summary": "JSONL 규격과 사람이 읽기 쉬운 pretty print 요구가 충돌했습니다.",
+  "detailed_explanation": "JSONL은 파일의 각 줄이 독립된 JSON 객체여야 하므로, indent 옵션을 주면 한 레코드가 여러 줄로 퍼져 downstream trainer나 parser가 깨질 수 있습니다. 사람이 읽기 쉬운 포맷은 intermediate artifact에서 해결하고, 최종 JSONL은 한 줄 형식을 유지해야 합니다.",
+  "related_files": [
+    "packages/ai-pipeline/trainer/dataset_builder/build_jsonl.py"
+  ],
+  "recommended_resolution_direction": "JSONL 출력부에서는 indent를 제거하고, 사람이 읽는 용도의 pretty JSON은 prompt.md/chosen.json 원본 또는 별도 debug artifact에서만 사용합니다.",
+  "risk_level": "high"
+}
+

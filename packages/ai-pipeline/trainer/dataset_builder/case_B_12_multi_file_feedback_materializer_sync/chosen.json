@@ -1,0 +1,7 @@
+{
+  "title": "feedback materializer와 final_code_ref 동기화 병합",
+  "summary": "기존 final_code_ref를 무조건 덮어쓰지 않고, materialize 결과가 있을 때만 fallback으로 사용하는 방향으로 multi-file 병합했습니다.",
+  "explanation": "상위 계층이 이미 검증된 final_code_ref를 넘긴 경우가 있을 수 있으므로 무조건 materialized ref로 덮어쓰면 외부 저장 전략과 충돌할 수 있습니다. 동시에 feedback artifact writer는 빈 문자열 finalCode로 파일을 만들지 않도록 해야 합니다. 두 파일 모두 '존재하는 artifact만 저장하고, 이미 있는 ref는 fallback으로 존중'하는 원칙으로 맞춰야 안전합니다.",
+  "merged_code": "--- FILE: packages/ai-pipeline/src/feedback/feedback-persistence-plan.ts ---\nconst feedbackReadyInput: BuildFeedbackPersistencePlanInput = {\n  ...input,\n  feedback_id: feedbackId,\n  final_code_ref: input.final_code_ref ?? materializedArtifacts.final_code_ref,\n};\n\n--- FILE: packages/ai-pipeline/src/artifacts/feedback-artifacts.ts ---\nif (input.finalCode) {\n  return writeFinalCodeFile(\n    input.workspaceRoot,\n    input.feedbackId,\n    input.finalCode,\n    input.relativeFilePath,\n  );\n}",
+  "validation_summary": "상위에서 final_code_ref를 직접 전달한 경우와 final_code를 로컬에서 materialize하는 경우를 각각 테스트해, 둘 다 같은 저장 계약을 만족하는지 확인해야 합니다."
+}
