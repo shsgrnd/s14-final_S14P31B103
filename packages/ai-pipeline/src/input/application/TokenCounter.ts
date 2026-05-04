@@ -1,5 +1,5 @@
 import { encoding_for_model, TiktokenModel, Tiktoken } from 'tiktoken';
-import { MergeProposalInput } from '@gitcat/shared-types';
+import { MergeProposalInput, RecommendationInput } from '@gitcat/shared-types';
 import { getDefaultModelConfig } from './TokenConfig';
 
 /**
@@ -48,7 +48,7 @@ export class TokenCounter {
    * @param payload 최종 조립된 MergeProposalInput 객체
    * @returns 전체 Payload의 예상 토큰 수
    */
-  public countPayloadTokens(payload: MergeProposalInput): number {
+  public countPayloadTokens(payload: MergeProposalInput | RecommendationInput): number {
     // 1. 순수 데이터 문자열화
     const jsonString = JSON.stringify(payload);
     
