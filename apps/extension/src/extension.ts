@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { createHash } from 'crypto';
 import { GitCatDatabase } from '@gitcat/storage';
 import { GitCliClient } from '@gitcat/git-client-cli';
 import { CommandRegistry } from './commands';
@@ -63,7 +64,7 @@ export async function activate(context: vscode.ExtensionContext) {
     try {
       const historyRepository = new SqliteRecommendationHistoryRepository(dbInstance);
       const aiClient = new DummyAIClient();
-      const projectId = `project_${require('crypto').createHash('sha1').update(rootPath).digest('hex').slice(0, 16)}`;
+      const projectId = `project_${createHash('sha1').update(rootPath).digest('hex').slice(0, 16)}`;
       const recommendationService = new RecommendationService(
         gitService,
         aiClient,
