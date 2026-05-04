@@ -56,6 +56,13 @@ export class GitCliClient implements IGitClient {
     const isRebasing = await this.fileExistsInGitDir(gitDir, 'rebase-merge')
       || await this.fileExistsInGitDir(gitDir, 'rebase-apply');
     const conflicted = status.conflicted;
+    const conflictedSet = new Set(conflicted);
+    const staged = status.files
+      .filter((entry) => !conflictedSet.has(entry.path) && entry.index.trim() && entry.index !== '?')
+      .map(mapEntry);
+    const unstaged = status.files
+      .filter((entry) => !conflictedSet.has(entry.path) && entry.working_dir.trim() && entry.working_dir !== '?')
+      .map(mapEntry);
 
     return {
       repoRoot,
@@ -64,8 +71,8 @@ export class GitCliClient implements IGitClient {
       isDetachedHead: status.detached,
       ahead: status.ahead,
       behind: status.behind,
-      staged: status.staged.map((p) => ({ path: p, index: 'M', working_dir: ' ' })),
-      unstaged: status.modified.map((p) => ({ path: p, index: ' ', working_dir: 'M' })),
+      staged,
+      unstaged,
       untracked: status.not_added,
       conflicted,
       isConflict: conflicted.length > 0,
@@ -132,16 +139,18 @@ export class GitCliClient implements IGitClient {
 
   async getDiff(base: string, branch: string): Promise<DiffResult[]> {
     const raw = await this.git.diff([`${base}...${branch}`, '--name-status', '--diff-filter=ACDMRT']);
-    return raw
-      .split('\n')
-      .filter(Boolean)
-      .map((line) => {
-        const parts = line.split('\t');
-        const status = parts[0].charAt(0) as DiffResult['status'];
-        const filePath = parts[parts.length - 1];
-        const oldPath = parts.length === 3 ? parts[1] : undefined;
-        return { filePath, status, additions: 0, deletions: 0, oldPath };
-      });
+    return parseNameStatusDiff(raw);
+  }
+
+  async getUnpushedFiles(): Promise<DiffResult[]> {
+    const upstream = await this.git
+      .raw(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'])
+      .then((value) => value.trim())
+      .catch(() => '');
+    if (!upstream) return [];
+
+    const raw = await this.git.diff([`${upstream}..HEAD`, '--name-status', '--diff-filter=ACDMRT']);
+    return parseNameStatusDiff(raw);
   }
 
   async getMergeBase(source: string, target: string): Promise<string> {
@@ -375,4 +384,17 @@ function parseWorktreeList(raw: string): WorktreeInfo[] {
     const isLocked = lines.some((l) => l.startsWith('locked'));
     return { path, head, branch, isMain, isLocked };
   });
+}
+
+function parseNameStatusDiff(raw: string): DiffResult[] {
+  return raw
+    .split('\n')
+    .filter(Boolean)
+    .map((line) => {
+      const parts = line.split('\t');
+      const status = parts[0].charAt(0) as DiffResult['status'];
+      const filePath = parts[parts.length - 1];
+      const oldPath = parts.length === 3 ? parts[1] : undefined;
+      return { filePath, status, additions: 0, deletions: 0, oldPath };
+    });
 }

@@ -1,0 +1,7 @@
+{
+  "title": "아티팩트 메타데이터 엄격한 타입 적용",
+  "summary": "작성자(author) 필드를 필수값으로 변경하고 버전(version) 타입을 숫자형으로 표준화했습니다.",
+  "explanation": "데이터 관리의 명확성을 위해 author 필드를 필수로 지정한 feature 브랜치의 설계를 채택했습니다. 또한 버전을 숫자형으로 관리하여 비교 로직을 단순화하도록 통합했습니다.",
+  "merged_code": "export interface ArtifactMetadata {\n  author: string;\n  version: number;\n}",
+  "validation_summary": "필수값으로 변경된 author 필드가 누락된 기존 데이터들에 대한 마이그레이션이 필요합니다."
+}

@@ -13,6 +13,7 @@ import {
   BranchSchema,
   GitResultSchema,
   GitStatusSchema,
+  GitStatusSummarySchema,
   WorktreeInfoSchema,
   WorkspaceTreeSchema,
   BranchCleanupSettingsSchema,
@@ -64,6 +65,7 @@ export const InboundPayloadSchemaMap = {
   DELETE_SNAPSHOT: z.object({ snapshotId: z.string() }),
   SET_CHECKPOINT: z.object({ snapshotId: z.string() }),
   REFRESH_STATUS: z.object({ fetchRemote: z.boolean().optional() }).strict(),
+  GET_GIT_STATUS_SUMMARY: z.object({ fetchRemote: z.boolean().optional() }).strict(),
   GET_SNAPSHOT_LIST: z.object({}).strict(),
   GET_BRANCH_LIST: z.object({}).strict(),
   GET_WORKTREE_LIST: z.object({}).strict(),
@@ -111,6 +113,7 @@ export const InboundPayloadSchemaMap = {
  */
 export const OutboundPayloadSchemaMap = {
   GIT_STATUS_UPDATED: z.object({ status: GitStatusSchema }),
+  GIT_STATUS_SUMMARY: z.object({ summary: GitStatusSummarySchema }),
   SNAPSHOT_LIST: z.object({ snapshots: z.array(SnapshotSchema) }),
   SNAPSHOT_CREATED: z.object({ snapshot: SnapshotSchema }),
   RESTORE_DONE: z.object({ snapshotId: z.string() }),

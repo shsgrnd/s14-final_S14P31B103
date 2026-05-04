@@ -1,0 +1,13 @@
+{
+  "title": "dataset_type 필드명 충돌 설명",
+  "summary": "한 브랜치는 snake_case 계약을 유지했고, 다른 브랜치는 datasetType이라는 camelCase 필드명을 사용했습니다.",
+  "cause_summary": "문서·shared-types 계약과 export helper 구현 간 필드명 드리프트가 발생했습니다.",
+  "detailed_explanation": "현재 training candidate 공식 계약은 dataset_type입니다. export helper에서만 datasetType을 사용하면 타입 수준에서 잡히지 않는 문자열 접근이나 undefined 분기가 생길 수 있습니다. 특히 문서, payload schema, 저장 artifact가 서로 다른 이름을 쓰기 시작하면 학습 파이프라인 추적이 어려워집니다.",
+  "related_files": [
+    "packages/ai-pipeline/src/feedback/training-candidate.ts",
+    "docs/api/ai/11_ai_payload_schema.csv"
+  ],
+  "recommended_resolution_direction": "공식 계약과 shared-types에 맞춰 dataset_type을 유지하고, 필요하다면 export 내부에서만 별도 로컬 변수로 변환합니다.",
+  "risk_level": "medium"
+}
+

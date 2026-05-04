@@ -5,6 +5,7 @@ import { BranchStatusEnum, GitFileStatusTypeEnum } from '../enums/git';
  * Git 파일의 개별 상태 정보
  */
 export const GitFileStatusSchema = z.object({
+  name: z.string().optional(),
   path: z.string(),
   status: GitFileStatusTypeEnum,
   additions: z.number().optional(),
@@ -46,6 +47,29 @@ export const GitStatusSchema = z.object({
   worktrees: z.array(WorktreeInfoSchema).optional(),
 });
 export type GitStatus = z.infer<typeof GitStatusSchema>;
+
+export const GitStatusSummarySchema = z.object({
+  branch: z.string(),
+  ahead: z.number(),
+  behind: z.number(),
+  unstagedCount: z.number(),
+  stagedCount: z.number(),
+  pushableCount: z.number(),
+  untrackedCount: z.number(),
+  conflictedCount: z.number(),
+  totalChangedCount: z.number(),
+  canCommit: z.boolean(),
+  canPush: z.boolean(),
+  canPull: z.boolean(),
+  hasConflicts: z.boolean(),
+  nextAction: z.enum(['RESOLVE_CONFLICTS', 'ADD_CHANGES', 'COMMIT_CHANGES', 'PULL_CHANGES', 'PUSH_COMMITS', 'UP_TO_DATE']),
+  unstaged: z.array(GitFileStatusSchema),
+  staged: z.array(GitFileStatusSchema),
+  pushable: z.array(GitFileStatusSchema),
+  untracked: z.array(GitFileStatusSchema),
+  conflicted: z.array(GitFileStatusSchema),
+});
+export type GitStatusSummary = z.infer<typeof GitStatusSummarySchema>;
 
 /**
  * 브랜치 데이터 인터페이스

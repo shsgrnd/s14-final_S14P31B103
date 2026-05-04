@@ -1,0 +1,9 @@
+{
+  "title": "충돌 후보 데이터 구조 V2 전환에 따른 충돌",
+  "summary": "단순한 문자열 배열 구조(V1)에서 메타데이터를 포함한 블록 기반 구조(V2)로 데이터 모델이 전면 개편되었습니다.",
+  "cause_summary": "데이터 모델 아키텍처 변경 (V1 → V2)",
+  "detailed_explanation": "기존의 lines 필드가 삭제되고, 각 코드 블록의 출처(head/incoming) 정보를 담은 blocks 배열로 교체되었습니다. 또한 id 필드가 candidateId로, priority 필드가 score로 변경되어 기존 로직과의 호환성이 완전히 깨진 상태입니다.",
+  "related_files": ["packages/shared-types/src/dto/candidate.ts", "packages/ai-pipeline/src/core/CandidateBuilder.ts"],
+  "recommended_resolution_direction": "신규 AI 모델과의 호환성을 위해 V2 구조를 전면 채택하고, 기존에 Candidate를 생성하던 모든 빌더 클래스의 로직을 수정해야 합니다.",
+  "risk_level": "high"
+}

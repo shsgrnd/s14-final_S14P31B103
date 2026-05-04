@@ -30,6 +30,7 @@ export const InboundMessageTypeEnum = z.enum([
   'DELETE_SNAPSHOT',
   'SET_CHECKPOINT',
   'REFRESH_STATUS',
+  'GET_GIT_STATUS_SUMMARY',
   'GET_SNAPSHOT_LIST',
   'GET_BRANCH_LIST',
   'GET_WORKTREE_LIST',
@@ -78,6 +79,7 @@ export type InboundMessageType = z.infer<typeof InboundMessageTypeEnum>;
  */
 export const OutboundMessageTypeEnum = z.enum([
   'GIT_STATUS_UPDATED',
+  'GIT_STATUS_SUMMARY',
   'SNAPSHOT_LIST',
   'SNAPSHOT_CREATED',
   'RESTORE_DONE',

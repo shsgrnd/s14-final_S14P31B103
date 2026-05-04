@@ -32,6 +32,10 @@ export class GitMessageHandler {
         await this.handleRefreshStatus(webview, payload);
         return true;
 
+      case 'GET_GIT_STATUS_SUMMARY':
+        await this.handleGetGitStatusSummary(webview, payload);
+        return true;
+
       case 'GET_BRANCH_LIST':
         await this.handleGetBranchList(webview);
         return true;
@@ -200,6 +204,24 @@ export class GitMessageHandler {
       });
     } finally {
       this.sendLoading(webview, 'branches', false);
+    }
+  }
+
+  private async handleGetGitStatusSummary(
+    webview: vscode.Webview,
+    payload?: { fetchRemote?: boolean },
+  ): Promise<void> {
+    this.sendLoading(webview, 'statusSummary', true);
+    try {
+      const summary = await this.gitService.getStatusSummary({
+        fetchRemote: payload?.fetchRemote ?? false,
+      });
+      webview.postMessage({
+        type: 'GIT_STATUS_SUMMARY',
+        payload: { summary },
+      });
+    } finally {
+      this.sendLoading(webview, 'statusSummary', false);
     }
   }
 

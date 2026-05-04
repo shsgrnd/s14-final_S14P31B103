@@ -1,0 +1,8 @@
+{
+  "title": "ProposalFeedback 저장 입력 필드명 병합",
+  "summary": "현행 shared-types 계약에 맞춰 proposal_id를 유지하고, legacy merge_proposal_id 명칭으로 되돌아가지 않도록 병합했습니다.",
+  "explanation": "최근 계약 문서와 helper는 proposal_id를 공통 키로 사용합니다. 여기서만 merge_proposal_id를 되살리면 저장 레이어와 상위 DTO 사이에 이름 불일치가 생겨 타입 드리프트가 다시 발생합니다.",
+  "merged_code": "const feedbackInput: CreateProposalFeedbackInput = {\n  project_id: input.project_id,\n  proposal_id: payload.proposal_id,\n  final_code_ref: payload.final_code_ref,\n};",
+  "validation_summary": "repository interface와 SQLite insert input이 모두 proposal_id 기준으로 일치하는지 타입 검사와 저장 테스트를 다시 확인해야 합니다."
+}
+
