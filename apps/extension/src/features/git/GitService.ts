@@ -112,7 +112,16 @@ export class GitService {
     };
   }
 
-  async getStatusWithWorktrees(): Promise<GitStatusResponse> {
+  async fetchAllPrune(): Promise<GitCommandResult> {
+    await this.gitClient.fetchAllPrune();
+    return { success: true, message: 'Fetch completed.' };
+  }
+
+  async getStatusWithWorktrees(options: { fetchRemote?: boolean } = {}): Promise<GitStatusResponse> {
+    if (options.fetchRemote) {
+      await this.gitClient.fetchAllPrune();
+    }
+
     const [status, worktrees] = await Promise.all([
       this.getStatus(),
       this.getWorktrees(),
@@ -359,6 +368,7 @@ export class GitService {
     await this.metadataSync?.syncWorktrees(worktrees);
     return worktrees.map((worktree) => ({
       path: worktree.path,
+      head: worktree.head,
       branch: worktree.branch,
       isMain: worktree.isMain,
       isLocked: worktree.isLocked,

@@ -58,7 +58,7 @@ export const InboundPayloadSchemaMap = {
   GIT_MERGE_CONTINUE: z.object({}).strict(),
   DELETE_SNAPSHOT: z.object({ snapshotId: z.string() }),
   SET_CHECKPOINT: z.object({ snapshotId: z.string() }),
-  REFRESH_STATUS: z.object({}).strict(),
+  REFRESH_STATUS: z.object({ fetchRemote: z.boolean().optional() }).strict(),
   GET_SNAPSHOT_LIST: z.object({}).strict(),
   GET_BRANCH_LIST: z.object({}).strict(),
   GET_WORKTREE_LIST: z.object({}).strict(),

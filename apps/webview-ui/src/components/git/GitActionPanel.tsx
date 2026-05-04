@@ -69,7 +69,7 @@ export const GitActionPanel: React.FC = () => {
   const handleRefreshStatus = (event: React.MouseEvent<HTMLButtonElement>) => {
     event.stopPropagation();
     setIsRefreshPressed(true);
-    sendMessage('REFRESH_STATUS', {});
+    sendMessage('REFRESH_STATUS', { fetchRemote: true });
     window.setTimeout(() => setIsRefreshPressed(false), 700);
   };
 

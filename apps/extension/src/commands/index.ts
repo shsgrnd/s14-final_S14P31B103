@@ -20,7 +20,7 @@ export class CommandRegistry {
         // Git 관련 더미/API 호출 커맨드 (Tree View UI 등에서 호출)
         context.subscriptions.push(
             vscode.commands.registerCommand('gitcat.getGitStatus', async () => {
-                return await gitService?.getStatusWithWorktrees();
+                return await gitService?.getStatusWithWorktrees({ fetchRemote: true });
             })
         );
 

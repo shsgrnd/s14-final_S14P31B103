@@ -25,7 +25,7 @@ export class GitMessageHandler {
     switch (type) {
       // ─── 상태 조회 ──────────────────────────────────────────────────────
       case 'REFRESH_STATUS':
-        await this.handleRefreshStatus(webview);
+        await this.handleRefreshStatus(webview, payload);
         return true;
 
       case 'GET_BRANCH_LIST':
@@ -136,13 +136,26 @@ export class GitMessageHandler {
 
   // ─── 핸들러 구현 ──────────────────────────────────────────────────────────
 
-  private async handleRefreshStatus(webview: vscode.Webview): Promise<void> {
+  private async handleRefreshStatus(
+    webview: vscode.Webview,
+    payload?: { fetchRemote?: boolean },
+  ): Promise<void> {
     this.sendLoading(webview, 'status', true);
     try {
-      const status = await this.gitService.getStatusWithWorktrees();
+      if (payload?.fetchRemote) {
+        await this.gitService.fetchAllPrune();
+      }
+      const [status, branches] = await Promise.all([
+        this.gitService.getStatusWithWorktrees(),
+        this.gitService.getBranches(),
+      ]);
       webview.postMessage({
         type: 'GIT_STATUS_UPDATED',
         payload: { status },
+      });
+      webview.postMessage({
+        type: 'BRANCH_LIST',
+        payload: { branches },
       });
       if (status.worktrees) {
         webview.postMessage({

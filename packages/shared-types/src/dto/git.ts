@@ -13,15 +13,37 @@ export const GitFileStatusSchema = z.object({
 export type GitFileStatus = z.infer<typeof GitFileStatusSchema>;
 
 /**
+ * 워크트리 데이터 인터페이스
+ */
+export const WorktreeInfoSchema = z.object({
+  path: z.string(),
+  head: z.string().optional(),
+  branch: z.string().optional(),
+  isMain: z.boolean(),
+  isLocked: z.boolean().optional(),
+});
+export type WorktreeInfo = z.infer<typeof WorktreeInfoSchema>;
+
+/**
  * 전체 Git 상태 인터페이스
  */
 export const GitStatusSchema = z.object({
+  repoRoot: z.string().optional(),
+  currentWorktreePath: z.string().optional(),
   branch: z.string(),
+  currentBranch: z.string().optional(),
+  isDetachedHead: z.boolean().optional(),
+  ahead: z.number().optional(),
+  behind: z.number().optional(),
   isMergeInProgress: z.boolean(),
+  isConflict: z.boolean().optional(),
+  isMerging: z.boolean().optional(),
+  isRebasing: z.boolean().optional(),
   staged: z.array(GitFileStatusSchema),
   unstaged: z.array(GitFileStatusSchema),
   untracked: z.array(GitFileStatusSchema),
   conflicted: z.array(GitFileStatusSchema),
+  worktrees: z.array(WorktreeInfoSchema).optional(),
 });
 export type GitStatus = z.infer<typeof GitStatusSchema>;
 
@@ -32,22 +54,14 @@ export const BranchSchema = z.object({
   name: z.string(),
   isCurrent: z.boolean(),
   isRemote: z.boolean(),
+  trackingBranch: z.string().optional(),
   status: BranchStatusEnum,
   lastActivity: z.string(), // ISO Date String
   lastCommitHash: z.string().optional(),
+  lastCommitMessage: z.string().optional(),
+  isMerged: z.boolean().optional(),
 });
 export type Branch = z.infer<typeof BranchSchema>;
-
-/**
- * 워크트리 데이터 인터페이스
- */
-export const WorktreeInfoSchema = z.object({
-  path: z.string(),
-  branch: z.string().optional(),
-  isMain: z.boolean(),
-  isLocked: z.boolean().optional(),
-});
-export type WorktreeInfo = z.infer<typeof WorktreeInfoSchema>;
 
 /**
  * Git 명령 실행 결과
