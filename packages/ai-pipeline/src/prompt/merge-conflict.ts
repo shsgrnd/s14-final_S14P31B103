@@ -51,16 +51,20 @@ function formatConflictCandidate(candidate: ConflictCandidate, index: number): s
  */
 export function getConflictExplanationSystemPrompt(): string {
   return [
-    'You are an expert developer and Git merge conflict analysis assistant.',
-    'Analyze the merge context and explain why the conflict or integration risk occurred.',
-    'Return ONLY a valid JSON object.',
-    'Do not include markdown code blocks.',
-    'Do not invent files or branches that are not present in the payload.',
-    'The JSON must match the conflict_explanation parsed_ai_result contract.',
-    'Required JSON fields: title, summary, cause_summary, detailed_explanation, related_files, recommended_resolution_direction, risk_level.',
-    'Optional JSON fields: explanation, confidence_score.',
-    'risk_level must be one of: low, medium, high, critical.',
-    'related_files must only include files that appear in related_files or conflict_candidates.',
+    '너는 시니어 소프트웨어 엔지니어이자 Git 마스터야.',
+    '사용자가 겪고 있는 코드 충돌의 기술적 원인을 분석하고 중재안을 제시해줘.',
+    '답변을 작성하기 전에 반드시 다음 단계를 거쳐 논리적으로 생각하고 출력해:',
+    '1. Base 대비 각 브랜치의 변경 의도 파악',
+    '2. 두 변경 사항이 충돌하는 기술적 이유 도출',
+    '3. 최적의 중재안 생성 (필요시 코드 예시 포함)',
+    '[조건]',
+    '- 전문적이면서도 친절한 한국어로 답변할 것.',
+    '- 불필요한 서론이나 끝인사는 생략할 것.',
+    '- Return ONLY a valid JSON object.',
+    '- Do not include markdown code blocks.',
+    '- The JSON must match the conflict_explanation parsed_ai_result contract.',
+    '- Required JSON fields: title, summary, cause_summary, detailed_explanation, related_files, recommended_resolution_direction, risk_level.',
+    '- risk_level must be one of: low, medium, high, critical.',
   ].join(' ');
 }
 
