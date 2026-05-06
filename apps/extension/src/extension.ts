@@ -16,6 +16,7 @@ import { SqliteRecommendationHistoryRepository } from '@gitcat/storage';
 import { MergeAiService } from '@gitcat/ai-pipeline';
 import { RecommendationService } from './features/recommendation/RecommendationService';
 import { RecommendationHandler } from './features/recommendation/RecommendationHandler';
+import { RecommendationHistoryQueryService } from './features/recommendation/RecommendationHistoryQueryService';
 
 export async function activate(context: vscode.ExtensionContext) {
   console.log('GitCat Extension is now active!');
@@ -63,13 +64,15 @@ export async function activate(context: vscode.ExtensionContext) {
   if (rootPath && gitService && dbInstance) {
     try {
       const historyRepository = new SqliteRecommendationHistoryRepository(dbInstance);
+      const historyQueryService = new RecommendationHistoryQueryService(historyRepository);
       const aiService = new MergeAiService();
       const projectId = `project_${createHash('sha1').update(rootPath).digest('hex').slice(0, 16)}`;
       const recommendationService = new RecommendationService(
         gitService,
         aiService,
         historyRepository,
-        projectId
+        projectId,
+        historyQueryService,  // 추천 이력 조회 Query 서비스 주입
       );
       recommendationHandler = new RecommendationHandler(recommendationService);
       console.log('GitCat Recommendation layer initialized');
