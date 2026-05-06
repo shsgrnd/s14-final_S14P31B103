@@ -1,4 +1,4 @@
-import { RecommendationOrchestrator, IAIClient } from './interfaces';
+import { RecommendationOrchestrator } from './interfaces';
 import { RecommendationHistoryRepository } from '@gitcat/shared-types/src/interfaces/repositories';
 import { CreateRecommendationHistoryInput } from '@gitcat/shared-types/src/interfaces/repositories';
 import { RecommendationHistoryRow } from '@gitcat/shared-types/src/dto/storage';
@@ -6,13 +6,15 @@ import {
   RecommendationInput,
   RecommendationHistory,
   PRRecommendationResult,
+  RecommendationResult,
 } from '@gitcat/shared-types/src/dto/ai';
 import { GitService } from '../git/GitService';
+import { MergeAiService } from '@gitcat/ai-pipeline';
 
 export class RecommendationService implements RecommendationOrchestrator {
   constructor(
     private readonly gitService: GitService,
-    private readonly aiClient: IAIClient,
+    private readonly aiService: MergeAiService,
     private readonly historyRepository: RecommendationHistoryRepository,
     private readonly projectId: string
   ) { }
@@ -64,29 +66,34 @@ export class RecommendationService implements RecommendationOrchestrator {
     const diffText = await this.gitService.getDiffText(base, currentBranch);
     const commits = await this.gitService.getLogBetween(base, currentBranch);
 
-    // AIClient 호출
-    const result = await this.aiClient.recommendPR({
-      baseBranch: base,
-      currentBranch,
-      diffText,
-      commits: commits.map(c => ({
-        hash: c.hash,
-        shortHash: c.shortHash,
-        message: c.message,
-        author: c.author,
-        date: c.date,
-        body: c.body
-      })),
-    });
+    // AI 파이프라인 호출을 위한 RecommendationInput 매핑
+    const sessionId = `session_${Date.now()}`;
+    const payload: RecommendationInput = {
+      project_id: this.projectId,
+      session_id: sessionId,
+      feature_type: 'recommendation',
+      recommendation_type: 'pr_description',
+      current_branch: currentBranch,
+      change_summary: `PR from ${currentBranch} to ${base}`,
+      changed_files: [],
+      work_intent: `Create PR description for changes between ${base} and ${currentBranch}`,
+      diff_summary: diffText,
+      branch_context: commits.map(c => `- ${c.shortHash} ${c.message}`).join('\n'),
+      schema_version: '1.0',
+    };
+
+    const parsedResult = await this.aiService.processMergeRequest(payload) as RecommendationResult;
 
     // DB에 결과 저장
     await this.saveRecommendationHistory({
       project_id: this.projectId,
       recommendation_type: 'pr_description',
-      input_summary: `PR from ${currentBranch} to ${base}`,
-      result_text: result.markdown,
+      input_summary: payload.change_summary,
+      result_text: parsedResult.primary_text,
     });
 
-    return result;
+    return {
+      markdown: parsedResult.primary_text,
+    };
   }
 }

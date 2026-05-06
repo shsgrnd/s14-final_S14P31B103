@@ -43,11 +43,3 @@ export interface RecommendationOrchestrator extends RecommendationServiceContrac
   recommendPR(base: string): Promise<PRRecommendationResult>;
 }
 
-/**
- * AI Provider 호출을 추상화하는 클라이언트 인터페이스 (껍데기)
- * AI 담당자가 실제 구현체를 작성할 예정입니다.
- */
-export interface IAIClient {
-  recommendPR(input: PRRecommendationInput): Promise<PRRecommendationResult>;
-  // TODO: recommendCommit, recommendBranch 등 다른 기능들도 여기에 추가
-}

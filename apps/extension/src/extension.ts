@@ -13,7 +13,7 @@ import { GitMetadataSyncService } from './features/git/GitMetadataSyncService';
 import { GitStatusRefreshController } from './features/git/GitStatusRefreshController';
 import { BranchCleanupService } from './features/git/BranchCleanupService';
 import { SqliteRecommendationHistoryRepository } from '@gitcat/storage';
-import { DummyAIClient } from './features/recommendation/DummyAIClient';
+import { MergeAiService } from '@gitcat/ai-pipeline';
 import { RecommendationService } from './features/recommendation/RecommendationService';
 import { RecommendationHandler } from './features/recommendation/RecommendationHandler';
 
@@ -63,11 +63,11 @@ export async function activate(context: vscode.ExtensionContext) {
   if (rootPath && gitService && dbInstance) {
     try {
       const historyRepository = new SqliteRecommendationHistoryRepository(dbInstance);
-      const aiClient = new DummyAIClient();
+      const aiService = new MergeAiService();
       const projectId = `project_${createHash('sha1').update(rootPath).digest('hex').slice(0, 16)}`;
       const recommendationService = new RecommendationService(
         gitService,
-        aiClient,
+        aiService,
         historyRepository,
         projectId
       );
