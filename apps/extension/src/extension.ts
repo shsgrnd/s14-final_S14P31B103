@@ -11,6 +11,10 @@ import { GitMessageHandler } from './features/git/GitMessageHandler';
 import { GitMetadataSyncService } from './features/git/GitMetadataSyncService';
 import { GitStatusRefreshController } from './features/git/GitStatusRefreshController';
 import { BranchCleanupService } from './features/git/BranchCleanupService';
+import {
+  BranchRecommendationMessageHandler,
+  BranchRecommendationService,
+} from './features/recommendation';
 
 export async function activate(context: vscode.ExtensionContext) {
   console.log('GitCat Extension is now active!');
@@ -37,6 +41,7 @@ export async function activate(context: vscode.ExtensionContext) {
   }
 
   let gitMessageHandler: GitMessageHandler | undefined;
+  let branchRecommendationHandler: BranchRecommendationMessageHandler | undefined;
   let gitService: GitService | undefined;
   if (rootPath) {
     try {
@@ -47,6 +52,9 @@ export async function activate(context: vscode.ExtensionContext) {
       gitService = new GitService(gitClient, gitMetadataSync);
       const branchCleanupService = new BranchCleanupService(gitService);
       gitMessageHandler = new GitMessageHandler(gitService, branchCleanupService);
+      branchRecommendationHandler = new BranchRecommendationMessageHandler(
+        new BranchRecommendationService(gitService),
+      );
       console.log('GitCat Git layer initialized at:', rootPath);
     } catch (error) {
       console.error('Failed to initialize GitCat Git layer:', error);
@@ -54,7 +62,7 @@ export async function activate(context: vscode.ExtensionContext) {
     }
   }
 
-  const messageRouter = new MessageRouter(dbInstance, gitMessageHandler);
+  const messageRouter = new MessageRouter(dbInstance, gitMessageHandler, branchRecommendationHandler);
 
   if (gitService) {
     const gitStatusRefreshController = new GitStatusRefreshController(gitService, messageRouter);

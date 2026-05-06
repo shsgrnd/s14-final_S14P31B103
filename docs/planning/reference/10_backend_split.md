@@ -85,42 +85,74 @@
 
 ## 2단계. 추천 기능
 
+### 분담 원칙
+- 추천 기능은 **기능 단위 세로분리**로 진행한다.
+- 각 담당자는 자신이 맡은 추천 기능에 대해
+  - Git 데이터 수집
+  - 핸들러 / 라우터 연결
+  - 서비스 구현
+  - recommendation_histories 저장 / 조회
+  - Webview 응답 전달
+  까지 한 흐름으로 책임진다.
+- AI 담당은
+  - 백엔드가 넘긴 raw data를 받아
+  - 프롬프트 입력으로 가공하고
+  - 외부 AI 호출 후
+  - 추천 응답 payload를 조립해
+  - 백엔드에 반환한다.
+- 백엔드는 AI 응답을 받아 validator 검증 후 history 저장 및 Webview 전달을 담당한다.
+
 ### 백엔드 1
+#### 담당 기능
+- 브랜치명 추천
+- 커밋명 추천
+
+#### 작업 범위
+- `RECOMMEND_BRANCH` 핸들러
+- `RECOMMEND_COMMIT` 핸들러
 - 추천 요청 전 필요한 Git 데이터 수집
-  - staged diff
-  - current branch
-  - branch list
-  - base 비교 정보
-  - recent commits/log
-- RECOMMEND_COMMIT / RECOMMEND_BRANCH / RECOMMEND_PR 메시지 라우팅
-- 추천 요청/응답 배선
-- 추천 결과를 Webview로 전달하는 최소 흐름 구현
+  - branch 추천: 작업 목적, 현재 branch, branch list
+  - commit 추천: staged diff, current branch, recent commits/log
+- branch / commit recommendation service 구현
+- recommendation_histories 저장 / 조회 연동
+- 추천 결과 DTO 변환 및 Webview 응답 전달
+- 실패 / 로딩 / 성공 응답 처리
 
 ### 백엔드 2
-- recommendation_histories repository 구현
-- recommendation service 구현
-- recommendation history 저장/조회
-- 과거 recommendation history를 현재 추천 입력의 참고 데이터로 조회하는 서비스 구현
-- RECOMMEND_COMMIT / RECOMMEND_BRANCH / RECOMMEND_PR DTO, validator, result model 구현
-- AIClient interface 기반 추천 orchestration 구현
-- 추천 실패/로딩/성공 응답 구조 정리
+#### 담당 기능
+- PR description 추천
+
+#### 작업 범위
+- `RECOMMEND_PR` 핸들러
+- 추천 요청 전 필요한 Git 데이터 수집
+  - base 비교 정보
+  - diff
+  - current branch
+  - recent commits/log
+- PR recommendation service 구현
+- recommendation_histories 저장 / 조회 연동
+- 추천 결과 DTO 변환 및 Webview 응답 전달
+- 실패 / 로딩 / 성공 응답 처리
 
 ### 단계 종료 후 연결
-- 백엔드 1이 수집한 Git 기반 입력 데이터를
-- 백엔드 2의 recommendation service에 전달
-- 백엔드 2의 recommendation result를
-- 백엔드 1 라우터를 통해 Webview로 전달
+- 백엔드 1의 branch / commit 추천 흐름과
+- 백엔드 2의 PR 추천 흐름이
+공통 recommendation_histories / AIClient / message protocol 위에서 일관되게 동작해야 한다.
 
 ### 프론트 연결 시점
 - 이 단계 끝나면 프론트는
-  - 브랜치명 추천
-  - 커밋명 추천
-  - PR description 추천
-  UI를 붙일 수 있다.
+  - 브랜치명 추천 UI
+  - 커밋명 추천 UI
+  - PR description 추천 UI
+  를 각각 바로 붙일 수 있다.
 
 ### AI 연결 시점
 - 이 단계에서 AI 담당과 첫 본격 연동
-- AI 담당은 provider 호출, prompt template, parser 품질을 붙인다.
+- AI 담당은
+  - provider 호출
+  - prompt template
+  - parser 품질
+  을 recommendation service contract에 맞춰 붙인다.
 
 ---
 
