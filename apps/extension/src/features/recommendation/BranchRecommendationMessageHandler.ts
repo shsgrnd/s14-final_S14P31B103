@@ -28,6 +28,12 @@ export class BranchRecommendationMessageHandler {
         type: 'BRANCH_SUGGESTIONS',
         payload: { names: result.names },
       } as OutboundMessage);
+      if (result.warnings.length > 0) {
+        webview.postMessage({
+          type: 'NOTIFICATION',
+          payload: { type: 'info', message: result.warnings[0] },
+        } as OutboundMessage);
+      }
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.postError(webview, 'AI_REQUEST_FAILED', message);

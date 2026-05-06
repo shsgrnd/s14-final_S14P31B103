@@ -58,7 +58,14 @@ export async function activate(context: vscode.ExtensionContext) {
       const branchCleanupService = new BranchCleanupService(gitService);
       gitMessageHandler = new GitMessageHandler(gitService, branchCleanupService);
 
-      const branchRecommendationService = new BranchRecommendationService(gitService);
+      const projectId = `project_${createHash('sha1').update(rootPath).digest('hex').slice(0, 16)}`;
+      const branchHistoryRepository = dbInstance
+        ? new SqliteRecommendationHistoryRepository(dbInstance)
+        : undefined;
+      const branchRecommendationService = new BranchRecommendationService(gitService, {
+        historyRepository: branchHistoryRepository,
+        projectId,
+      });
       branchRecommendationHandler = new BranchRecommendationMessageHandler(branchRecommendationService);
 
       console.log('GitCat Git layer initialized at:', rootPath);

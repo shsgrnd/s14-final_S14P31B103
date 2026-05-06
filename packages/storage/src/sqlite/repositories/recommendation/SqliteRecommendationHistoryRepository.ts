@@ -13,7 +13,7 @@ export class SqliteRecommendationHistoryRepository implements RecommendationHist
     const stmt = this.db.prepare(`
       INSERT INTO recommendation_histories (
         recommendation_id, project_id, session_id, ai_request_id, recommendation_type,
-        input_summary, result_text, alternative_texts, generation_basis_summary, followup_notes, warnings, created_at
+        input_summary, result_text, alternative_texts_json, generation_basis_summary, followup_notes, warnings_json, created_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
@@ -61,8 +61,8 @@ export class SqliteRecommendationHistoryRepository implements RecommendationHist
   private mapRow(row: any): RecommendationHistoryRow {
     return {
       ...row,
-      alternative_texts: row.alternative_texts ? JSON.parse(row.alternative_texts) : null,
-      warnings: row.warnings ? JSON.parse(row.warnings) : null,
+      alternative_texts_json: row.alternative_texts_json ?? null,
+      warnings_json: row.warnings_json ?? null,
     };
   }
 }
