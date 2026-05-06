@@ -118,6 +118,11 @@ RAG 파이프라인은 용도에 따라 두 계층으로 분리 운영한다.
 - 임베딩 모델: ONNX 기반 경량 모델 (`all-MiniLM-L6-v2` 등, CPU 동작)
 - 실행 위치: `packages/ai-pipeline/src/rag/`
 
+#### RAG 성능 최적화 전략 (Performance Optimization)
+VS Code Extension 환경에서 RAG 동작 시 사용자 PC의 성능 저하를 방지하기 위해 다음 아키텍처 전략을 적용한다.
+- **증분 업데이트 (Incremental Indexing)**: 매번 프로젝트 전체를 임베딩하지 않고, `git diff`를 활용해 이전 인덱싱 시점 대비 **변경된 파일**만 찾아 임베딩을 업데이트한다.
+- **스냅샷 트리거 연동 (Event-driven)**: 타이핑할 때마다 실시간으로 인덱싱을 수행하면 리소스가 낭비되므로, GitCat의 **'스냅샷(Snapshot)' 생성 시점**이나 **실제 병합(Merge) 명령어 실행 시점** 등 특정 이벤트가 발생했을 때만 백그라운드에서 조용히 실행되도록 제어한다.
+
 ---
 
 ## 6. 학습 파이프라인 연계 흐름
