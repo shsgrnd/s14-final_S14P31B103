@@ -1,5 +1,7 @@
 import * as vscode from 'vscode';
 import { RecommendationOrchestrator } from './interfaces';
+import { InboundPayloadSchemaMap } from '@gitcat/shared-types/src/schemas/messages';
+import { ErrorCode } from '@gitcat/shared-types/src/enums/error-codes';
 
 export class RecommendationHandler {
   constructor(private readonly recommendationService: RecommendationOrchestrator) { }
@@ -16,26 +18,24 @@ export class RecommendationHandler {
   }
 
   private async handleRecommendPR(
-    payload: { base: string },
+    payload: any,
     webview: vscode.Webview
   ): Promise<void> {
     this.sendLoading(webview, 'RECOMMEND_PR', true);
     try {
-      if (!payload.base) {
-        throw new Error('기준 브랜치(base)가 필요합니다.');
-      }
+      const validatedPayload = InboundPayloadSchemaMap.RECOMMEND_PR.parse(payload);
 
-      const result = await this.recommendationService.recommendPR(payload.base);
+      const result = await this.recommendationService.recommendPR(validatedPayload.base);
 
       webview.postMessage({
         type: 'PR_SUGGESTION',
         payload: {
-          suggestion: result.markdown,
+          markdown: result.markdown,
         },
       });
 
     } catch (err: any) {
-      this.sendError(webview, err?.message ?? 'PR 설명 추천 중 오류가 발생했습니다.');
+      this.sendError(webview, 'AI_REQUEST_FAILED', err?.message ?? 'PR 설명 추천 중 오류가 발생했습니다.');
     } finally {
       this.sendLoading(webview, 'RECOMMEND_PR', false);
     }
@@ -45,10 +45,10 @@ export class RecommendationHandler {
     webview.postMessage({ type: 'LOADING', payload: { target, loading } });
   }
 
-  private sendError(webview: vscode.Webview, message: string): void {
+  private sendError(webview: vscode.Webview, code: ErrorCode, message: string): void {
     webview.postMessage({
       type: 'ERROR',
-      payload: { code: 'RECOMMENDATION_FAILED', message },
+      payload: { code, message },
     });
   }
 }

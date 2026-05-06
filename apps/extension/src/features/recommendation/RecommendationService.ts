@@ -7,6 +7,7 @@ import {
   RecommendationHistory,
   PRRecommendationResult,
   RecommendationResult,
+  PRRecommendationInput,
 } from '@gitcat/shared-types/src/dto/ai';
 import { GitService } from '../git/GitService';
 import { MergeAiService } from '@gitcat/ai-pipeline';
@@ -66,6 +67,21 @@ export class RecommendationService implements RecommendationOrchestrator {
     const diffText = await this.gitService.getDiffText(base, currentBranch);
     const commits = await this.gitService.getLogBetween(base, currentBranch);
 
+    // PR 추천용 Raw Data 객체 구성 (DTO 구조 명시적 활용)
+    const rawData: PRRecommendationInput = {
+      baseBranch: base,
+      currentBranch,
+      diffText,
+      commits: commits.map(c => ({
+        hash: c.hash,
+        shortHash: c.shortHash,
+        message: c.message,
+        author: c.author,
+        date: c.date,
+        body: c.body
+      })),
+    };
+
     // AI 파이프라인 호출을 위한 RecommendationInput 매핑
     const sessionId = `session_${Date.now()}`;
     const payload: RecommendationInput = {
@@ -73,12 +89,12 @@ export class RecommendationService implements RecommendationOrchestrator {
       session_id: sessionId,
       feature_type: 'recommendation',
       recommendation_type: 'pr_description',
-      current_branch: currentBranch,
-      change_summary: `PR from ${currentBranch} to ${base}`,
+      current_branch: rawData.currentBranch,
+      change_summary: `PR from ${rawData.currentBranch} to ${rawData.baseBranch}`,
       changed_files: [],
-      work_intent: `Create PR description for changes between ${base} and ${currentBranch}`,
-      diff_summary: diffText,
-      branch_context: commits.map(c => `- ${c.shortHash} ${c.message}`).join('\n'),
+      work_intent: `Create PR description for changes between ${rawData.baseBranch} and ${rawData.currentBranch}`,
+      diff_summary: rawData.diffText,
+      branch_context: rawData.commits.map(c => `- ${c.shortHash} ${c.message}`).join('\n'),
       schema_version: '1.0',
     };
 
