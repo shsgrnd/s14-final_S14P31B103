@@ -9,6 +9,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { GitMessageHandler } from '../features/git/GitMessageHandler';
+import { BranchRecommendationMessageHandler } from '../features/recommendation';
 import { RecommendationHandler } from '../features/recommendation/RecommendationHandler';
 import {
   InboundMessage,
@@ -22,15 +23,18 @@ import {
  */
 export class MessageRouter {
   private readonly gitHandler: GitMessageHandler | null;
+  private readonly branchRecommendationHandler: BranchRecommendationMessageHandler | null;
   private readonly recommendationHandler: RecommendationHandler | null;
   private readonly webviews = new Set<vscode.Webview>();
 
   constructor(
     private readonly dbInstance: any,
     gitHandler?: GitMessageHandler,
+    branchRecommendationHandler?: BranchRecommendationMessageHandler,
     recommendationHandler?: RecommendationHandler,
   ) {
     this.gitHandler = gitHandler ?? null;
+    this.branchRecommendationHandler = branchRecommendationHandler ?? null;
     this.recommendationHandler = recommendationHandler ?? null;
   }
 
@@ -69,7 +73,11 @@ export class MessageRouter {
         const handled = await this.gitHandler.handle(message.type, message.payload, webview);
         if (handled) return;
       }
-
+      // branchRecommendation 핸들러 위임
+      if (this.branchRecommendationHandler) {
+        const handled = await this.branchRecommendationHandler.handle(message.type, message.payload, webview);
+        if (handled) return;
+      }
       // Recommendation 핸들러 위임
       if (this.recommendationHandler) {
         const handled = await this.recommendationHandler.handle(message.type, message.payload, webview);
@@ -117,7 +125,7 @@ export class MessageRouter {
           break;
 
         case 'RECOMMEND_BRANCH':
-          this.sendNotImplemented(webview, 'RECOMMEND_BRANCH', '브랜치명 추천 (2단계 구현 예정)');
+          this.postError(webview, 'INTERNAL_ERROR', '브랜치 추천 핸들러가 초기화되지 않았습니다.');
           break;
 
         case 'RECOMMEND_PR':
