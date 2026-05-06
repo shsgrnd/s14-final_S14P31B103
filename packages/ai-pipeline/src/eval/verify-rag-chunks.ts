@@ -59,13 +59,10 @@ function verifyFile(filePath: string) {
         const fileName = path.basename(filePath);
         const rawText = fs.readFileSync(filePath, 'utf-8');
 
-        // 바이너리 파일 여부 간단 체크 (null 문자가 포함되어 있으면 스킵)
         if (rawText.includes('\0')) {
-            console.log(`- [Skip] 바이너리 파일 제외: ${fileName}`);
             return;
         }
 
-        console.log(`- [Processing] ${fileName}...`);
         const results = chunkFile(fileName, rawText);
 
         if (!fs.existsSync(OUTPUT_DIR)) {
@@ -92,8 +89,6 @@ function verifyFile(filePath: string) {
  * 실행 메인 로직
  */
 function run() {
-    console.log('--- [Phase 1] 범용 RAG 청크 검증 시작 ---');
-
     // 인자로 경로를 받거나 기본 docs 폴더 사용
     const targetArg = process.argv[2] || '../../../../docs';
     const targetPath = path.resolve(__dirname, targetArg);
@@ -106,7 +101,6 @@ function run() {
     const stats = fs.statSync(targetPath);
 
     if (stats.isDirectory()) {
-        console.log(`대상 디렉토리: ${targetPath}`);
         const entries = fs.readdirSync(targetPath, { withFileTypes: true });
 
         for (const entry of entries) {
@@ -118,7 +112,6 @@ function run() {
         verifyFile(targetPath);
     }
 
-    console.log(`\n✅ 모든 검증 완료. 리포트 저장 위치: ${OUTPUT_DIR}`);
     encoding.free();
 }
 
