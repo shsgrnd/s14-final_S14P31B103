@@ -1,0 +1,13 @@
+# RAG 파이프라인 추가 의존성
+# 기존 requirements.txt에 없는 패키지만 포함
+
+# 벡터 데이터베이스
+chromadb>=0.5.0
+
+# bge-m3 임베딩 모델 (FlagEmbedding)
+# 다른 임베딩 모델 사용 시 이 줄을 교체하면 됨
+# 예: sentence-transformers>=2.6.0
+FlagEmbedding>=1.2.5
+
+# ChromaDB 내부 의존성
+onnxruntime>=1.17.0
