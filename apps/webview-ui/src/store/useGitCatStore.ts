@@ -7,6 +7,14 @@ export interface GlobalNotification {
   message: string;
 }
 
+/** Merge 결과 상태 타입 */
+export interface MergeResult {
+  /** 머지 성공 여부 */
+  success: boolean;
+  /** 충돌 발생 시 파일 목록 */
+  conflictedFiles?: string[];
+}
+
 /** Stash 항목 타입 (STASH_LIST payload에서 수신) */
 export interface StashEntry {
   index: number;
@@ -35,6 +43,9 @@ interface GitCatState {
   // 전역 알림 (백엔드 ERROR / NOTIFICATION / GIT_OPERATION_RESULT 수신 시 설정)
   globalNotification: GlobalNotification | null;
 
+  // Merge 결과 (MERGE_COMPLETE 수신 시 설정, 충돌 시 ERROR에서 파싱)
+  mergeResult: MergeResult | null;
+
   // Stash 목록 (STASH_LIST 수신 시 갱신)
   stashes: StashEntry[];
 
@@ -51,6 +62,7 @@ interface GitCatState {
   setExpandedSnapshotId: (id: string | null) => void;
   clearGlobalNotification: () => void;
   setStashes: (stashes: StashEntry[]) => void;
+  clearMergeResult: () => void;
 
   handleMessage: (event: MessageEvent<OutboundMessage>) => void;
 }
@@ -68,6 +80,7 @@ export const useGitCatStore = create<GitCatState>((set) => ({
   expandedSections: ['safety', 'branch'],
   expandedSnapshotId: null,
   globalNotification: null,
+  mergeResult: null,
   stashes: [],
 
   setSnapshots: (snapshots) => set({ snapshots }),
@@ -80,6 +93,7 @@ export const useGitCatStore = create<GitCatState>((set) => ({
   setAICommitSuggestion: (aiCommitSuggestion) => set({ aiCommitSuggestion }),
   clearGlobalNotification: () => set({ globalNotification: null }),
   setStashes: (stashes) => set({ stashes }),
+  clearMergeResult: () => set({ mergeResult: null }),
 
   toggleSection: (sectionId) => set((state) => ({
     expandedSections: state.expandedSections.includes(sectionId)
@@ -127,10 +141,24 @@ export const useGitCatStore = create<GitCatState>((set) => ({
 
       // ── 백엔드 에러 / 알림 수신 처리 ──
 
-      case 'ERROR':
-        // 백엔드 Zod 검증 실패, 서비스 오류 등 모든 에러
-        set({ globalNotification: { type: 'error', message: payload.message } });
+      case 'MERGE_COMPLETE':
+        // 머지 성공 — MERGE_COMPLETE는 payload가 {} 이므로 성공 상태로 저장
+        set({ mergeResult: { success: true } });
         break;
+
+      case 'ERROR': {
+        // 병합 충돌 에러인 경우 → mergeResult에 충돌 파일 목록을 파싱하여 저장
+        const isMergeConflict = payload.message?.startsWith('병합 충돌이 발생했습니다:');
+        if (isMergeConflict) {
+          const filesStr = payload.message.replace('병합 충돌이 발생했습니다:', '').trim();
+          const conflictedFiles = filesStr ? filesStr.split(', ').map((f: string) => f.trim()).filter(Boolean) : [];
+          set({ mergeResult: { success: false, conflictedFiles } });
+        } else {
+          // 일반 에러는 기존 globalNotification으로 처리
+          set({ globalNotification: { type: 'error', message: payload.message } });
+        }
+        break;
+      }
 
       case 'NOTIFICATION':
         // 백엔드에서 명시적으로 보내는 info/warning/error 알림
@@ -139,7 +167,8 @@ export const useGitCatStore = create<GitCatState>((set) => ({
 
       case 'GIT_OPERATION_RESULT':
         // git add / push / merge / checkout 등 git 명령 실행 결과
-        if (!payload.result.success) {
+        // RUN_MERGE 실패는 mergeResult 배너에서 처리하므로 중복 표시 방지
+        if (!payload.result.success && payload.operation !== 'RUN_MERGE') {
           set({
             globalNotification: {
               type: 'error',
