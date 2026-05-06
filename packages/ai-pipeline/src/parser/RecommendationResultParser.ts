@@ -13,8 +13,8 @@ import {
  *
  * 파싱 파이프라인:
  *  1. 마크다운 제거 → 순수 JSON 문자열 추출
- *  2. JSON.parse() → JS 객체 변환
- *  3. MinimalRecommendationResponseSchema로 1차 경량 검증 (title, primary_text 등 필수 확인)
+ *  2. JSON.parse() → JS 객체 변환 (실패 시 Fallback 반환)
+ *  3. MinimalRecommendationResponseSchema로 1차 경량 검증 (실패 시 Fallback 반환)
  *  4. 시스템 메타데이터 주입 (proposal_id, session_id, recommendation_type 등)
  *  5. RecommendationResultSchema로 최종 Zod 검증 후 반환
  */
@@ -56,13 +56,51 @@ export class RecommendationResultParser {
   }
 
   /**
+   * 파싱 실패 시 백엔드/FE에 일관된 규격으로 반환할 Fallback 객체를 생성합니다.
+   *
+   * docs §6.2 proposal_status 'failed' 값과 §7.5.3 recommendation 필수 필드 기준을 따릅니다.
+   * Fallback을 반환함으로써 예외를 전파하지 않고 파이프라인이 안전하게 종료됩니다.
+   *
+   * @param sessionId 현재 작업 세션 ID
+   * @param recommendationType 추천 종류
+   * @param reason 실패 원인 (warnings 필드에 기록됨)
+   */
+  private buildFallback(
+    sessionId: string,
+    recommendationType: RecommendationType,
+    reason: string,
+  ): ParsedAiResult {
+    const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+    const randomSuffix = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+
+    const fallback = {
+      proposal_id: `aip_fallback_${today}_${randomSuffix}`,
+      session_id: sessionId,
+      ai_request_id: `air_fallback_${today}_${randomSuffix}`,
+      feature_type: 'recommendation' as const,
+      recommendation_type: recommendationType,
+      title: '[AI 추천 실패]',
+      summary: 'AI 응답 파싱에 실패했습니다. 잠시 후 다시 시도해 주세요.',
+      primary_text: '',
+      alternative_texts: [],
+      proposal_status: 'failed' as const,
+      parser_version: 'v1',
+      warnings: [`파싱 실패: ${reason}`],
+    };
+
+    return RecommendationResultSchema.parse(fallback) as ParsedAiResult;
+  }
+
+  /**
    * LLM 원시 응답 텍스트를 정규화된 ParsedAiResult(recommendation)로 파싱합니다.
+   *
+   * 파싱 실패(JSON 오류, 스키마 검증 실패) 시 예외를 던지지 않고,
+   * proposal_status 'failed'인 Fallback 객체를 반환합니다.
    *
    * @param rawText LLM이 반환한 원시 텍스트 (JSON 또는 마크다운 코드블록 포함)
    * @param sessionId 현재 작업 세션 ID
    * @param recommendationType 추천 종류 (commit_message | branch_name | work_description)
-   * @returns Zod 검증을 통과한 ParsedAiResult 객체
-   * @throws 파싱 실패 시 Error (Fallback 처리는 [AI-03-2]에서 추가)
+   * @returns Zod 검증을 통과한 ParsedAiResult 객체 (실패 시 Fallback 객체 반환)
    */
   parse(
     rawText: string,
@@ -73,25 +111,29 @@ export class RecommendationResultParser {
     const cleanText = this.cleanResponse(rawText);
 
     // 2. JSON.parse
+    // 실패 시나리오 A: LLM이 JSON이 아닌 텍스트를 반환한 경우 → Fallback 반환
     let rawJson: unknown;
     try {
       rawJson = JSON.parse(cleanText);
     } catch (e) {
-      throw new Error(
-        `[RecommendationResultParser] JSON 파싱 실패: LLM이 JSON 형식이 아닌 응답을 반환했습니다. ` +
-        `원본 응답 앞 200자: ${rawText.substring(0, 200)}`,
-      );
+      const reason = `JSON 파싱 실패 — LLM이 JSON 형식이 아닌 응답을 반환했습니다. 원본 앞 200자: ${rawText.substring(0, 200)}`;
+      console.warn(`[RecommendationResultParser] ${reason}`);
+      return this.buildFallback(sessionId, recommendationType, reason);
     }
 
     // 3. Stage 1: 최소 응답 스키마 검증 (title, primary_text, alternative_texts 존재 여부)
-    const minimalData = MinimalRecommendationResponseSchema.parse(rawJson);
+    // 실패 시나리오 B: JSON은 왔으나 필수 필드가 누락된 경우 → Fallback 반환
+    let minimalData: Record<string, unknown>;
+    try {
+      minimalData = MinimalRecommendationResponseSchema.parse(rawJson) as Record<string, unknown>;
+    } catch (e) {
+      const reason = `필수 필드 검증 실패 — title, primary_text, alternative_texts 중 하나 이상이 누락되었습니다.`;
+      console.warn(`[RecommendationResultParser] ${reason}`);
+      return this.buildFallback(sessionId, recommendationType, reason);
+    }
 
     // 4. 시스템 메타데이터 주입
-    const enrichedData = this.enrich(
-      minimalData as Record<string, unknown>,
-      sessionId,
-      recommendationType,
-    );
+    const enrichedData = this.enrich(minimalData, sessionId, recommendationType);
 
     // 5. Stage 2: 최종 RecommendationResultSchema 검증
     const result = RecommendationResultSchema.parse(enrichedData);
