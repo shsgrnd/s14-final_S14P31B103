@@ -5,7 +5,7 @@ import {
 import {
   writeMergePatchFile,
   writeMergedCodeFile,
-} from '@gitcat/storage/file-storage/io';
+} from '@gitcat/storage';
 
 interface MergePatchDraftArtifactPayload
   extends Partial<MergePatchDraftResult> {
