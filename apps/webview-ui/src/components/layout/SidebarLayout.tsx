@@ -4,6 +4,7 @@ import { GitActionPanel } from '../git/GitActionPanel';
 import { SnapshotTimeline } from '../safety/SnapshotTimeline';
 import { BranchCleanupPanel } from '../git/BranchCleanupPanel';
 import { StashPanel } from '../git/StashPanel';
+import { FileTreePanel } from '../git/FileTreePanel';
 import { SectionHeader } from '../common/SectionHeader';
 import { footerIconBtn } from '../../shared/styles';
 import { useGitCatStore } from '../../store/useGitCatStore';
@@ -25,6 +26,7 @@ export const SidebarLayout: React.FC = () => {
   const stashes = useGitCatStore(state => state.stashes);
 
   const [expanded, setExpanded] = useState({
+    filetree: true,
     git: true,
     safety: false,
     branch: false,
@@ -41,20 +43,30 @@ export const SidebarLayout: React.FC = () => {
       {/* ── Accordion Sections Container ── */}
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
 
-        {/* ── Section 1: Git 작업 및 AI ── */}
+        {/* ── Section 0: Git & AI ── */}
         <section style={{ display: 'flex', flexDirection: 'column', flex: expanded.git ? '1 1 0' : 'none', overflow: 'hidden' }}>
           <SectionHeader
-            label="Git 작업 및 AI"
+            label="Git & AI"
             expanded={expanded.git}
             onToggle={() => setExpanded(p => ({ ...p, git: !p.git }))}
           />
           {expanded.git && <div style={{ flex: 1, overflowY: 'auto' }}><GitActionPanel /></div>}
         </section>
 
+        {/* ── Section 1: Files ── */}
+        <section style={{ display: 'flex', flexDirection: 'column', flex: expanded.filetree ? '1 1 0' : 'none', overflow: 'hidden', minHeight: expanded.filetree ? '120px' : 'auto' }}>
+          <SectionHeader
+            label="Files"
+            expanded={expanded.filetree}
+            onToggle={() => setExpanded(p => ({ ...p, filetree: !p.filetree }))}
+          />
+          {expanded.filetree && <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}><FileTreePanel /></div>}
+        </section>
+
         {/* ── Section 2: 스냅샷 ── */}
         <section style={{ display: 'flex', flexDirection: 'column', flex: expanded.safety ? '1 1 0' : 'none', overflow: 'hidden' }}>
           <SectionHeader
-            label="스냅샷"
+            label="Snapshots"
             expanded={expanded.safety}
             badge={snapshots.length > 0 ? snapshots.length : undefined}
             onToggle={() => setExpanded(p => ({ ...p, safety: !p.safety }))}
@@ -65,7 +77,7 @@ export const SidebarLayout: React.FC = () => {
         {/* ── Section 3: 브랜치 정리 ── */}
         <section style={{ display: 'flex', flexDirection: 'column', flex: expanded.branch ? '1 1 0' : 'none', overflow: 'hidden' }}>
           <SectionHeader
-            label="브랜치 정리"
+            label="Branch Cleanup"
             expanded={expanded.branch}
             badge={branches.length > 0 ? branches.length : undefined}
             onToggle={() => setExpanded(p => ({ ...p, branch: !p.branch }))}

@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { Snapshot, ConflictAnalysis, AIDraft, Branch, OutboundMessage } from '@gitcat/shared-types';
+import { Snapshot, ConflictAnalysis, AIDraft, Branch, OutboundMessage, GitStatusSummary } from '@gitcat/shared-types';
 
 /** 전역 알림 메시지 타입 */
 export interface GlobalNotification {
@@ -46,6 +46,13 @@ interface GitCatState {
   // Merge 결과 (MERGE_COMPLETE 수신 시 설정, 충돌 시 ERROR에서 파싱)
   mergeResult: MergeResult | null;
 
+  // Git 상태 요약 (GET_GIT_STATUS_SUMMARY 요청 후 GIT_STATUS_SUMMARY 수신 시 갱신)
+  statusSummary: GitStatusSummary | null;
+
+  // AI PR 설명 추천 결과 (PR_SUGGESTION 수신 시 갱신)
+  prSuggestion: string | null;
+  isPrLoading: boolean;
+
   // Stash 목록 (STASH_LIST 수신 시 갱신)
   stashes: StashEntry[];
 
@@ -63,6 +70,7 @@ interface GitCatState {
   clearGlobalNotification: () => void;
   setStashes: (stashes: StashEntry[]) => void;
   clearMergeResult: () => void;
+  clearPrSuggestion: () => void;
 
   handleMessage: (event: MessageEvent<OutboundMessage>) => void;
 }
@@ -81,6 +89,9 @@ export const useGitCatStore = create<GitCatState>((set) => ({
   expandedSnapshotId: null,
   globalNotification: null,
   mergeResult: null,
+  statusSummary: null,
+  prSuggestion: null,
+  isPrLoading: false,
   stashes: [],
 
   setSnapshots: (snapshots) => set({ snapshots }),
@@ -94,6 +105,7 @@ export const useGitCatStore = create<GitCatState>((set) => ({
   clearGlobalNotification: () => set({ globalNotification: null }),
   setStashes: (stashes) => set({ stashes }),
   clearMergeResult: () => set({ mergeResult: null }),
+  clearPrSuggestion: () => set({ prSuggestion: null }),
 
   toggleSection: (sectionId) => set((state) => ({
     expandedSections: state.expandedSections.includes(sectionId)
@@ -126,6 +138,9 @@ export const useGitCatStore = create<GitCatState>((set) => ({
         if (payload.target === 'status') {
           set({ isRefreshingStatus: payload.loading });
         }
+        if (payload.target === 'RECOMMEND_PR') {
+          set({ isPrLoading: payload.loading });
+        }
         break;
       case 'CONFLICT_RESULT':
         set({ conflicts: payload.candidates });
@@ -137,6 +152,14 @@ export const useGitCatStore = create<GitCatState>((set) => ({
         break;
       case 'COMMIT_SUGGESTIONS':
         set({ aiCommitSuggestion: payload.suggestions.description });
+        break;
+
+      case 'GIT_STATUS_SUMMARY':
+        set({ statusSummary: payload.summary });
+        break;
+
+      case 'PR_SUGGESTION':
+        set({ prSuggestion: payload.markdown, isPrLoading: false });
         break;
 
       // ── 백엔드 에러 / 알림 수신 처리 ──
