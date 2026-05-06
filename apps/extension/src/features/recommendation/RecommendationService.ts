@@ -1,14 +1,14 @@
 import { RecommendationOrchestrator } from './interfaces';
-import { RecommendationHistoryRepository } from '@gitcat/shared-types/src/interfaces/repositories';
-import { CreateRecommendationHistoryInput } from '@gitcat/shared-types/src/interfaces/repositories';
-import { RecommendationHistoryRow } from '@gitcat/shared-types/src/dto/storage';
+import { RecommendationHistoryRepository } from '@gitcat/shared-types';
+import { CreateRecommendationHistoryInput } from '@gitcat/shared-types';
+import { RecommendationHistoryRow } from '@gitcat/shared-types';
 import {
   RecommendationInput,
   RecommendationHistory,
   PRRecommendationResult,
   RecommendationResult,
   PRRecommendationInput,
-} from '@gitcat/shared-types/src/dto/ai';
+} from '@gitcat/shared-types';
 import { GitService } from '../git/GitService';
 import { MergeAiService } from '@gitcat/ai-pipeline';
 

@@ -1,5 +1,5 @@
 import { AiInputPayloadSchema } from '@gitcat/shared-types';
-import { resolveProposalArtifactPath } from '@gitcat/storage/file-storage/io';
+import { resolveProposalArtifactPath } from '@gitcat/storage';
 import path from 'path';
 import { loadRootEnv } from './config/load-root-env';
 import { liveDemoScenarios, listLiveDemoScenarioNames } from './demo/live-inputs';

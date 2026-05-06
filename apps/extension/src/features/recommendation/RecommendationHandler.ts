@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import { RecommendationOrchestrator } from './interfaces';
-import { InboundPayloadSchemaMap } from '@gitcat/shared-types/src/schemas/messages';
-import { ErrorCode } from '@gitcat/shared-types/src/enums/error-codes';
+import { InboundPayloadSchemaMap } from '@gitcat/shared-types';
+import { ErrorCode } from '@gitcat/shared-types';
 
 export class RecommendationHandler {
   constructor(private readonly recommendationService: RecommendationOrchestrator) { }
