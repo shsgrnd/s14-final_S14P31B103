@@ -1,7 +1,7 @@
 """
 embed_documents.py
 ==================
-Task 29: RAG 파이프라인 - 문서 임베딩 및 벡터 DB 저장
+RAG 파이프라인 - 문서 임베딩 및 벡터 DB 저장
 
 synthetic_dataset/ 또는 임의의 코드/문서 폴더를 읽어
 BAAI/bge-m3 임베딩 모델로 벡터화한 뒤 ChromaDB에 저장합니다.
