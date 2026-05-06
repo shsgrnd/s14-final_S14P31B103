@@ -1,7 +1,8 @@
 import * as vscode from 'vscode';
 import { createHash } from 'crypto';
-import { GitCatDatabase } from '@gitcat/storage';
+import { GitCatDatabase, SqliteRecommendationHistoryRepository } from '@gitcat/storage';
 import { GitCliClient } from '@gitcat/git-client-cli';
+import { MergeAiService } from '@gitcat/ai-pipeline';
 import { CommandRegistry } from './commands';
 import { EventRegistry } from './events';
 import { WebviewProvider } from './webview/WebviewProvider';
@@ -12,8 +13,10 @@ import { GitMessageHandler } from './features/git/GitMessageHandler';
 import { GitMetadataSyncService } from './features/git/GitMetadataSyncService';
 import { GitStatusRefreshController } from './features/git/GitStatusRefreshController';
 import { BranchCleanupService } from './features/git/BranchCleanupService';
-import { SqliteRecommendationHistoryRepository } from '@gitcat/storage';
-import { MergeAiService } from '@gitcat/ai-pipeline';
+import {
+  BranchRecommendationMessageHandler,
+  BranchRecommendationService,
+} from './features/recommendation';
 import { RecommendationService } from './features/recommendation/RecommendationService';
 import { RecommendationHandler } from './features/recommendation/RecommendationHandler';
 import { RecommendationHistoryQueryService } from './features/recommendation/RecommendationHistoryQueryService';
@@ -43,6 +46,7 @@ export async function activate(context: vscode.ExtensionContext) {
   }
 
   let gitMessageHandler: GitMessageHandler | undefined;
+  let branchRecommendationHandler: BranchRecommendationMessageHandler | undefined;
   let gitService: GitService | undefined;
   if (rootPath) {
     try {
@@ -51,8 +55,13 @@ export async function activate(context: vscode.ExtensionContext) {
         ? new GitMetadataSyncService(dbInstance, rootPath)
         : undefined;
       gitService = new GitService(gitClient, gitMetadataSync);
+
       const branchCleanupService = new BranchCleanupService(gitService);
       gitMessageHandler = new GitMessageHandler(gitService, branchCleanupService);
+
+      const branchRecommendationService = new BranchRecommendationService(gitService);
+      branchRecommendationHandler = new BranchRecommendationMessageHandler(branchRecommendationService);
+
       console.log('GitCat Git layer initialized at:', rootPath);
     } catch (error) {
       console.error('Failed to initialize GitCat Git layer:', error);
@@ -81,7 +90,12 @@ export async function activate(context: vscode.ExtensionContext) {
     }
   }
 
-  const messageRouter = new MessageRouter(dbInstance, gitMessageHandler, recommendationHandler);
+  const messageRouter = new MessageRouter(
+    dbInstance,
+    gitMessageHandler,
+    branchRecommendationHandler,
+    recommendationHandler,
+  );
 
   if (gitService) {
     const gitStatusRefreshController = new GitStatusRefreshController(gitService, messageRouter);
