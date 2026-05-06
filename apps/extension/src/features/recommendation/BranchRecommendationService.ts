@@ -10,7 +10,8 @@ import {
 
 interface BranchRecommendationServiceOptions {
   historyRepository?: RecommendationHistoryRepository;
-  projectId?: string;
+  projectId: string;
+  sessionId?: string | null;
 }
 
 interface BranchRecommendationAiResponse {
@@ -25,14 +26,16 @@ interface BranchRecommendationAiResponse {
  */
 export class BranchRecommendationService {
   private readonly historyRepository?: RecommendationHistoryRepository;
-  private readonly projectId: string | null;
+  private readonly projectId: string;
+  private readonly sessionId: string | null;
 
   constructor(
     private readonly gitService: GitService,
-    options: BranchRecommendationServiceOptions = {},
+    options: BranchRecommendationServiceOptions,
   ) {
     this.historyRepository = options.historyRepository;
-    this.projectId = options.projectId ?? null;
+    this.projectId = options.projectId;
+    this.sessionId = options.sessionId ?? null;
   }
 
   public async recommendBranch(
@@ -72,18 +75,25 @@ export class BranchRecommendationService {
   private async buildRawPayload(
     input: BranchRecommendationInputDto,
   ): Promise<BranchRecommendationRawPayloadDto> {
+    if (!this.projectId) {
+      throw new Error('project_id가 없어 브랜치 추천 AI 요청을 생성할 수 없습니다.');
+    }
+
     return {
-      ...input,
-      projectId: this.projectId,
-      recommendationType: 'branch_name',
-      recentHistories: await this.getRecentHistoryContext(),
-      aiProviderStatus: 'not_connected',
-      schemaVersion: '1.0',
+      project_id: this.projectId,
+      session_id: this.sessionId,
+      recommendation_type: 'branch_name',
+      work_intent: input.purpose,
+      current_branch: input.currentBranch,
+      existing_branches: input.existingBranches,
+      recent_histories: await this.getRecentHistoryContext(),
+      ai_provider_status: 'not_connected',
+      schema_version: '1.0',
     };
   }
 
   private async getRecentHistoryContext(): Promise<BranchRecommendationHistoryContextDto[]> {
-    if (!this.historyRepository || !this.projectId) {
+    if (!this.historyRepository) {
       return [];
     }
 
@@ -122,10 +132,10 @@ export class BranchRecommendationService {
       project_id: this.projectId,
       recommendation_type: 'branch_name',
       input_summary: JSON.stringify({
-        purpose: payload.purpose,
-        currentBranch: payload.currentBranch,
-        existingBranchCount: payload.existingBranches.length,
-        recentHistoryCount: payload.recentHistories.length,
+        workIntent: payload.work_intent,
+        currentBranch: payload.current_branch,
+        existingBranchCount: payload.existing_branches.length,
+        recentHistoryCount: payload.recent_histories.length,
       }),
       result_text: primaryName,
       alternative_texts: alternativeNames,

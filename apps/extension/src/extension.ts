@@ -29,9 +29,12 @@ export async function activate(context: vscode.ExtensionContext) {
   }
 
   const rootPath = workspaceFolders?.[0]?.uri.fsPath ?? '';
+  const projectId = rootPath
+    ? `project_${createHash('sha1').update(rootPath).digest('hex').slice(0, 16)}`
+    : undefined;
 
   let dbInstance: any = null;
-  if (rootPath) {
+  if (rootPath && projectId) {
     const dbPath = GitCatDatabase.getDatabasePath(rootPath);
     try {
       const database = await GitCatDatabase.create(rootPath);
@@ -47,7 +50,7 @@ export async function activate(context: vscode.ExtensionContext) {
   let gitMessageHandler: GitMessageHandler | undefined;
   let branchRecommendationHandler: BranchRecommendationMessageHandler | undefined;
   let gitService: GitService | undefined;
-  if (rootPath) {
+  if (rootPath && projectId) {
     try {
       const gitClient = new GitCliClient(rootPath);
       const gitMetadataSync = dbInstance
@@ -58,7 +61,6 @@ export async function activate(context: vscode.ExtensionContext) {
       const branchCleanupService = new BranchCleanupService(gitService);
       gitMessageHandler = new GitMessageHandler(gitService, branchCleanupService);
 
-      const projectId = `project_${createHash('sha1').update(rootPath).digest('hex').slice(0, 16)}`;
       const branchHistoryRepository = dbInstance
         ? new SqliteRecommendationHistoryRepository(dbInstance)
         : undefined;
@@ -76,11 +78,10 @@ export async function activate(context: vscode.ExtensionContext) {
   }
 
   let recommendationHandler: RecommendationHandler | undefined;
-  if (rootPath && gitService && dbInstance) {
+  if (rootPath && gitService && dbInstance && projectId) {
     try {
       const historyRepository = new SqliteRecommendationHistoryRepository(dbInstance);
       const aiService = new MergeAiService();
-      const projectId = `project_${createHash('sha1').update(rootPath).digest('hex').slice(0, 16)}`;
       const recommendationService = new RecommendationService(
         gitService,
         aiService,
