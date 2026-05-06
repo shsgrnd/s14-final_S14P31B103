@@ -12,7 +12,7 @@ import { ConflictCandidateSchema } from '../dto/ai';
 
 export const ParsedAiResultBaseSchema = z.object({
   proposal_id: z.string(),
-  session_id: z.string(),
+  session_id: z.string().nullable(),
   ai_request_id: z.string(),
   feature_type: FeatureTypeEnum,
   title: z.string(),
@@ -108,7 +108,7 @@ export type MinimalRecommendationResponse = z.infer<typeof MinimalRecommendation
 // 기존 AiInputPayloadSchema도 통합
 export const AiInputPayloadSchema = z.object({
   project_id: z.string(),
-  session_id: z.string(),
+  session_id: z.string().nullable(),
   feature_type: FeatureTypeEnum,
   current_branch: z.string(),
   target_branch: z.string().optional(),
