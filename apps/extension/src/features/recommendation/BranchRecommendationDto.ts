@@ -20,6 +20,30 @@ export interface BranchRecommendationInputDto {
   existingBranches: string[];
 }
 
+export interface BranchRecommendationHistoryContextDto {
+  recommendationId: string;
+  inputSummary: string | null;
+  resultText: string;
+  alternativeTexts: string[];
+  createdAt: string;
+}
+
+export interface BranchRecommendationRawPayloadDto {
+  project_id: string;
+  session_id: string | null;
+  recommendation_type: 'branch_name';
+  work_intent: string;
+  current_branch: string;
+  existing_branches: string[];
+  recent_histories: BranchRecommendationHistoryContextDto[];
+  ai_provider_status: 'not_connected';
+  schema_version: '1.0';
+}
+
 export interface BranchRecommendationResultDto {
   names: string[];
+  historyId?: string;
+  rawPayload: BranchRecommendationRawPayloadDto;
+  generationBasisSummary: string;
+  warnings: string[];
 }

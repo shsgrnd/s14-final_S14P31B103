@@ -36,9 +36,9 @@ export const PrPanelLayout: React.FC = () => {
       <header style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px', paddingBottom: '16px', borderBottom: '1px solid var(--vscode-panel-border)' }}>
         <GitPullRequest size={24} style={{ color: 'var(--vscode-charts-blue)' }} />
         <h1 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>Create Pull Request</h1>
-        
+
         <div style={{ flex: 1 }} />
-        
+
         <button
           onClick={() => sendMessage('RECOMMEND_PR', { base: baseBranch })}
           disabled={isPrLoading || !baseBranch}
@@ -64,7 +64,7 @@ export const PrPanelLayout: React.FC = () => {
             onChange={e => setBaseBranch(e.target.value)}
             style={{
               padding: '8px 12px', background: 'var(--vscode-input-background)', color: 'var(--vscode-input-foreground)',
-              border: `1px solid ${baseBranch ? 'var(--vscode-input-border, var(--vscode-panel-border))' : 'var(--vscode-focusBorder)'}`, 
+              border: `1px solid ${baseBranch ? 'var(--vscode-input-border, var(--vscode-panel-border))' : 'var(--vscode-focusBorder)'}`,
               borderRadius: '4px', outline: 'none', fontSize: '13px', cursor: 'pointer'
             }}
           >
@@ -84,6 +84,7 @@ export const PrPanelLayout: React.FC = () => {
             value={prTitle}
             onChange={e => setPrTitle(e.target.value)}
             placeholder="PR 제목을 입력하세요"
+            maxLength={256}
             style={{
               padding: '8px 12px', background: 'var(--vscode-input-background)', color: 'var(--vscode-input-foreground)',
               border: '1px solid var(--vscode-input-border, var(--vscode-panel-border))', borderRadius: '4px',
@@ -98,6 +99,7 @@ export const PrPanelLayout: React.FC = () => {
             value={prDescription}
             onChange={e => setPrDescription(e.target.value)}
             placeholder="이 PR에서 변경된 내용, 해결된 이슈 등을 상세히 적어주세요."
+            maxLength={65536}
             style={{
               padding: '12px', background: 'var(--vscode-input-background)', color: 'var(--vscode-input-foreground)',
               border: '1px solid var(--vscode-input-border, var(--vscode-panel-border))', borderRadius: '4px',

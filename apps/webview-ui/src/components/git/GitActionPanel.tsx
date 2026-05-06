@@ -223,6 +223,7 @@ export const GitActionPanel: React.FC = () => {
             gap: '5px',
             color: isRefreshActive ? 'var(--vscode-charts-blue)' : 'var(--vscode-descriptionForeground)',
             opacity: isRefreshActive ? 1 : 0.82,
+            overflow: 'hidden',
           }}>
             {isRefreshActive && (
               <span style={{
@@ -231,9 +232,12 @@ export const GitActionPanel: React.FC = () => {
                 borderRadius: '50%',
                 background: 'var(--vscode-charts-blue)',
                 boxShadow: '0 0 0 2px rgba(111, 179, 224, 0.18)',
+                flexShrink: 0,
               }} />
             )}
-            {refreshStatusLabel}
+            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {refreshStatusLabel}
+            </span>
           </span>
           <span style={{ color: 'var(--vscode-descriptionForeground)', opacity: 0.82 }}>Auto every 20s</span>
         </div>
@@ -324,6 +328,7 @@ export const GitActionPanel: React.FC = () => {
               onChange={e => setNewBranchName(e.target.value)}
               onKeyDown={e => { if (e.key === 'Enter') handleCreateBranch(); if (e.key === 'Escape') closeBranchForm(); }}
               placeholder="생성할 브랜치명을 작성해주세요"
+              maxLength={255}
               style={{
                 width: '100%', boxSizing: 'border-box',
                 fontSize: '12px', padding: '6px 8px',
@@ -373,6 +378,7 @@ export const GitActionPanel: React.FC = () => {
               value={commitMessage}
               onChange={e => setCommitMessage(e.target.value)}
               placeholder="생성할 커밋명을 작성해주세요"
+              maxLength={1000}
               rows={3}
               style={{
                 width: '100%', boxSizing: 'border-box', resize: 'none', fontSize: '12px',
@@ -746,11 +752,10 @@ export const GitActionPanel: React.FC = () => {
             alignItems: 'flex-start',
             gap: '8px',
             borderRadius: '4px',
-            border: `1px solid ${
-              mergeResult.success
+            border: `1px solid ${mergeResult.success
                 ? 'var(--vscode-charts-green)'
                 : 'var(--vscode-inputValidation-errorBorder)'
-            }`,
+              }`,
             background: mergeResult.success
               ? 'rgba(78, 201, 176, 0.08)'
               : 'var(--vscode-inputValidation-errorBackground)',

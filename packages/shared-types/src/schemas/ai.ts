@@ -82,6 +82,29 @@ export const MinimalMergePatchResponseSchema = z.object({
 
 export type MinimalMergePatchResponse = z.infer<typeof MinimalMergePatchResponseSchema>;
 
+/**
+ * LLM이 직접 응답해야 하는 최소화된 데이터 스키마 (recommendation 전용)
+ *
+ * docs §3 recommendation SFT 최소 세트 기준:
+ *   필수: title, summary, primary_text, alternative_texts
+ *   선택: explanation, confidence_score, generation_basis_summary, format_notes, warnings
+ *
+ * 시스템 메타데이터(proposal_id, session_id 등)는 파서에서 후처리로 주입합니다.
+ */
+export const MinimalRecommendationResponseSchema = z.object({
+  title: z.string(),
+  summary: z.string(),
+  primary_text: z.string(),
+  alternative_texts: z.array(z.string()),
+  explanation: z.string().optional().default(''),
+  confidence_score: z.number().optional().default(0.5),
+  generation_basis_summary: z.string().optional(),
+  format_notes: z.string().optional(),
+  warnings: z.array(z.string()).optional(),
+});
+
+export type MinimalRecommendationResponse = z.infer<typeof MinimalRecommendationResponseSchema>;
+
 // 기존 AiInputPayloadSchema도 통합
 export const AiInputPayloadSchema = z.object({
   project_id: z.string(),
