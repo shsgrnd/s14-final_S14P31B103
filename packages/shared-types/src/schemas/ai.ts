@@ -138,11 +138,11 @@ export const AiInputPayloadSchema = z.object({
       );
     }
     if (data.feature_type === 'recommendation') {
+      const isBranchRecommendation = data.recommendation_type === 'branch_name';
       return (
         !!data.recommendation_type &&
-        !!data.change_summary &&
-        (data.changed_files?.length ?? 0) > 0 &&
-        !!data.work_intent
+        !!data.work_intent &&
+        (isBranchRecommendation || (!!data.change_summary && (data.changed_files?.length ?? 0) > 0))
       );
     }
     return true;
