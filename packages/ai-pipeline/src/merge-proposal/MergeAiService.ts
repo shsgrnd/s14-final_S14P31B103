@@ -6,6 +6,7 @@ import {
   RecommendationInput,
 } from '@gitcat/shared-types';
 import { AiClient, PromptPayload } from '../provider/AiClient';
+import { RecommendationResultParser } from '../parser/RecommendationResultParser';
 import { MergeResultParser } from '../parser/MergeResultParser';
 import {
   buildConflictUserPrompt,
@@ -23,10 +24,16 @@ import {
 export class MergeAiService {
   private client: AiClient;
   private parser: MergeResultParser;
+  private recommendationParser: RecommendationResultParser;
 
-  constructor(client: AiClient = new AiClient(), parser: MergeResultParser = new MergeResultParser()) {
+  constructor(
+    client: AiClient = new AiClient(),
+    parser: MergeResultParser = new MergeResultParser(),
+    recommendationParser: RecommendationResultParser = new RecommendationResultParser()
+  ) {
     this.client = client;
     this.parser = parser;
+    this.recommendationParser = recommendationParser;
   }
 
   /**
@@ -45,13 +52,23 @@ export class MergeAiService {
     // 3. AI 클라이언트 호출 (Mock 또는 실재)
     const rawResponse = await this.client.generateResponse(validatedPayload.feature_type, prompt);
 
-    // 4. Zod를 사용하여 출력 파싱 및 검증
-    const parsedResult = await this.parser.parse(
-      rawResponse,
-      validatedPayload.feature_type,
-      validatedPayload.session_id,
-      { workspaceRoot: options.workspaceRoot },
-    );
+    // 4. 기능 유형에 따라 적절한 파서 선택 및 호출
+    let parsedResult: ParsedAiResult;
+    if (validatedPayload.feature_type === 'recommendation') {
+      // RecommendationResultParser는 비동기가 아니므로 await 불필요
+      parsedResult = this.recommendationParser.parse(
+        rawResponse,
+        validatedPayload.session_id,
+        validatedPayload.recommendation_type!
+      );
+    } else {
+      parsedResult = await this.parser.parse(
+        rawResponse,
+        validatedPayload.feature_type,
+        validatedPayload.session_id,
+        { workspaceRoot: options.workspaceRoot },
+      );
+    }
 
     return parsedResult;
   }

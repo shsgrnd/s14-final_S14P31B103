@@ -1,4 +1,4 @@
-﻿enum명,값,설명,사용 위치,비고
+enum명,값,설명,사용 위치,비고
 feature_type,conflict_explanation,충돌 원인과 위험 지점 설명,"AI Sessions, AI Requests, AI Proposals, ai_task_request, ai_input_payload, model_call_request, parsed_ai_result",
 feature_type,merge_mediation,어떤 방향으로 병합해야 하는지에 대한 중재안,동일,
 feature_type,merge_patch_draft,실제 반영 가능한 diff/patch 또는 코드 초안,동일,핵심 MVP 기능
@@ -6,6 +6,7 @@ feature_type,recommendation,"커밋 메시지, 브랜치명, 작업 설명 추�
 recommendation_type,commit_message,커밋 메시지 추천,"AI Proposals, ai_input_payload, parsed_ai_result",feature_type이 recommendation일 때 사용
 recommendation_type,branch_name,브랜치명 추천,동일,
 recommendation_type,work_description,작업 설명 추천,동일,
+recommendation_type,pr_description,PR 설명 추천,동일,
 request_origin,panel,패널 UI에서 요청 발생,"AI Sessions, ai_task_request",
 request_origin,treeview,Tree View에서 요청 발생,동일,
 request_origin,command_palette,명령 팔레트에서 요청 발생,동일,
