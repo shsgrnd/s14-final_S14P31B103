@@ -53,8 +53,10 @@ export class AiInputService {
     // 1. Zod를 이용한 구조 검증
     const validatedPayload = RecommendationInputSchema.parse(rawPayload);
 
-    // TODO: [Phase 2] RecommendationInput용 TokenBudgetGuard 로직 (어댑터) 연동 필요
-    // 현재는 검증된 Payload를 그대로 반환합니다.
-    return validatedPayload;
+    // 2. TokenBudgetGuard를 통한 토큰 사용량 검증 및 지능적 절단
+    const optimizedPayload = this.tokenBudgetGuard.enforce(validatedPayload);
+
+    // 3. 최적화 과정에서 스키마가 깨지지 않았는지 2차 검증 후 반환
+    return RecommendationInputSchema.parse(optimizedPayload);
   }
 }

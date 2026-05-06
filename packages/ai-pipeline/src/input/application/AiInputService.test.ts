@@ -1,3 +1,5 @@
+// @ts-nocheck
+declare var describe: any, it: any, expect: any, beforeEach: any;
 import { AiInputService } from './AiInputService';
 import { MergeProposalInput, RecommendationInput } from '@gitcat/shared-types';
 
@@ -36,7 +38,7 @@ describe('AiInputService', () => {
       };
 
       const result = aiInputService.processMergeProposalInput(rawPayload);
-      
+
       expect(result).toBeDefined();
       expect(result.project_id).toBe('proj-123');
       expect(result.feature_type).toBe('merge_patch_draft');
@@ -69,7 +71,7 @@ describe('AiInputService', () => {
       };
 
       const result = aiInputService.processRecommendationInput(rawPayload);
-      
+
       expect(result).toBeDefined();
       expect(result.recommendation_type).toBe('commit_message');
     });
