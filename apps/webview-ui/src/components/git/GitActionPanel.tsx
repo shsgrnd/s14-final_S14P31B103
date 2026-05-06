@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { GitBranch, Plus, ArrowUp, GitMerge, Check, Sparkles, ChevronDown, ChevronUp, X, CornerDownRight, Clock, RefreshCw, AlertCircle, Info, RotateCw, CheckCircle2, ExternalLink } from 'lucide-react';
+import { GitBranch, Plus, ArrowUp, GitMerge, Check, Sparkles, ChevronDown, ChevronUp, X, CornerDownRight, Clock, RefreshCw, AlertCircle, Info, RotateCw, CheckCircle2, ExternalLink, GitPullRequest } from 'lucide-react';
 import { useGitCatStore } from '../../store/useGitCatStore';
 import { useVsCodeApi } from '../../hooks/useVsCodeApi';
 import { btn, bigBtn, inlineBtn } from '../../shared/styles';
 
 export const GitActionPanel: React.FC = () => {
-  const { currentBranch, branches, globalNotification, clearGlobalNotification, isRefreshingStatus, lastStatusRefreshAt, mergeResult, clearMergeResult } = useGitCatStore();
+  const { currentBranch, branches, globalNotification, clearGlobalNotification, isRefreshingStatus, lastStatusRefreshAt, mergeResult, clearMergeResult, prSuggestion, isPrLoading, clearPrSuggestion } = useGitCatStore();
   const { sendMessage } = useVsCodeApi();
   const [showNewBranch, setShowNewBranch] = useState(false);
   const [newBranchName, setNewBranchName] = useState('');
@@ -33,6 +33,9 @@ export const GitActionPanel: React.FC = () => {
   useEffect(() => {
     setCheckoutingBranch(null);
   }, [currentBranch]);
+
+  // AI 추천 결과 연동 (브랜치/커밋 등 필요 시 추가)
+  // PR 추천 폼이 외부 탭으로 분리되면서 폼 자동 완성 로직 제거
 
   const showStatus = (text: string, ok: boolean) => {
     setStatusMsg({ text, ok });
@@ -62,6 +65,8 @@ export const GitActionPanel: React.FC = () => {
     setMergeTarget(currentBranch);
   };
 
+
+
   const handleGitAdd = () => {
     sendMessage('GIT_ADD_ALL', {});
     showStatus('Git add가 완료되었습니다.', true);
@@ -75,6 +80,7 @@ export const GitActionPanel: React.FC = () => {
       closeCommitForm();
     } else {
       closeBranchForm();
+      closeMergeForm();
       setShowCommitForm(true);
     }
   };
@@ -217,6 +223,7 @@ export const GitActionPanel: React.FC = () => {
             gap: '5px',
             color: isRefreshActive ? 'var(--vscode-charts-blue)' : 'var(--vscode-descriptionForeground)',
             opacity: isRefreshActive ? 1 : 0.82,
+            overflow: 'hidden',
           }}>
             {isRefreshActive && (
               <span style={{
@@ -225,9 +232,12 @@ export const GitActionPanel: React.FC = () => {
                 borderRadius: '50%',
                 background: 'var(--vscode-charts-blue)',
                 boxShadow: '0 0 0 2px rgba(111, 179, 224, 0.18)',
+                flexShrink: 0,
               }} />
             )}
-            {refreshStatusLabel}
+            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {refreshStatusLabel}
+            </span>
           </span>
           <span style={{ color: 'var(--vscode-descriptionForeground)', opacity: 0.82 }}>Auto every 20s</span>
         </div>
@@ -297,58 +307,38 @@ export const GitActionPanel: React.FC = () => {
 
       {/* ── New Branch Row ── */}
       {
-        !showCommitForm && !showNewBranch ? (
-          <div style={{ margin: '8px 8px 4px 8px' }}>
-            <button
-              onClick={() => {
-                if (!isGitConnected) return;
-                closeCommitForm();
-                setShowNewBranch(true);
-              }}
-              disabled={!isGitConnected}
-              style={{
-                ...bigBtn('primary'),
-                opacity: isGitConnected ? 1 : 0.5,
-                cursor: isGitConnected ? 'pointer' : 'not-allowed'
-              }}
-            >
-              <GitBranch size={13} />
-              New branch
-            </button>
-          </div>
-        ) : (
-          !showCommitForm && (
-            <div style={{ margin: '8px' }}>
-              <div style={{
-                fontSize: '12px', marginBottom: '6px',
-                color: 'var(--vscode-descriptionForeground)',
-                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              }}>
-                <span>Create New Branch</span>
-                <button
-                  onClick={() => setShowBranchAI(true)}
-                  style={{ ...inlineBtn, color: 'var(--vscode-button-foreground)', background: 'var(--vscode-button-background)' }}
-                >
-                  <Sparkles size={11} /> AI 추천
-                </button>
-              </div>
-              <input
-                autoFocus
-                value={newBranchName}
-                onChange={e => setNewBranchName(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter') handleCreateBranch(); if (e.key === 'Escape') closeBranchForm(); }}
-                placeholder="생성할 브랜치명을 작성해주세요"
-                style={{
-                  width: '100%', boxSizing: 'border-box',
-                  fontSize: '12px', padding: '6px 8px',
-                  background: 'var(--vscode-input-background)',
-                  color: 'var(--vscode-input-foreground)',
-                  border: '1px solid var(--vscode-focusBorder)',
-                  borderRadius: '3px', outline: 'none',
-                }}
-              />
+        showNewBranch && !showCommitForm && (
+          <div style={{ margin: '8px' }}>
+            <div style={{
+              fontSize: '12px', marginBottom: '6px',
+              color: 'var(--vscode-descriptionForeground)',
+              display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+            }}>
+              <span>Create New Branch</span>
+              <button
+                onClick={() => setShowBranchAI(true)}
+                style={{ ...inlineBtn, color: 'var(--vscode-button-foreground)', background: 'var(--vscode-button-background)' }}
+              >
+                <Sparkles size={11} /> AI 추천
+              </button>
             </div>
-          )
+            <input
+              autoFocus
+              value={newBranchName}
+              onChange={e => setNewBranchName(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') handleCreateBranch(); if (e.key === 'Escape') closeBranchForm(); }}
+              placeholder="생성할 브랜치명을 작성해주세요"
+              maxLength={255}
+              style={{
+                width: '100%', boxSizing: 'border-box',
+                fontSize: '12px', padding: '6px 8px',
+                background: 'var(--vscode-input-background)',
+                color: 'var(--vscode-input-foreground)',
+                border: '1px solid var(--vscode-focusBorder)',
+                borderRadius: '3px', outline: 'none',
+              }}
+            />
+          </div>
         )
       }
 
@@ -388,6 +378,7 @@ export const GitActionPanel: React.FC = () => {
               value={commitMessage}
               onChange={e => setCommitMessage(e.target.value)}
               placeholder="생성할 커밋명을 작성해주세요"
+              maxLength={1000}
               rows={3}
               style={{
                 width: '100%', boxSizing: 'border-box', resize: 'none', fontSize: '12px',
@@ -410,38 +401,83 @@ export const GitActionPanel: React.FC = () => {
         )
       }
 
-      {/* ── Main Action Buttons (Grid) ── */}
+
+
+      {/* ── 메인 버튼 그룹: 모두 동일한 flex 컨테이너에서 간격 통일 ── */}
       {
         !showNewBranch && !showCommitForm && !showMergeForm && (
-          <div style={{ margin: '12px 8px 8px 8px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+          <div style={{ margin: '8px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+
+            {/* New Branch (full-width, primary) */}
             <button
-              onClick={handleGitAdd}
+              onClick={() => {
+                if (!isGitConnected) return;
+                closeCommitForm();
+                closeMergeForm();
+                setShowNewBranch(true);
+              }}
               disabled={!isGitConnected}
-              style={{ ...bigBtn('secondary'), opacity: isGitConnected ? 1 : 0.5, cursor: isGitConnected ? 'pointer' : 'not-allowed' }}
+              style={{
+                ...bigBtn('primary'),
+                opacity: isGitConnected ? 1 : 0.5,
+                cursor: isGitConnected ? 'pointer' : 'not-allowed',
+              }}
             >
-              <Plus size={13} /> Git add
+              <GitBranch size={13} /> New Branch
             </button>
+
+            {/* 2×2 그리드 */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+              <button
+                onClick={handleGitAdd}
+                disabled={!isGitConnected}
+                style={{ ...bigBtn('secondary'), opacity: isGitConnected ? 1 : 0.5, cursor: isGitConnected ? 'pointer' : 'not-allowed' }}
+              >
+                <Plus size={13} /> Git Add
+              </button>
+              <button
+                onClick={() => isGitConnected && setShowCommitForm(true)}
+                disabled={!isGitConnected}
+                style={{ ...bigBtn('secondary'), opacity: isGitConnected ? 1 : 0.5, cursor: isGitConnected ? 'pointer' : 'not-allowed' }}
+              >
+                <Check size={13} /> Git Commit
+              </button>
+              <button
+                onClick={handlePush}
+                disabled={!isGitConnected}
+                style={{ ...bigBtn('secondary'), opacity: isGitConnected ? 1 : 0.5, cursor: isGitConnected ? 'pointer' : 'not-allowed' }}
+              >
+                <ArrowUp size={13} /> Git Push
+              </button>
+              <button
+                onClick={handleMerge}
+                disabled={!isGitConnected}
+                style={{ ...bigBtn('secondary'), opacity: isGitConnected ? 1 : 0.5, cursor: isGitConnected ? 'pointer' : 'not-allowed' }}
+              >
+                <GitMerge size={13} /> Merge
+              </button>
+            </div>
+
+            {/* PR 생성 (full-width, primary — New Branch와 완전 동일한 스타일) */}
             <button
-              onClick={() => isGitConnected && setShowCommitForm(true)}
+              onClick={() => {
+                if (!isGitConnected) return;
+                closeCommitForm();
+                closeMergeForm();
+                closeBranchForm();
+                sendMessage('OPEN_PR_PANEL', {});
+              }}
               disabled={!isGitConnected}
-              style={{ ...bigBtn('secondary'), opacity: isGitConnected ? 1 : 0.5, cursor: isGitConnected ? 'pointer' : 'not-allowed' }}
+              style={{
+                ...bigBtn('primary'),
+                opacity: (!isGitConnected) ? 0.5 : 1,
+                cursor: (!isGitConnected) ? 'not-allowed' : 'pointer',
+              }}
+              title="GitCat 내에서 PR 생성하기"
             >
-              <Check size={13} /> Git Commit
+              <GitPullRequest size={13} /> PR 생성
             </button>
-            <button
-              onClick={handlePush}
-              disabled={!isGitConnected}
-              style={{ ...bigBtn('secondary'), opacity: isGitConnected ? 1 : 0.5, cursor: isGitConnected ? 'pointer' : 'not-allowed' }}
-            >
-              <ArrowUp size={13} /> Git Push
-            </button>
-            <button
-              onClick={handleMerge}
-              disabled={!isGitConnected}
-              style={{ ...bigBtn('secondary'), opacity: isGitConnected ? 1 : 0.5, cursor: isGitConnected ? 'pointer' : 'not-allowed' }}
-            >
-              <GitMerge size={13} /> Merge
-            </button>
+
           </div>
         )
       }
@@ -782,6 +818,7 @@ export const GitActionPanel: React.FC = () => {
           </div>
         )
       }
+
     </div>
   );
 };

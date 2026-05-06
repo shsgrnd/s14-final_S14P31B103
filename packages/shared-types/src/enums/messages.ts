@@ -68,6 +68,9 @@ export const InboundMessageTypeEnum = z.enum([
   'SAVE_BRANCH_CLEANUP_SETTINGS',
   'GET_BRANCH_CLEANUP_CANDIDATES',
   'EXECUTE_BRANCH_CLEANUP',
+  // PR 관련
+  'CREATE_PR',
+  'OPEN_PR_PANEL',
 ]);
 export type InboundMessageType = z.infer<typeof InboundMessageTypeEnum>;
 
