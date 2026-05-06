@@ -752,11 +752,10 @@ export const GitActionPanel: React.FC = () => {
             alignItems: 'flex-start',
             gap: '8px',
             borderRadius: '4px',
-            border: `1px solid ${
-              mergeResult.success
+            border: `1px solid ${mergeResult.success
                 ? 'var(--vscode-charts-green)'
                 : 'var(--vscode-inputValidation-errorBorder)'
-            }`,
+              }`,
             background: mergeResult.success
               ? 'rgba(78, 201, 176, 0.08)'
               : 'var(--vscode-inputValidation-errorBackground)',

@@ -12,29 +12,29 @@ import type { WorkspaceFileTreeNode } from '@gitcat/shared-types';
 const VscFolder: React.FC<{ open?: boolean }> = ({ open }) =>
   open ? (
     <svg width="14" height="14" viewBox="0 0 16 16" style={{ flexShrink: 0 }}>
-      <path d="M1.5 14h13l.5-.5V5l-.5-.5H7.71l-.86-.85L6.5 3.5h-5l-.5.5v10l.5.5z" fill="#dcb67a"/>
-      <path d="M15 5H7.71l-.86-.85L6.5 3.5H1v1h5.29l.86.85.35.15H15V5z" fill="#c09040" opacity="0.5"/>
+      <path d="M1.5 14h13l.5-.5V5l-.5-.5H7.71l-.86-.85L6.5 3.5h-5l-.5.5v10l.5.5z" fill="#dcb67a" />
+      <path d="M15 5H7.71l-.86-.85L6.5 3.5H1v1h5.29l.86.85.35.15H15V5z" fill="#c09040" opacity="0.5" />
     </svg>
   ) : (
     <svg width="14" height="14" viewBox="0 0 16 16" style={{ flexShrink: 0 }}>
-      <path d="M14.5 3H7.71l-.85-.85L6.5 1.99h-5l-.5.51V14l.5.5h13l.5-.5V3.5L14.5 3zm-.51 10.5h-12V3.49h4.81l.85.85.35.15H14v9.51z" fill="#dcb67a"/>
+      <path d="M14.5 3H7.71l-.85-.85L6.5 1.99h-5l-.5.51V14l.5.5h13l.5-.5V3.5L14.5 3zm-.51 10.5h-12V3.49h4.81l.85.85.35.15H14v9.51z" fill="#dcb67a" />
     </svg>
   );
 
 const VscFile: React.FC<{ color?: string }> = ({ color }) => (
   <svg width="13" height="13" viewBox="0 0 16 16" style={{ flexShrink: 0 }}>
-    <path d="M13.71 4.29l-3-3L10 1H4L3 2v12l1 1h9l1-1V5l-.29-.71zM13 14H4V2h5v4h4v8zm-3-9V2.5l3.5 3.5H10z" fill={color ?? 'var(--vscode-descriptionForeground)'}/>
+    <path d="M13.71 4.29l-3-3L10 1H4L3 2v12l1 1h9l1-1V5l-.29-.71zM13 14H4V2h5v4h4v8zm-3-9V2.5l3.5 3.5H10z" fill={color ?? 'var(--vscode-descriptionForeground)'} />
   </svg>
 );
 
 // ── 파일 상태별 색상 및 레이블 설정 ──────────────────────────────────────────
 
 const STATUS_CONFIG: Record<string, { color: string; label: string; short: string }> = {
-  staged:     { color: '#4ec9b0', label: 'Staged',     short: 'S' },
-  unstaged:   { color: '#ce9178', label: 'Unstaged',   short: 'M' },
-  untracked:  { color: '#9cdcfe', label: 'Untracked',  short: 'U' },
+  staged: { color: '#4ec9b0', label: 'Staged', short: 'S' },
+  unstaged: { color: '#ce9178', label: 'Unstaged', short: 'M' },
+  untracked: { color: '#9cdcfe', label: 'Untracked', short: 'U' },
   conflicted: { color: '#f48771', label: 'Conflicted', short: '!' },
-  pushable:   { color: '#569cd6', label: 'Pushable',   short: 'P' },
+  pushable: { color: '#569cd6', label: 'Pushable', short: 'P' },
 };
 
 // ── 상태 요약 팝업 ────────────────────────────────────────────────────────────
@@ -70,12 +70,12 @@ const StatusSummaryPopup: React.FC<StatusSummaryPopupProps> = ({ onClose, trigge
 
   const stats = statusSummary
     ? [
-        { key: 'untracked',  count: statusSummary.untrackedCount,  files: statusSummary.untracked },
-        { key: 'unstaged',   count: statusSummary.unstagedCount,   files: statusSummary.unstaged },
-        { key: 'staged',     count: statusSummary.stagedCount,     files: statusSummary.staged },
-        { key: 'pushable',   count: statusSummary.pushableCount,   files: statusSummary.pushable },
-        { key: 'conflicted', count: statusSummary.conflictedCount, files: statusSummary.conflicted },
-      ]
+      { key: 'untracked', count: statusSummary.untrackedCount, files: statusSummary.untracked },
+      { key: 'unstaged', count: statusSummary.unstagedCount, files: statusSummary.unstaged },
+      { key: 'staged', count: statusSummary.stagedCount, files: statusSummary.staged },
+      { key: 'pushable', count: statusSummary.pushableCount, files: statusSummary.pushable },
+      { key: 'conflicted', count: statusSummary.conflictedCount, files: statusSummary.conflicted },
+    ]
     : [];
 
   return (
@@ -197,10 +197,10 @@ const StatusSummaryPopup: React.FC<StatusSummaryPopupProps> = ({ onClose, trigge
               💡 {
                 ({
                   RESOLVE_CONFLICTS: '충돌 해결이 필요합니다',
-                  ADD_CHANGES:       '변경사항을 스테이징하세요',
-                  COMMIT_CHANGES:    '커밋할 준비가 됐습니다',
-                  PULL_CHANGES:      '원격 변경사항을 Pull하세요',
-                  PUSH_COMMITS:      'Push할 커밋이 있습니다',
+                  ADD_CHANGES: '변경사항을 스테이징하세요',
+                  COMMIT_CHANGES: '커밋할 준비가 됐습니다',
+                  PULL_CHANGES: '원격 변경사항을 Pull하세요',
+                  PUSH_COMMITS: 'Push할 커밋이 있습니다',
                 } as Record<string, string>)[statusSummary.nextAction]
               }
             </div>
@@ -356,17 +356,17 @@ export const FileTreePanel: React.FC = () => {
   // Changed 탭: 상태가 있는 파일만 flat 렌더링
   const changedFiles: WorkspaceFileTreeNode[] = statusSummary
     ? [
-        ...statusSummary.staged.map(f => ({ name: f.path.split('/').pop() ?? f.path, path: f.path, type: 'file' as const, status: 'staged' as any })),
-        ...statusSummary.unstaged.map(f => ({ name: f.path.split('/').pop() ?? f.path, path: f.path, type: 'file' as const, status: 'unstaged' as any })),
-        ...statusSummary.untracked.map(f => ({ name: f.path.split('/').pop() ?? f.path, path: f.path, type: 'file' as const, status: 'untracked' as any })),
-        ...statusSummary.conflicted.map(f => ({ name: f.path.split('/').pop() ?? f.path, path: f.path, type: 'file' as const, status: 'conflicted' as any })),
-      ]
+      ...statusSummary.staged.map(f => ({ name: f.path.split('/').pop() ?? f.path, path: f.path, type: 'file' as const, status: 'staged' as any })),
+      ...statusSummary.unstaged.map(f => ({ name: f.path.split('/').pop() ?? f.path, path: f.path, type: 'file' as const, status: 'unstaged' as any })),
+      ...statusSummary.untracked.map(f => ({ name: f.path.split('/').pop() ?? f.path, path: f.path, type: 'file' as const, status: 'untracked' as any })),
+      ...statusSummary.conflicted.map(f => ({ name: f.path.split('/').pop() ?? f.path, path: f.path, type: 'file' as const, status: 'conflicted' as any })),
+    ]
     : [];
 
   const statusMap = React.useMemo(() => {
     const map = new Map<string, string>();
     if (!statusSummary) return map;
-    
+
     // 우선순위 덮어쓰기 (낮은 우선순위 -> 높은 우선순위)
     statusSummary.untracked.forEach(f => map.set(f.path, 'untracked'));
     statusSummary.unstaged.forEach(f => map.set(f.path, 'unstaged'));

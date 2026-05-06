@@ -1,20 +1,21 @@
 /**
- * RecommendationService — PR 추천 오케스트레이션 서비스
+ * PrRecommendationService — PR 설명 추천 오케스트레이션 서비스
  *
- * 역할:
- * - RECOMMEND_PR 요청의 전체 흐름을 조율한다.
- *   1. Git 데이터 수집 (GitService)
- *   2. AI 파이프라인 호출 (MergeAiService)
- *   3. 추천 이력 저장 (RecommendationHistoryRepository)
+ * PR description 추천 요청의 전체 흐름을 조율한다.
+ * 커밋명/브랜치명 추천 서비스와 독립적으로 개발 가능하도록 분리되어 있다.
  *
- * 설계 원칙:
- * - 추천 이력 조회는 RecommendationHistoryQueryService에 위임한다.
- *   (buildHistoryContext 메서드가 직접 DB 쿼리를 짜지 않고 Query 서비스에 위임)
- * - AI 호출은 MergeAiService 인터페이스 뒤에 숨긴다.
- * - GitService에서 수집한 raw data를 명시적 DTO(PRRecommendationInput)로 포장한다.
+ * [공유 인프라 의존]
+ * - RecommendationHistoryRepository: branch/commit/PR 공통 테이블 접근
+ * - RecommendationHistoryQueryService: 과거 이력 조회 (공통 인프라)
+ *
+ * [PR 전용 담당]
+ * - Git diff, 브랜치 간 커밋 로그 수집
+ * - PRRecommendationInput DTO 구성
+ * - AI 호출 (MergeAiService)
+ * - 추천 이력 저장
  */
 
-import { RecommendationOrchestrator } from './interfaces';
+import type { PrRecommendationOrchestrator } from './pr-recommendation-interfaces';
 import type { RecommendationHistoryRepository } from '@gitcat/shared-types';
 import type { CreateRecommendationHistoryInput } from '@gitcat/shared-types';
 import type { RecommendationHistoryRow } from '@gitcat/shared-types';
@@ -29,19 +30,19 @@ import { GitService } from '../git/GitService';
 import { MergeAiService } from '@gitcat/ai-pipeline';
 import { RecommendationHistoryQueryService } from './RecommendationHistoryQueryService';
 
-export class RecommendationService implements RecommendationOrchestrator {
+export class PrRecommendationService implements PrRecommendationOrchestrator {
   constructor(
     private readonly gitService: GitService,
     private readonly aiService: MergeAiService,
     private readonly historyRepository: RecommendationHistoryRepository,
     private readonly projectId: string,
-    // 추천 이력 조회 전담 서비스 — buildHistoryContext 위임 대상
+    /** 추천 이력 조회 전담 서비스 — 공통 인프라 */
     private readonly historyQueryService: RecommendationHistoryQueryService,
-  ) {}
+  ) { }
 
   /**
    * 추천 이력을 DB에 저장한다.
-   * insert 후 즉시 저장된 Row를 반환한다.
+   * RecommendationServiceContract 계약 이행 메서드.
    */
   async saveRecommendationHistory(
     input: CreateRecommendationHistoryInput,
@@ -50,8 +51,8 @@ export class RecommendationService implements RecommendationOrchestrator {
   }
 
   /**
-   * 특정 프로젝트의 최근 추천 이력을 타입 필터로 조회한다.
-   * RecommendationServiceContract 계약 이행용 메서드.
+   * 특정 타입의 최근 추천 이력을 조회한다.
+   * RecommendationServiceContract 계약 이행 메서드.
    */
   async listRecentRecommendationHistory(
     projectId: string,
@@ -64,8 +65,7 @@ export class RecommendationService implements RecommendationOrchestrator {
   /**
    * 추천 입력 payload 구성. (향후 구현 예정)
    *
-   * [TODO] recommendation_type에 따라 Git 상태, 최근 커밋, diff 등
-   *        서로 다른 입력 필드를 조합하는 로직을 추가한다.
+   * [TODO] PR 전용 입력 필드(base 브랜치, diff 요약 등)를 조합하는 로직 추가 예정.
    */
   async prepareInput(params: {
     projectId: string;
@@ -76,17 +76,15 @@ export class RecommendationService implements RecommendationOrchestrator {
   }
 
   /**
-   * 최근 추천 이력을 AI 프롬프트 참고용 컨텍스트 형태로 조회한다.
+   * 최근 추천 이력을 AI 프롬프트 참고용 컨텍스트로 조회한다.
    *
-   * 직접 DB 쿼리를 수행하지 않고 RecommendationHistoryQueryService에 위임한다.
-   * 이 서비스는 "어떻게 조회할지"를 알 필요가 없으며, 결과만 받는다.
+   * 직접 DB 쿼리를 수행하지 않고 공통 RecommendationHistoryQueryService에 위임한다.
    */
   async buildHistoryContext(
     projectId: string,
     recommendationType: RecommendationInput['recommendation_type'],
     limit?: number,
   ): Promise<RecommendationHistory[]> {
-    // Query 서비스에 위임해 컨텍스트를 조회한다
     const contexts = await this.historyQueryService.getRecentContext(
       projectId,
       recommendationType,
@@ -96,7 +94,7 @@ export class RecommendationService implements RecommendationOrchestrator {
     // RecommendationHistory(레거시 내부 DTO) 형태로 매핑
     return contexts.map((ctx) => ({
       recommendation_id: ctx.recommendation_id,
-      ai_request_id: '',  // recommendation_histories에는 ai_request_id 컬럼이 있으나 선택적임
+      ai_request_id: '',
       recommendation_type: ctx.recommendation_type as any,
       result_summary: ctx.input_summary ?? undefined,
       result_text: ctx.result_text,
@@ -111,8 +109,8 @@ export class RecommendationService implements RecommendationOrchestrator {
    * 1. Git 상태 조회 → 현재 브랜치 확인
    * 2. base 브랜치와 현재 브랜치 간 diff 텍스트 수집
    * 3. base ~ 현재 브랜치 간 커밋 로그 수집
-   * 4. PRRecommendationInput DTO 구성 (명시적 계약)
-   * 5. AI 파이프라인 호출 (MergeAiService.processMergeRequest)
+   * 4. PRRecommendationInput DTO 구성
+   * 5. AI 파이프라인 호출
    * 6. 추천 이력 DB 저장
    * 7. 결과 반환
    *

@@ -9,6 +9,7 @@ export * from './enums/error-codes';
 export * from './interfaces/message-validator';
 export * from './interfaces/repositories';
 export * from './interfaces/services';
+export * from './interfaces/history-query';
 export * from './schemas/ai';
 export * from './schemas/messages';
 export * from './schemas/storage';

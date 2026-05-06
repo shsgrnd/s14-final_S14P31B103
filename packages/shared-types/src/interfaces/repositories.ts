@@ -54,11 +54,33 @@ export interface CreateProposalFeedbackInput {
  * 백엔드1/2 구현체가 달라도(예: SQLite 직접, ORM 래퍼) 동일한 호출 계약을 유지합니다.
  */
 export interface RecommendationHistoryRepository {
+  /** 단건 추천 이력 조회. 존재하지 않으면 null 반환 */
+  findById(recommendationId: string): Promise<RecommendationHistoryRow | null>;
+  /** 이력 저장 */
   insert(input: CreateRecommendationHistoryInput): Promise<RecommendationHistoryRow>;
+  /** 프로젝트 전체 이력 최신순 조회 */
   listByProject(projectId: string, limit?: number): Promise<RecommendationHistoryRow[]>;
+  /** 추천 타입 필터 + 최신순 조회 (AI 참고 컨텍스트 수집용 핵심 메서드) */
   listRecentByType(
     projectId: string,
     type: RecommendationHistoryRow['recommendation_type'],
+    limit?: number,
+  ): Promise<RecommendationHistoryRow[]>;
+  /**
+   * 최근 N일 이내의 추천 이력을 타입 필터로 조회한다.
+   *
+   * 오래된 이력보다 최근 맥락이 AI 참고에 더 유의미하기 때문에
+   * 날짜 범위로 추가 필터링할 수 있는 전용 메서드를 제공한다.
+   *
+   * @param projectId 프로젝트 ID
+   * @param type 추천 유형
+   * @param withinDays 오늘 기준 최근 N일 이내 (예: 7 → 최근 7일)
+   * @param limit 최대 반환 건수
+   */
+  listRecentByTypeWithinDays(
+    projectId: string,
+    type: RecommendationHistoryRow['recommendation_type'],
+    withinDays: number,
     limit?: number,
   ): Promise<RecommendationHistoryRow[]>;
 }
