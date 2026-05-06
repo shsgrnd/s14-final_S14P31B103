@@ -103,6 +103,9 @@ export const InboundPayloadSchemaMap = {
   SAVE_BRANCH_CLEANUP_SETTINGS: z.object({ settings: BranchCleanupSettingsSchema }),
   GET_BRANCH_CLEANUP_CANDIDATES: z.object({}).strict(),
   EXECUTE_BRANCH_CLEANUP: z.object({ branchNames: z.array(z.string()) }),
+  // PR 관련
+  CREATE_PR: z.object({ title: z.string().min(1), description: z.string(), base: z.string() }),
+  OPEN_PR_PANEL: z.object({}).strict(),
 } as const;
 
 /**

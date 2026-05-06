@@ -4,6 +4,7 @@ import { sendMessage } from './hooks/useVsCodeApi';
 import { useViewMode } from './app/ViewModeContext';
 import { SidebarLayout } from './components/layout/SidebarLayout';
 import { MainPanelLayout } from './components/layout/MainPanelLayout';
+import { PrPanelLayout } from './components/layout/PrPanelLayout';
 import { LoadingFallback } from './components/common/LoadingFallback';
 
 const AUTO_STATUS_REFRESH_INTERVAL_MS = 20_000;
@@ -86,6 +87,11 @@ function App() {
       return <LoadingFallback isSlowBoot={isSlowBoot} />;
     }
     return <SidebarLayout />;
+  }
+
+  // ── PR 전용 패널 모드 ──
+  if (viewMode === 'pr') {
+    return <PrPanelLayout />;
   }
 
   // ── 메인 패널 모드 ──
