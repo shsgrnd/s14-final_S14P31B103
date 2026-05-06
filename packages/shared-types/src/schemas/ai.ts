@@ -12,7 +12,7 @@ import { ConflictCandidateSchema } from '../dto/ai';
 
 export const ParsedAiResultBaseSchema = z.object({
   proposal_id: z.string(),
-  session_id: z.string(),
+  session_id: z.string().nullable(),
   ai_request_id: z.string(),
   feature_type: FeatureTypeEnum,
   title: z.string(),
@@ -108,7 +108,7 @@ export type MinimalRecommendationResponse = z.infer<typeof MinimalRecommendation
 // 기존 AiInputPayloadSchema도 통합
 export const AiInputPayloadSchema = z.object({
   project_id: z.string(),
-  session_id: z.string(),
+  session_id: z.string().nullable(),
   feature_type: FeatureTypeEnum,
   current_branch: z.string(),
   target_branch: z.string().optional(),
@@ -138,11 +138,11 @@ export const AiInputPayloadSchema = z.object({
       );
     }
     if (data.feature_type === 'recommendation') {
+      const isBranchRecommendation = data.recommendation_type === 'branch_name';
       return (
         !!data.recommendation_type &&
-        !!data.change_summary &&
-        (data.changed_files?.length ?? 0) > 0 &&
-        !!data.work_intent
+        !!data.work_intent &&
+        (isBranchRecommendation || (!!data.change_summary && (data.changed_files?.length ?? 0) > 0))
       );
     }
     return true;
