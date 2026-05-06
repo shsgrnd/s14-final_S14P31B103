@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from 'react';
-import { GitBranch, Plus, ArrowUp, GitMerge, Check, Sparkles, ChevronDown, ChevronUp, X, CornerDownRight, Clock, RefreshCw, AlertCircle, Info, RotateCw } from 'lucide-react';
+import { GitBranch, Plus, ArrowUp, GitMerge, Check, Sparkles, ChevronDown, ChevronUp, X, CornerDownRight, Clock, RefreshCw, AlertCircle, Info, RotateCw, CheckCircle2, ExternalLink } from 'lucide-react';
 import { useGitCatStore } from '../../store/useGitCatStore';
 import { useVsCodeApi } from '../../hooks/useVsCodeApi';
 import { btn, bigBtn, inlineBtn } from '../../shared/styles';
 
 export const GitActionPanel: React.FC = () => {
-  const { currentBranch, branches, globalNotification, clearGlobalNotification, isRefreshingStatus, lastStatusRefreshAt } = useGitCatStore();
+  const { currentBranch, branches, globalNotification, clearGlobalNotification, isRefreshingStatus, lastStatusRefreshAt, mergeResult, clearMergeResult } = useGitCatStore();
   const { sendMessage } = useVsCodeApi();
   const [showNewBranch, setShowNewBranch] = useState(false);
   const [newBranchName, setNewBranchName] = useState('');
@@ -498,7 +498,7 @@ export const GitActionPanel: React.FC = () => {
               >
                 <option value="">브랜치를 선택하세요</option>
                 {branches
-                  .filter(b => b.name !== mergeTarget)
+                  .filter(b => !b.isRemote && b.name !== mergeTarget)
                   .map(b => (
                     <option key={b.name} value={b.name}>{b.name}</option>
                   ))
@@ -524,7 +524,7 @@ export const GitActionPanel: React.FC = () => {
                 }}
               >
                 {branches
-                  .filter(b => b.name !== mergeSource)
+                  .filter(b => !b.isRemote && b.name !== mergeSource)
                   .map(b => (
                     <option key={b.name} value={b.name}>{b.name}{b.isCurrent ? ' (현재)' : ''}</option>
                   ))
@@ -704,7 +704,85 @@ export const GitActionPanel: React.FC = () => {
           </div>
         )
       }
-    </div >
+
+      {/* ── Merge 결과 배너 ── */}
+      {
+        mergeResult && (
+          <div style={{
+            margin: '8px',
+            padding: '10px 12px',
+            fontSize: '12px',
+            display: 'flex',
+            alignItems: 'flex-start',
+            gap: '8px',
+            borderRadius: '4px',
+            border: `1px solid ${
+              mergeResult.success
+                ? 'var(--vscode-charts-green)'
+                : 'var(--vscode-inputValidation-errorBorder)'
+            }`,
+            background: mergeResult.success
+              ? 'rgba(78, 201, 176, 0.08)'
+              : 'var(--vscode-inputValidation-errorBackground)',
+          }}>
+            {mergeResult.success ? (
+              <CheckCircle2 size={14} style={{ color: 'var(--vscode-charts-green)', flexShrink: 0, marginTop: '1px' }} />
+            ) : (
+              <AlertCircle size={14} style={{ color: 'var(--vscode-errorForeground)', flexShrink: 0, marginTop: '1px' }} />
+            )}
+            <div style={{ flex: 1 }}>
+              <div style={{ fontWeight: 600, marginBottom: mergeResult.conflictedFiles?.length ? '6px' : 0 }}>
+                {mergeResult.success ? '병합이 완료되었습니다.' : '병합 충돌이 발생했습니다.'}
+              </div>
+              {!mergeResult.success && mergeResult.conflictedFiles && mergeResult.conflictedFiles.length > 0 && (
+                <div style={{ fontSize: '12px', color: 'var(--vscode-descriptionForeground)' }}>
+                  <div style={{ marginBottom: '5px' }}>충돌 파일 목록:</div>
+                  {mergeResult.conflictedFiles.map((file) => (
+                    <div
+                      key={file}
+                      onClick={() => sendMessage('OPEN_FILE' as any, { path: file })}
+                      onMouseOver={e => {
+                        e.currentTarget.style.background = 'var(--vscode-list-hoverBackground)';
+                        e.currentTarget.style.color = 'var(--vscode-textLink-foreground)';
+                        e.currentTarget.style.textDecoration = 'underline';
+                      }}
+                      onMouseOut={e => {
+                        e.currentTarget.style.background = 'var(--vscode-editor-background)';
+                        e.currentTarget.style.color = 'inherit';
+                        e.currentTarget.style.textDecoration = 'none';
+                      }}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        padding: '4px 8px',
+                        background: 'var(--vscode-editor-background)',
+                        borderRadius: '2px',
+                        marginBottom: '3px',
+                        fontFamily: 'monospace',
+                        fontSize: '12px',
+                        cursor: 'pointer',
+                        transition: 'background 0.15s ease',
+                      }}
+                      title={`${file} 클릭하여 파일 열기`}
+                    >
+                      <ExternalLink size={11} style={{ flexShrink: 0, opacity: 0.7 }} />
+                      {file}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+            <button
+              onClick={clearMergeResult}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0', color: 'inherit', opacity: 0.7, flexShrink: 0 }}
+            >
+              <X size={12} />
+            </button>
+          </div>
+        )
+      }
+    </div>
   );
 };
 

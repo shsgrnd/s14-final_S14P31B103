@@ -425,10 +425,17 @@ export class GitService {
   }
 
   /**
-   * AI PR 추천에 필요한 브랜치 간 diff 수집
+   * AI PR 추천에 필요한 브랜치 간 diff 수집 (파일 상태 목록)
    */
   async getDiff(base: string, branch: string) {
     return this.gitClient.getDiff(base, branch);
+  }
+
+  /**
+   * AI PR 추천에 필요한 브랜치 간 실제 텍스트 diff 수집
+   */
+  async getDiffText(base: string, branch: string): Promise<string> {
+    return this.gitClient.getDiffText(base, branch);
   }
 
   /**
@@ -436,6 +443,21 @@ export class GitService {
    */
   async getLog(limit?: number): Promise<LogEntryResponse[]> {
     const entries = await this.gitClient.getLog(limit);
+    return entries.map((e) => ({
+      hash: e.hash,
+      shortHash: e.shortHash,
+      message: e.message,
+      author: e.author,
+      date: e.date,
+      body: e.body,
+    }));
+  }
+
+  /**
+   * AI PR 추천에 필요한 브랜치 간 커밋 로그 수집
+   */
+  async getLogBetween(base: string, branch: string): Promise<LogEntryResponse[]> {
+    const entries = await this.gitClient.getLogBetween(base, branch);
     return entries.map((e) => ({
       hash: e.hash,
       shortHash: e.shortHash,
