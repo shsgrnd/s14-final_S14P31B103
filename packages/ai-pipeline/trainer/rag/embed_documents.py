@@ -104,13 +104,14 @@ def split_into_chunks(text: str) -> list[str]:
 # ---------------------------------------------------------------------------
 # 임베딩
 # ---------------------------------------------------------------------------
-def load_embedding_model() -> BGEM3FlagModel:
+def load_embedding_model(model_name: str = EMBEDDING_MODEL_NAME) -> BGEM3FlagModel:
     """
-    BAAI/bge-m3 임베딩 모델을 GPU에 로드합니다.
+    임베딩 모델을 GPU에 로드합니다.
     첫 실행 시 HuggingFace에서 자동 다운로드됩니다.
+    model_name 인자로 다른 모델로 교체 가능합니다.
     """
-    print(f"[INFO] 임베딩 모델 로드 중: {EMBEDDING_MODEL_NAME}")
-    model = BGEM3FlagModel(EMBEDDING_MODEL_NAME, use_fp16=True)
+    print(f"[INFO] 임베딩 모델 로드 중: {model_name}")
+    model = BGEM3FlagModel(model_name, use_fp16=True)
     print("[INFO] 임베딩 모델 로드 완료")
     return model
 
