@@ -6,6 +6,7 @@ export * from './input/infrastructure/SimpleGitAdapter';
 export * from './merge-proposal/MergeAiService';
 export * from './provider/AiClient';
 export * from './parser/MergeResultParser';
+export * from './parser/RecommendationResultParser';
 export * from './artifacts/feedback-artifacts';
 export * from './artifacts/training-candidate-artifacts';
 export * from './input/application/ConflictAnalyzer';
