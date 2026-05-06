@@ -28,12 +28,16 @@ export interface BranchRecommendationHistoryContextDto {
   createdAt: string;
 }
 
-export interface BranchRecommendationRawPayloadDto extends BranchRecommendationInputDto {
-  projectId: string | null;
-  recommendationType: 'branch_name';
-  recentHistories: BranchRecommendationHistoryContextDto[];
-  aiProviderStatus: 'not_connected';
-  schemaVersion: '1.0';
+export interface BranchRecommendationRawPayloadDto {
+  project_id: string;
+  session_id: string | null;
+  recommendation_type: 'branch_name';
+  work_intent: string;
+  current_branch: string;
+  existing_branches: string[];
+  recent_histories: BranchRecommendationHistoryContextDto[];
+  ai_provider_status: 'not_connected';
+  schema_version: '1.0';
 }
 
 export interface BranchRecommendationResultDto {

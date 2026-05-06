@@ -82,18 +82,7 @@ export const BranchCleanupPanel: React.FC = () => {
     setSelected(new Set());
   };
 
-  const mergedCount = branches.filter(b => b.status === 'merged').length;
-  const staleCount = branches.filter(b => b.status === 'stale').length;
-  const showAI = mergedCount > 0 || staleCount > 0;
 
-  let aiMessage = '';
-  if (mergedCount > 0 && staleCount > 0) {
-    aiMessage = `${mergedCount}개의 병합된 브랜치와 ${staleCount}개의 오래된 브랜치`;
-  } else if (mergedCount > 0) {
-    aiMessage = `${mergedCount}개의 병합된 브랜치`;
-  } else if (staleCount > 0) {
-    aiMessage = `${staleCount}개의 오래된 브랜치`;
-  }
 
   return (
     <div className="animate-fade-in" style={{ padding: '8px 4px' }}>
@@ -119,23 +108,6 @@ export const BranchCleanupPanel: React.FC = () => {
         </div>
       ) : (
         <>
-          {/* ── AI Recommendation Banner ── */}
-          {showAI && (
-            <div style={{
-              margin: '0 8px 12px 8px', padding: '12px',
-              borderRadius: '4px', borderLeft: '3px solid #f9c513',
-              background: 'rgba(249,197,19,0.07)',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '6px' }}>
-                <Sparkles size={14} style={{ color: '#f9c513' }} />
-                <span style={{ fontSize: '12px', fontWeight: 700 }}>AI 추천 가이드</span>
-              </div>
-              <p style={{ margin: 0, fontSize: '11px', lineHeight: 1.5, color: 'var(--vscode-foreground)', opacity: 0.85 }}>
-                <strong style={{ color: '#f9c513' }}>{aiMessage}</strong>를 안전하게 삭제할 수 있습니다.
-              </p>
-            </div>
-          )}
-
           {/* ── Select All Row ── */}
           <div
             style={{

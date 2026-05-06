@@ -10,7 +10,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import { GitMessageHandler } from '../features/git/GitMessageHandler';
 import { BranchRecommendationMessageHandler } from '../features/recommendation';
-import { RecommendationHandler } from '../features/recommendation/RecommendationHandler';
+import { PrRecommendationHandler } from '../features/recommendation/PrRecommendationHandler';
 import {
   InboundMessage,
   InboundMessageSchema,
@@ -24,18 +24,18 @@ import {
 export class MessageRouter {
   private readonly gitHandler: GitMessageHandler | null;
   private readonly branchRecommendationHandler: BranchRecommendationMessageHandler | null;
-  private readonly recommendationHandler: RecommendationHandler | null;
+  private readonly prRecommendationHandler: PrRecommendationHandler | null;
   private readonly webviews = new Set<vscode.Webview>();
 
   constructor(
     private readonly dbInstance: any,
     gitHandler?: GitMessageHandler,
     branchRecommendationHandler?: BranchRecommendationMessageHandler,
-    recommendationHandler?: RecommendationHandler,
+    prRecommendationHandler?: PrRecommendationHandler,
   ) {
     this.gitHandler = gitHandler ?? null;
     this.branchRecommendationHandler = branchRecommendationHandler ?? null;
-    this.recommendationHandler = recommendationHandler ?? null;
+    this.prRecommendationHandler = prRecommendationHandler ?? null;
   }
 
   public registerWebview(webview: vscode.Webview): vscode.Disposable {
@@ -78,9 +78,9 @@ export class MessageRouter {
         const handled = await this.branchRecommendationHandler.handle(message.type, message.payload, webview);
         if (handled) return;
       }
-      // Recommendation 핸들러 위임
-      if (this.recommendationHandler) {
-        const handled = await this.recommendationHandler.handle(message.type, message.payload, webview);
+      // PR 추천 핸들러 위임
+      if (this.prRecommendationHandler) {
+        const handled = await this.prRecommendationHandler.handle(message.type, message.payload, webview);
         if (handled) return;
       }
 

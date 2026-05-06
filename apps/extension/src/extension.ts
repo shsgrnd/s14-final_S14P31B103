@@ -17,8 +17,9 @@ import {
   BranchRecommendationMessageHandler,
   BranchRecommendationService,
 } from './features/recommendation';
-import { RecommendationService } from './features/recommendation/RecommendationService';
-import { RecommendationHandler } from './features/recommendation/RecommendationHandler';
+import { RecommendationHistoryQueryService } from './features/recommendation/RecommendationHistoryQueryService';
+import { PrRecommendationService } from './features/recommendation/PrRecommendationService';
+import { PrRecommendationHandler } from './features/recommendation/PrRecommendationHandler';
 
 export async function activate(context: vscode.ExtensionContext) {
   console.log('GitCat Extension is now active!');
@@ -29,9 +30,12 @@ export async function activate(context: vscode.ExtensionContext) {
   }
 
   const rootPath = workspaceFolders?.[0]?.uri.fsPath ?? '';
+  const projectId = rootPath
+    ? `project_${createHash('sha1').update(rootPath).digest('hex').slice(0, 16)}`
+    : undefined;
 
   let dbInstance: any = null;
-  if (rootPath) {
+  if (rootPath && projectId) {
     const dbPath = GitCatDatabase.getDatabasePath(rootPath);
     try {
       const database = await GitCatDatabase.create(rootPath);
@@ -47,7 +51,7 @@ export async function activate(context: vscode.ExtensionContext) {
   let gitMessageHandler: GitMessageHandler | undefined;
   let branchRecommendationHandler: BranchRecommendationMessageHandler | undefined;
   let gitService: GitService | undefined;
-  if (rootPath) {
+  if (rootPath && projectId) {
     try {
       const gitClient = new GitCliClient(rootPath);
       const gitMetadataSync = dbInstance
@@ -58,7 +62,6 @@ export async function activate(context: vscode.ExtensionContext) {
       const branchCleanupService = new BranchCleanupService(gitService);
       gitMessageHandler = new GitMessageHandler(gitService, branchCleanupService);
 
-      const projectId = `project_${createHash('sha1').update(rootPath).digest('hex').slice(0, 16)}`;
       const branchHistoryRepository = dbInstance
         ? new SqliteRecommendationHistoryRepository(dbInstance)
         : undefined;
@@ -75,22 +78,23 @@ export async function activate(context: vscode.ExtensionContext) {
     }
   }
 
-  let recommendationHandler: RecommendationHandler | undefined;
-  if (rootPath && gitService && dbInstance) {
+  let prRecommendationHandler: PrRecommendationHandler | undefined;
+  if (rootPath && gitService && dbInstance && projectId) {
     try {
       const historyRepository = new SqliteRecommendationHistoryRepository(dbInstance);
+      const historyQueryService = new RecommendationHistoryQueryService(historyRepository);
       const aiService = new MergeAiService();
-      const projectId = `project_${createHash('sha1').update(rootPath).digest('hex').slice(0, 16)}`;
-      const recommendationService = new RecommendationService(
+      const prRecommendationService = new PrRecommendationService(
         gitService,
         aiService,
         historyRepository,
-        projectId
+        projectId,
+        historyQueryService,  // 추천 이력 조회 Query 서비스 주입
       );
-      recommendationHandler = new RecommendationHandler(recommendationService);
-      console.log('GitCat Recommendation layer initialized');
+      prRecommendationHandler = new PrRecommendationHandler(prRecommendationService);
+      console.log('GitCat PR Recommendation layer initialized');
     } catch (error) {
-      console.error('Failed to initialize GitCat Recommendation layer:', error);
+      console.error('Failed to initialize GitCat PR Recommendation layer:', error);
     }
   }
 
@@ -98,7 +102,7 @@ export async function activate(context: vscode.ExtensionContext) {
     dbInstance,
     gitMessageHandler,
     branchRecommendationHandler,
-    recommendationHandler,
+    prRecommendationHandler,
   );
 
   if (gitService) {

@@ -4,8 +4,9 @@ import React, { createContext, useContext } from 'react';
  * ViewMode 타입
  * - 'sidebar': VS Code 사이드바에 마운트되는 경우 (SidebarProvider)
  * - 'main': 별도 Webview 패널로 열리는 경우 (WebviewProvider)
+ * - 'pr': PR 생성 전용 패널
  */
-export type ViewMode = 'sidebar' | 'main';
+export type ViewMode = 'sidebar' | 'main' | 'pr';
 
 const ViewModeContext = createContext<ViewMode>('sidebar');
 
