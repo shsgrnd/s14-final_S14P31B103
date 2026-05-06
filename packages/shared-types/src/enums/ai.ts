@@ -18,6 +18,7 @@ export const RecommendationTypeEnum = z.enum([
   'commit_message',
   'branch_name',
   'work_description',
+  'pr_description',
 ]);
 export type RecommendationType = z.infer<typeof RecommendationTypeEnum>;
 

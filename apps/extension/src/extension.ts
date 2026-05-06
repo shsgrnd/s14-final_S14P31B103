@@ -1,6 +1,8 @@
 import * as vscode from 'vscode';
-import { GitCatDatabase } from '@gitcat/storage';
+import { createHash } from 'crypto';
+import { GitCatDatabase, SqliteRecommendationHistoryRepository } from '@gitcat/storage';
 import { GitCliClient } from '@gitcat/git-client-cli';
+import { MergeAiService } from '@gitcat/ai-pipeline';
 import { CommandRegistry } from './commands';
 import { EventRegistry } from './events';
 import { WebviewProvider } from './webview/WebviewProvider';
@@ -15,6 +17,8 @@ import {
   BranchRecommendationMessageHandler,
   BranchRecommendationService,
 } from './features/recommendation';
+import { RecommendationService } from './features/recommendation/RecommendationService';
+import { RecommendationHandler } from './features/recommendation/RecommendationHandler';
 
 export async function activate(context: vscode.ExtensionContext) {
   console.log('GitCat Extension is now active!');
@@ -50,11 +54,13 @@ export async function activate(context: vscode.ExtensionContext) {
         ? new GitMetadataSyncService(dbInstance, rootPath)
         : undefined;
       gitService = new GitService(gitClient, gitMetadataSync);
+
       const branchCleanupService = new BranchCleanupService(gitService);
       gitMessageHandler = new GitMessageHandler(gitService, branchCleanupService);
-      branchRecommendationHandler = new BranchRecommendationMessageHandler(
-        new BranchRecommendationService(gitService),
-      );
+
+      const branchRecommendationService = new BranchRecommendationService(gitService);
+      branchRecommendationHandler = new BranchRecommendationMessageHandler(branchRecommendationService);
+
       console.log('GitCat Git layer initialized at:', rootPath);
     } catch (error) {
       console.error('Failed to initialize GitCat Git layer:', error);
@@ -62,7 +68,31 @@ export async function activate(context: vscode.ExtensionContext) {
     }
   }
 
-  const messageRouter = new MessageRouter(dbInstance, gitMessageHandler, branchRecommendationHandler);
+  let recommendationHandler: RecommendationHandler | undefined;
+  if (rootPath && gitService && dbInstance) {
+    try {
+      const historyRepository = new SqliteRecommendationHistoryRepository(dbInstance);
+      const aiService = new MergeAiService();
+      const projectId = `project_${createHash('sha1').update(rootPath).digest('hex').slice(0, 16)}`;
+      const recommendationService = new RecommendationService(
+        gitService,
+        aiService,
+        historyRepository,
+        projectId
+      );
+      recommendationHandler = new RecommendationHandler(recommendationService);
+      console.log('GitCat Recommendation layer initialized');
+    } catch (error) {
+      console.error('Failed to initialize GitCat Recommendation layer:', error);
+    }
+  }
+
+  const messageRouter = new MessageRouter(
+    dbInstance,
+    gitMessageHandler,
+    branchRecommendationHandler,
+    recommendationHandler,
+  );
 
   if (gitService) {
     const gitStatusRefreshController = new GitStatusRefreshController(gitService, messageRouter);

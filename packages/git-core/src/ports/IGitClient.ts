@@ -38,6 +38,9 @@ export interface IGitClient {
   /** 두 브랜치 간 diff 결과 반환 (ConflictAnalyzer 입력용) */
   getDiff(base: string, branch: string): Promise<DiffResult[]>;
 
+  /** 두 브랜치 간 실제 diff patch 텍스트 반환 (PR 추천 입력용) */
+  getDiffText(base: string, branch: string): Promise<string>;
+
   getUnpushedFiles(): Promise<DiffResult[]>;
 
   /** 두 브랜치의 공통 조상 커밋 해시 반환 */
@@ -48,6 +51,9 @@ export interface IGitClient {
 
   /** 최근 커밋 로그 반환 (PR 추천 보조 입력용) */
   getLog(limit?: number): Promise<LogEntry[]>;
+
+  /** 두 지점(브랜치/커밋) 사이의 커밋 로그 반환 (PR 추천 입력용) */
+  getLogBetween(base: string, branch: string): Promise<LogEntry[]>;
 
   // ─── Command ─────────────────────────────────────────────────────────────
 

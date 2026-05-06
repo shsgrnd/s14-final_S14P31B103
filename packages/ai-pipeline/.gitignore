@@ -1,0 +1,4 @@
+# packages/ai-pipeline/.gitignore
+src/**/*.js
+src/**/*.js.map
+dist/

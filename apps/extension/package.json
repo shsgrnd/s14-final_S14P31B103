@@ -64,6 +64,7 @@
     "@gitcat/git-client-cli": "workspace:*",
     "@gitcat/git-core": "workspace:*",
     "@gitcat/shared-types": "workspace:*",
-    "@gitcat/storage": "workspace:*"
+    "@gitcat/storage": "workspace:*",
+    "@gitcat/ai-pipeline": "workspace:*"
   }
 }

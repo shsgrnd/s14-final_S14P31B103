@@ -14,7 +14,8 @@
     "baseUrl": ".",
     "paths": {
       "@gitcat/git-core": ["../../packages/git-core/dist"],
-      "@gitcat/git-client-cli": ["../../packages/git-client-cli/dist"]
+      "@gitcat/git-client-cli": ["../../packages/git-client-cli/dist"],
+      "@gitcat/ai-pipeline": ["../../packages/ai-pipeline/dist/ai-pipeline/src"]
     }
   },
   "exclude": [
