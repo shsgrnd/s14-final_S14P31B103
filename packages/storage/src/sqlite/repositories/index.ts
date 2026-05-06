@@ -6,3 +6,6 @@ export * from './workspace/SqliteProjectWorkspaceRepository';
 // Merge Analysis (AI)
 export * from './merge-analysis/SqliteMergeProposalRepository';
 export * from './merge-analysis/SqliteProposalFeedbackRepository';
+
+// Recommendation (AI)
+export * from './recommendation/SqliteRecommendationHistoryRepository';

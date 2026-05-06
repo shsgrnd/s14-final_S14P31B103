@@ -9,6 +9,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { GitMessageHandler } from '../features/git/GitMessageHandler';
+import { RecommendationHandler } from '../features/recommendation/RecommendationHandler';
 import {
   InboundMessage,
   InboundMessageSchema,
@@ -21,13 +22,16 @@ import {
  */
 export class MessageRouter {
   private readonly gitHandler: GitMessageHandler | null;
+  private readonly recommendationHandler: RecommendationHandler | null;
   private readonly webviews = new Set<vscode.Webview>();
 
   constructor(
     private readonly dbInstance: any,
     gitHandler?: GitMessageHandler,
+    recommendationHandler?: RecommendationHandler,
   ) {
     this.gitHandler = gitHandler ?? null;
+    this.recommendationHandler = recommendationHandler ?? null;
   }
 
   public registerWebview(webview: vscode.Webview): vscode.Disposable {
@@ -65,7 +69,14 @@ export class MessageRouter {
         const handled = await this.gitHandler.handle(message.type, message.payload, webview);
         if (handled) return;
       }
-      // Git 핸들러가 없거나 처리 못 한 메시지 — type별 분기
+
+      // Recommendation 핸들러 위임
+      if (this.recommendationHandler) {
+        const handled = await this.recommendationHandler.handle(message.type, message.payload, webview);
+        if (handled) return;
+      }
+
+      // 핸들러가 없거나 처리 못 한 메시지 — type별 분기
       switch (message.type) {
         // ─── 스냅샷 관련 (3단계 구현) ─────────────────────────────────────
         case 'GET_SNAPSHOT_LIST':
@@ -110,7 +121,7 @@ export class MessageRouter {
           break;
 
         case 'RECOMMEND_PR':
-          this.sendNotImplemented(webview, 'RECOMMEND_PR', 'PR 설명 추천 (2단계 구현 예정)');
+          this.sendNotImplemented(webview, 'RECOMMEND_PR', 'PR 설명 추천 핸들러가 등록되지 않았습니다.');
           break;
 
         case 'APPLY_COMMIT':
@@ -167,9 +178,9 @@ export class MessageRouter {
           break;
 
         case 'REFRESH_STATUS':
-          webview.postMessage({ 
-            type: 'GIT_STATUS_UPDATED', 
-            payload: { branch: '', isClean: true, staged: [], unstaged: [] } 
+          webview.postMessage({
+            type: 'GIT_STATUS_UPDATED',
+            payload: { branch: '', isClean: true, staged: [], unstaged: [] }
           });
           break;
 

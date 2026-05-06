@@ -321,3 +321,31 @@ export const DiffResultSchema = z.object({
   hunks: z.array(z.string()),
 });
 export type DiffResult = z.infer<typeof DiffResultSchema>;
+
+// ==========================================
+// 14. PR 추천용 Raw Data DTO
+// ==========================================
+
+export const LogEntrySchema = z.object({
+  hash: z.string(),
+  shortHash: z.string(),
+  message: z.string(),
+  author: z.string(),
+  authorEmail: z.string().optional(),
+  date: z.string(),
+  body: z.string().optional(),
+});
+export type LogEntry = z.infer<typeof LogEntrySchema>;
+
+export const PRRecommendationInputSchema = z.object({
+  baseBranch: z.string(),
+  currentBranch: z.string(),
+  diffText: z.string(),
+  commits: z.array(LogEntrySchema),
+});
+export type PRRecommendationInput = z.infer<typeof PRRecommendationInputSchema>;
+
+export const PRRecommendationResultSchema = z.object({
+  markdown: z.string(),
+});
+export type PRRecommendationResult = z.infer<typeof PRRecommendationResultSchema>;
