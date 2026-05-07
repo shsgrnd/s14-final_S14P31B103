@@ -1,28 +1,28 @@
 import * as vscode from 'vscode';
 import type { ErrorCode, OutboundMessage } from '@gitcat/shared-types';
-import { BranchRecommendationRequestSchema } from './BranchRecommendationDto';
-import { BranchRecommendationService } from './BranchRecommendationService';
+import { CommitRecommendationRequestSchema } from './CommitRecommendationDto';
+import { CommitRecommendationService } from './CommitRecommendationService';
 
 /**
- * 브랜치명 추천 요청 전용 Webview 메시지 핸들러
+ * 커밋 메시지 추천 요청 전용 Webview 메시지 핸들러
  * payload 검증, 로딩 상태 전송, 서비스 호출, 성공/실패 응답 전송 담당
  */
-export class BranchRecommendationMessageHandler {
-  constructor(private readonly service: BranchRecommendationService) {}
+export class CommitRecommendationMessageHandler {
+  constructor(private readonly service: CommitRecommendationService) {}
 
   // 요청 메시지 타입 검증
   public async handle(type: string, payload: unknown, webview: vscode.Webview): Promise<boolean> {
-    if (type !== 'RECOMMEND_BRANCH') {
+    if (type !== 'RECOMMEND_COMMIT') {
       return false;
     }
 
     // 요청 payload DTO 검증
-    const parseResult = BranchRecommendationRequestSchema.safeParse(payload);
+    const parseResult = CommitRecommendationRequestSchema.safeParse(payload);
     if (!parseResult.success) {
       this.postError(
         webview,
         'INVALID_PARAMETER',
-        parseResult.error.issues[0]?.message ?? '브랜치 추천 요청이 올바르지 않습니다.',
+        parseResult.error.issues[0]?.message ?? '커밋 추천 요청이 올바르지 않습니다.',
       );
       return true;
     }
@@ -32,10 +32,10 @@ export class BranchRecommendationMessageHandler {
 
     // 서비스 호출 및 결과 응답 전송
     try {
-      const result = await this.service.recommendBranch(parseResult.data);
+      const result = await this.service.recommendCommit(parseResult.data);
       webview.postMessage({
-        type: 'BRANCH_SUGGESTIONS',
-        payload: { names: result.names },
+        type: 'COMMIT_SUGGESTIONS',
+        payload: { suggestions: result.suggestions },
       } as OutboundMessage);
 
       // AI 응답 경고 메시지 알림 전송
@@ -60,7 +60,7 @@ export class BranchRecommendationMessageHandler {
   private postLoading(webview: vscode.Webview, loading: boolean): void {
     webview.postMessage({
       type: 'LOADING',
-      payload: { target: 'branchRecommendation', loading },
+      payload: { target: 'commitRecommendation', loading },
     } as OutboundMessage);
   }
 
