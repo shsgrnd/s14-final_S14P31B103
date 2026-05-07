@@ -1,0 +1,30 @@
+[
+  {
+    "id": "CASE-01",
+    "title": "Variable keyword conflict",
+    "input_payload": "Ours: const x = 1; Theirs: let x = 1; Base: var x = 1;",
+    "reference": "변수 x의 선언 키워드가 const와 let으로 충돌했습니다. 현대적인 JavaScript 표준에 따라 재할당이 필요한 경우 let을 사용하고, 그렇지 않으면 const로 통일하는 것이 좋습니다.",
+    "keywords": ["const", "let", "변수", "충돌"]
+  },
+  {
+    "id": "CASE-02",
+    "title": "Logic flow conflict",
+    "input_payload": "Ours: return a + 1; Theirs: return a + 2; Base: return a;",
+    "reference": "동일한 변수 a에 대해 증가시키는 수치가 1과 2로 서로 다르게 수정되었습니다. 비즈니스 로직에 따라 적절한 증감치를 선택하거나 파라미터화하여 해결해야 합니다.",
+    "keywords": ["로직", "반환", "수치", "비즈니스"]
+  },
+  {
+    "id": "CASE-03",
+    "title": "React Hook Dependency Conflict",
+    "input_payload": "Ours: useEffect(() => {}, [a]); Theirs: useEffect(() => {}, [a, b]); Base: useEffect(() => {}, []);",
+    "reference": "useEffect의 의존성 배열(dependency array)이 서로 다르게 수정되었습니다. 새로운 상태값 b가 이펙트 내에서 사용되고 있다면 [a, b]를 선택하는 것이 올바른 해결책입니다.",
+    "keywords": ["useEffect", "의존성", "배열", "React"]
+  },
+  {
+    "id": "CASE-04",
+    "title": "API Endpoint URL Conflict",
+    "input_payload": "Ours: const URL = '/api/v1/user'; Theirs: const URL = '/api/v2/user'; Base: const URL = '/api/user';",
+    "reference": "API 버저닝 과정에서 v1과 v2가 충돌했습니다. 현재 프로젝트의 마이그레이션 계획에 맞춰 최신 버전인 v2를 선택하거나 하위 호환성을 검토해야 합니다.",
+    "keywords": ["API", "버전", "URL", "충돌"]
+  }
+]
