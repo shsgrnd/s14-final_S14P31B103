@@ -24,6 +24,11 @@ export const SidebarLayout: React.FC = () => {
   const snapshots = useGitCatStore(state => state.snapshots);
   const branches = useGitCatStore(state => state.branches);
   const stashes = useGitCatStore(state => state.stashes);
+  const branchCleanupBadgeCount = branches.filter((b) =>
+    !b.name.includes('origin/') &&
+    b.name !== 'origin' &&
+    !b.name.startsWith('remotes/')
+  ).length;
 
   const [expanded, setExpanded] = useState({
     filetree: true,
@@ -79,7 +84,7 @@ export const SidebarLayout: React.FC = () => {
           <SectionHeader
             label="Branch Cleanup"
             expanded={expanded.branch}
-            badge={branches.length > 0 ? branches.length : undefined}
+            badge={branchCleanupBadgeCount > 0 ? branchCleanupBadgeCount : undefined}
             onToggle={() => setExpanded(p => ({ ...p, branch: !p.branch }))}
           />
           {expanded.branch && <div style={{ flex: 1, overflowY: 'auto' }}><BranchCleanupPanel /></div>}

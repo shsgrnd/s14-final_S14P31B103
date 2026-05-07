@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { Archive, Plus, Play, CornerDownRight, Trash2, ChevronDown, ChevronUp, X, Check } from 'lucide-react';
 import { useGitCatStore } from '../../store/useGitCatStore';
 import { useVsCodeApi } from '../../hooks/useVsCodeApi';
 import { btn, bigBtn } from '../../shared/styles';
+import { SectionNotificationBanner } from '../common/SectionNotificationBanner';
 
 /**
  * Git Stash 관리 패널
@@ -15,8 +16,9 @@ import { btn, bigBtn } from '../../shared/styles';
  * - Stash Drop: stash 항목 삭제 (STASH_DROP)
  */
 export const StashPanel: React.FC = () => {
-  const { stashes, currentBranch } = useGitCatStore();
+  const { stashes, currentBranch, sectionNotifications, clearSectionNotification } = useGitCatStore();
   const { sendMessage } = useVsCodeApi();
+  const dismissStashNotification = useCallback(() => clearSectionNotification('stash'), [clearSectionNotification]);
 
   const isGitConnected = currentBranch !== '';
 
@@ -59,6 +61,10 @@ export const StashPanel: React.FC = () => {
 
   return (
     <div className="animate-fade-in" style={{ padding: '8px 4px' }}>
+      <SectionNotificationBanner
+        notification={sectionNotifications.stash}
+        onDismiss={dismissStashNotification}
+      />
 
       {/* ── Stash Save 버튼 / 폼 ── */}
       {!showSaveForm ? (

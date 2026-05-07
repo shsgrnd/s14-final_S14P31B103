@@ -1,11 +1,13 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { GitBranch, Plus, ArrowUp, GitMerge, Check, Sparkles, ChevronDown, ChevronUp, X, CornerDownRight, Clock, RefreshCw, AlertCircle, Info, RotateCw, CheckCircle2, ExternalLink, GitPullRequest } from 'lucide-react';
 import { useGitCatStore } from '../../store/useGitCatStore';
 import { useVsCodeApi } from '../../hooks/useVsCodeApi';
 import { btn, bigBtn, inlineBtn } from '../../shared/styles';
+import { SectionNotificationBanner } from '../common/SectionNotificationBanner';
 
 export const GitActionPanel: React.FC = () => {
-  const { currentBranch, branches, globalNotification, clearGlobalNotification, isRefreshingStatus, lastStatusRefreshAt, mergeResult, clearMergeResult, prSuggestion, isPrLoading, clearPrSuggestion } = useGitCatStore();
+  const { currentBranch, branches, sectionNotifications, clearSectionNotification, isRefreshingStatus, isPulling, lastStatusRefreshAt, mergeResult, clearMergeResult, prSuggestion, isPrLoading, clearPrSuggestion } = useGitCatStore();
+  const dismissGitNotification = useCallback(() => clearSectionNotification('git'), [clearSectionNotification]);
   const { sendMessage } = useVsCodeApi();
   const [showNewBranch, setShowNewBranch] = useState(false);
   const [newBranchName, setNewBranchName] = useState('');
@@ -21,13 +23,6 @@ export const GitActionPanel: React.FC = () => {
   // source: 병합할 브랜치(FROM), target: 기준 브랜치(INTO, 기본값: currentBranch)
   const [mergeSource, setMergeSource] = useState('');
   const [mergeTarget, setMergeTarget] = useState(currentBranch);
-
-  // 백엔드 globalNotification이 설정되면 5초 후 자동 소거
-  useEffect(() => {
-    if (!globalNotification) return;
-    const timer = setTimeout(() => clearGlobalNotification(), 5000);
-    return () => clearTimeout(timer);
-  }, [globalNotification, clearGlobalNotification]);
 
   // 브랜치 체크아웃 완료 시 로딩 상태 해제
   useEffect(() => {
@@ -90,14 +85,8 @@ export const GitActionPanel: React.FC = () => {
     showStatus('Git push가 완료되었습니다.', true);
   };
 
-  const handleOpenPullRequestPanel = () => {
-    if (!isGitConnected) return;
-
-    closeCommitForm();
-    closeMergeForm();
-    closeBranchForm();
-
-    sendMessage('OPEN_PR_PANEL', {});
+  const handlePull = () => {
+    sendMessage('EXECUTE_PULL', {});
   };
 
   const handleMerge = () => {
@@ -468,19 +457,31 @@ export const GitActionPanel: React.FC = () => {
               </button>
             </div>
 
-            {/* PR 생성 (full-width, primary — New Branch와 완전 동일한 스타일) */}
-            <button
-              onClick={handleOpenPullRequestPanel}
-              disabled={!isGitConnected}
-              style={{
-                ...bigBtn('primary'),
-                opacity: (!isGitConnected) ? 0.5 : 1,
-                cursor: (!isGitConnected) ? 'not-allowed' : 'pointer',
-              }}
-              title="GitCat 내에서 PR 생성하기"
-            >
-              <GitPullRequest size={13} /> PR 생성
-            </button>
+            {/* Pull / PR 생성 (2열, secondary) */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+              <button
+                onClick={handlePull}
+                disabled={!isGitConnected || isPulling}
+                style={{ ...bigBtn('secondary'), opacity: (isGitConnected && !isPulling) ? 1 : 0.5, cursor: (isGitConnected && !isPulling) ? 'pointer' : 'not-allowed' }}
+              >
+                <RotateCw size={13} style={{ animation: isPulling ? 'gitcat-refresh-spin 0.9s linear infinite' : 'none' }} />
+                {isPulling ? 'Pulling...' : 'Git Pull'}
+              </button>
+              <button
+                onClick={() => {
+                  if (!isGitConnected) return;
+                  closeCommitForm();
+                  closeMergeForm();
+                  closeBranchForm();
+                  sendMessage('OPEN_PR_PANEL', {});
+                }}
+                disabled={!isGitConnected}
+                style={{ ...bigBtn('secondary'), opacity: isGitConnected ? 1 : 0.5, cursor: isGitConnected ? 'pointer' : 'not-allowed' }}
+                title="GitCat 내에서 PR 생성하기"
+              >
+                <GitPullRequest size={13} /> Create PR
+              </button>
+            </div>
 
           </div>
         )
@@ -611,43 +612,10 @@ export const GitActionPanel: React.FC = () => {
         )
       }
 
-      {/* 백엔드 에러 / 알림 표시 (ERROR, NOTIFICATION, GIT_OPERATION_RESULT) */}
-      {
-        globalNotification && (
-          <div style={{
-            margin: '8px',
-            padding: '8px 10px',
-            fontSize: '12px',
-            display: 'flex',
-            alignItems: 'flex-start',
-            gap: '8px',
-            borderRadius: '3px',
-            border: `1px solid ${globalNotification.type === 'error' ? 'var(--vscode-inputValidation-errorBorder)'
-              : globalNotification.type === 'warning' ? 'var(--vscode-inputValidation-warningBorder)'
-                : 'var(--vscode-focusBorder)'
-              }`,
-            background: `${globalNotification.type === 'error' ? 'var(--vscode-inputValidation-errorBackground)'
-              : globalNotification.type === 'warning' ? 'var(--vscode-inputValidation-warningBackground)'
-                : 'var(--vscode-inputValidation-infoBackground)'
-              }`,
-            color: `${globalNotification.type === 'error' ? 'var(--vscode-errorForeground)'
-              : 'var(--vscode-foreground)'
-              }`,
-          }}>
-            {globalNotification.type === 'error'
-              ? <AlertCircle size={13} style={{ flexShrink: 0, marginTop: '1px' }} />
-              : <Info size={13} style={{ flexShrink: 0, marginTop: '1px' }} />
-            }
-            <span style={{ flex: 1, lineHeight: 1.4 }}>{globalNotification.message}</span>
-            <button
-              onClick={clearGlobalNotification}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0', color: 'inherit', opacity: 0.7, flexShrink: 0 }}
-            >
-              <X size={12} />
-            </button>
-          </div>
-        )
-      }
+      <SectionNotificationBanner
+        notification={sectionNotifications.git}
+        onDismiss={dismissGitNotification}
+      />
 
       {/* Status feedback message */}
       {

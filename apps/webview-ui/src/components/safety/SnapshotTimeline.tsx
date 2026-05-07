@@ -1,13 +1,15 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { FileText, Rewind, ChevronRight, BrainCircuit, ShieldCheck, User, Merge, Plus, Edit2, Trash2, Star, History, Check } from 'lucide-react';
 import { useGitCatStore } from '../../store/useGitCatStore';
 import { useVsCodeApi } from '../../hooks/useVsCodeApi';
 import { Snapshot } from '@gitcat/shared-types';
 import { iconBtn } from '../../shared/styles';
+import { SectionNotificationBanner } from '../common/SectionNotificationBanner';
 
 export const SnapshotTimeline: React.FC = () => {
-  const { snapshots, expandedSnapshotId, setExpandedSnapshotId } = useGitCatStore();
+  const { snapshots, expandedSnapshotId, setExpandedSnapshotId, sectionNotifications, clearSectionNotification } = useGitCatStore();
   const { sendMessage } = useVsCodeApi();
+  const dismissSnapshotsNotification = useCallback(() => clearSectionNotification('snapshots'), [clearSectionNotification]);
   const [statusMsg, setStatusMsg] = React.useState<{ text: string; ok: boolean } | null>(null);
 
   const showStatus = (text: string, ok: boolean) => {
@@ -53,6 +55,10 @@ export const SnapshotTimeline: React.FC = () => {
 
   return (
     <div className="animate-fade-in" style={{ padding: '4px 0' }}>
+      <SectionNotificationBanner
+        notification={sectionNotifications.snapshots}
+        onDismiss={dismissSnapshotsNotification}
+      />
       {/* ── Header row with count badge + create button ── */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',

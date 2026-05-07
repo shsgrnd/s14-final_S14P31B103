@@ -247,12 +247,38 @@ export type TrainingCandidatePayload = z.infer<typeof TrainingCandidatePayloadSc
 // 11. 커밋 추천 결과 (AI pipeline 내부)
 // ==========================================
 
+export const BranchSuggestionSchema = z.object({
+  names: z.array(z.string()),
+});
+export type BranchSuggestion = z.infer<typeof BranchSuggestionSchema>;
+
 export const CommitSuggestionSchema = z.object({
   messages: z.array(z.string()),
   branch_names: z.array(z.string()),
   description: z.string(),
 });
 export type CommitSuggestion = z.infer<typeof CommitSuggestionSchema>;
+
+export const PRSuggestionSchema = z.object({
+  markdown: z.string(),
+});
+export type PRSuggestion = z.infer<typeof PRSuggestionSchema>;
+
+export const RecommendationSuggestionSchema = z.discriminatedUnion('recommendation_type', [
+  z.object({
+    recommendation_type: z.literal('branch_name'),
+    result: BranchSuggestionSchema,
+  }),
+  z.object({
+    recommendation_type: z.literal('commit_message'),
+    result: CommitSuggestionSchema,
+  }),
+  z.object({
+    recommendation_type: z.literal('pr_description'),
+    result: PRSuggestionSchema,
+  }),
+]);
+export type RecommendationSuggestion = z.infer<typeof RecommendationSuggestionSchema>;
 
 // ==========================================
 // 12. Parsed AI 결과 (Service 간 전달용 DTO)
@@ -345,7 +371,5 @@ export const PRRecommendationInputSchema = z.object({
 });
 export type PRRecommendationInput = z.infer<typeof PRRecommendationInputSchema>;
 
-export const PRRecommendationResultSchema = z.object({
-  markdown: z.string(),
-});
-export type PRRecommendationResult = z.infer<typeof PRRecommendationResultSchema>;
+export const PRRecommendationResultSchema = PRSuggestionSchema;
+export type PRRecommendationResult = PRSuggestion;
