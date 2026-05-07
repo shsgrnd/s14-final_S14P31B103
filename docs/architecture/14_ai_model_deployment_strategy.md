@@ -85,8 +85,8 @@ Extension은 외부 API 서버 없이 사용자 로컬 PC에서 완전히 동작
 | 계층 | 라이브러리 | 역할 |
 | --- | --- | --- |
 | 추론 엔진 | `node-llama-cpp` | GGUF 모델 + LoRA 어댑터 로드 및 추론 |
-| 임베딩 (Extension 내장) | `transformers.js` 또는 `fastembed-js` | ONNX 기반 경량 임베딩, CPU 동작 |
-| 벡터 스토어 | ChromaDB (로컬) | 코드베이스 컨텍스트 검색 |
+| 임베딩 (Extension 내장) | `transformers.js` | ONNX 기반 경량 임베딩, 오프라인 CPU 동작 |
+| 벡터 스토어 | In-memory 배열 (1차 MVP) / SQLite | 로컬 코드베이스 검색 (별도 DB 서버 없이 Extension 내장) |
 
 ---
 
@@ -110,12 +110,14 @@ RAG 파이프라인은 용도에 따라 두 계층으로 분리 운영한다.
 
 - 대상: SFT/DPO 학습 데이터 품질 향상, RAG 효과 비교 실험
 - 임베딩 모델: `BAAI/bge-m3` (다국어, 코드 맥락 강점)
+- 벡터 스토어: `ChromaDB` (서버 구동)
 - 실행 위치: `packages/ai-pipeline/trainer/rag/`
 
 ### Extension 내장용 (사용자 로컬 PC, Node.js)
 
 - 대상: 실제 사용자의 코드베이스 컨텍스트를 실시간으로 충돌 분석 프롬프트에 주입
 - 임베딩 모델: ONNX 기반 경량 모델 (`all-MiniLM-L6-v2` 등, CPU 동작)
+- 벡터 스토어: In-memory 배열 (1차 MVP) -> SQLite (2차) (별도 DB 서버 띄우지 않음)
 - 실행 위치: `packages/ai-pipeline/src/rag/`
 
 #### RAG 성능 최적화 전략 (Performance Optimization)
