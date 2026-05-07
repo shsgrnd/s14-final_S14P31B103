@@ -119,7 +119,7 @@ export async function activate(context: vscode.ExtensionContext) {
   // ――― GitHub PR 생성 계층 초기화 ――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――
   // GitHub token은 VS Code SecretStorage에만 저장한다. (SQLite/파일 금지)
   let pullRequestHandler: PullRequestMessageHandler | undefined;
-  let openPullRequestPanel: (() => void) | undefined;
+  const openPullRequestPanelRef: { current?: () => void } = {};
   if (rootPath && gitService) {
     try {
       const tokenProvider = new GitHubTokenProvider(context.secrets);
@@ -127,7 +127,7 @@ export async function activate(context: vscode.ExtensionContext) {
       const pullRequestService = new PullRequestService(githubClient, gitService);
       pullRequestHandler = new PullRequestMessageHandler(
         pullRequestService,
-        () => openPullRequestPanel?.(),
+        () => openPullRequestPanelRef.current?.(),
       );
       console.log('GitCat GitHub PR layer initialized');
     } catch (error) {
@@ -152,7 +152,7 @@ export async function activate(context: vscode.ExtensionContext) {
   }
 
   const webviewProvider = new WebviewProvider(context, messageRouter);
-  openPullRequestPanel = () => webviewProvider.createOrShow('pr');
+  openPullRequestPanelRef.current = () => webviewProvider.createOrShow('pr');
   const sidebarProvider = new SidebarProvider(context, messageRouter);
   vscode.window.registerWebviewViewProvider('gitcat-sidebar-webview', sidebarProvider);
 
