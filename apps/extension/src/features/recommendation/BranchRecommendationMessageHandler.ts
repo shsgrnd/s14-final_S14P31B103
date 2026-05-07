@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
-import type { ErrorCode, OutboundMessage } from '@gitcat/shared-types';
-import { BranchRecommendationRequestSchema } from './BranchRecommendationDto';
+import { InboundPayloadSchemaMap, type ErrorCode, type OutboundMessage } from '@gitcat/shared-types';
 import { BranchRecommendationService } from './BranchRecommendationService';
 
 /**
@@ -17,7 +16,7 @@ export class BranchRecommendationMessageHandler {
     }
 
     // 요청 payload DTO 검증
-    const parseResult = BranchRecommendationRequestSchema.safeParse(payload);
+    const parseResult = InboundPayloadSchemaMap.RECOMMEND_BRANCH.safeParse(payload);
     if (!parseResult.success) {
       this.postError(
         webview,

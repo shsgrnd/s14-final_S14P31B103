@@ -1,13 +1,8 @@
-import { z } from 'zod';
-import type { CommitSuggestion, RecommendationHistoryRow } from '@gitcat/shared-types';
+import type {
+  CommitSuggestion,
+  RecommendationHistoryRow,
+} from '@gitcat/shared-types';
 import type { BranchInfoResponse, LogEntryResponse } from '../git/GitService';
-
-export const CommitRecommendationRequestSchema = z.object({
-  diffText: z.string().trim().min(1, '커밋 추천 요청 내용은 비어 있을 수 없습니다.'),
-  tag: z.string().trim().optional(),
-});
-
-export type CommitRecommendationRequestDto = z.infer<typeof CommitRecommendationRequestSchema>;
 
 export interface CommitRecommendationRawDataOptionsDto {
   recentCommitLimit?: number;
