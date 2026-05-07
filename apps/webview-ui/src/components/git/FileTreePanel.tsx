@@ -306,7 +306,8 @@ export const FileTreePanel: React.FC = () => {
   const [tab, setTab] = useState<'changed' | 'all'>('all');
   const [showPopup, setShowPopup] = useState(false);
   const [workspaceTree, setWorkspaceTree] = useState<WorkspaceFileTreeNode[]>([]);
-  const [rootName, setRootName] = useState('');
+  const [workspaceRootName, setWorkspaceRootName] = useState('Workspace');
+  const [workspaceTotalFiles, setWorkspaceTotalFiles] = useState(0);
   const [isLoading, setIsLoading] = useState(false);
 
   // 트리 열림/닫힘 상태를 path Set으로 관리 → 새로고침 시 유지됨, 기본값 비어있음(모두 닫힘)
@@ -345,7 +346,8 @@ export const FileTreePanel: React.FC = () => {
       if (event.data?.type === 'WORKSPACE_TREE') {
         const { tree } = event.data.payload;
         setWorkspaceTree(tree.nodes ?? []);
-        setRootName(tree.rootName ?? '');
+        setWorkspaceRootName(tree.rootName ?? 'Workspace');
+        setWorkspaceTotalFiles(tree.totalFiles ?? 0);
         setIsLoading(false);
       }
     };
@@ -353,14 +355,29 @@ export const FileTreePanel: React.FC = () => {
     return () => window.removeEventListener('message', handler);
   }, []);
 
-  // Changed 탭: 상태가 있는 파일만 flat 렌더링
+  // Explorer에 실제 보이는 파일 경로 집합 (WORKSPACE_TREE 기준)
+  const visibleFilePaths = React.useMemo(() => {
+    const result = new Set<string>();
+    const walk = (nodes: WorkspaceFileTreeNode[]) => {
+      for (const node of nodes) {
+        if (node.type === 'file') result.add(node.path);
+        if (node.children && node.children.length > 0) {
+          walk(node.children as WorkspaceFileTreeNode[]);
+        }
+      }
+    };
+    walk(workspaceTree);
+    return result;
+  }, [workspaceTree]);
+
+  // Changed 탭: 상태가 있는 파일 중 Explorer에 보이는 파일만 렌더링
   const changedFiles: WorkspaceFileTreeNode[] = statusSummary
     ? [
       ...statusSummary.staged.map(f => ({ name: f.path.split('/').pop() ?? f.path, path: f.path, type: 'file' as const, status: 'staged' as any })),
       ...statusSummary.unstaged.map(f => ({ name: f.path.split('/').pop() ?? f.path, path: f.path, type: 'file' as const, status: 'unstaged' as any })),
       ...statusSummary.untracked.map(f => ({ name: f.path.split('/').pop() ?? f.path, path: f.path, type: 'file' as const, status: 'untracked' as any })),
       ...statusSummary.conflicted.map(f => ({ name: f.path.split('/').pop() ?? f.path, path: f.path, type: 'file' as const, status: 'conflicted' as any })),
-    ]
+    ].filter((f) => visibleFilePaths.has(f.path))
     : [];
 
   const statusMap = React.useMemo(() => {
@@ -380,17 +397,32 @@ export const FileTreePanel: React.FC = () => {
   };
 
   const changedCount = changedFiles.length;
-  const allCount = workspaceTree.length;
+  const allCount = workspaceTotalFiles > 0 ? workspaceTotalFiles : visibleFilePaths.size;
+  const rootNode: WorkspaceFileTreeNode = {
+    name: workspaceRootName,
+    path: '__gitcat_root__',
+    type: 'directory',
+    children: workspaceTree,
+  };
+
+  useEffect(() => {
+    if (workspaceTree.length === 0) return;
+    setOpenPaths((prev) => {
+      if (prev.has('__gitcat_root__')) return prev;
+      const next = new Set(prev);
+      next.add('__gitcat_root__');
+      return next;
+    });
+  }, [workspaceTree]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
-      {/* ── 헤더: 탭 + 상태 요약 아이콘 ── */}
+      {/* ── 한 줄: All / Changed (왼쪽) + 트리 새로고침 + Git 상태 요약 (오른쪽) ── */}
       <div style={{
         position: 'relative',
-        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+        display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px',
         padding: '6px 8px 0 8px',
       }}>
-        {/* 탭: 세그먼트 컨트롤 스타일 */}
         <div style={{
           display: 'flex',
           background: 'var(--vscode-editor-background)',
@@ -398,6 +430,8 @@ export const FileTreePanel: React.FC = () => {
           borderRadius: '6px',
           padding: '2px',
           gap: '2px',
+          flexShrink: 0,
+          minWidth: 0,
         }}>
           {(['all', 'changed'] as const).map(t => (
             <button
@@ -434,31 +468,43 @@ export const FileTreePanel: React.FC = () => {
           ))}
         </div>
 
-        {/* BarChart2 아이콘 — 토글 */}
-        <button
-          ref={triggerBtnRef}
-          onClick={() => {
-            const next = !showPopup;
-            setShowPopup(next);
-            if (next) sendMessage('GET_GIT_STATUS_SUMMARY', {});
-          }}
-          title={showPopup ? 'Git 상태 요약 닫기' : 'Git 상태 요약 보기'}
-          style={{
-            background: showPopup ? 'var(--vscode-button-background)' : 'none',
-            border: `1px solid ${showPopup ? 'transparent' : 'transparent'}`,
-            borderRadius: '4px', cursor: 'pointer', padding: '3px',
-            color: showPopup ? 'var(--vscode-button-foreground)' : 'var(--vscode-descriptionForeground)',
-            display: 'flex', alignItems: 'center',
-            transition: 'all 0.15s',
-            outline: showPopup ? '1px solid var(--vscode-focusBorder)' : 'none',
-          }}
-          onMouseOver={e => { if (!showPopup) (e.currentTarget as HTMLButtonElement).style.outline = '1px solid var(--vscode-focusBorder)'; }}
-          onMouseOut={e => { if (!showPopup) (e.currentTarget as HTMLButtonElement).style.outline = 'none'; }}
-        >
-          <BarChart2 size={14} />
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0 }}>
+          <button
+            onClick={loadTree}
+            disabled={isLoading}
+            style={{
+              background: 'none', border: 'none', cursor: isLoading ? 'wait' : 'pointer',
+              padding: '3px', color: 'var(--vscode-descriptionForeground)', display: 'flex',
+              opacity: isLoading ? 0.6 : 1,
+            }}
+            title="파일 트리 새로고침 (열림/닫힘 상태 유지)"
+          >
+            <RefreshCw size={11} style={{ animation: isLoading ? 'gitcat-refresh-spin 1s linear infinite' : 'none' }} />
+          </button>
+          <button
+            ref={triggerBtnRef}
+            onClick={() => {
+              const next = !showPopup;
+              setShowPopup(next);
+              if (next) sendMessage('GET_GIT_STATUS_SUMMARY', {});
+            }}
+            title={showPopup ? 'Git 상태 요약 닫기' : 'Git 상태 요약 보기'}
+            style={{
+              background: showPopup ? 'var(--vscode-button-background)' : 'none',
+              border: 'none',
+              borderRadius: '4px', cursor: 'pointer', padding: '3px',
+              color: showPopup ? 'var(--vscode-button-foreground)' : 'var(--vscode-descriptionForeground)',
+              display: 'flex', alignItems: 'center',
+              transition: 'all 0.15s',
+              outline: showPopup ? '1px solid var(--vscode-focusBorder)' : 'none',
+            }}
+            onMouseOver={e => { if (!showPopup) (e.currentTarget as HTMLButtonElement).style.outline = '1px solid var(--vscode-focusBorder)'; }}
+            onMouseOut={e => { if (!showPopup) (e.currentTarget as HTMLButtonElement).style.outline = 'none'; }}
+          >
+            <BarChart2 size={14} />
+          </button>
+        </div>
 
-        {/* 상태 요약 팝업 */}
         {showPopup && (
           <StatusSummaryPopup
             onClose={() => setShowPopup(false)}
@@ -500,39 +546,25 @@ export const FileTreePanel: React.FC = () => {
               파일을 불러오는 중...
             </div>
           ) : (
-            workspaceTree.map((node, i) => (
-              <TreeNode
-                key={node.path || i}
-                node={node}
-                depth={0}
-                openPaths={openPaths}
-                onToggle={handleTogglePath}
-                onFileClick={handleFileClick}
-                statusMap={statusMap}
-              />
-            ))
+            <TreeNode
+              key={rootNode.path}
+              node={rootNode}
+              depth={0}
+              openPaths={openPaths}
+              onToggle={handleTogglePath}
+              onFileClick={handleFileClick}
+              statusMap={statusMap}
+            />
           )
         )}
       </div>
 
-      {/* ── 하단: 루트명 + 새로고침 ── */}
-      {rootName && (
-        <div style={{
-          display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-          padding: '4px 8px',
-          borderTop: '1px solid var(--vscode-panel-border)',
-          fontSize: '10px', color: 'var(--vscode-descriptionForeground)',
-        }}>
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>📁 {rootName}</span>
-          <button
-            onClick={loadTree}
-            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', color: 'var(--vscode-descriptionForeground)', display: 'flex' }}
-            title="데이터 새로고침 (열림/닫힘 상태 유지)"
-          >
-            <RefreshCw size={11} />
-          </button>
-        </div>
-      )}
+      <style>{`
+        @keyframes gitcat-refresh-spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+      `}</style>
     </div>
   );
 };
