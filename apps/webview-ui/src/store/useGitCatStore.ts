@@ -1,5 +1,15 @@
 import { create } from 'zustand';
-import { Snapshot, ConflictAnalysis, AIDraft, Branch, OutboundMessage, GitStatusSummary, BranchCleanupSettings } from '@gitcat/shared-types';
+import {
+  Snapshot,
+  ConflictAnalysis,
+  AIDraft,
+  Branch,
+  OutboundMessage,
+  GitStatusSummary,
+  BranchCleanupSettings,
+  BranchCleanupPreviewResult,
+  BranchCleanupExecuteResult,
+} from '@gitcat/shared-types';
 import { translateUserFacingGitMessage, type UiMessageTone } from '../shared/gitMessageKo';
 
 /** 전역 알림 메시지 타입 */
@@ -63,6 +73,8 @@ interface GitCatState {
 
   // 브랜치 자동 정리 설정 (BRANCH_CLEANUP_SETTINGS 수신 시 갱신)
   cleanupSettings: BranchCleanupSettings | null;
+  cleanupPreview: BranchCleanupPreviewResult | null;
+  cleanupExecuteResult: BranchCleanupExecuteResult | null;
 
   // Actions
   setSnapshots: (snapshots: Snapshot[]) => void;
@@ -105,6 +117,8 @@ export const useGitCatStore = create<GitCatState>((set) => ({
   isPrLoading: false,
   stashes: [],
   cleanupSettings: null,
+  cleanupPreview: null,
+  cleanupExecuteResult: null,
 
   setSnapshots: (snapshots) => set({ snapshots }),
   setConflicts: (conflicts) => set({ conflicts }),
@@ -281,6 +295,16 @@ export const useGitCatStore = create<GitCatState>((set) => ({
       case 'BRANCH_CLEANUP_SETTINGS':
         // 브랜치 자동 정리 설정 수신
         set({ cleanupSettings: payload.settings });
+        break;
+
+      case 'BRANCH_CLEANUP_CANDIDATES':
+        // 브랜치 자동 정리 후보 수신
+        set({ cleanupPreview: payload.result });
+        break;
+
+      case 'BRANCH_CLEANUP_RESULT':
+        // 브랜치 자동 정리 실행 결과 수신
+        set({ cleanupExecuteResult: payload.result });
         break;
     }
   },

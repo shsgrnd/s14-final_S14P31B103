@@ -37,6 +37,8 @@ const STATUS_CONFIG: Record<string, { color: string; label: string; short: strin
   pushable: { color: '#569cd6', label: 'Pushable', short: 'P' },
 };
 
+type NodeStatus = 'untracked' | 'unstaged' | 'staged' | 'conflicted';
+
 // ── 상태 요약 팝업 ────────────────────────────────────────────────────────────
 
 interface StatusSummaryPopupProps {
@@ -221,11 +223,14 @@ const TreeNode: React.FC<{
   onToggle: (path: string) => void;
   onFileClick: (path: string) => void;
   statusMap?: Map<string, string>;
-}> = ({ node, depth, openPaths, onToggle, onFileClick, statusMap }) => {
+  directoryStatusMap?: Map<string, NodeStatus>;
+}> = ({ node, depth, openPaths, onToggle, onFileClick, statusMap, directoryStatusMap }) => {
   const isDir = node.type === 'directory';
   const isOpen = openPaths.has(node.path);
   const effectiveStatus = node.status || (statusMap && !isDir ? statusMap.get(node.path) : null);
   const statusCfg = effectiveStatus ? STATUS_CONFIG[effectiveStatus as string] : null;
+  const directoryStatus = isDir ? directoryStatusMap?.get(node.path) : null;
+  const directoryStatusCfg = directoryStatus ? STATUS_CONFIG[directoryStatus] : null;
 
   if (isDir) {
     return (
@@ -245,7 +250,16 @@ const TreeNode: React.FC<{
             ? <ChevronDown size={12} style={{ flexShrink: 0, color: 'var(--vscode-descriptionForeground)' }} />
             : <ChevronRight size={12} style={{ flexShrink: 0, color: 'var(--vscode-descriptionForeground)' }} />}
           <VscFolder open={isOpen} />
-          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{node.name}</span>
+          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', flex: 1 }}>{node.name}</span>
+          {directoryStatusCfg && (
+            <span style={{
+              fontSize: '9px', fontWeight: 700, color: directoryStatusCfg.color,
+              background: directoryStatusCfg.color + '22', padding: '0 4px',
+              borderRadius: '3px', flexShrink: 0,
+            }}>
+              {directoryStatusCfg.short}
+            </span>
+          )}
         </div>
         {isOpen && node.children?.map((child, i) => (
           <TreeNode
@@ -256,6 +270,7 @@ const TreeNode: React.FC<{
             onToggle={onToggle}
             onFileClick={onFileClick}
             statusMap={statusMap}
+            directoryStatusMap={directoryStatusMap}
           />
         ))}
       </div>
@@ -381,7 +396,7 @@ export const FileTreePanel: React.FC = () => {
     : [];
 
   const statusMap = React.useMemo(() => {
-    const map = new Map<string, string>();
+    const map = new Map<string, NodeStatus>();
     if (!statusSummary) return map;
 
     // 우선순위 덮어쓰기 (낮은 우선순위 -> 높은 우선순위)
@@ -391,6 +406,33 @@ export const FileTreePanel: React.FC = () => {
     statusSummary.conflicted.forEach(f => map.set(f.path, 'conflicted'));
     return map;
   }, [statusSummary]);
+
+  const directoryStatusMap = React.useMemo(() => {
+    const map = new Map<string, NodeStatus>();
+    const priority: Record<NodeStatus, number> = {
+      untracked: 1,
+      unstaged: 2,
+      staged: 3,
+      conflicted: 4,
+    };
+
+    const setWithPriority = (path: string, status: NodeStatus) => {
+      const prev = map.get(path);
+      if (!prev || priority[status] > priority[prev]) map.set(path, status);
+    };
+
+    statusMap.forEach((status, filePath) => {
+      const segments = filePath.split('/').filter(Boolean);
+      let current = '';
+      for (let i = 0; i < segments.length - 1; i += 1) {
+        current = current ? `${current}/${segments[i]}` : segments[i];
+        setWithPriority(current, status);
+      }
+      setWithPriority('__gitcat_root__', status);
+    });
+
+    return map;
+  }, [statusMap]);
 
   const handleFileClick = (path: string) => {
     sendMessage('OPEN_WORKSPACE_FILE', { filePath: path });
@@ -554,6 +596,7 @@ export const FileTreePanel: React.FC = () => {
               onToggle={handleTogglePath}
               onFileClick={handleFileClick}
               statusMap={statusMap}
+              directoryStatusMap={directoryStatusMap}
             />
           )
         )}

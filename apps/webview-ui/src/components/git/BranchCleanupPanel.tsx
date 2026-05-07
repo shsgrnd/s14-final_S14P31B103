@@ -2,7 +2,7 @@ import React, { useRef, useState, useCallback } from 'react';
 import { Trash2, Clock, Sparkles, GitBranch, AlertTriangle, Settings, ArrowLeft, Plus, X, ShieldCheck, Lock, Sliders, ChevronRight } from 'lucide-react';
 import { useGitCatStore } from '../../store/useGitCatStore';
 import { useVsCodeApi } from '../../hooks/useVsCodeApi';
-import { BranchCleanupSettings } from '@gitcat/shared-types';
+import { BranchCleanupSettings, BranchCleanupCandidate } from '@gitcat/shared-types';
 import { SectionNotificationBanner } from '../common/SectionNotificationBanner';
 
 type BranchStatus = 'active' | 'merged' | 'stale' | 'protected';
@@ -41,16 +41,17 @@ const DEFAULT_CLEANUP_SETTINGS: BranchCleanupSettings = {
 };
 
 export const BranchCleanupPanel: React.FC = () => {
-  const { branches: allBranches, currentBranch, cleanupSettings, sectionNotifications, clearSectionNotification } = useGitCatStore();
+  const {
+    branches: allBranches,
+    currentBranch,
+    cleanupSettings,
+    cleanupPreview,
+    cleanupExecuteResult,
+    sectionNotifications,
+    clearSectionNotification,
+  } = useGitCatStore();
   const { sendMessage } = useVsCodeApi();
   const dismissCleanupNotification = useCallback(() => clearSectionNotification('branchCleanup'), [clearSectionNotification]);
-
-  // origin 및 원격 관련 브랜치 제외 (메인 브랜치 목록과 통일)
-  const branches = allBranches.filter(b => 
-    !b.name.includes('origin/') && 
-    b.name !== 'origin' && 
-    !b.name.startsWith('remotes/')
-  );
 
   const isGitConnected = currentBranch !== '';
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -62,18 +63,24 @@ export const BranchCleanupPanel: React.FC = () => {
   // “추천 자동 선택”은 최초 1회만(사용자 조작 후에는 절대 강제 선택하지 않음)
   const autoSelectArmedRef = useRef(true);
 
-  const protectedBranchSet = new Set(cleanupSettings?.protectedBranches ?? []);
   const normalizedCurrentBranch = normalizeBranchName(currentBranch);
-  const effectiveBranches = branches.map((branch) => {
-    const isCurrent = normalizeBranchName(branch.name) === normalizedCurrentBranch;
-    const baseStatus = (branch.status || 'active') as BranchStatus;
-    if (isCurrent) return { ...branch, effectiveStatus: 'active' as BranchStatus };
-    if (baseStatus === 'protected' || protectedBranchSet.has(branch.name)) return { ...branch, effectiveStatus: 'protected' as BranchStatus };
-    return { ...branch, effectiveStatus: baseStatus };
-  });
+
+  const effectiveStatusFromCandidate = (c: BranchCleanupCandidate): BranchStatus => {
+    if (c.isCurrent) return 'active';
+    if (c.isProtected) return 'protected';
+    if (c.isMerged) return 'merged';
+    return 'stale';
+  };
+
+  const effectiveBranches = (cleanupPreview?.candidates ?? []).map((c) => ({
+    name: c.branchName,
+    lastActivity: c.lastCommitDate,
+    effectiveStatus: effectiveStatusFromCandidate(c),
+    shouldDelete: c.shouldDelete,
+  }));
 
   const deletableBranches = effectiveBranches.filter((b) =>
-    b.effectiveStatus === 'stale' || (b.effectiveStatus === 'merged' && (cleanupSettings?.deleteMergedBranches ?? true))
+    b.shouldDelete
   );
   const selectedDeletableCount = deletableBranches.filter(b => selected.has(b.name)).length;
   const allSelected = deletableBranches.length > 0 && deletableBranches.every(b => selected.has(b.name));
@@ -117,12 +124,31 @@ export const BranchCleanupPanel: React.FC = () => {
     };
   }, []);
 
-  // 컴포넌트 마운트 시 설정 불러오기
+  // 컴포넌트 마운트/연결 시 설정과 후보를 함께 불러오기
   React.useEffect(() => {
     if (isGitConnected) {
       sendMessage('GET_BRANCH_CLEANUP_SETTINGS', {});
+      sendMessage('GET_BRANCH_CLEANUP_CANDIDATES', {});
     }
   }, [isGitConnected, sendMessage]);
+
+  // 브랜치 목록이 갱신되면 후보도 재계산 요청 (삭제/체크아웃 후 최신화)
+  React.useEffect(() => {
+    if (!isGitConnected) return;
+    sendMessage('GET_BRANCH_CLEANUP_CANDIDATES', {});
+  }, [isGitConnected, allBranches, sendMessage]);
+
+  // 설정이 바뀌면 후보도 재조회
+  React.useEffect(() => {
+    if (!isGitConnected || !cleanupSettings) return;
+    sendMessage('GET_BRANCH_CLEANUP_CANDIDATES', {});
+  }, [isGitConnected, cleanupSettings, sendMessage]);
+
+  // 실행 결과 수신 후 후보를 한 번 더 동기화
+  React.useEffect(() => {
+    if (!isGitConnected || !cleanupExecuteResult) return;
+    sendMessage('GET_BRANCH_CLEANUP_CANDIDATES', {});
+  }, [isGitConnected, cleanupExecuteResult, sendMessage]);
 
   const showWarning = (msg: string) => {
     setWarningMsg(msg);
@@ -168,9 +194,7 @@ export const BranchCleanupPanel: React.FC = () => {
 
   const confirmDelete = () => {
     autoSelectArmedRef.current = false;
-    const selectedBranches = effectiveBranches.filter((branch) => selected.has(branch.name));
-    const force = selectedBranches.some((branch) => branch.effectiveStatus === 'stale');
-    sendMessage('DELETE_BRANCHES', { names: Array.from(selected), force });
+    sendMessage('EXECUTE_BRANCH_CLEANUP', { branchNames: Array.from(selected) });
     setSelected(new Set());
     setShowConfirmModal(false);
   };
