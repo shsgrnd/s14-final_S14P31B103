@@ -82,8 +82,11 @@ export const BranchCleanupPanel: React.FC = () => {
   const deletableBranches = effectiveBranches.filter((b) =>
     b.shouldDelete
   );
-  const selectedDeletableCount = deletableBranches.filter(b => selected.has(b.name)).length;
-  const allSelected = deletableBranches.length > 0 && deletableBranches.every(b => selected.has(b.name));
+  const manualSelectableBranches = effectiveBranches.filter((b) =>
+    b.effectiveStatus !== 'active' && b.effectiveStatus !== 'protected'
+  );
+  const selectedManualCount = manualSelectableBranches.filter(b => selected.has(b.name)).length;
+  const allSelected = manualSelectableBranches.length > 0 && manualSelectableBranches.every(b => selected.has(b.name));
 
   // [Dry-run] 브랜치 목록이나 설정이 변경되면 삭제 권장 브랜치 자동 선택
   React.useEffect(() => {
@@ -156,15 +159,15 @@ export const BranchCleanupPanel: React.FC = () => {
   };
 
   const toggleAll = () => {
-    if (deletableBranches.length === 0) return;
+    if (manualSelectableBranches.length === 0) return;
     autoSelectArmedRef.current = false;
     if (allSelected) {
       const next = new Set(selected);
-      deletableBranches.forEach(b => next.delete(b.name));
+      manualSelectableBranches.forEach(b => next.delete(b.name));
       setSelected(next);
     } else {
       const next = new Set(selected);
-      deletableBranches.forEach(b => next.add(b.name));
+      manualSelectableBranches.forEach(b => next.add(b.name));
       setSelected(next);
     }
   };
@@ -491,8 +494,8 @@ export const BranchCleanupPanel: React.FC = () => {
                 <div
                   style={{
                     display: 'flex', alignItems: 'center', gap: '12px',
-                    padding: '8px 16px', cursor: deletableBranches.length > 0 ? 'pointer' : 'not-allowed',
-                    opacity: deletableBranches.length > 0 ? 1 : 0.6,
+                    padding: '8px 16px', cursor: manualSelectableBranches.length > 0 ? 'pointer' : 'not-allowed',
+                    opacity: manualSelectableBranches.length > 0 ? 1 : 0.6,
                     marginBottom: '4px'
                   }}
                   onClick={toggleAll}
@@ -507,7 +510,7 @@ export const BranchCleanupPanel: React.FC = () => {
                     {allSelected && <ShieldCheck size={12} color="#fff" />}
                   </div>
                   <span style={{ fontSize: '12px', color: 'var(--vscode-foreground)', fontWeight: 600 }}>
-                    정리 가능 브랜치 ({selectedDeletableCount}/{deletableBranches.length})
+                    선택 가능 브랜치 ({selectedManualCount}/{manualSelectableBranches.length})
                   </span>
                 </div>
 
@@ -563,6 +566,20 @@ export const BranchCleanupPanel: React.FC = () => {
                         }}>
                           {STATUS_LABEL[status]}
                         </span>
+                        {branch.shouldDelete && (
+                          <span style={{
+                            fontSize: '10px',
+                            fontWeight: 700,
+                            padding: '3px 8px',
+                            borderRadius: '4px',
+                            flexShrink: 0,
+                            color: '#4ec9b0',
+                            background: 'rgba(78, 201, 176, 0.12)',
+                            border: '1px solid rgba(78, 201, 176, 0.35)',
+                          }}>
+                            자동 추천
+                          </span>
+                        )}
                       </div>
                     );
                   })}
