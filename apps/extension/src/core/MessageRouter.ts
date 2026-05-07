@@ -9,7 +9,10 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { GitMessageHandler } from '../features/git/GitMessageHandler';
-import { BranchRecommendationMessageHandler } from '../features/recommendation';
+import {
+  BranchRecommendationMessageHandler,
+  CommitRecommendationMessageHandler,
+} from '../features/recommendation';
 import { PrRecommendationHandler } from '../features/recommendation/PrRecommendationHandler';
 import {
   InboundMessage,
@@ -24,6 +27,7 @@ import {
 export class MessageRouter {
   private readonly gitHandler: GitMessageHandler | null;
   private readonly branchRecommendationHandler: BranchRecommendationMessageHandler | null;
+  private readonly commitRecommendationHandler: CommitRecommendationMessageHandler | null;
   private readonly prRecommendationHandler: PrRecommendationHandler | null;
   private readonly webviews = new Set<vscode.Webview>();
 
@@ -31,10 +35,12 @@ export class MessageRouter {
     private readonly dbInstance: any,
     gitHandler?: GitMessageHandler,
     branchRecommendationHandler?: BranchRecommendationMessageHandler,
+    commitRecommendationHandler?: CommitRecommendationMessageHandler,
     prRecommendationHandler?: PrRecommendationHandler,
   ) {
     this.gitHandler = gitHandler ?? null;
     this.branchRecommendationHandler = branchRecommendationHandler ?? null;
+    this.commitRecommendationHandler = commitRecommendationHandler ?? null;
     this.prRecommendationHandler = prRecommendationHandler ?? null;
   }
 
@@ -73,9 +79,14 @@ export class MessageRouter {
         const handled = await this.gitHandler.handle(message.type, message.payload, webview);
         if (handled) return;
       }
-      // branchRecommendation 핸들러 위임
+      // branch 추천 핸들러 위임
       if (this.branchRecommendationHandler) {
         const handled = await this.branchRecommendationHandler.handle(message.type, message.payload, webview);
+        if (handled) return;
+      }
+      // commit 추천 핸들러 위임
+      if (this.commitRecommendationHandler) {
+        const handled = await this.commitRecommendationHandler.handle(message.type, message.payload, webview);
         if (handled) return;
       }
       // PR 추천 핸들러 위임

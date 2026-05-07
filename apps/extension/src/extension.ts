@@ -16,6 +16,9 @@ import { BranchCleanupService } from './features/git/BranchCleanupService';
 import {
   BranchRecommendationMessageHandler,
   BranchRecommendationService,
+  CommitRecommendationMessageHandler,
+  CommitRecommendationRawDataService,
+  CommitRecommendationService,
 } from './features/recommendation';
 import { RecommendationHistoryQueryService } from './features/recommendation/RecommendationHistoryQueryService';
 import { PrRecommendationService } from './features/recommendation/PrRecommendationService';
@@ -50,6 +53,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
   let gitMessageHandler: GitMessageHandler | undefined;
   let branchRecommendationHandler: BranchRecommendationMessageHandler | undefined;
+  let commitRecommendationHandler: CommitRecommendationMessageHandler | undefined;
   let gitService: GitService | undefined;
   if (rootPath && projectId) {
     try {
@@ -70,6 +74,13 @@ export async function activate(context: vscode.ExtensionContext) {
         projectId,
       });
       branchRecommendationHandler = new BranchRecommendationMessageHandler(branchRecommendationService);
+
+      const commitRawDataService = new CommitRecommendationRawDataService(gitService);
+      const commitRecommendationService = new CommitRecommendationService(commitRawDataService, {
+        historyRepository: branchHistoryRepository,
+        projectId,
+      });
+      commitRecommendationHandler = new CommitRecommendationMessageHandler(commitRecommendationService);
 
       console.log('GitCat Git layer initialized at:', rootPath);
     } catch (error) {
@@ -102,6 +113,7 @@ export async function activate(context: vscode.ExtensionContext) {
     dbInstance,
     gitMessageHandler,
     branchRecommendationHandler,
+    commitRecommendationHandler,
     prRecommendationHandler,
   );
 
