@@ -2,9 +2,11 @@ import { z } from 'zod';
 import { ErrorCodeEnum } from '../enums/error-codes';
 import { InboundMessageTypeEnum, OutboundMessageTypeEnum } from '../enums/messages';
 import {
+  BranchSuggestionSchema,
   CommitSuggestionSchema,
   ConflictCandidateSchema,
   MergeProposalSchema,
+  PRSuggestionSchema,
 } from '../dto/ai';
 import {
   SnapshotSchema,
@@ -124,8 +126,8 @@ export const OutboundPayloadSchemaMap = {
   MERGE_PROPOSAL: z.object({ proposals: z.array(AIDraftSchema) }),
   MERGE_COMPLETE: z.object({}),
   COMMIT_SUGGESTIONS: z.object({ suggestions: CommitSuggestionSchema }),
-  BRANCH_SUGGESTIONS: z.object({ names: z.array(z.string()) }),
-  PR_SUGGESTION: z.object({ markdown: z.string() }),
+  BRANCH_SUGGESTIONS: BranchSuggestionSchema,
+  PR_SUGGESTION: PRSuggestionSchema,
   BRANCH_LIST: z.object({ branches: z.array(BranchSchema) }),
   WORKTREE_LIST: z.object({ worktrees: z.array(WorktreeInfoSchema) }),
   WORKSPACE_TREE: z.object({ tree: WorkspaceTreeSchema }),

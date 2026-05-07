@@ -55,6 +55,7 @@ export async function activate(context: vscode.ExtensionContext) {
   let branchRecommendationHandler: BranchRecommendationMessageHandler | undefined;
   let commitRecommendationHandler: CommitRecommendationMessageHandler | undefined;
   let gitService: GitService | undefined;
+  let recommendationAiService: MergeAiService | undefined;
   if (rootPath && projectId) {
     try {
       const gitClient = new GitCliClient(rootPath);
@@ -66,12 +67,14 @@ export async function activate(context: vscode.ExtensionContext) {
       const branchCleanupService = new BranchCleanupService(gitService);
       gitMessageHandler = new GitMessageHandler(gitService, branchCleanupService);
 
+      recommendationAiService = new MergeAiService();
       const branchHistoryRepository = dbInstance
         ? new SqliteRecommendationHistoryRepository(dbInstance)
         : undefined;
       const branchRecommendationService = new BranchRecommendationService(gitService, {
         historyRepository: branchHistoryRepository,
         projectId,
+        aiService: recommendationAiService,
       });
       branchRecommendationHandler = new BranchRecommendationMessageHandler(branchRecommendationService);
 
@@ -79,6 +82,7 @@ export async function activate(context: vscode.ExtensionContext) {
       const commitRecommendationService = new CommitRecommendationService(commitRawDataService, {
         historyRepository: branchHistoryRepository,
         projectId,
+        aiService: recommendationAiService,
       });
       commitRecommendationHandler = new CommitRecommendationMessageHandler(commitRecommendationService);
 
@@ -94,10 +98,9 @@ export async function activate(context: vscode.ExtensionContext) {
     try {
       const historyRepository = new SqliteRecommendationHistoryRepository(dbInstance);
       const historyQueryService = new RecommendationHistoryQueryService(historyRepository);
-      const aiService = new MergeAiService();
       const prRecommendationService = new PrRecommendationService(
         gitService,
-        aiService,
+        recommendationAiService ?? new MergeAiService(),
         historyRepository,
         projectId,
         historyQueryService,  // 추천 이력 조회 Query 서비스 주입

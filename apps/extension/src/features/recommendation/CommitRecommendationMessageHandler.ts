@@ -1,6 +1,5 @@
 import * as vscode from 'vscode';
-import type { ErrorCode, OutboundMessage } from '@gitcat/shared-types';
-import { CommitRecommendationRequestSchema } from './CommitRecommendationDto';
+import { InboundPayloadSchemaMap, type ErrorCode, type OutboundMessage } from '@gitcat/shared-types';
 import { CommitRecommendationService } from './CommitRecommendationService';
 
 /**
@@ -17,7 +16,7 @@ export class CommitRecommendationMessageHandler {
     }
 
     // 요청 payload DTO 검증
-    const parseResult = CommitRecommendationRequestSchema.safeParse(payload);
+    const parseResult = InboundPayloadSchemaMap.RECOMMEND_COMMIT.safeParse(payload);
     if (!parseResult.success) {
       this.postError(
         webview,
