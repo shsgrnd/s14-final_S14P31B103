@@ -1,0 +1,72 @@
+{
+  "TypeScript interface type mismatch merge conflict": [
+    {
+      "source": "case_A_05_schema_enum_drift/prompt.md",
+      "score": 0.3792264588115632
+    },
+    {
+      "source": "case_A_01_type_contract_break/prompt.md",
+      "score": 0.3745428254805045
+    },
+    {
+      "source": "case_A_07_conflict_candidate_shape_change/prompt.md",
+      "score": 0.35861389816120176
+    }
+  ],
+  "SQLite repository artifact ref 저장 충돌": [
+    {
+      "source": "case_A_09_optional_field_required_conflict/prompt.md",
+      "score": 0.4951049178260249
+    },
+    {
+      "source": "case_B_03_dependency_version_split/prompt.md",
+      "score": 0.3830357934400568
+    },
+    {
+      "source": "case_B_02_export_field_policy_conflict/chosen.json",
+      "score": 0.3144130198149289
+    }
+  ],
+  "export field policy jsonl SFT training": [
+    {
+      "source": "case_A_03_parser_field_rename/prompt.md",
+      "score": 0.3209066447216116
+    },
+    {
+      "source": "case_C_04_multi_file_message_router/prompt.md",
+      "score": 0.30930757819057
+    },
+    {
+      "source": "case_C_01_message_contract_drift/prompt.md",
+      "score": 0.30744011703837043
+    }
+  ],
+  "LoRA adapter training candidate chosen rejected": [
+    {
+      "source": "case_B_08_multi_file_training_candidate_refs/prompt.md",
+      "score": 0.3524239106650709
+    },
+    {
+      "source": "case_B_04_multi_file_artifact_linkage/prompt.md",
+      "score": 0.33926718821782664
+    },
+    {
+      "source": "case_B_10_rejected_ref_required_conflict/prompt.md",
+      "score": 0.33336856593283287
+    }
+  ],
+  "multi-file merge conflict resolution": [
+    {
+      "source": "case_A_01_type_contract_break/chosen.json",
+      "score": 0.44931565330844014
+    },
+    {
+      "source": "case_A_01_type_contract_break/prompt.md",
+      "score": 0.354803724334072
+    },
+    {
+      "source": "case_B_06_repository_input_field_rename/chosen.json",
+      "score": 0.3485031798731252
+    }
+  ]
+}
