@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { PanelCommandHandler } from './PanelCommandHandler';
 import { WebviewProvider } from '../webview/WebviewProvider';
 import { GitService } from '../features/git/GitService';
+import { GitHubTokenProvider } from '../integrations/github/GitHubTokenProvider';
 
 export class CommandRegistry {
     static registerAll(
@@ -22,6 +23,30 @@ export class CommandRegistry {
             vscode.commands.registerCommand('gitcat.getGitStatus', async () => {
                 return await gitService?.getStatusWithWorktrees({ fetchRemote: true });
             })
+        );
+
+        // GitHub PR 생성 테스트용 토큰 설정
+        context.subscriptions.push(
+            vscode.commands.registerCommand('gitcat.setGitHubToken', async () => {
+                const token = await vscode.window.showInputBox({
+                    title: 'GitCat: Set GitHub Token',
+                    prompt: 'GitHub Personal Access Token을 입력하세요. SecretStorage에만 저장됩니다.',
+                    password: true,
+                    ignoreFocusOut: true,
+                    validateInput: (value) => value.trim() ? undefined : 'GitHub token을 입력하세요.',
+                });
+
+                if (!token) return;
+
+                const tokenProvider = new GitHubTokenProvider(context.secrets);
+                await tokenProvider.setToken(token.trim());
+                vscode.window.showInformationMessage('GitCat: GitHub token이 저장되었습니다.');
+            }),
+            vscode.commands.registerCommand('gitcat.clearGitHubToken', async () => {
+                const tokenProvider = new GitHubTokenProvider(context.secrets);
+                await tokenProvider.deleteToken();
+                vscode.window.showInformationMessage('GitCat: GitHub token이 삭제되었습니다.');
+            }),
         );
 
         // 스냅샷 관련 커맨드

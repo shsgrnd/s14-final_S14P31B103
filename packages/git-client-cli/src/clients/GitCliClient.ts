@@ -171,6 +171,30 @@ export class GitCliClient implements IGitClient {
     return this.git.diff([`${base}...${branch}`]);
   }
 
+  /**
+   * 지정한 remote의 fetch URL을 반환한다.
+   *
+   * GitHub PR 생성 시 owner/repo 자동 추출에 사용한다.
+   * remote가 없거나 GitHub URL이 아닌 경우에는 상위 계층에서 오류 처리한다.
+   *
+   * @param remote remote 이름 (기본값: 'origin')
+   */
+  async getRemoteUrl(remote = 'origin'): Promise<string> {
+    try {
+      const url = await this.git.raw(['remote', 'get-url', remote]);
+      return url.trim();
+    } catch (error: any) {
+      throw new GitError(
+        `remote '${remote}'의 URL을 가져올 수 없습니다: ${error?.message ?? String(error)}`,
+        `git remote get-url ${remote}`,
+        error?.exitCode ?? 1,
+        error?.stderr ?? String(error),
+      );
+    }
+  }
+
+  // ─── Stage / Unstage ────────────────────────────────────────────────────
+
   async getUnpushedFiles(): Promise<DiffResult[]> {
     const upstream = await this.git
       .raw(['rev-parse', '--abbrev-ref', '--symbolic-full-name', '@{u}'])
@@ -181,6 +205,7 @@ export class GitCliClient implements IGitClient {
     const raw = await this.git.diff([`${upstream}..HEAD`, '--name-status', '--diff-filter=ACDMRT']);
     return parseNameStatusDiff(raw);
   }
+
 
   async getMergeBase(source: string, target: string): Promise<string> {
     const result = await this.git.raw(['merge-base', source, target]);

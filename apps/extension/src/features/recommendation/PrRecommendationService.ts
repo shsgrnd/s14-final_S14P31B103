@@ -124,8 +124,16 @@ export class PrRecommendationService implements PrRecommendationOrchestrator {
       throw new Error('현재 브랜치를 확인할 수 없습니다.');
     }
 
-    const diffText = await this.gitService.getDiffText(base, currentBranch);
-    const commits = await this.gitService.getLogBetween(base, currentBranch);
+    const [diffText, diffFiles, commits] = await Promise.all([
+      this.gitService.getDiffText(base, currentBranch),
+      this.gitService.getDiff(base, currentBranch),
+      this.gitService.getLogBetween(base, currentBranch),
+    ]);
+
+    const changedFiles = diffFiles.map((file) => file.filePath).filter(Boolean);
+    if (changedFiles.length === 0) {
+      throw new Error(`${base} 기준으로 PR 설명을 추천할 변경 파일이 없습니다.`);
+    }
 
     // ─── 2. PR 추천용 Raw Data DTO 구성 ──────────────────────────────────
     const rawData: PRRecommendationInput = {
@@ -151,7 +159,7 @@ export class PrRecommendationService implements PrRecommendationOrchestrator {
       recommendation_type: 'pr_description',
       current_branch: rawData.currentBranch,
       change_summary: `PR from ${rawData.currentBranch} to ${rawData.baseBranch}`,
-      changed_files: [],
+      changed_files: changedFiles,
       work_intent: `Create PR description for changes between ${rawData.baseBranch} and ${rawData.currentBranch}`,
       diff_summary: rawData.diffText,
       branch_context: rawData.commits.map((c) => `- ${c.shortHash} ${c.message}`).join('\n'),

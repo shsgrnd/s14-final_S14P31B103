@@ -23,6 +23,10 @@ import {
 import { RecommendationHistoryQueryService } from './features/recommendation/RecommendationHistoryQueryService';
 import { PrRecommendationService } from './features/recommendation/PrRecommendationService';
 import { PrRecommendationHandler } from './features/recommendation/PrRecommendationHandler';
+import { GitHubTokenProvider } from './integrations/github/GitHubTokenProvider';
+import { GitHubClient } from './integrations/github/GitHubClient';
+import { PullRequestService } from './features/pull-request/PullRequestService';
+import { PullRequestMessageHandler } from './features/pull-request/PullRequestMessageHandler';
 
 export async function activate(context: vscode.ExtensionContext) {
   console.log('GitCat Extension is now active!');
@@ -109,12 +113,33 @@ export async function activate(context: vscode.ExtensionContext) {
     }
   }
 
+  // ――― GitHub PR 생성 계층 초기화 ――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――
+  // GitHub token은 VS Code SecretStorage에만 저장한다. (SQLite/파일 금지)
+  let pullRequestHandler: PullRequestMessageHandler | undefined;
+  let openPullRequestPanel: (() => void) | undefined;
+  if (rootPath && gitService) {
+    try {
+      const tokenProvider = new GitHubTokenProvider(context.secrets);
+      const githubClient = new GitHubClient(tokenProvider);
+      const pullRequestService = new PullRequestService(githubClient, gitService);
+      pullRequestHandler = new PullRequestMessageHandler(
+        pullRequestService,
+        () => openPullRequestPanel?.(),
+      );
+      console.log('GitCat GitHub PR layer initialized');
+    } catch (error) {
+      console.error('Failed to initialize GitCat GitHub PR layer:', error);
+      vscode.window.showWarningMessage('GitCat GitHub PR 기능 초기화에 실패했습니다.');
+    }
+  }
+
   const messageRouter = new MessageRouter(
     dbInstance,
     gitMessageHandler,
     branchRecommendationHandler,
     commitRecommendationHandler,
     prRecommendationHandler,
+    pullRequestHandler,  // GitHub PR 생성 핵들러 주입
   );
 
   if (gitService) {
@@ -124,6 +149,7 @@ export async function activate(context: vscode.ExtensionContext) {
   }
 
   const webviewProvider = new WebviewProvider(context, messageRouter);
+  openPullRequestPanel = () => webviewProvider.createOrShow('pr');
   const sidebarProvider = new SidebarProvider(context, messageRouter);
   vscode.window.registerWebviewViewProvider('gitcat-sidebar-webview', sidebarProvider);
 

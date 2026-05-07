@@ -90,6 +90,16 @@ export const GitActionPanel: React.FC = () => {
     showStatus('Git push가 완료되었습니다.', true);
   };
 
+  const handleOpenPullRequestPanel = () => {
+    if (!isGitConnected) return;
+
+    closeCommitForm();
+    closeMergeForm();
+    closeBranchForm();
+
+    sendMessage('OPEN_PR_PANEL', {});
+  };
+
   const handleMerge = () => {
     // Merge 버튼 클릭 → 브랜치 선택 폼 표시
     closeBranchForm();
@@ -460,13 +470,7 @@ export const GitActionPanel: React.FC = () => {
 
             {/* PR 생성 (full-width, primary — New Branch와 완전 동일한 스타일) */}
             <button
-              onClick={() => {
-                if (!isGitConnected) return;
-                closeCommitForm();
-                closeMergeForm();
-                closeBranchForm();
-                sendMessage('OPEN_PR_PANEL', {});
-              }}
+              onClick={handleOpenPullRequestPanel}
               disabled={!isGitConnected}
               style={{
                 ...bigBtn('primary'),
