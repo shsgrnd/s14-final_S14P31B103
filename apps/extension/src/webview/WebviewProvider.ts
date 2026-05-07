@@ -5,18 +5,23 @@ import { MessageRouter } from '../core/MessageRouter';
 
 export class WebviewProvider {
     private panel: vscode.WebviewPanel | undefined;
+    private panelMode: 'main' | 'pr' | undefined;
 
     constructor(
         private context: vscode.ExtensionContext,
         private readonly messageRouter: MessageRouter
     ) { }
 
-    public createOrShow() {
+    public createOrShow(viewMode: 'main' | 'pr' = 'main') {
         const column = vscode.window.activeTextEditor
             ? vscode.window.activeTextEditor.viewColumn
             : undefined;
 
         if (this.panel) {
+            if (this.panelMode !== viewMode) {
+                this.panel.webview.html = this.getHtmlForWebview(this.panel.webview, viewMode);
+                this.panelMode = viewMode;
+            }
             this.panel.reveal(column);
             return;
         }
@@ -34,7 +39,8 @@ export class WebviewProvider {
             }
         );
 
-        this.panel.webview.html = this.getHtmlForWebview(this.panel.webview, 'main');
+        this.panelMode = viewMode;
+        this.panel.webview.html = this.getHtmlForWebview(this.panel.webview, viewMode);
         const webviewRegistration = this.messageRouter.registerWebview(this.panel.webview);
 
         this.panel.webview.onDidReceiveMessage(
@@ -49,13 +55,14 @@ export class WebviewProvider {
             () => {
                 webviewRegistration.dispose();
                 this.panel = undefined;
+                this.panelMode = undefined;
             },
             null,
             this.context.subscriptions
         );
     }
 
-    private getHtmlForWebview(webview: vscode.Webview, viewMode: 'sidebar' | 'main'): string {
+    private getHtmlForWebview(webview: vscode.Webview, viewMode: 'sidebar' | 'main' | 'pr'): string {
         const distPath = vscode.Uri.file(
             path.join(this.context.extensionPath, '..', 'webview-ui', 'dist')
         );

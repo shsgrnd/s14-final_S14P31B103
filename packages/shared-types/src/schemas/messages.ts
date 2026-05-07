@@ -105,8 +105,17 @@ export const InboundPayloadSchemaMap = {
   SAVE_BRANCH_CLEANUP_SETTINGS: z.object({ settings: BranchCleanupSettingsSchema }),
   GET_BRANCH_CLEANUP_CANDIDATES: z.object({}).strict(),
   EXECUTE_BRANCH_CLEANUP: z.object({ branchNames: z.array(z.string()) }),
-  // PR 관련
-  CREATE_PR: z.object({ title: z.string().min(1), description: z.string(), base: z.string() }),
+  // PR 관련 — 프론트가 Create Pull Request 버튼 클릭 시 전달하는 DTO
+  CREATE_PR: z.object({
+    title: z.string().min(1),
+    description: z.string(),
+    base: z.string().min(1),              // 병합 대상 base 브랜치
+    headBranch: z.string().min(1),         // 현재 작업 브랜치 (head)
+    reviewers: z.array(z.string()).optional(),
+    assignees: z.array(z.string()).optional(),
+    labels: z.array(z.string()).optional(),
+    milestone: z.number().int().optional(), // GitHub milestone 번호
+  }),
   OPEN_PR_PANEL: z.object({}).strict(),
 } as const;
 
@@ -149,6 +158,14 @@ export const OutboundPayloadSchemaMap = {
   BRANCH_CLEANUP_SETTINGS: z.object({ settings: BranchCleanupSettingsSchema }),
   BRANCH_CLEANUP_CANDIDATES: z.object({ result: BranchCleanupPreviewResultSchema }),
   BRANCH_CLEANUP_RESULT: z.object({ result: BranchCleanupExecuteResultSchema }),
+  // GitHub PR 생성 성공 응답
+  PR_CREATED: z.object({
+    prNumber: z.number().int(),    // GitHub PR 번호
+    htmlUrl: z.string().url(),      // GitHub PR 페이지 URL
+    title: z.string(),              // PR 제목
+    base: z.string(),               // base 브랜치
+    head: z.string(),               // head 브랜치
+  }),
 } as const;
 
 /**

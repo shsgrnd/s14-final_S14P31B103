@@ -105,15 +105,15 @@ export class PrRecommendationService {
       throw new Error('현재 브랜치를 확인할 수 없어 PR 추천을 실행할 수 없습니다.');
     }
 
-    // base 브랜치와 현재 브랜치 사이의 diff/log 수집
-    const [diffText, commits] = await Promise.all([
+    const [diffText, diffFiles, commits] = await Promise.all([
       this.gitService.getDiffText(base, currentBranch),
+      this.gitService.getDiff(base, currentBranch),
       this.gitService.getLogBetween(base, currentBranch),
     ]);
 
-    const changedFiles = this.extractChangedFiles(diffText);
+    const changedFiles = diffFiles.map((file) => file.filePath).filter(Boolean);
     if (changedFiles.length === 0) {
-      throw new Error('PR 추천에 사용할 변경 파일 목록을 찾을 수 없습니다.');
+      throw new Error(`${base} 기준으로 PR 설명을 추천할 변경 파일이 없습니다.`);
     }
 
     return {

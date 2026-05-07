@@ -480,6 +480,16 @@ export class GitService {
     return this.gitClient.getMergedBranches();
   }
 
+  /**
+   * Git remote URL 조회 (GitHub PR 생성 시 owner/repo 추출용)
+   *
+   * @param remote remote 이름 (기본값: 'origin')
+   * @returns remote fetch URL 문자열 (예: https://github.com/owner/repo.git)
+   */
+  async getRemoteUrl(remote = 'origin'): Promise<string> {
+    return this.gitClient.getRemoteUrl(remote);
+  }
+
   async getWorktrees(): Promise<WorktreeInfoResponse[]> {
     const worktrees = await this.gitClient.getWorktrees();
     await this.metadataSync?.syncWorktrees(worktrees);

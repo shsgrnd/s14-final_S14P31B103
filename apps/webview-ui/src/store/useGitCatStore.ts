@@ -204,6 +204,15 @@ export const useGitCatStore = create<GitCatState>((set) => ({
         set({ prSuggestion: payload.markdown, isPrLoading: false });
         break;
 
+      case 'PR_CREATED':
+        set({
+          globalNotification: {
+            type: 'success',
+            message: `PR #${payload.prNumber} 생성 완료: ${payload.htmlUrl}`,
+          },
+        });
+        break;
+
       // ── 백엔드 에러 / 알림 수신 처리 ──
 
       case 'MERGE_COMPLETE':

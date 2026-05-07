@@ -14,7 +14,9 @@
   "activationEvents": [
     "onView:gitcat-sidebar-webview",
     "onCommand:gitcat.openPanel",
-    "onCommand:gitcat.getGitStatus"
+    "onCommand:gitcat.getGitStatus",
+    "onCommand:gitcat.setGitHubToken",
+    "onCommand:gitcat.clearGitHubToken"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -26,6 +28,14 @@
       {
         "command": "gitcat.getGitStatus",
         "title": "GitCat: Refresh Status"
+      },
+      {
+        "command": "gitcat.setGitHubToken",
+        "title": "GitCat: Set GitHub Token"
+      },
+      {
+        "command": "gitcat.clearGitHubToken",
+        "title": "GitCat: Clear GitHub Token"
       }
     ],
     "viewsContainers": {

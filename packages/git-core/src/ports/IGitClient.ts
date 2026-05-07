@@ -55,6 +55,12 @@ export interface IGitClient {
   /** 두 지점(브랜치/커밋) 사이의 커밋 로그 반환 (PR 추천 입력용) */
   getLogBetween(base: string, branch: string): Promise<LogEntry[]>;
 
+  /**
+   * 지정한 remote의 URL을 반환한다 (예: 'origin' → https://github.com/owner/repo.git)
+   * GitHub PR 생성 시 owner/repo 파싱에 사용한다.
+   */
+  getRemoteUrl(remote?: string): Promise<string>;
+
   // ─── Command ─────────────────────────────────────────────────────────────
 
   /** 파일 목록을 staging area에 추가 */
