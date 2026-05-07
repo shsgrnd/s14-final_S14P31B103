@@ -20,9 +20,8 @@ interface BranchRecommendationAiResponse {
 }
 
 /**
- * 브랜치 추천 생성 진입점입니다.
- * Git raw data와 과거 추천 이력을 모아 AI 입력 payload를 만들고,
- * 현재 단계에서는 외부 AI 호출을 구현하지 않고, AI 입력 직전 payload까지만 준비합니다.
+ * 브랜치 추천 생성 진입점
+ * Git raw data, 과거 추천 이력, AI 입력 payload 구성 담당
  */
 export class BranchRecommendationService {
   private readonly historyRepository?: RecommendationHistoryRepository;
@@ -41,11 +40,17 @@ export class BranchRecommendationService {
   public async recommendBranch(
     request: BranchRecommendationRequestDto,
   ): Promise<BranchRecommendationResultDto> {
+    // Git 상태 및 브랜치 목록 수집
     const input = await this.buildInput(request);
+
+    // AI provider 호출 직전 raw payload 구성
     const rawPayload = await this.buildRawPayload(input);
     console.log('[GitCat] Branch recommendation raw payload prepared:', rawPayload);
 
+    // 실제 AI 호출 지점
     const aiResponse = await this.requestBranchNames(rawPayload);
+
+    // AI 응답 기반 recommendation_histories 저장
     const historyId = await this.saveHistory(rawPayload, aiResponse);
 
     return {
@@ -60,6 +65,7 @@ export class BranchRecommendationService {
   private async buildInput(
     request: BranchRecommendationRequestDto,
   ): Promise<BranchRecommendationInputDto> {
+    // 현재 브랜치 및 전체 브랜치 목록 수집
     const [status, branches] = await Promise.all([
       this.gitService.getStatus(),
       this.gitService.getBranches(),
@@ -75,6 +81,7 @@ export class BranchRecommendationService {
   private async buildRawPayload(
     input: BranchRecommendationInputDto,
   ): Promise<BranchRecommendationRawPayloadDto> {
+    // AI 공통 입력 필수값 project_id 방어
     if (!this.projectId) {
       throw new Error('project_id가 없어 브랜치 추천 AI 요청을 생성할 수 없습니다.');
     }
@@ -97,6 +104,7 @@ export class BranchRecommendationService {
       return [];
     }
 
+    // 같은 추천 타입의 최근 이력 조회
     const rows = await this.historyRepository.listRecentByType(this.projectId, 'branch_name', 5);
     return rows.map((row) => this.toHistoryContext(row));
   }
@@ -114,7 +122,7 @@ export class BranchRecommendationService {
   private async requestBranchNames(
     payload: BranchRecommendationRawPayloadDto,
   ): Promise<BranchRecommendationAiResponse> {
-    // 실제 AI provider 호출은 후속 AI 연동 단계에서 이 메서드 안쪽으로 연결합니다.
+    // 실제 AI provider 호출 연결 지점
     void payload;
     throw new Error('브랜치 추천 AI provider가 아직 연결되지 않았습니다.');
   }
@@ -127,6 +135,7 @@ export class BranchRecommendationService {
       return undefined;
     }
 
+    // 대표 추천값 및 대안 추천값 분리 저장
     const [primaryName, ...alternativeNames] = response.names;
     const saved = await this.historyRepository.insert({
       project_id: this.projectId,
