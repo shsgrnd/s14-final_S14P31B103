@@ -46,6 +46,46 @@
           "icon": "media/GitCat_icon.png"
         }
       ]
+    },
+    "configuration": {
+      "title": "GitCat",
+      "properties": {
+        "gitcat.branchCleanup.enabled": {
+          "type": "boolean",
+          "default": false,
+          "description": "Branch Cleanup 기능 활성화 여부"
+        },
+        "gitcat.branchCleanup.olderThanValue": {
+          "type": "number",
+          "default": 2,
+          "minimum": 1,
+          "description": "이 값보다 오래된 브랜치를 정리 후보로 간주합니다."
+        },
+        "gitcat.branchCleanup.olderThanUnit": {
+          "type": "string",
+          "enum": ["week", "month"],
+          "default": "month",
+          "description": "olderThanValue의 시간 단위 (week 또는 month)"
+        },
+        "gitcat.branchCleanup.deleteMergedBranches": {
+          "type": "boolean",
+          "default": true,
+          "description": "이미 머지된 로컬 브랜치를 삭제 후보에 포함할지 여부"
+        },
+        "gitcat.branchCleanup.deleteGoneRemoteBranches": {
+          "type": "boolean",
+          "default": true,
+          "description": "원격 추적 브랜치가 사라진(gone) 로컬 브랜치를 삭제 후보에 포함할지 여부"
+        },
+        "gitcat.branchCleanup.protectedBranches": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "default": ["main", "master", "develop", "dev", "release"],
+          "description": "절대 삭제하지 않을 보호 브랜치 목록"
+        }
+      }
     }
   },
   "scripts": {
