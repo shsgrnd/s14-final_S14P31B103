@@ -6,23 +6,39 @@ import { RecommendationInput } from '@gitcat/shared-types';
  * 변경 요약과 제약 조건을 빠짐없이 노출하는 쪽이 추후 리뷰에도 유리합니다.
  */
 function buildRecommendationContext(payload: RecommendationInput): string {
-  return [
+  const lines = [
     `Project ID: ${payload.project_id}`,
-    `Session ID: ${payload.session_id}`,
+    `Session ID: ${payload.session_id ?? 'null'}`,
     `Schema Version: ${payload.schema_version}`,
     `Feature Type: ${payload.feature_type}`,
     `Current Branch: ${payload.current_branch}`,
     `Recommendation Type: ${payload.recommendation_type}`,
     `Workspace Summary: ${payload.workspace_summary ?? 'Not provided'}`,
-    `Change Summary: ${payload.change_summary}`,
     `Work Intent: ${payload.work_intent}`,
-    `Changed Files: ${payload.changed_files.join(', ')}`,
-    `Diff Summary: ${payload.diff_summary ?? 'Not provided'}`,
-    `Branch Context: ${payload.branch_context ?? 'Not provided'}`,
     `Ticket Ref: ${payload.ticket_ref ?? 'Not provided'}`,
-    `Naming Constraints: ${payload.naming_constraints?.join(' | ') ?? 'Not provided'}`,
-    `Message Constraints: ${payload.message_constraints?.join(' | ') ?? 'Not provided'}`,
-  ].join('\n');
+  ];
+
+  if (payload.recommendation_type === 'branch_name') {
+    lines.push(`Branch Context: ${payload.branch_context ?? 'Not provided'}`);
+    lines.push(`Naming Constraints: ${payload.naming_constraints?.join(' | ') ?? 'Not provided'}`);
+  }
+
+  if (payload.recommendation_type === 'commit_message') {
+    lines.push(`Change Summary: ${payload.change_summary}`);
+    lines.push(`Changed Files: ${payload.changed_files.join(', ')}`);
+    lines.push(`Diff Summary: ${payload.diff_summary ?? 'Not provided'}`);
+    lines.push(`Branch Context: ${payload.branch_context ?? 'Not provided'}`);
+    lines.push(`Message Constraints: ${payload.message_constraints?.join(' | ') ?? 'Not provided'}`);
+  }
+
+  if (payload.recommendation_type === 'pr_description') {
+    lines.push(`Change Summary: ${payload.change_summary}`);
+    lines.push(`Changed Files: ${payload.changed_files.join(', ')}`);
+    lines.push(`Diff Summary: ${payload.diff_summary ?? 'Not provided'}`);
+    lines.push(`Branch Context: ${payload.branch_context}`);
+  }
+
+  return lines.join('\n');
 }
 
 /**
@@ -48,17 +64,52 @@ export function getRecommendationSystemPrompt(): string {
  * 모델이 임의의 정책을 지어내기보다 입력 부재를 그대로 인식하기 쉽습니다.
  */
 export function buildRecommendationUserPrompt(payload: RecommendationInput): string {
+  const context = buildRecommendationContext(payload);
+  const instructions: string[] = [];
+
+  switch (payload.recommendation_type) {
+    case 'branch_name':
+      instructions.push(
+        'Task (Chain of Thought):',
+        '- Step 1 (의도 파악): 주어진 작업 의도(work_intent)와 브랜치 컨텍스트(branch_context: 기존 브랜치 목록 및 추천 이력)를 분석한다.',
+        '- Step 2 (포맷팅): 주어진 제약 사항(naming_constraints)이 있다면 이를 우선적으로 적용하여 팀 컨벤션에 맞는 브랜치명을 생성한다.',
+        '',
+        'Additional Instructions:',
+        '- Generate practical and clear branch names.',
+        '- alternative_texts must contain slightly different phrasing or focus.'
+      );
+      break;
+
+    case 'commit_message':
+      instructions.push(
+        'Task (Chain of Thought):',
+        '- Step 1 (의도 파악): 작업 의도(work_intent)와 변경 요약(change_summary)을 바탕으로 전체적인 목적을 파악한다.',
+        '- Step 2 (상세 분석): 실제 코드 변경 사항이 모두 포함된 Diff 원문(diff_summary)을 최우선으로 분석하고, 최근 커밋 로그(branch_context)를 참고하여 구체적인 수정 내역을 파악한다.',
+        '- Step 3 (핵심 요약): 단순 포매팅이나 자잘한 수정은 제외하고, 핵심 내용만 요약한다.',
+        '- Step 4 (포맷팅): 도출된 요약을 바탕으로 명확하고 간결한 커밋 메시지를 생성한다. (주어진 message_constraints가 있다면 이를 최우선으로 반영할 것)',
+        '',
+        'Additional Instructions:',
+        '- primary_text should be the best candidate for the commit message.'
+      );
+      break;
+
+    case 'pr_description':
+      instructions.push(
+        'Task (Chain of Thought):',
+        '- Step 1 (의도 파악): PR 범위 요약(change_summary)과 작업 의도(work_intent)를 바탕으로 PR의 핵심 목적을 파악한다.',
+        '- Step 2 (상세 분석): 실제 변경 사항이 모두 포함된 Diff 원문(diff_summary)을 중점적으로 분석하고, 커밋 로그(branch_context)를 종합하여 코드 변경 사항의 전체 흐름을 파악한다.',
+        '- Step 3 (포맷팅): 코드 리뷰어가 변경 목적, 핵심 내용, 유의사항을 한눈에 파악할 수 있도록 마크다운(Markdown) 형식의 PR Description을 작성한다.',
+        '',
+        'Additional Instructions:',
+        '- Use readability-focused markdown formatting.',
+        '- primary_text will be the full markdown string.'
+      );
+      break;
+  }
+
   return [
-    buildRecommendationContext(payload),
+    context,
     '',
-    'Task (Chain of Thought):',
-    '- Step 1 (의도 파악): Git Diff와 커밋 로그를 분석하여 개발자의 핵심 작업 의도를 파악한다.',
-    '- Step 2 (핵심 요약): 단순 포매팅이나 자잘한 수정은 제외하고, 아키텍처나 기능 위주의 핵심 변경 사항만 요약한다.',
-    '- Step 3 (포맷팅): 도출된 요약본을 팀의 컨벤션(PR 템플릿, 커밋 규칙)에 맞게 다듬어 최종 JSON으로 출력한다.',
-    '',
-    'Additional Instructions:',
-    '- Generate a recommendation result that fits the repository context.',
-    '- Keep alternative_texts practically usable rather than overly creative.',
-    '- Reflect any naming or message constraints when provided.',
+    ...instructions,
   ].join('\n');
 }
