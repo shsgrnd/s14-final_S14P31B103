@@ -255,7 +255,7 @@ export const GitActionPanel: React.FC = () => {
   };
 
   const selectableBranches = branches.filter((branch) => branch.name !== currentBranch && !branch.isRemote);
-  const displayWorktrees = worktrees.filter((wt) => !wt.isMain);
+  const displayWorktrees = worktrees;
 
   const compactPath = (path: string): string => {
     const normalized = path.replace(/\\/g, '/');
@@ -436,8 +436,7 @@ export const GitActionPanel: React.FC = () => {
             );
           })
         }
-        {displayWorktrees.length > 0 && (
-          <div style={{ borderTop: '1px solid var(--vscode-panel-border)', padding: '8px 10px' }}>
+        <div style={{ borderTop: '1px solid var(--vscode-panel-border)', padding: '8px 10px' }}>
             <div style={{
               fontSize: '10px',
               fontWeight: 600,
@@ -448,7 +447,16 @@ export const GitActionPanel: React.FC = () => {
             }}>
               Worktrees ({displayWorktrees.length})
             </div>
-            {displayWorktrees.map((wt) => {
+            {displayWorktrees.length === 0 ? (
+              <div style={{
+                fontSize: '11px',
+                color: 'var(--vscode-descriptionForeground)',
+                opacity: 0.72,
+                padding: '2px 0',
+              }}>
+                추가 워크트리가 없습니다.
+              </div>
+            ) : displayWorktrees.map((wt) => {
               const isCurrent = !!currentWorktreePath && wt.path === currentWorktreePath;
               return (
                 <div
@@ -505,7 +513,6 @@ export const GitActionPanel: React.FC = () => {
               );
             })}
           </div>
-        )}
       </div >
 
       {/* ── New Branch Row ── */}
