@@ -208,13 +208,27 @@ export class CommitRecommendationService {
     // git diff 헤더에서 변경 파일 경로 추출
     for (const line of stagedDiff.split('\n')) {
       if (line.startsWith('diff --git ')) {
-        const match = line.match(/^diff --git a\/(.+?) b\/(.+)$/);
-        if (match?.[2]) {
-          files.add(match[2]);
+        const filePath = this.extractPathFromDiffHeader(line);
+        if (filePath) {
+          files.add(filePath);
         }
       }
     }
 
     return [...files];
+  }
+
+  private extractPathFromDiffHeader(line: string): string | null {
+    const unquotedMatch = line.match(/^diff --git a\/(.+?) b\/(.+)$/);
+    if (unquotedMatch?.[2]) {
+      return unquotedMatch[2];
+    }
+
+    const quotedMatch = line.match(/^diff --git "a\/(.+?)" "b\/(.+?)"$/);
+    if (quotedMatch?.[2]) {
+      return quotedMatch[2];
+    }
+
+    return null;
   }
 }
