@@ -15,8 +15,13 @@ export class MergeResultParser {
    * 원시 LLM 응답 문자열을 정제 (마크다운 제거 등)
    */
   private cleanResponse(raw: string): string {
-    const jsonMatch = raw.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-    const text = jsonMatch ? jsonMatch[1] : raw;
+    // 1. <think>...</think> 블록 제거
+    let text = raw.replace(/<think>[\s\S]*?<\/think>/g, '');
+
+    // 2. 마크다운 블록을 사용했을 경우 내부 텍스트 추출
+    const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    text = jsonMatch ? jsonMatch[1] : text;
+
     return text.trim();
   }
 
