@@ -69,6 +69,7 @@ export const InboundMessageTypeEnum = z.enum([
   'GET_BRANCH_CLEANUP_CANDIDATES',
   'EXECUTE_BRANCH_CLEANUP',
   // PR 관련
+  'GET_PR_TEMPLATES',
   'CREATE_PR',
   'OPEN_PR_PANEL',
 ]);
@@ -106,6 +107,7 @@ export const OutboundMessageTypeEnum = z.enum([
   'BRANCH_CLEANUP_CANDIDATES',
   'BRANCH_CLEANUP_RESULT',
   // GitHub PR 생성 성공 응답
+  'PR_TEMPLATES',
   'PR_CREATED',
 ]);
 export type OutboundMessageType = z.infer<typeof OutboundMessageTypeEnum>;

@@ -16,16 +16,23 @@
  * - getRemoteUrl: Git remote URL 조회 함수 (GitService 메서드)
  */
 
+import * as fs from 'fs/promises';
+import * as path from 'path';
 import type { GitHubClient } from '../../integrations/github/GitHubClient';
 import { GitHubApiError } from '../../integrations/github/interfaces';
 import type {
   CreatePullRequestInput,
   PullRequestCreatedResult,
+  PullRequestTemplate,
 } from '../../integrations/github/interfaces';
 import type { PullRequestServiceContract } from './interfaces';
 import type { GitService } from '../git/GitService';
 import { GitHubClient as GitHubClientImpl } from '../../integrations/github/GitHubClient';
 
+const PR_TEMPLATE_PATHS = [
+  '.github/pull_request_template.md',
+  '.github/PULL_REQUEST_TEMPLATE.md',
+] as const;
 
 export class PullRequestService implements PullRequestServiceContract {
   constructor(
@@ -34,6 +41,39 @@ export class PullRequestService implements PullRequestServiceContract {
     /** Git 서비스 (remote URL 조회에 사용) */
     private readonly gitService: GitService,
   ) {}
+
+  async listPullRequestTemplates(input: { base?: string } = {}): Promise<PullRequestTemplate[]> {
+    const localTemplates = await this.listLocalPullRequestTemplates();
+    if (localTemplates.length > 0) {
+      return localTemplates;
+    }
+
+    const repoInfo = await this.resolveOwnerAndRepo();
+    return this.githubClient.listPullRequestTemplates(repoInfo.owner, repoInfo.repo, input.base);
+  }
+
+  private async listLocalPullRequestTemplates(): Promise<PullRequestTemplate[]> {
+    const status = await this.gitService.getStatus();
+    const templates: PullRequestTemplate[] = [];
+
+    for (const templatePath of PR_TEMPLATE_PATHS) {
+      const absolutePath = path.join(status.repoRoot, templatePath);
+      try {
+        const content = await fs.readFile(absolutePath, 'utf8');
+        templates.push({
+          path: templatePath,
+          name: path.basename(templatePath),
+          content,
+        });
+      } catch (error: any) {
+        if (error?.code !== 'ENOENT') {
+          throw error;
+        }
+      }
+    }
+
+    return templates;
+  }
 
   /**
    * GitHub PR을 생성한다.

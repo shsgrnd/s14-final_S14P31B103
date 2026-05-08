@@ -62,6 +62,12 @@ export interface PullRequestCreatedResult {
   head: string;
 }
 
+export interface PullRequestTemplate {
+  path: string;
+  name: string;
+  content: string;
+}
+
 // ─── GitHub API 에러 ───────────────────────────────────────────────────────────
 
 /**
