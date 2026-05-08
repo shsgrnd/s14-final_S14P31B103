@@ -14,6 +14,7 @@ import {
   CommitRecommendationMessageHandler,
 } from '../features/recommendation';
 import { PrRecommendationHandler } from '../features/recommendation/PrRecommendationHandler';
+import { PullRequestMessageHandler } from '../features/pull-request/PullRequestMessageHandler';
 import {
   InboundMessage,
   InboundMessageSchema,
@@ -29,6 +30,8 @@ export class MessageRouter {
   private readonly branchRecommendationHandler: BranchRecommendationMessageHandler | null;
   private readonly commitRecommendationHandler: CommitRecommendationMessageHandler | null;
   private readonly prRecommendationHandler: PrRecommendationHandler | null;
+  /** GitHub PR 생성 핵들러 (CREATE_PR, OPEN_PR_PANEL) */
+  private readonly pullRequestHandler: PullRequestMessageHandler | null;
   private readonly webviews = new Set<vscode.Webview>();
 
   constructor(
@@ -37,11 +40,13 @@ export class MessageRouter {
     branchRecommendationHandler?: BranchRecommendationMessageHandler,
     commitRecommendationHandler?: CommitRecommendationMessageHandler,
     prRecommendationHandler?: PrRecommendationHandler,
+    pullRequestHandler?: PullRequestMessageHandler,
   ) {
     this.gitHandler = gitHandler ?? null;
     this.branchRecommendationHandler = branchRecommendationHandler ?? null;
     this.commitRecommendationHandler = commitRecommendationHandler ?? null;
     this.prRecommendationHandler = prRecommendationHandler ?? null;
+    this.pullRequestHandler = pullRequestHandler ?? null;
   }
 
   public registerWebview(webview: vscode.Webview): vscode.Disposable {
@@ -92,6 +97,11 @@ export class MessageRouter {
       // PR 추천 핸들러 위임
       if (this.prRecommendationHandler) {
         const handled = await this.prRecommendationHandler.handle(message.type, message.payload, webview);
+        if (handled) return;
+      }
+      // GitHub PR 생성 핸들러 위임 (CREATE_PR, OPEN_PR_PANEL)
+      if (this.pullRequestHandler) {
+        const handled = await this.pullRequestHandler.handle(message.type, message.payload, webview);
         if (handled) return;
       }
 

@@ -1,0 +1,13 @@
+{
+  "title": "Webview 크래시 fallback hotfix PR 설명 추천",
+  "summary": "빈 recommendation payload로 인한 Webview 크래시를 막는 PR 설명을 추천합니다.",
+  "recommendation_type": "pr_description",
+  "primary_text": "Title: fix: add fallback for empty recommendation payloads\n\n## Summary\n- recommendation payload가 비어 있을 때 발생하던 Webview 크래시를 막았습니다.\n- null guard와 fallback UI를 추가해 사용자에게 오류 상태를 안전하게 노출합니다.\n\n## Changes\n- empty payload guard 추가\n- fallback notice 및 안전 렌더링 분기 구현\n\n## Validation\n- empty / malformed payload 입력 시 크래시 대신 fallback UI 노출 확인\n- 정상 recommendation 결과 렌더링 회귀 여부 확인",
+  "alternative_texts": [
+    "Title: fix: prevent webview crash on missing recommendation data\n\n## Summary\n- recommendation data 누락 시 안전하게 fallback UI를 표시하도록 수정했습니다.",
+    "Title: fix: guard recommendation payload before webview render\n\n## Summary\n- webview 렌더링 전에 recommendation payload 유효성을 검사합니다."
+  ],
+  "generation_basis_summary": "hotfix의 핵심은 crash prevention과 fallback rendering이므로 제목과 Changes 섹션이 그 두 가지를 곧바로 드러내게 했습니다.",
+  "format_notes": "사용자 영향이 큰 장애 수정이라 Validation에 실패 입력 케이스를 명시했습니다.",
+  "warnings": []
+}

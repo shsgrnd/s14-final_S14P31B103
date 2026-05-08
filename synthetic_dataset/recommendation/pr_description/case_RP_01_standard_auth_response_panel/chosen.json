@@ -1,0 +1,13 @@
+{
+  "title": "인증 응답 구조와 결과 패널 연동용 PR 설명 추천",
+  "summary": "응답 DTO 정리와 결과 패널 동기화 내용을 함께 설명하는 PR 제목/본문을 추천합니다.",
+  "recommendation_type": "pr_description",
+  "primary_text": "Title: feat: align auth response dto with result panel\n\n## Summary\n- 로그인 응답 DTO 필드명을 정리했습니다.\n- AI 결과 패널이 새 응답 구조를 읽도록 props 매핑을 맞췄습니다.\n\n## Changes\n- auth service의 응답 매핑 로직을 DTO 변경에 맞게 수정\n- merge result panel의 props shape 동기화\n\n## Validation\n- 로그인 응답 렌더링 회귀 여부 확인\n- 결과 패널 주요 카드 노출 확인",
+  "alternative_texts": [
+    "Title: feat: sync auth response mapping and AI result panel\n\n## Summary\n- auth response mapping과 AI 결과 패널 props를 함께 정리했습니다.\n\n## Validation\n- 로그인 및 결과 패널 수동 확인",
+    "Title: feat: normalize auth dto for merge result panel\n\n## Summary\n- 인증 DTO 리네임과 결과 패널 연결부를 정리했습니다.\n\n## Changes\n- response mapping update\n- panel prop alignment"
+  ],
+  "generation_basis_summary": "리뷰 핵심이 DTO 변경과 패널 연동 두 축이므로 PR 제목과 본문 모두 그 관계를 빠르게 드러내도록 구성했습니다.",
+  "format_notes": "현재 recommendation 구조에 맞춰 제목과 본문을 하나의 markdown 문자열로 합쳤습니다.",
+  "warnings": []
+}

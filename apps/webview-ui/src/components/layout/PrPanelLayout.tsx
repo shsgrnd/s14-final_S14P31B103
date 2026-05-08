@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Sparkles, Check, X, RefreshCw, GitPullRequest } from 'lucide-react';
 import { useGitCatStore } from '../../store/useGitCatStore';
 import { useVsCodeApi } from '../../hooks/useVsCodeApi';
+import { resolvePullRequestBaseBranch } from '../../features/pull-request/resolvePullRequestBaseBranch';
 
 export const PrPanelLayout: React.FC = () => {
   const { prSuggestion, isPrLoading, clearPrSuggestion, branches, currentBranch } = useGitCatStore();
@@ -10,6 +11,24 @@ export const PrPanelLayout: React.FC = () => {
   const [prTitle, setPrTitle] = useState('');
   const [prDescription, setPrDescription] = useState('');
   const [baseBranch, setBaseBranch] = useState('');
+  const [hasRequestedInitialRecommendation, setHasRequestedInitialRecommendation] = useState(false);
+  const canCreatePr = Boolean(prTitle.trim() && prDescription.trim() && baseBranch && currentBranch);
+
+  useEffect(() => {
+    if (baseBranch) return;
+    const resolvedBaseBranch = resolvePullRequestBaseBranch({ branches, currentBranch });
+    if (resolvedBaseBranch) setBaseBranch(resolvedBaseBranch);
+  }, [baseBranch, branches, currentBranch]);
+
+  useEffect(() => {
+    setHasRequestedInitialRecommendation(false);
+  }, [baseBranch]);
+
+  useEffect(() => {
+    if (hasRequestedInitialRecommendation || !baseBranch || !currentBranch) return;
+    sendMessage('RECOMMEND_PR', { base: baseBranch });
+    setHasRequestedInitialRecommendation(true);
+  }, [baseBranch, currentBranch, hasRequestedInitialRecommendation, sendMessage]);
 
   // AI 추천 결과 수신 시 폼 자동 입력
   useEffect(() => {
@@ -23,8 +42,13 @@ export const PrPanelLayout: React.FC = () => {
   }, [prSuggestion, prTitle, clearPrSuggestion]);
 
   const handleSubmit = () => {
-    if (!prTitle.trim() || !prDescription.trim() || !baseBranch) return;
-    sendMessage('CREATE_PR', { title: prTitle, description: prDescription, base: baseBranch });
+    if (!canCreatePr) return;
+    sendMessage('CREATE_PR', {
+      title: prTitle,
+      description: prDescription,
+      base: baseBranch,
+      headBranch: currentBranch,
+    });
   };
 
   return (
@@ -112,13 +136,13 @@ export const PrPanelLayout: React.FC = () => {
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '10px' }}>
           <button
             onClick={handleSubmit}
-            disabled={!prTitle.trim() || !prDescription.trim() || !baseBranch}
+            disabled={!canCreatePr}
             style={{
               display: 'flex', alignItems: 'center', gap: '6px',
               background: 'var(--vscode-button-background)', color: 'var(--vscode-button-foreground)',
               border: 'none', padding: '8px 16px', borderRadius: '4px',
-              cursor: (!prTitle.trim() || !prDescription.trim() || !baseBranch) ? 'not-allowed' : 'pointer',
-              opacity: (!prTitle.trim() || !prDescription.trim() || !baseBranch) ? 0.5 : 1,
+              cursor: !canCreatePr ? 'not-allowed' : 'pointer',
+              opacity: !canCreatePr ? 0.5 : 1,
               fontWeight: 500, fontSize: '13px'
             }}
           >

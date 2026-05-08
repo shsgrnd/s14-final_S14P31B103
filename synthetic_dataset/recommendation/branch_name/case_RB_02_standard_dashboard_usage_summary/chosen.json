@@ -1,0 +1,13 @@
+{
+  "title": "대시보드 사용량 요약 기능 브랜치명 추천",
+  "summary": "주간 사용량 카드와 요약 차트를 추가하는 작업에 맞는 브랜치명을 추천합니다.",
+  "recommendation_type": "branch_name",
+  "primary_text": "feat/fe/dashboard-usage-summary/S14P31B103-202",
+  "alternative_texts": [
+    "feat/fe/usage-summary-dashboard/S14P31B103-202",
+    "feat/fe/dashboard-activity-cards/S14P31B103-202"
+  ],
+  "generation_basis_summary": "대시보드 범위와 usage summary라는 핵심 목적어를 함께 넣어 리뷰 시 기능 의도가 바로 보이도록 구성했습니다.",
+  "format_notes": "화면 기능 추가이므로 feat/fe prefix를 유지하고 summary는 3단어로 압축했습니다.",
+  "warnings": []
+}

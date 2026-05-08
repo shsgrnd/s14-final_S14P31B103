@@ -1,0 +1,13 @@
+{
+  "title": "로그인 timeout race hotfix 커밋 메시지 추천",
+  "summary": "로그인 timeout 이후 stale response가 상태를 덮어쓰는 문제를 수정하는 커밋 메시지를 추천합니다.",
+  "recommendation_type": "commit_message",
+  "primary_text": "fix: guard against stale login timeout responses",
+  "alternative_texts": [
+    "fix: prevent login timeout race condition",
+    "fix: ignore delayed login responses after timeout"
+  ],
+  "generation_basis_summary": "사용자 장애의 핵심이 stale timeout response이므로 원인과 조치를 subject에 직접 반영했습니다.",
+  "format_notes": "hotfix 성격이므로 fix 타입을 사용하고 race condition을 과도하게 길지 않게 압축했습니다.",
+  "warnings": []
+}

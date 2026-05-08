@@ -1,0 +1,15 @@
+{
+  "title": "학습 스택 의존성 업그레이드 브랜치명 추천",
+  "summary": "peft, trl, accelerate 버전 정렬과 학습 스크립트 호환성 보정을 드러내는 브랜치명을 추천합니다.",
+  "recommendation_type": "branch_name",
+  "primary_text": "chore/ai/training-stack-upgrade/S14P31B103-209",
+  "alternative_texts": [
+    "chore/ai/peft-trl-version-sync/S14P31B103-209",
+    "chore/ai/trainer-dependency-refresh/S14P31B103-209"
+  ],
+  "generation_basis_summary": "이번 변경의 핵심이 기능이 아니라 학습 스택 버전 정렬이므로 chore 타입과 training stack 표현을 택했습니다.",
+  "format_notes": "update-all 같은 모호한 표현 대신 training stack을 써서 영향 범위를 좁혔습니다.",
+  "warnings": [
+    "requirements뿐 아니라 train_sft 로직까지 의미 있게 바뀌면 chore보다 feat로 볼 여지가 있습니다."
+  ]
+}

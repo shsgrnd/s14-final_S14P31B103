@@ -39,6 +39,14 @@ export const ErrorCodeEnum = z.enum([
   'AI_REQUEST_FAILED',
   'AI_PARSE_FAILED',
   'AI_QUOTA_EXCEEDED',
+
+  // GitHub API 관련 에러
+  'GITHUB_AUTH_FAILED',       // GitHub 인증 실패 (token 없음 또는 무효)
+  'GITHUB_REMOTE_NOT_FOUND',  // 원격 저장소 정보를 찾을 수 없음
+  'GITHUB_BRANCH_NOT_PUSHED', // head branch가 원격에 push되지 않음
+  'GITHUB_INVALID_BRANCH',    // base 또는 head 브랜치명이 잘못됨
+  'GITHUB_API_FAILED',        // GitHub API 호출 자체 실패
+  'GITHUB_METADATA_FAILED',   // reviewers/assignees/labels/milestone 설정 실패
 ]);
 
 export type ErrorCode = z.infer<typeof ErrorCodeEnum>;

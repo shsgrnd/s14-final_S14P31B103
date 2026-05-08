@@ -1,0 +1,15 @@
+{
+  "title": "GitService 분해 리팩토링 브랜치명 추천",
+  "summary": "브랜치, diff, merge 책임을 분리하는 대규모 리팩토링 작업에 맞는 브랜치명을 추천합니다.",
+  "recommendation_type": "branch_name",
+  "primary_text": "refactor/git/git-service-decomposition/S14P31B103-205",
+  "alternative_texts": [
+    "refactor/git/split-git-service-modules/S14P31B103-205",
+    "refactor/git/git-service-responsibility-split/S14P31B103-205"
+  ],
+  "generation_basis_summary": "대규모 파일 이동과 책임 분리가 핵심이므로 decomposition이라는 표현이 가장 직접적입니다.",
+  "format_notes": "기능 추가가 아니므로 refactor 타입을 사용하고 git 파트를 scope로 명시했습니다.",
+  "warnings": [
+    "단순 파일 분리 이상으로 인터페이스 계약까지 바뀌면 decomposition보다 contract-split 표현이 더 정확할 수 있습니다."
+  ]
+}

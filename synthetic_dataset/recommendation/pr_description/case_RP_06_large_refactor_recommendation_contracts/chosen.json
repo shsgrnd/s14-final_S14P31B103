@@ -1,0 +1,13 @@
+{
+  "title": "recommendation 계약 정규화 PR 설명 추천",
+  "summary": "shared-types, parser, dto를 아우르는 contract normalization 리팩토링용 PR 설명을 추천합니다.",
+  "recommendation_type": "pr_description",
+  "primary_text": "Title: refactor: normalize recommendation contracts across pipeline\n\n## Summary\n- shared-types, parser, DTO, webview payload shape 사이의 recommendation 계약을 한 번에 정리했습니다.\n- 계층별 필드 명칭과 optional 규칙을 맞춰 이후 추천 기능 확장 시 혼선을 줄이는 데 목적이 있습니다.\n\n## Changes\n- recommendation payload / schema field naming 정리\n- parser 최소 응답 계약과 DTO shape 동기화\n- extension 전달 payload optional 규칙 정리\n\n## Validation\n- recommendation parser 스키마 통과 여부 확인\n- branch / commit / PR recommendation 흐름 수동 점검",
+  "alternative_texts": [
+    "Title: refactor: align recommendation schema across layers\n\n## Summary\n- shared-types, parser, DTO 간 recommendation schema를 일관되게 맞췄습니다.",
+    "Title: refactor: sync recommendation payload parser and DTO contracts\n\n## Summary\n- recommendation 관련 계약을 계층 전체에서 정리했습니다."
+  ],
+  "generation_basis_summary": "계층 간 contract drift를 해결하는 작업이므로 cross-pipeline normalization을 제목과 본문 핵심으로 두었습니다.",
+  "format_notes": "리팩토링 의도와 후속 확장성 이점을 함께 드러내도록 Summary를 작성했습니다.",
+  "warnings": []
+}

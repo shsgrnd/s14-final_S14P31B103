@@ -1,5 +1,15 @@
 import { create } from 'zustand';
-import { Snapshot, ConflictAnalysis, AIDraft, Branch, OutboundMessage, GitStatusSummary, BranchCleanupSettings } from '@gitcat/shared-types';
+import {
+  Snapshot,
+  ConflictAnalysis,
+  AIDraft,
+  Branch,
+  OutboundMessage,
+  GitStatusSummary,
+  BranchCleanupSettings,
+  BranchCleanupPreviewResult,
+  BranchCleanupExecuteResult,
+} from '@gitcat/shared-types';
 import { translateUserFacingGitMessage, type UiMessageTone } from '../shared/gitMessageKo';
 
 /** 전역 알림 메시지 타입 */
@@ -9,6 +19,9 @@ export interface GlobalNotification {
 }
 
 type NotificationSection = 'git' | 'files' | 'snapshots' | 'branchCleanup' | 'stash';
+
+/** Git 액션 패널에서 잠금 해제 시 동기화할 작업 종류 (LOADING 타깃과 대응) */
+export type GitPanelPendingOperation = 'add' | 'commit' | 'push' | 'pull' | 'merge';
 
 /** Merge 결과 상태 타입 */
 export interface MergeResult {
@@ -27,6 +40,17 @@ export interface StashEntry {
   date: string;
 }
 
+/** Git 섹션 배너: 일반 info 알림은 성공 UI(초록)로, 안내형(PR 패널 등)만 파란 info 유지 */
+function mapGitSectionBannerType(
+  payloadType: 'info' | 'warning' | 'error',
+  raw: string,
+): GlobalNotification['type'] {
+  if (payloadType === 'error') return 'error';
+  if (payloadType === 'warning') return 'warning';
+  if (raw.includes('PR 패널')) return 'info';
+  return 'success';
+}
+
 interface GitCatState {
   // Data
   snapshots: Snapshot[];
@@ -36,6 +60,14 @@ interface GitCatState {
   isAnalyzing: boolean;
   isRefreshingStatus: boolean;
   isPulling: boolean;
+  /** GIT_ADD_ALL / GIT_STAGE_* 등 stage 타깃 LOADING */
+  isStaging: boolean;
+  /** EXECUTE_COMMIT 등 commit 타깃 LOADING */
+  isCommitting: boolean;
+  /** GIT_PUSH 등 push 타깃 LOADING */
+  isPushing: boolean;
+  /** RUN_MERGE 등 merge 타깃 LOADING */
+  isMerging: boolean;
   lastStatusRefreshAt: number | null;
 
   // Phase 2 New Data
@@ -63,6 +95,8 @@ interface GitCatState {
 
   // 브랜치 자동 정리 설정 (BRANCH_CLEANUP_SETTINGS 수신 시 갱신)
   cleanupSettings: BranchCleanupSettings | null;
+  cleanupPreview: BranchCleanupPreviewResult | null;
+  cleanupExecuteResult: BranchCleanupExecuteResult | null;
 
   // Actions
   setSnapshots: (snapshots: Snapshot[]) => void;
@@ -77,12 +111,35 @@ interface GitCatState {
   setExpandedSnapshotId: (id: string | null) => void;
   clearGlobalNotification: () => void;
   clearSectionNotification: (section: NotificationSection) => void;
+  /** Git & AI 패널 전용 알림 (예: 클라이언트 검증 메시지) */
+  postGitSectionBanner: (notification: GlobalNotification) => void;
+  /** 확장 LOADING false보다 먼저 완료 알림이 올 때 버튼 라벨(Pulling… 등)을 바로 되돌림 */
+  clearGitPanelOperationLoading: (op: GitPanelPendingOperation) => void;
   setStashes: (stashes: StashEntry[]) => void;
   clearMergeResult: () => void;
   clearPrSuggestion: () => void;
 
   handleMessage: (event: MessageEvent<OutboundMessage>) => void;
 }
+
+/** Grid 액션 완료 등 백엔드 NOTIFICATION 원문 매칭 */
+function isPrimaryGitPanelCompletionNotification(raw: string): boolean {
+  const s = raw.trim();
+  if (!s) return false;
+  if (s.includes('PR 패널')) return false;
+  return (
+    s.includes('모든 변경사항이 스테이징') ||
+    /\d+\s+file\(s\)\s+staged\.?/i.test(s) ||
+    s.includes('커밋이 완료') ||
+    s.includes('Push가 완료') ||
+    s.includes('Pull이 완료') ||
+    s.includes('병합이 완료') ||
+    s.includes('병합이 취소') ||
+    s.includes('병합이 계속')
+  );
+}
+
+const GIT_PANEL_OPERATION_FAILURE = ['GIT_ADD_ALL', 'EXECUTE_COMMIT', 'GIT_PUSH', 'EXECUTE_PULL', 'RUN_MERGE'] as const;
 
 export const useGitCatStore = create<GitCatState>((set) => ({
   snapshots: [],
@@ -92,6 +149,10 @@ export const useGitCatStore = create<GitCatState>((set) => ({
   isAnalyzing: false,
   isRefreshingStatus: false,
   isPulling: false,
+  isStaging: false,
+  isCommitting: false,
+  isPushing: false,
+  isMerging: false,
   lastStatusRefreshAt: null,
   branches: [],
   aiCommitSuggestion: '',
@@ -105,6 +166,8 @@ export const useGitCatStore = create<GitCatState>((set) => ({
   isPrLoading: false,
   stashes: [],
   cleanupSettings: null,
+  cleanupPreview: null,
+  cleanupExecuteResult: null,
 
   setSnapshots: (snapshots) => set({ snapshots }),
   setConflicts: (conflicts) => set({ conflicts }),
@@ -120,6 +183,30 @@ export const useGitCatStore = create<GitCatState>((set) => ({
       const next = { ...state.sectionNotifications };
       delete next[section];
       return { sectionNotifications: next };
+    }),
+  postGitSectionBanner: (notification) =>
+    set((state) => ({
+      sectionNotifications: {
+        ...state.sectionNotifications,
+        git: notification,
+      },
+    })),
+  clearGitPanelOperationLoading: (op) =>
+    set(() => {
+      switch (op) {
+        case 'add':
+          return { isStaging: false };
+        case 'commit':
+          return { isCommitting: false };
+        case 'push':
+          return { isPushing: false };
+        case 'pull':
+          return { isPulling: false };
+        case 'merge':
+          return { isMerging: false };
+        default:
+          return {};
+      }
     }),
   setStashes: (stashes) => set({ stashes }),
   clearMergeResult: () => set({ mergeResult: null }),
@@ -180,6 +267,18 @@ export const useGitCatStore = create<GitCatState>((set) => ({
         if (payload.target === 'pull') {
           set({ isPulling: payload.loading });
         }
+        if (payload.target === 'stage') {
+          set({ isStaging: payload.loading });
+        }
+        if (payload.target === 'commit') {
+          set({ isCommitting: payload.loading });
+        }
+        if (payload.target === 'push') {
+          set({ isPushing: payload.loading });
+        }
+        if (payload.target === 'merge') {
+          set({ isMerging: payload.loading });
+        }
         if (payload.target === 'RECOMMEND_PR') {
           set({ isPrLoading: payload.loading });
         }
@@ -204,54 +303,115 @@ export const useGitCatStore = create<GitCatState>((set) => ({
         set({ prSuggestion: payload.markdown, isPrLoading: false });
         break;
 
+      case 'PR_CREATED':
+        set((state) => ({
+          globalNotification: {
+            type: 'success',
+            message: `PR #${payload.prNumber} 생성 완료: ${payload.htmlUrl}`,
+          },
+          sectionNotifications: {
+            ...state.sectionNotifications,
+            git: {
+              type: 'success',
+              message: `PR #${payload.prNumber} 생성 완료: ${payload.htmlUrl}`,
+            },
+          },
+        }));
+        break;
+
       // ── 백엔드 에러 / 알림 수신 처리 ──
 
       case 'MERGE_COMPLETE':
-        // 머지 성공 — MERGE_COMPLETE는 payload가 {} 이므로 성공 상태로 저장
-        set({ mergeResult: { success: true } });
+        set({ mergeResult: null });
         break;
 
       case 'ERROR': {
-        // 병합 충돌 에러인 경우 → mergeResult에 충돌 파일 목록을 파싱하여 저장
-        const isMergeConflict = payload.message?.startsWith('병합 충돌이 발생했습니다:');
+        const rawMsg = payload.message ?? '';
+        const isMergeConflict = rawMsg.startsWith('병합 충돌이 발생했습니다:');
         if (isMergeConflict) {
-          const filesStr = payload.message.replace('병합 충돌이 발생했습니다:', '').trim();
+          const filesStr = rawMsg.replace('병합 충돌이 발생했습니다:', '').trim();
           const conflictedFiles = filesStr ? filesStr.split(', ').map((f: string) => f.trim()).filter(Boolean) : [];
-          set({ mergeResult: { success: false, conflictedFiles } });
-        } else {
-          // 일반 에러는 기존 globalNotification으로 처리
-          const section = inferSection(payload.message);
-          const message = translateUserFacingGitMessage(payload.message, 'error');
           set((state) => ({
-            globalNotification: { type: 'error', message },
+            mergeResult: { success: false, conflictedFiles },
             sectionNotifications: {
               ...state.sectionNotifications,
-              [section]: { type: 'error', message },
+              git: {
+                type: 'error',
+                message: translateUserFacingGitMessage('병합 충돌이 발생했습니다.', 'error'),
+              },
             },
           }));
+          break;
         }
+        const section = inferSection(rawMsg);
+        const message = translateUserFacingGitMessage(rawMsg, 'error');
+        if (section === 'git') {
+          set((state) => ({
+            sectionNotifications: {
+              ...state.sectionNotifications,
+              git: { type: 'error', message },
+            },
+          }));
+          break;
+        }
+        set((state) => ({
+          globalNotification: { type: 'error', message },
+          sectionNotifications: {
+            ...state.sectionNotifications,
+            [section]: { type: 'error', message },
+          },
+        }));
         break;
       }
 
-      case 'NOTIFICATION':
-        // 백엔드에서 명시적으로 보내는 info/warning/error 알림
-        set((state) => {
-          const section = inferSection(payload.message);
-          const message = translateUserFacingGitMessage(payload.message, toneFor(payload.type));
-          return {
-            globalNotification: { type: payload.type, message },
+      case 'NOTIFICATION': {
+        const raw = payload.message ?? '';
+        if (isPrimaryGitPanelCompletionNotification(raw)) {
+          const message = translateUserFacingGitMessage(raw, toneFor(payload.type));
+          const bannerType: GlobalNotification['type'] =
+            payload.type === 'error' ? 'error' :
+              payload.type === 'warning' ? 'warning' : 'success';
+          set((state) => ({
             sectionNotifications: {
               ...state.sectionNotifications,
-              [section]: { type: payload.type, message },
+              git: { type: bannerType, message },
+            },
+          }));
+          break;
+        }
+        set((state) => {
+          const section = inferSection(raw);
+          const message = translateUserFacingGitMessage(raw, toneFor(payload.type));
+          const pt = payload.type as 'info' | 'warning' | 'error';
+          const sectionType: GlobalNotification['type'] =
+            section === 'git' ? mapGitSectionBannerType(pt, raw) : pt;
+          return {
+            globalNotification: { type: pt, message },
+            sectionNotifications: {
+              ...state.sectionNotifications,
+              [section]: { type: sectionType, message },
             },
           };
         });
         break;
+      }
 
-      case 'GIT_OPERATION_RESULT':
-        // git add / push / merge / checkout 등 git 명령 실행 결과
-        // RUN_MERGE 실패는 mergeResult 배너에서 처리하므로 중복 표시 방지
-        if (!payload.result.success && payload.operation !== 'RUN_MERGE') {
+      case 'GIT_OPERATION_RESULT': {
+        if (
+          !payload.result.success &&
+          (GIT_PANEL_OPERATION_FAILURE as readonly string[]).includes(payload.operation)
+        ) {
+          const raw = payload.result.error ?? `'${payload.operation}' 작업이 실패했습니다.`;
+          const message = translateUserFacingGitMessage(raw, 'error');
+          set((state) => ({
+            sectionNotifications: {
+              ...state.sectionNotifications,
+              git: { type: 'error', message },
+            },
+          }));
+          break;
+        }
+        if (!payload.result.success) {
           const raw = payload.result.error ?? `'${payload.operation}' 작업이 실패했습니다.`;
           const message = translateUserFacingGitMessage(raw, 'error');
           set((state) => ({
@@ -263,6 +423,7 @@ export const useGitCatStore = create<GitCatState>((set) => ({
           }));
         }
         break;
+      }
 
       case 'STASH_LIST':
         // git stash 목록 수신
@@ -272,6 +433,16 @@ export const useGitCatStore = create<GitCatState>((set) => ({
       case 'BRANCH_CLEANUP_SETTINGS':
         // 브랜치 자동 정리 설정 수신
         set({ cleanupSettings: payload.settings });
+        break;
+
+      case 'BRANCH_CLEANUP_CANDIDATES':
+        // 브랜치 자동 정리 후보 수신
+        set({ cleanupPreview: payload.result });
+        break;
+
+      case 'BRANCH_CLEANUP_RESULT':
+        // 브랜치 자동 정리 실행 결과 수신
+        set({ cleanupExecuteResult: payload.result });
         break;
     }
   },

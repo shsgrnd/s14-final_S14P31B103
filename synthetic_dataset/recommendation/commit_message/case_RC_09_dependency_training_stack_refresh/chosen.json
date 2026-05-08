@@ -1,0 +1,15 @@
+{
+  "title": "학습 스택 업그레이드 커밋 메시지 추천",
+  "summary": "trainer dependency bump와 스크립트 옵션 정렬을 설명하는 커밋 메시지를 추천합니다.",
+  "recommendation_type": "commit_message",
+  "primary_text": "chore: upgrade trainer dependencies for SFT pipeline",
+  "alternative_texts": [
+    "chore: refresh peft and trl versions for training",
+    "chore: align trainer options with updated HF stack"
+  ],
+  "generation_basis_summary": "핵심이 dependency refresh이므로 chore와 trainer dependencies 표현을 함께 사용했습니다.",
+  "format_notes": "dependency bump와 스크립트 호환성 보정이 함께 들어가므로 for SFT pipeline 문구를 붙였습니다.",
+  "warnings": [
+    "실제 성능 튜닝 변경이 많다면 chore보다 feat나 refactor가 더 적절할 수 있습니다."
+  ]
+}

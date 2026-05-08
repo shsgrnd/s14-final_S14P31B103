@@ -1,0 +1,13 @@
+{
+  "title": "추천 플로우 cleanup PR 설명 추천",
+  "summary": "UX polish와 message cleanup이 섞인 recommendation flow 변경용 PR 설명을 추천합니다.",
+  "recommendation_type": "pr_description",
+  "primary_text": "Title: refactor: streamline recommendation flow handling\n\n## Summary\n- recommendation flow 전반의 메시지 처리와 fallback 동작을 정리했습니다.\n- 사용자가 결과를 받는 경로에서 copy와 payload shape를 함께 다듬었습니다.\n\n## Changes\n- recommendation message payload shape 정리\n- fallback 문구와 사용자 안내 copy 보정\n- 불필요한 로그 제거\n\n## Validation\n- branch / commit / PR recommendation 흐름 수동 확인\n- empty payload fallback 동작 확인",
+  "alternative_texts": [
+    "Title: refactor: polish recommendation flow UX and messaging\n\n## Summary\n- recommendation flow의 UX와 메시지 처리 일관성을 높였습니다.",
+    "Title: refactor: align recommendation message flow\n\n## Summary\n- recommendation 관련 message contract와 fallback 처리를 정리했습니다."
+  ],
+  "generation_basis_summary": "잡수정이 많아도 최종적으로는 사용자가 체감하는 recommendation flow를 매끄럽게 만든 작업이라는 점을 중심으로 구성했습니다.",
+  "format_notes": "flow handling 표현으로 contract cleanup과 UX polish를 함께 포괄했습니다.",
+  "warnings": []
+}

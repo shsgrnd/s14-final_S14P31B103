@@ -1,0 +1,13 @@
+{
+  "title": "대시보드 usage summary 기능 추가 커밋 메시지 추천",
+  "summary": "사용량 카드와 차트 추가 작업에 맞는 커밋 메시지를 추천합니다.",
+  "recommendation_type": "commit_message",
+  "primary_text": "feat: add dashboard usage summary cards",
+  "alternative_texts": [
+    "feat: add usage chart and summary card to dashboard",
+    "feat: wire weekly usage widgets into dashboard"
+  ],
+  "generation_basis_summary": "주간 사용량과 요약 카드가 핵심 기능이므로 dashboard usage summary를 대표 문구로 선택했습니다.",
+  "format_notes": "UI 기능 추가이지만 범용적인 conventional commit subject로 유지했습니다.",
+  "warnings": []
+}

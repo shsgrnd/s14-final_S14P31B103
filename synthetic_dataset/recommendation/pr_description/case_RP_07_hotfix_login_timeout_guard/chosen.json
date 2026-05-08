@@ -1,0 +1,13 @@
+{
+  "title": "로그인 timeout race hotfix PR 설명 추천",
+  "summary": "로그인 timeout 이후 stale response로 화면이 멈추는 문제를 수정한 PR 설명을 추천합니다.",
+  "recommendation_type": "pr_description",
+  "primary_text": "Title: fix: prevent stale login responses after timeout\n\n## Summary\n- 로그인 timeout 이후 늦게 도착한 응답이 상태를 다시 덮어쓰는 race condition을 막았습니다.\n- timeout 이후에는 stale response를 무시하도록 guard를 추가했습니다.\n\n## Changes\n- login request cancellation / ignore guard 추가\n- loading state가 timeout 이후 다시 뒤집히지 않도록 보정\n\n## Validation\n- 느린 네트워크 환경에서 timeout 재현 후 UI 멈춤이 사라졌는지 확인\n- 정상 로그인 성공 흐름 회귀 여부 확인",
+  "alternative_texts": [
+    "Title: fix: guard login timeout race condition\n\n## Summary\n- timeout 이후 stale response가 UI 상태를 덮어쓰지 않도록 수정했습니다.",
+    "Title: fix: ignore delayed login responses after timeout\n\n## Summary\n- timeout 이후 늦은 응답을 무시하도록 로그인 흐름을 보강했습니다."
+  ],
+  "generation_basis_summary": "사용자 증상과 수정 포인트가 명확한 hotfix라서 제목과 Validation에서 재현 시나리오를 직접 드러냈습니다.",
+  "format_notes": "긴급 수정 PR이라 Summary를 짧게 유지하고 Validation에 재현 절차를 강조했습니다.",
+  "warnings": []
+}

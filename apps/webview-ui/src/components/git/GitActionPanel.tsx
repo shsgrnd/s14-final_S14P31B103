@@ -1,12 +1,51 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import { GitBranch, Plus, ArrowUp, GitMerge, Check, Sparkles, ChevronDown, ChevronUp, X, CornerDownRight, Clock, RefreshCw, AlertCircle, Info, RotateCw, CheckCircle2, ExternalLink, GitPullRequest } from 'lucide-react';
-import { useGitCatStore } from '../../store/useGitCatStore';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { GitBranch, Plus, ArrowUp, GitMerge, Check, Sparkles, ChevronDown, ChevronUp, X, CornerDownRight, Clock, RefreshCw, AlertCircle, RotateCw, ExternalLink, GitPullRequest } from 'lucide-react';
+import { useGitCatStore, type GitPanelPendingOperation } from '../../store/useGitCatStore';
 import { useVsCodeApi } from '../../hooks/useVsCodeApi';
 import { btn, bigBtn, inlineBtn } from '../../shared/styles';
 import { SectionNotificationBanner } from '../common/SectionNotificationBanner';
 
+function toastCompletesPending(message: string, ok: boolean, pending: GitPanelPendingOperation | null): boolean {
+  if (!ok) return true;
+  if (!pending) return false;
+  const m = message;
+  switch (pending) {
+    case 'add':
+      return /스테이징/.test(m) || /staged/i.test(m);
+    case 'commit':
+      return /커밋/.test(m) && /완료/.test(m);
+    case 'push':
+      return /push/i.test(m) && /완료/.test(m);
+    case 'pull':
+      return /pull/i.test(m) && /완료/.test(m);
+    case 'merge':
+      return /병합/.test(m);
+    default:
+      return false;
+  }
+}
+
 export const GitActionPanel: React.FC = () => {
-  const { currentBranch, branches, sectionNotifications, clearSectionNotification, isRefreshingStatus, isPulling, lastStatusRefreshAt, mergeResult, clearMergeResult, prSuggestion, isPrLoading, clearPrSuggestion } = useGitCatStore();
+  const {
+    currentBranch,
+    branches,
+    sectionNotifications,
+    clearSectionNotification,
+    isRefreshingStatus,
+    isPulling,
+    isStaging,
+    isCommitting,
+    isPushing,
+    isMerging,
+    lastStatusRefreshAt,
+    mergeResult,
+    clearMergeResult,
+    prSuggestion,
+    isPrLoading,
+    clearPrSuggestion,
+    clearGitPanelOperationLoading,
+    postGitSectionBanner,
+  } = useGitCatStore();
   const dismissGitNotification = useCallback(() => clearSectionNotification('git'), [clearSectionNotification]);
   const { sendMessage } = useVsCodeApi();
   const [showNewBranch, setShowNewBranch] = useState(false);
@@ -15,7 +54,6 @@ export const GitActionPanel: React.FC = () => {
   const [aiPrompt, setAiPrompt] = useState('');
   const [showCommitForm, setShowCommitForm] = useState(false);
   const [commitMessage, setCommitMessage] = useState('');
-  const [statusMsg, setStatusMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [isBranchListOpen, setIsBranchListOpen] = useState(false);
   const [isRefreshPressed, setIsRefreshPressed] = useState(false);
   const [checkoutingBranch, setCheckoutingBranch] = useState<string | null>(null);
@@ -23,19 +61,54 @@ export const GitActionPanel: React.FC = () => {
   // source: 병합할 브랜치(FROM), target: 기준 브랜치(INTO, 기본값: currentBranch)
   const [mergeSource, setMergeSource] = useState('');
   const [mergeTarget, setMergeTarget] = useState(currentBranch);
+  /** OPEN_PR_PANEL은 extension에서 LOADING을 주지 않아 Pull과 동일한 피드백을 로컬로 짧게 표시 */
+  const [isOpeningPrPanel, setIsOpeningPrPanel] = useState(false);
+  /** Git Commit 그리드 버튼 — 폼 오픈 시 짧은 회전 (Pull과 유사한 피드백) */
+  const [isCommitGridPressed, setIsCommitGridPressed] = useState(false);
+  /** Merge 그리드 버튼 — 폼 오픈 시 짧은 회전 */
+  const [isMergeGridPressed, setIsMergeGridPressed] = useState(false);
+  /** Merge 실행 후 로딩 사이클이 끝나면 폼 닫기 */
+  const mergePendingCloseRef = useRef(false);
+  const mergeSawLoadingRef = useRef(false);
+
+  const pendingGitOpRef = useRef<GitPanelPendingOperation | null>(null);
+  const gitPanelBusyRef = useRef(false);
+  const [gitPanelBusy, setGitPanelBusy] = useState(false);
+
+  const unlockGitPanel = useCallback(() => {
+    pendingGitOpRef.current = null;
+    gitPanelBusyRef.current = false;
+    setGitPanelBusy(false);
+  }, []);
+
+  const lockGitPanel = useCallback((op: GitPanelPendingOperation) => {
+    pendingGitOpRef.current = op;
+    gitPanelBusyRef.current = true;
+    setGitPanelBusy(true);
+  }, []);
+
+  useEffect(() => {
+    if (!isOpeningPrPanel) return;
+    const t = window.setTimeout(() => setIsOpeningPrPanel(false), 900);
+    return () => window.clearTimeout(t);
+  }, [isOpeningPrPanel]);
+
+  useEffect(() => {
+    if (!isCommitGridPressed) return;
+    const t = window.setTimeout(() => setIsCommitGridPressed(false), 700);
+    return () => window.clearTimeout(t);
+  }, [isCommitGridPressed]);
+
+  useEffect(() => {
+    if (!isMergeGridPressed) return;
+    const t = window.setTimeout(() => setIsMergeGridPressed(false), 700);
+    return () => window.clearTimeout(t);
+  }, [isMergeGridPressed]);
 
   // 브랜치 체크아웃 완료 시 로딩 상태 해제
   useEffect(() => {
     setCheckoutingBranch(null);
   }, [currentBranch]);
-
-  // AI 추천 결과 연동 (브랜치/커밋 등 필요 시 추가)
-  // PR 추천 폼이 외부 탭으로 분리되면서 폼 자동 완성 로직 제거
-
-  const showStatus = (text: string, ok: boolean) => {
-    setStatusMsg({ text, ok });
-    setTimeout(() => setStatusMsg(null), 3000);
-  };
 
   const closeAIPrompt = () => {
     setShowBranchAI(false);
@@ -55,23 +128,55 @@ export const GitActionPanel: React.FC = () => {
   };
 
   const closeMergeForm = () => {
+    mergePendingCloseRef.current = false;
+    mergeSawLoadingRef.current = false;
     setShowMergeForm(false);
     setMergeSource('');
     setMergeTarget(currentBranch);
   };
 
+  useEffect(() => {
+    if (!mergePendingCloseRef.current) return;
+    if (isMerging) {
+      mergeSawLoadingRef.current = true;
+      return;
+    }
+    if (mergeSawLoadingRef.current) {
+      closeMergeForm();
+    }
+  }, [isMerging, currentBranch]);
 
+  useEffect(() => {
+    if (!gitPanelBusy) return;
+    const t = window.setTimeout(() => {
+      const op = pendingGitOpRef.current;
+      if (op) clearGitPanelOperationLoading(op);
+      unlockGitPanel();
+    }, 45000);
+    return () => window.clearTimeout(t);
+  }, [gitPanelBusy, unlockGitPanel, clearGitPanelOperationLoading]);
+
+  useEffect(() => {
+    const n = sectionNotifications.git;
+    if (!n || !gitPanelBusyRef.current) return;
+    const ok = n.type !== 'error';
+    if (!ok || toastCompletesPending(n.message, ok, pendingGitOpRef.current)) {
+      const op = pendingGitOpRef.current;
+      if (op) clearGitPanelOperationLoading(op);
+      unlockGitPanel();
+    }
+  }, [sectionNotifications.git, clearGitPanelOperationLoading, unlockGitPanel]);
 
   const handleGitAdd = () => {
+    lockGitPanel('add');
     sendMessage('GIT_ADD_ALL', {});
-    showStatus('Git add가 완료되었습니다.', true);
   };
 
   const handleCommit = () => {
     if (showCommitForm) {
       if (!commitMessage.trim()) return;
+      lockGitPanel('commit');
       sendMessage('EXECUTE_COMMIT', { message: commitMessage });
-      showStatus('Git commit이 완료되었습니다.', true);
       closeCommitForm();
     } else {
       closeBranchForm();
@@ -81,32 +186,25 @@ export const GitActionPanel: React.FC = () => {
   };
 
   const handlePush = () => {
+    lockGitPanel('push');
     sendMessage('GIT_PUSH', {});
-    showStatus('Git push가 완료되었습니다.', true);
   };
 
   const handlePull = () => {
+    lockGitPanel('pull');
     sendMessage('EXECUTE_PULL', {});
-  };
-
-  const handleMerge = () => {
-    // Merge 버튼 클릭 → 브랜치 선택 폼 표시
-    closeBranchForm();
-    closeCommitForm();
-    setMergeTarget(currentBranch);
-    setMergeSource('');
-    setShowMergeForm(true);
   };
 
   const handleRunMerge = () => {
     if (!mergeSource || !mergeTarget) return;
     if (mergeSource === mergeTarget) {
-      showStatus('같은 브랜치는 머지할 수 없습니다.', false);
+      postGitSectionBanner({ type: 'warning', message: '같은 브랜치는 머지할 수 없습니다.' });
       return;
     }
+    mergePendingCloseRef.current = true;
+    mergeSawLoadingRef.current = false;
+    lockGitPanel('merge');
     sendMessage('RUN_MERGE', { source: mergeSource, target: mergeTarget });
-    showStatus(`'${mergeSource}' → '${mergeTarget}' Merge 요청을 보냈습니다.`, true);
-    closeMergeForm();
   };
 
   const refreshStatusLabel = isRefreshingStatus
@@ -274,6 +372,7 @@ export const GitActionPanel: React.FC = () => {
               <div
                 key={b.name}
                 onClick={() => {
+                  if (gitPanelBusy) return;
                   sendMessage('CHECKOUT_BRANCH', { name: b.name });
                   setCheckoutingBranch(b.name);
                   setIsBranchListOpen(false);
@@ -389,8 +488,24 @@ export const GitActionPanel: React.FC = () => {
               onBlur={e => (e.target.style.borderColor = 'var(--vscode-panel-border)')}
             />
             <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
-              <button onClick={handleCommit} style={btn('primary')}>
-                <Check size={13} /> Create
+              <button
+                onClick={handleCommit}
+                disabled={isCommitting || !commitMessage.trim() || gitPanelBusy}
+                style={{
+                  ...btn('primary'),
+                  opacity: isCommitting || !commitMessage.trim() || gitPanelBusy ? 0.55 : 1,
+                  cursor: isCommitting || !commitMessage.trim() || gitPanelBusy ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {isCommitting ? (
+                  <>
+                    <RotateCw size={13} style={{ animation: 'gitcat-refresh-spin 0.9s linear infinite' }} /> Committing...
+                  </>
+                ) : (
+                  <>
+                    <Check size={13} /> Create
+                  </>
+                )}
               </button>
               <button onClick={closeCommitForm} style={btn('secondary')}>
                 <X size={13} /> Cancel
@@ -410,16 +525,16 @@ export const GitActionPanel: React.FC = () => {
             {/* New Branch (full-width, primary) */}
             <button
               onClick={() => {
-                if (!isGitConnected) return;
+                if (!isGitConnected || gitPanelBusy) return;
                 closeCommitForm();
                 closeMergeForm();
                 setShowNewBranch(true);
               }}
-              disabled={!isGitConnected}
+              disabled={!isGitConnected || gitPanelBusy}
               style={{
                 ...bigBtn('primary'),
-                opacity: isGitConnected ? 1 : 0.5,
-                cursor: isGitConnected ? 'pointer' : 'not-allowed',
+                opacity: isGitConnected && !gitPanelBusy ? 1 : 0.5,
+                cursor: isGitConnected && !gitPanelBusy ? 'pointer' : 'not-allowed',
               }}
             >
               <GitBranch size={13} /> New Branch
@@ -429,31 +544,95 @@ export const GitActionPanel: React.FC = () => {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
               <button
                 onClick={handleGitAdd}
-                disabled={!isGitConnected}
-                style={{ ...bigBtn('secondary'), opacity: isGitConnected ? 1 : 0.5, cursor: isGitConnected ? 'pointer' : 'not-allowed' }}
+                disabled={!isGitConnected || isStaging || gitPanelBusy}
+                style={{
+                  ...bigBtn('secondary'),
+                  opacity: isGitConnected && !isStaging && !gitPanelBusy ? 1 : 0.5,
+                  cursor: isGitConnected && !isStaging && !gitPanelBusy ? 'pointer' : 'not-allowed',
+                }}
               >
-                <Plus size={13} /> Git Add
+                {isStaging ? (
+                  <>
+                    <RotateCw size={13} style={{ animation: 'gitcat-refresh-spin 0.9s linear infinite' }} /> Adding...
+                  </>
+                ) : (
+                  <>
+                    <Plus size={13} /> Git Add
+                  </>
+                )}
               </button>
               <button
-                onClick={() => isGitConnected && setShowCommitForm(true)}
-                disabled={!isGitConnected}
-                style={{ ...bigBtn('secondary'), opacity: isGitConnected ? 1 : 0.5, cursor: isGitConnected ? 'pointer' : 'not-allowed' }}
+                onClick={() => {
+                  if (!isGitConnected || gitPanelBusy) return;
+                  closeBranchForm();
+                  closeMergeForm();
+                  setIsCommitGridPressed(true);
+                  setShowCommitForm(true);
+                }}
+                disabled={!isGitConnected || gitPanelBusy}
+                style={{ ...bigBtn('secondary'), opacity: isGitConnected && !gitPanelBusy ? 1 : 0.5, cursor: isGitConnected && !gitPanelBusy ? 'pointer' : 'not-allowed' }}
               >
-                <Check size={13} /> Git Commit
+                <Check
+                  size={13}
+                  style={{
+                    animation: isCommitGridPressed ? 'gitcat-refresh-spin 0.7s ease-in-out' : 'none',
+                  }}
+                />{' '}
+                Git Commit
               </button>
               <button
                 onClick={handlePush}
-                disabled={!isGitConnected}
-                style={{ ...bigBtn('secondary'), opacity: isGitConnected ? 1 : 0.5, cursor: isGitConnected ? 'pointer' : 'not-allowed' }}
+                disabled={!isGitConnected || isPushing || gitPanelBusy}
+                style={{
+                  ...bigBtn('secondary'),
+                  opacity: isGitConnected && !isPushing && !gitPanelBusy ? 1 : 0.5,
+                  cursor: isGitConnected && !isPushing && !gitPanelBusy ? 'pointer' : 'not-allowed',
+                }}
               >
-                <ArrowUp size={13} /> Git Push
+                {isPushing ? (
+                  <>
+                    <RotateCw size={13} style={{ animation: 'gitcat-refresh-spin 0.9s linear infinite' }} /> Pushing...
+                  </>
+                ) : (
+                  <>
+                    <ArrowUp size={13} /> Git Push
+                  </>
+                )}
               </button>
               <button
-                onClick={handleMerge}
-                disabled={!isGitConnected}
-                style={{ ...bigBtn('secondary'), opacity: isGitConnected ? 1 : 0.5, cursor: isGitConnected ? 'pointer' : 'not-allowed' }}
+                onClick={() => {
+                  if (!isGitConnected || gitPanelBusy) return;
+                  mergePendingCloseRef.current = false;
+                  mergeSawLoadingRef.current = false;
+                  closeBranchForm();
+                  closeCommitForm();
+                  setMergeTarget(currentBranch);
+                  setMergeSource('');
+                  setIsMergeGridPressed(true);
+                  setShowMergeForm(true);
+                }}
+                disabled={!isGitConnected || isMerging || gitPanelBusy}
+                style={{
+                  ...bigBtn('secondary'),
+                  opacity: isGitConnected && !isMerging && !gitPanelBusy ? 1 : 0.5,
+                  cursor: isGitConnected && !isMerging && !gitPanelBusy ? 'pointer' : 'not-allowed',
+                }}
               >
-                <GitMerge size={13} /> Merge
+                {isMerging ? (
+                  <>
+                    <RotateCw size={13} style={{ animation: 'gitcat-refresh-spin 0.9s linear infinite' }} /> Merging...
+                  </>
+                ) : (
+                  <>
+                    <GitMerge
+                      size={13}
+                      style={{
+                        animation: isMergeGridPressed ? 'gitcat-refresh-spin 0.7s ease-in-out' : 'none',
+                      }}
+                    />{' '}
+                    Merge
+                  </>
+                )}
               </button>
             </div>
 
@@ -461,25 +640,38 @@ export const GitActionPanel: React.FC = () => {
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
               <button
                 onClick={handlePull}
-                disabled={!isGitConnected || isPulling}
-                style={{ ...bigBtn('secondary'), opacity: (isGitConnected && !isPulling) ? 1 : 0.5, cursor: (isGitConnected && !isPulling) ? 'pointer' : 'not-allowed' }}
+                disabled={!isGitConnected || isPulling || gitPanelBusy}
+                style={{ ...bigBtn('secondary'), opacity: (isGitConnected && !isPulling && !gitPanelBusy) ? 1 : 0.5, cursor: (isGitConnected && !isPulling && !gitPanelBusy) ? 'pointer' : 'not-allowed' }}
               >
                 <RotateCw size={13} style={{ animation: isPulling ? 'gitcat-refresh-spin 0.9s linear infinite' : 'none' }} />
                 {isPulling ? 'Pulling...' : 'Git Pull'}
               </button>
               <button
                 onClick={() => {
-                  if (!isGitConnected) return;
+                  if (!isGitConnected || isOpeningPrPanel || gitPanelBusy) return;
                   closeCommitForm();
                   closeMergeForm();
                   closeBranchForm();
+                  setIsOpeningPrPanel(true);
                   sendMessage('OPEN_PR_PANEL', {});
                 }}
-                disabled={!isGitConnected}
-                style={{ ...bigBtn('secondary'), opacity: isGitConnected ? 1 : 0.5, cursor: isGitConnected ? 'pointer' : 'not-allowed' }}
+                disabled={!isGitConnected || isOpeningPrPanel || gitPanelBusy}
+                style={{
+                  ...bigBtn('secondary'),
+                  opacity: isGitConnected && !isOpeningPrPanel && !gitPanelBusy ? 1 : 0.5,
+                  cursor: isGitConnected && !isOpeningPrPanel && !gitPanelBusy ? 'pointer' : 'not-allowed',
+                }}
                 title="GitCat 내에서 PR 생성하기"
               >
-                <GitPullRequest size={13} /> Create PR
+                {isOpeningPrPanel ? (
+                  <>
+                    <RotateCw size={13} style={{ animation: 'gitcat-refresh-spin 0.9s linear infinite' }} /> Opening...
+                  </>
+                ) : (
+                  <>
+                    <GitPullRequest size={13} /> Create PR
+                  </>
+                )}
               </button>
             </div>
 
@@ -595,14 +787,22 @@ export const GitActionPanel: React.FC = () => {
             <div style={{ display: 'flex', gap: '8px' }}>
               <button
                 onClick={handleRunMerge}
-                disabled={!mergeSource || !mergeTarget || mergeSource === mergeTarget}
+                disabled={!mergeSource || !mergeTarget || mergeSource === mergeTarget || isMerging || gitPanelBusy}
                 style={{
                   ...btn('primary'),
-                  opacity: (!mergeSource || !mergeTarget || mergeSource === mergeTarget) ? 0.5 : 1,
-                  cursor: (!mergeSource || !mergeTarget || mergeSource === mergeTarget) ? 'not-allowed' : 'pointer',
+                  opacity: (!mergeSource || !mergeTarget || mergeSource === mergeTarget || isMerging || gitPanelBusy) ? 0.5 : 1,
+                  cursor: (!mergeSource || !mergeTarget || mergeSource === mergeTarget || isMerging || gitPanelBusy) ? 'not-allowed' : 'pointer',
                 }}
               >
-                <GitMerge size={13} /> Merge 실행
+                {isMerging ? (
+                  <>
+                    <RotateCw size={13} style={{ animation: 'gitcat-refresh-spin 0.9s linear infinite' }} /> Merging...
+                  </>
+                ) : (
+                  <>
+                    <GitMerge size={13} /> Merge 실행
+                  </>
+                )}
               </button>
               <button onClick={closeMergeForm} style={btn('secondary')}>
                 <X size={13} /> 취소
@@ -616,19 +816,6 @@ export const GitActionPanel: React.FC = () => {
         notification={sectionNotifications.git}
         onDismiss={dismissGitNotification}
       />
-
-      {/* Status feedback message */}
-      {
-        statusMsg && (
-          <div style={{
-            margin: '8px', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px',
-            color: statusMsg.ok ? 'var(--vscode-charts-green)' : 'var(--vscode-errorForeground)',
-          }}>
-            <Check size={13} />
-            {statusMsg.text}
-          </div>
-        )
-      }
 
       {/* ── AI Prompt Webview Panel ── */}
       {
@@ -713,9 +900,9 @@ export const GitActionPanel: React.FC = () => {
         )
       }
 
-      {/* ── Merge 결과 배너 ── */}
+      {/* ── Merge 결과 (충돌 시 파일 목록) ── */}
       {
-        mergeResult && (
+        mergeResult && !mergeResult.success && (
           <div style={{
             margin: '8px',
             padding: '10px 12px',
@@ -724,24 +911,15 @@ export const GitActionPanel: React.FC = () => {
             alignItems: 'flex-start',
             gap: '8px',
             borderRadius: '4px',
-            border: `1px solid ${mergeResult.success
-                ? 'var(--vscode-charts-green)'
-                : 'var(--vscode-inputValidation-errorBorder)'
-              }`,
-            background: mergeResult.success
-              ? 'rgba(78, 201, 176, 0.08)'
-              : 'var(--vscode-inputValidation-errorBackground)',
+            border: `1px solid var(--vscode-inputValidation-errorBorder)`,
+            background: 'var(--vscode-inputValidation-errorBackground)',
           }}>
-            {mergeResult.success ? (
-              <CheckCircle2 size={14} style={{ color: 'var(--vscode-charts-green)', flexShrink: 0, marginTop: '1px' }} />
-            ) : (
-              <AlertCircle size={14} style={{ color: 'var(--vscode-errorForeground)', flexShrink: 0, marginTop: '1px' }} />
-            )}
+            <AlertCircle size={14} style={{ color: 'var(--vscode-errorForeground)', flexShrink: 0, marginTop: '1px' }} />
             <div style={{ flex: 1 }}>
               <div style={{ fontWeight: 600, marginBottom: mergeResult.conflictedFiles?.length ? '6px' : 0 }}>
-                {mergeResult.success ? '병합이 완료되었습니다.' : '병합 충돌이 발생했습니다.'}
+                병합 충돌이 발생했습니다.
               </div>
-              {!mergeResult.success && mergeResult.conflictedFiles && mergeResult.conflictedFiles.length > 0 && (
+              {mergeResult.conflictedFiles && mergeResult.conflictedFiles.length > 0 && (
                 <div style={{ fontSize: '12px', color: 'var(--vscode-descriptionForeground)' }}>
                   <div style={{ marginBottom: '5px' }}>충돌 파일 목록:</div>
                   {mergeResult.conflictedFiles.map((file) => (

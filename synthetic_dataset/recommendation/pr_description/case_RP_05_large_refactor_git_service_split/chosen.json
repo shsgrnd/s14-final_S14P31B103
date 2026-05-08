@@ -1,0 +1,15 @@
+{
+  "title": "GitService 분해 리팩토링 PR 설명 추천",
+  "summary": "대규모 GitService 책임 분리 작업의 목적과 검증 포인트를 담은 PR 설명을 추천합니다.",
+  "recommendation_type": "pr_description",
+  "primary_text": "Title: refactor: decompose GitService into focused modules\n\n## Summary\n- 단일 GitService에 몰려 있던 branch, diff, log, merge 책임을 전용 모듈로 분리했습니다.\n- 기능 동작을 바꾸기보다 모듈 경계를 정리해 유지보수성을 높이는 데 초점을 맞췄습니다.\n\n## Changes\n- GitService 로직을 역할별 서비스로 추출\n- 호출부 의존성을 새 모듈 경계에 맞게 재배치\n- 공통 포트 인터페이스 재사용 정리\n\n## Validation\n- 브랜치 조회, diff 수집, merge 흐름 회귀 테스트\n- 기존 command handler에서 새 서비스 연결 확인",
+  "alternative_texts": [
+    "Title: refactor: split GitService responsibilities by domain\n\n## Summary\n- Git 관련 책임을 domain 단위 서비스로 나눴습니다.",
+    "Title: refactor: extract branch diff and merge services\n\n## Summary\n- GitService 내부 책임을 branch, diff, merge 서비스로 추출했습니다."
+  ],
+  "generation_basis_summary": "리뷰 핵심이 behavior change가 아닌 구조 분해라는 점을 분명히 하도록 Summary와 Validation을 구성했습니다.",
+  "format_notes": "대규모 리팩토링 PR이므로 구조, 범위, 회귀 검증 포인트를 분리해서 적었습니다.",
+  "warnings": [
+    "파일 이동량이 많아 diff 가독성이 떨어질 수 있으므로 기능 회귀 확인 포인트를 본문에 명시했습니다."
+  ]
+}

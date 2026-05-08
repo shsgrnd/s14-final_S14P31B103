@@ -1,0 +1,13 @@
+{
+  "title": "대시보드 사용량 위젯 추가용 PR 설명 추천",
+  "summary": "사용량 카드와 차트 추가를 중심으로 한 PR 제목/본문을 추천합니다.",
+  "recommendation_type": "pr_description",
+  "primary_text": "Title: feat: add dashboard usage summary widgets\n\n## Summary\n- 대시보드에 주간 사용량 카드와 요약 차트를 추가했습니다.\n- 사용량 추세를 한 화면에서 확인할 수 있도록 레이아웃을 보강했습니다.\n\n## Changes\n- dashboard 페이지에 usage widget 영역 추가\n- UsageCard, UsageChart 컴포넌트 신규 작성\n\n## Validation\n- 대시보드 진입 시 카드와 차트 렌더링 확인\n- 반응형 레이아웃 깨짐 여부 확인",
+  "alternative_texts": [
+    "Title: feat: add usage cards to dashboard\n\n## Summary\n- 대시보드에 사용량 요약 카드와 차트를 추가했습니다.",
+    "Title: feat: surface weekly usage summary on dashboard\n\n## Summary\n- 주간 사용량 정보를 대시보드에서 바로 볼 수 있게 했습니다."
+  ],
+  "generation_basis_summary": "기능 자체가 시각 위젯 추가이므로 title과 본문 모두 usage summary widgets를 전면에 배치했습니다.",
+  "format_notes": "UI 변경이므로 Summary와 Validation 섹션에 화면 영향과 확인 포인트를 함께 넣었습니다.",
+  "warnings": []
+}
