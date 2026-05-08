@@ -3,8 +3,13 @@
   "displayName": "GitCat",
   "description": "An AI-powered Git assistant for safer commits, conflict prevention, and smarter workflow guidance in VS Code.",
   "publisher": "ssafy",
-  "icon": "icon.png",
+  "icon": "media/GitCat_icon.png",
   "version": "0.0.1",
+  "license": "ISC",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/shsgrnd/s14-final_S14P31B103.git"
+  },
   "engines": {
     "vscode": "^1.80.0"
   },
