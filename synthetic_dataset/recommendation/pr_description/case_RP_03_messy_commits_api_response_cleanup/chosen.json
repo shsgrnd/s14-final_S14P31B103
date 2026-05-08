@@ -1,0 +1,15 @@
+{
+  "title": "messy commit 묶음의 공통 축을 살린 PR 설명 추천",
+  "summary": "산발적인 변경을 recommendation 응답 포맷 정리 작업으로 묶는 PR 제목/본문을 추천합니다.",
+  "recommendation_type": "pr_description",
+  "primary_text": "Title: refactor: normalize recommendation response schema\n\n## Summary\n- 흩어져 있던 recommendation 응답 관련 수정들을 하나의 schema normalization 작업으로 정리했습니다.\n- 응답 키, DTO 명칭, validation copy를 함께 정돈해 흐름을 일관되게 맞췄습니다.\n\n## Changes\n- recommendation response field naming 정리\n- validation / copy 문구 보정\n- 디버그 로그 제거\n\n## Validation\n- recommendation parser와 저장 계층 스키마 호환성 확인\n- 기존 recommendation 이력 조회 회귀 여부 확인",
+  "alternative_texts": [
+    "Title: refactor: align response fields across recommendation flow\n\n## Summary\n- recommendation 응답 키와 스키마를 흐름 전체에서 맞췄습니다.",
+    "Title: refactor: clean up recommendation response contracts\n\n## Summary\n- schema, DTO, copy 정리를 recommendation contract 관점에서 묶었습니다."
+  ],
+  "generation_basis_summary": "messy commits라도 공통 분모가 response schema 정리라는 점을 제목과 본문 전개에 일관되게 반영했습니다.",
+  "format_notes": "misc, tiny fix 같은 모호한 표현을 피하고 normalization theme를 전면에 올렸습니다.",
+  "warnings": [
+    "리뷰어가 로그 제거를 별도 성격으로 볼 수 있으므로 Changes 섹션에서 부수 변경임을 드러냈습니다."
+  ]
+}

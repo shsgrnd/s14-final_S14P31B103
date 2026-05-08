@@ -1,0 +1,13 @@
+{
+  "title": "Webview fallback guard hotfix 커밋 메시지 추천",
+  "summary": "빈 recommendation payload로 인한 크래시를 막는 커밋 메시지를 추천합니다.",
+  "recommendation_type": "commit_message",
+  "primary_text": "fix: add fallback guard for empty recommendation payloads",
+  "alternative_texts": [
+    "fix: prevent webview crash on missing recommendation data",
+    "fix: guard null recommendation payload in webview flow"
+  ],
+  "generation_basis_summary": "원인과 대응이 모두 payload fallback guard에 있으므로 subject에서 그대로 드러내는 편이 좋습니다.",
+  "format_notes": "fix 타입을 유지하고 empty recommendation payload를 직접 언급했습니다.",
+  "warnings": []
+}

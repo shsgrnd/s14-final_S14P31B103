@@ -1,0 +1,15 @@
+{
+  "title": "로그인 timeout 긴급 수정 브랜치명 추천",
+  "summary": "로그인 timeout과 중복 상태 갱신 문제를 빠르게 수정하는 브랜치명을 추천합니다.",
+  "recommendation_type": "branch_name",
+  "primary_text": "fix/fe/login-timeout-guard/S14P31B103-207",
+  "alternative_texts": [
+    "fix/fe/auth-timeout-cancel-guard/S14P31B103-207",
+    "fix/fe/login-request-timeout-race/S14P31B103-207"
+  ],
+  "generation_basis_summary": "hotfix 성격과 실제 수정 포인트인 timeout guard를 바로 드러내도록 구성했습니다.",
+  "format_notes": "긴급 수정이므로 fix 타입을 사용하고 프론트 진입부 문제라 fe scope를 유지했습니다.",
+  "warnings": [
+    "백엔드 재시도 정책까지 함께 바뀌면 fe scope만으로는 범위가 좁을 수 있습니다."
+  ]
+}

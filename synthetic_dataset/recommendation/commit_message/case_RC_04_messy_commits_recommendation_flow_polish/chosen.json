@@ -1,0 +1,13 @@
+{
+  "title": "추천 플로우 polish 및 계약 정리 커밋 메시지 추천",
+  "summary": "UX polish와 message contract cleanup이 함께 들어간 변경에 맞는 커밋 메시지를 추천합니다.",
+  "recommendation_type": "commit_message",
+  "primary_text": "refactor: streamline recommendation flow messages",
+  "alternative_texts": [
+    "refactor: polish recommendation flow and fallback copy",
+    "refactor: align recommendation message handling"
+  ],
+  "generation_basis_summary": "UI polish보다 flow message 정리가 더 넓은 공통 분모라서 subject의 중심축으로 잡았습니다.",
+  "format_notes": "여러 잡수정을 포괄할 수 있도록 streamline을 사용하되 의미 없는 tidy 표현은 피했습니다.",
+  "warnings": []
+}

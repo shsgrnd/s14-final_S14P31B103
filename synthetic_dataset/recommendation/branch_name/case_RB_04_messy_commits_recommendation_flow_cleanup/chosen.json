@@ -1,0 +1,15 @@
+{
+  "title": "추천 플로우 정리 작업 브랜치명 추천",
+  "summary": "메시지 계약 정리와 UX polish가 섞인 변경을 포괄하는 브랜치명을 추천합니다.",
+  "recommendation_type": "branch_name",
+  "primary_text": "feat/extension/recommendation-flow-cleanup/S14P31B103-204",
+  "alternative_texts": [
+    "feat/extension/recommendation-message-polish/S14P31B103-204",
+    "feat/extension/recommendation-ux-contract-sync/S14P31B103-204"
+  ],
+  "generation_basis_summary": "여러 자잘한 커밋을 하나의 리뷰 가능한 목적어로 묶기 위해 recommendation flow cleanup을 대표 개념으로 선택했습니다.",
+  "format_notes": "확장 계층 작업이므로 extension scope를 사용했고 cleanup으로 폭을 적절히 남겼습니다.",
+  "warnings": [
+    "실제 변경이 parser까지 깊게 들어가면 extension scope보다 ai scope가 더 맞을 수 있습니다."
+  ]
+}

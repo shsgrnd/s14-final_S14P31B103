@@ -1,0 +1,15 @@
+{
+  "title": "학습 스택 업그레이드 PR 설명 추천",
+  "summary": "trainer dependency bump와 train_sft 호환성 보정을 설명하는 PR 제목/본문을 추천합니다.",
+  "recommendation_type": "pr_description",
+  "primary_text": "Title: chore: upgrade training stack dependencies for SFT pipeline\n\n## Summary\n- peft, trl, accelerate 버전을 최신 학습 스택에 맞게 정렬했습니다.\n- train_sft 기본 인자도 새 버전 요구사항에 맞춰 조정했습니다.\n\n## Changes\n- trainer requirements dependency bump\n- train_sft 옵션명 및 기본값 정렬\n\n## Validation\n- 의존성 설치 확인\n- train_sft smoke run으로 인자 호환성 점검",
+  "alternative_texts": [
+    "Title: chore: refresh trainer dependencies and SFT options\n\n## Summary\n- 학습용 의존성과 train_sft 옵션을 새 HF 스택에 맞췄습니다.",
+    "Title: chore: align HF training stack versions\n\n## Summary\n- HF training stack 버전과 trainer 스크립트 옵션을 함께 정렬했습니다."
+  ],
+  "generation_basis_summary": "이 변경은 기능 개발보다 학습 재현성 보정이 핵심이라 dependency alignment와 smoke validation을 본문 중심으로 배치했습니다.",
+  "format_notes": "infra 성격의 PR이므로 설치와 smoke run 검증 포인트를 본문에 명시했습니다.",
+  "warnings": [
+    "실제 GPU 서버에서의 장시간 학습 검증은 별도 follow-up이 필요할 수 있습니다."
+  ]
+}
