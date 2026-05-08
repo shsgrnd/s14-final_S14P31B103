@@ -124,6 +124,16 @@ export const GitActionPanel: React.FC = () => {
     setCheckoutingBranch(null);
   }, [currentBranch]);
 
+  // 브랜치 전환 실패 시에도 "전환 중..."을 즉시 해제
+  useEffect(() => {
+    if (!checkoutingBranch) return;
+    const notice = sectionNotifications.git;
+    if (!notice) return;
+    if (notice.type === 'error') {
+      setCheckoutingBranch(null);
+    }
+  }, [sectionNotifications.git, checkoutingBranch]);
+
   useEffect(() => {
     sendMessage('GET_WORKTREE_LIST', {});
   }, [sendMessage, lastStatusRefreshAt]);

@@ -251,6 +251,7 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
   clearBranchSuggestions: () => set({ aiBranchSuggestions: [] }),
   beginRecommendationRequest: (flow) => set((state) => ({
     pendingRecommendationFlow: flow,
+    isPrLoading: flow === 'pr' ? true : state.isPrLoading,
     branchRecommendationError: flow === 'branch' ? null : state.branchRecommendationError,
     commitRecommendationError: flow === 'commit' ? null : state.commitRecommendationError,
     prRecommendationError: flow === 'pr' ? null : state.prRecommendationError,
