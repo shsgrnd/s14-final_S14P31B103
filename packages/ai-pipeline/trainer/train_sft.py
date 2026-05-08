@@ -30,6 +30,7 @@ DEFAULT_ADAPTER_OUTPUT_DIR = os.path.abspath(
 )
 DEFAULT_MODEL_ID = "Qwen/Qwen2.5-Coder-7B-Instruct"
 DEFAULT_LORA_TARGET_MODULES = "q_proj,k_proj,v_proj,o_proj"
+DEFAULT_DATASET_TEXT_FIELD = "text"
 
 
 def parse_args() -> argparse.Namespace:
@@ -193,6 +194,15 @@ def load_training_dataset(args: argparse.Namespace) -> Dataset:
     if len(dataset) == 0:
         raise ValueError("Filtered dataset is empty. Relax the dataset filter options.")
 
+    # 최신 TRL은 `prompt` 컬럼이 보이면 prompt-completion dataset으로 간주해
+    # `completion` 컬럼을 기대할 수 있습니다. 우리 JSONL은 `prompt + chosen`
+    # 중간 포맷이므로, 학습 직전에 `text` 컬럼 하나로 평탄화해 language-modeling
+    # dataset으로 명시 변환해 두는 편이 버전 차이에 가장 덜 민감합니다.
+    dataset = dataset.map(
+        lambda row: {DEFAULT_DATASET_TEXT_FIELD: format_instruction(row)},
+        remove_columns=dataset.column_names,
+    )
+
     return dataset
 
 
@@ -221,7 +231,7 @@ def build_model(args: argparse.Namespace, torch_dtype: torch.dtype) -> AutoModel
     model = AutoModelForCausalLM.from_pretrained(
         args.model_id,
         device_map="auto",
-        torch_dtype=torch_dtype,
+        dtype=torch_dtype,
     )
 
     if args.gradient_checkpointing:
@@ -290,7 +300,6 @@ def build_trainer(
         model=model,
         train_dataset=dataset,
         peft_config=lora_config,
-        formatting_func=format_instruction,
         args=training_args,
     )
 
@@ -301,6 +310,9 @@ def build_trainer(
         trainer_kwargs["processing_class"] = tokenizer
     elif "tokenizer" in trainer_signature:
         trainer_kwargs["tokenizer"] = tokenizer
+
+    if "dataset_text_field" in trainer_signature:
+        trainer_kwargs["dataset_text_field"] = DEFAULT_DATASET_TEXT_FIELD
 
     # 구버전 TRL만 max_seq_length를 직접 생성자에서 받습니다.
     if "max_seq_length" in trainer_signature:

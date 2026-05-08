@@ -13,12 +13,38 @@
 Git 레포지토리를 GPU 서버에 Clone 또는 Pull 한 뒤, Python 가상환경을 세팅합니다.
 
 ```bash
-# 가상환경 생성 및 활성화
-python3 -m venv .venv
-source .venv/bin/activate
+# conda 환경 생성 및 활성화
+conda create -n gitcat-sft python=3.10 -y
+conda activate gitcat-sft
 
 # 의존성 설치
 pip install -r requirements.txt
+```
+
+### CUDA / PyTorch 호환성 체크
+
+현재 GPU 서버 드라이버 기준 CUDA는 `12.8`입니다.  
+따라서 `torch`가 `cu130` wheel로 설치되면 `torch.cuda.is_available()`가 `False`가 되며 학습이 CPU 모드로 떨어질 수 있습니다.
+
+처음 환경을 만든 직후 아래 명령으로 설치 상태를 확인합니다.
+
+```bash
+python -c "import torch; print(torch.__version__); print(torch.cuda.is_available()); print(torch.version.cuda)"
+```
+
+정상 기대값:
+
+```text
+2.10.0+cu128
+True
+12.8
+```
+
+만약 `cu130`, `False`, `13.0`처럼 나오면 아래처럼 PyTorch만 CUDA 12.8 build로 다시 맞춥니다.
+
+```bash
+pip uninstall -y torch torchvision torchaudio
+pip install torch==2.10.0 torchvision==0.25.0 torchaudio==2.10.0 --index-url https://download.pytorch.org/whl/cu128
 ```
 
 ## 2. 데이터 업로드 (SCP / Rsync)
@@ -30,6 +56,13 @@ Git에 업로드되지 않는(`gitignore` 처리됨) 학습용 JSONL 데이터�
 scp ./dataset.jsonl user@gpu-server-ip:~/GitCat/packages/ai-pipeline/trainer/data/
 ```
 
+또는 서버에서 직접 JSONL을 다시 생성할 수도 있습니다.
+
+```bash
+cd /path/to/repo
+python3 packages/ai-pipeline/trainer/build_jsonl.py
+```
+
 ## 3. 학습 스크립트 백그라운드 실행 (Tmux)
 
 SSH 연결이 끊어져도 학습이 유지되도록 `tmux`를 적극 활용합니다.
@@ -39,13 +72,13 @@ SSH 연결이 끊어져도 학습이 유지되도록 `tmux`를 적극 활용합�
 tmux new -s gitcat-train
 
 # (tmux 내부에서) 전체 dataset 기준 SFT 학습 실행
-python train_sft.py
+CUDA_VISIBLE_DEVICES=0 python train_sft.py
 
 # recommendation domain만 빠르게 smoke test
-python train_sft.py --dataset-domain recommendation --max-samples 8 --max-steps 20
+CUDA_VISIBLE_DEVICES=0 python train_sft.py --dataset-domain recommendation --max-samples 8 --max-steps 20
 
 # branch_name recommendation만 분리 실험
-python train_sft.py --dataset-domain recommendation --recommendation-type branch_name
+CUDA_VISIBLE_DEVICES=0 python train_sft.py --dataset-domain recommendation --recommendation-type branch_name
 
 # tmux 빠져나오기 (백그라운드로 돌리기)
 # Ctrl + B 누른 후, D 누르기
@@ -72,6 +105,22 @@ wandb login
 - `--recommendation-type`: `branch_name`, `commit_message`, `pr_description` 중 하나만 분리 실험할 때 사용
 - `--max-samples`, `--max-steps`: 긴 GPU 학습 전에 smoke test용으로 사용
 - `--report-to wandb`: WandB 로그인 환경에서만 활성화
+
+### 권장 실행 순서
+
+팀원이 GPU 서버에서 그대로 따라 하기 쉬운 최소 순서는 아래와 같습니다.
+
+```bash
+conda activate gitcat-sft
+cd /path/to/repo
+pip install -r packages/ai-pipeline/trainer/requirements.txt
+python3 packages/ai-pipeline/trainer/build_jsonl.py
+python -c "import torch; print(torch.__version__); print(torch.cuda.is_available()); print(torch.version.cuda)"
+cd packages/ai-pipeline/trainer
+CUDA_VISIBLE_DEVICES=0 python train_sft.py --dataset-domain recommendation --max-samples 8 --max-steps 20
+```
+
+smoke test가 통과하면 전체 학습으로 넘어갑니다.
 
 ## 5. 평가 결과 기록
 
