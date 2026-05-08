@@ -901,6 +901,45 @@ export const GitActionPanel: React.FC = () => {
               </button>
               <button
                 onClick={() => {
+                  if (!isGitConnected || isOpeningPrPanel || gitPanelBusy) return;
+                  closeCommitForm();
+                  closeMergeForm();
+                  closeBranchForm();
+                  setIsOpeningPrPanel(true);
+                  sendMessage('OPEN_PR_PANEL', {});
+                }}
+                disabled={!isGitConnected || isOpeningPrPanel || gitPanelBusy}
+                style={{
+                  ...bigBtn('secondary'),
+                  opacity: isGitConnected && !isOpeningPrPanel && !gitPanelBusy ? 1 : 0.5,
+                  cursor: isGitConnected && !isOpeningPrPanel && !gitPanelBusy ? 'pointer' : 'not-allowed',
+                }}
+                title="GitCat 내에서 PR 생성하기"
+              >
+                {isOpeningPrPanel ? (
+                  <>
+                    <RotateCw size={13} style={{ animation: 'gitcat-refresh-spin 0.9s linear infinite' }} /> Opening...
+                  </>
+                ) : (
+                  <>
+                    <GitPullRequest size={13} /> Create PR
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Pull / PR 생성 (2열, secondary) */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+              <button
+                onClick={handlePull}
+                disabled={!isGitConnected || isPulling || gitPanelBusy}
+                style={{ ...bigBtn('secondary'), opacity: (isGitConnected && !isPulling && !gitPanelBusy) ? 1 : 0.5, cursor: (isGitConnected && !isPulling && !gitPanelBusy) ? 'pointer' : 'not-allowed' }}
+              >
+                <RotateCw size={13} style={{ animation: isPulling ? 'gitcat-refresh-spin 0.9s linear infinite' : 'none' }} />
+                {isPulling ? 'Pulling...' : 'Git Pull'}
+              </button>
+              <button
+                onClick={() => {
                   if (!isGitConnected || gitPanelBusy) return;
                   mergePendingCloseRef.current = false;
                   mergeSawLoadingRef.current = false;
@@ -931,45 +970,6 @@ export const GitActionPanel: React.FC = () => {
                       }}
                     />{' '}
                     Merge
-                  </>
-                )}
-              </button>
-            </div>
-
-            {/* Pull / PR 생성 (2열, secondary) */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-              <button
-                onClick={handlePull}
-                disabled={!isGitConnected || isPulling || gitPanelBusy}
-                style={{ ...bigBtn('secondary'), opacity: (isGitConnected && !isPulling && !gitPanelBusy) ? 1 : 0.5, cursor: (isGitConnected && !isPulling && !gitPanelBusy) ? 'pointer' : 'not-allowed' }}
-              >
-                <RotateCw size={13} style={{ animation: isPulling ? 'gitcat-refresh-spin 0.9s linear infinite' : 'none' }} />
-                {isPulling ? 'Pulling...' : 'Git Pull'}
-              </button>
-              <button
-                onClick={() => {
-                  if (!isGitConnected || isOpeningPrPanel || gitPanelBusy) return;
-                  closeCommitForm();
-                  closeMergeForm();
-                  closeBranchForm();
-                  setIsOpeningPrPanel(true);
-                  sendMessage('OPEN_PR_PANEL', {});
-                }}
-                disabled={!isGitConnected || isOpeningPrPanel || gitPanelBusy}
-                style={{
-                  ...bigBtn('secondary'),
-                  opacity: isGitConnected && !isOpeningPrPanel && !gitPanelBusy ? 1 : 0.5,
-                  cursor: isGitConnected && !isOpeningPrPanel && !gitPanelBusy ? 'pointer' : 'not-allowed',
-                }}
-                title="GitCat 내에서 PR 생성하기"
-              >
-                {isOpeningPrPanel ? (
-                  <>
-                    <RotateCw size={13} style={{ animation: 'gitcat-refresh-spin 0.9s linear infinite' }} /> Opening...
-                  </>
-                ) : (
-                  <>
-                    <GitPullRequest size={13} /> Create PR
                   </>
                 )}
               </button>
