@@ -36,6 +36,10 @@ export class PullRequestMessageHandler {
    */
   async handle(type: string, payload: any, webview: vscode.Webview): Promise<boolean> {
     switch (type) {
+      case 'GET_PR_TEMPLATES':
+        await this.handleGetPRTemplates(payload, webview);
+        return true;
+
       case 'CREATE_PR':
         await this.handleCreatePR(payload, webview);
         return true;
@@ -62,6 +66,34 @@ export class PullRequestMessageHandler {
    * 5. 실패: ERROR { code, message } 전송
    * 6. LOADING 종료 알림
    */
+  private async handleGetPRTemplates(payload: any, webview: vscode.Webview): Promise<void> {
+    this.sendLoading(webview, 'GET_PR_TEMPLATES', true);
+
+    try {
+      const validated = InboundPayloadSchemaMap.GET_PR_TEMPLATES.parse(payload ?? {});
+      const templates = await this.pullRequestService.listPullRequestTemplates({
+        base: validated.base,
+      });
+
+      webview.postMessage({
+        type: 'PR_TEMPLATES',
+        payload: { templates },
+      });
+    } catch (error: any) {
+      if (error instanceof GitHubApiError) {
+        this.sendError(webview, error.errorCode, error.message);
+      } else {
+        this.sendError(
+          webview,
+          'INVALID_PARAMETER',
+          `PR 템플릿 조회 요청을 처리할 수 없습니다: ${error?.message ?? String(error)}`,
+        );
+      }
+    } finally {
+      this.sendLoading(webview, 'GET_PR_TEMPLATES', false);
+    }
+  }
+
   private async handleCreatePR(payload: any, webview: vscode.Webview): Promise<void> {
     this.sendLoading(webview, 'CREATE_PR', true);
 

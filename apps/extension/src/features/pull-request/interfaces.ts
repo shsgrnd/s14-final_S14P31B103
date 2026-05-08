@@ -10,7 +10,11 @@
  * - 이 인터페이스는 "무엇을" 할 수 있는지만 명세한다
  */
 
-import type { CreatePullRequestInput, PullRequestCreatedResult } from '../../integrations/github/interfaces';
+import type {
+  CreatePullRequestInput,
+  PullRequestCreatedResult,
+  PullRequestTemplate,
+} from '../../integrations/github/interfaces';
 
 /**
  * PR 생성 서비스 계약.
@@ -31,4 +35,6 @@ export interface PullRequestServiceContract {
    * @throws GitHubApiError 실패 시 errorCode에 원인 코드 포함
    */
   createPullRequest(input: CreatePullRequestInput): Promise<PullRequestCreatedResult>;
+
+  listPullRequestTemplates(input?: { base?: string }): Promise<PullRequestTemplate[]>;
 }

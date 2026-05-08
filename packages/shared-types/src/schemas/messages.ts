@@ -105,6 +105,9 @@ export const InboundPayloadSchemaMap = {
   SAVE_BRANCH_CLEANUP_SETTINGS: z.object({ settings: BranchCleanupSettingsSchema }),
   GET_BRANCH_CLEANUP_CANDIDATES: z.object({}).strict(),
   EXECUTE_BRANCH_CLEANUP: z.object({ branchNames: z.array(z.string()) }),
+  GET_PR_TEMPLATES: z.object({
+    base: z.string().min(1).optional(),
+  }).strict(),
   // PR 관련 — 프론트가 Create Pull Request 버튼 클릭 시 전달하는 DTO
   CREATE_PR: z.object({
     title: z.string().min(1),
@@ -158,6 +161,13 @@ export const OutboundPayloadSchemaMap = {
   BRANCH_CLEANUP_SETTINGS: z.object({ settings: BranchCleanupSettingsSchema }),
   BRANCH_CLEANUP_CANDIDATES: z.object({ result: BranchCleanupPreviewResultSchema }),
   BRANCH_CLEANUP_RESULT: z.object({ result: BranchCleanupExecuteResultSchema }),
+  PR_TEMPLATES: z.object({
+    templates: z.array(z.object({
+      path: z.string(),
+      name: z.string(),
+      content: z.string(),
+    })),
+  }),
   // GitHub PR 생성 성공 응답
   PR_CREATED: z.object({
     prNumber: z.number().int(),    // GitHub PR 번호

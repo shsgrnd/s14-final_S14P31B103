@@ -24,11 +24,16 @@ import type {
   CreatePullRequestInput,
   PullRequestCreatedResult,
   GitHubRepoInfo,
+  PullRequestTemplate,
 } from './interfaces';
 import { GitHubApiError } from './interfaces';
 
 /** GitHub API Base URL */
 const GITHUB_API_BASE = 'api.github.com';
+const PR_TEMPLATE_PATHS = [
+  '.github/pull_request_template.md',
+  '.github/PULL_REQUEST_TEMPLATE.md',
+] as const;
 
 export class GitHubClient {
   constructor(private readonly tokenProvider: GitHubTokenProvider) {}
@@ -214,6 +219,71 @@ export class GitHubClient {
    * @param remoteUrl git remote origin URL
    * @returns { owner, repo } 또는 null (파싱 불가 시)
    */
+  async listPullRequestTemplates(
+    owner: string,
+    repo: string,
+    ref?: string,
+  ): Promise<PullRequestTemplate[]> {
+    const token = await this.tokenProvider.getToken();
+    if (!token) {
+      throw new GitHubApiError(
+        'GITHUB_AUTH_FAILED',
+        'GitHub token이 설정되어 있지 않습니다. GitHub Personal Access Token을 먼저 설정해주세요.',
+      );
+    }
+
+    const templates: PullRequestTemplate[] = [];
+    for (const templatePath of PR_TEMPLATE_PATHS) {
+      const template = await this.getPullRequestTemplateFile(
+        token,
+        owner,
+        repo,
+        templatePath,
+        ref,
+      );
+      if (template) {
+        templates.push(template);
+      }
+    }
+
+    return templates;
+  }
+
+  private async getPullRequestTemplateFile(
+    token: string,
+    owner: string,
+    repo: string,
+    templatePath: string,
+    ref?: string,
+  ): Promise<PullRequestTemplate | null> {
+    const encodedPath = templatePath.split('/').map(encodeURIComponent).join('/');
+    const query = ref ? `?ref=${encodeURIComponent(ref)}` : '';
+
+    let data: any;
+    try {
+      data = await this.request(
+        token,
+        'GET',
+        `/repos/${owner}/${repo}/contents/${encodedPath}${query}`,
+      );
+    } catch (error) {
+      if (error instanceof GitHubApiError && error.errorCode === 'GITHUB_REMOTE_NOT_FOUND') {
+        return null;
+      }
+      throw error;
+    }
+
+    if (!data || Array.isArray(data) || data.type !== 'file' || typeof data.content !== 'string') {
+      return null;
+    }
+
+    return {
+      path: templatePath,
+      name: data.name ?? templatePath.split('/').pop() ?? templatePath,
+      content: Buffer.from(data.content.replace(/\s/g, ''), 'base64').toString('utf8'),
+    };
+  }
+
   static parseGitHubRepoInfo(remoteUrl: string): GitHubRepoInfo | null {
     // HTTPS 형식: https://github.com/owner/repo[.git]
     const httpsMatch = remoteUrl.match(/github\.com[/:]([^/]+)\/(.+?)(?:\.git)?$/);
