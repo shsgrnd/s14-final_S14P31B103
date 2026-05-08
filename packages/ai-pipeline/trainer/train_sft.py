@@ -1,4 +1,5 @@
 import argparse
+import inspect
 import os
 from typing import List
 
@@ -7,6 +8,11 @@ from datasets import Dataset, load_dataset
 from peft import LoraConfig, TaskType
 from transformers import AutoModelForCausalLM, AutoTokenizer, TrainingArguments
 from trl import SFTTrainer
+
+try:
+    from trl import SFTConfig
+except ImportError:  # pragma: no cover - older TRL releases do not expose SFTConfig
+    SFTConfig = None
 
 try:
     import wandb
@@ -237,10 +243,13 @@ def build_lora_config(args: argparse.Namespace) -> LoraConfig:
     )
 
 
-def build_training_args(args: argparse.Namespace, torch_dtype: torch.dtype) -> TrainingArguments:
+def build_training_args(
+    args: argparse.Namespace,
+    torch_dtype: torch.dtype,
+) -> TrainingArguments:
     report_to: List[str] = [] if args.report_to == "none" else [args.report_to]
 
-    return TrainingArguments(
+    training_kwargs = dict(
         output_dir=args.output_dir,
         per_device_train_batch_size=args.per_device_train_batch_size,
         gradient_accumulation_steps=args.gradient_accumulation_steps,
@@ -258,6 +267,46 @@ def build_training_args(args: argparse.Namespace, torch_dtype: torch.dtype) -> T
         gradient_checkpointing=args.gradient_checkpointing,
         remove_unused_columns=False,
     )
+
+    # 최신 TRL은 max_seq_length를 SFTTrainer 생성자에서 받지 않고,
+    # SFTConfig(max_length=...) 안으로 옮겼습니다. 반면 구버전 TRL은
+    # 여전히 TrainingArguments + max_seq_length 조합을 사용합니다.
+    # 여기서는 버전에 따라 둘 다 지원되도록 분기합니다.
+    if SFTConfig is not None:
+        return SFTConfig(max_length=args.max_seq_length, **training_kwargs)
+
+    return TrainingArguments(**training_kwargs)
+
+
+def build_trainer(
+    model: AutoModelForCausalLM,
+    tokenizer: AutoTokenizer,
+    dataset: Dataset,
+    training_args: TrainingArguments,
+    lora_config: LoraConfig,
+    args: argparse.Namespace,
+) -> SFTTrainer:
+    trainer_kwargs = dict(
+        model=model,
+        train_dataset=dataset,
+        peft_config=lora_config,
+        formatting_func=format_instruction,
+        args=training_args,
+    )
+
+    trainer_signature = inspect.signature(SFTTrainer.__init__).parameters
+
+    # tokenizer -> processing_class 로 이름이 바뀐 TRL 버전을 모두 지원합니다.
+    if "processing_class" in trainer_signature:
+        trainer_kwargs["processing_class"] = tokenizer
+    elif "tokenizer" in trainer_signature:
+        trainer_kwargs["tokenizer"] = tokenizer
+
+    # 구버전 TRL만 max_seq_length를 직접 생성자에서 받습니다.
+    if "max_seq_length" in trainer_signature:
+        trainer_kwargs["max_seq_length"] = args.max_seq_length
+
+    return SFTTrainer(**trainer_kwargs)
 
 
 def print_run_summary(args: argparse.Namespace, dataset: Dataset, torch_dtype: torch.dtype) -> None:
@@ -289,14 +338,13 @@ def main() -> None:
     lora_config = build_lora_config(args)
     training_args = build_training_args(args, torch_dtype)
 
-    trainer = SFTTrainer(
+    trainer = build_trainer(
         model=model,
-        train_dataset=dataset,
-        peft_config=lora_config,
-        formatting_func=format_instruction,
-        max_seq_length=args.max_seq_length,
         tokenizer=tokenizer,
-        args=training_args,
+        dataset=dataset,
+        training_args=training_args,
+        lora_config=lora_config,
+        args=args,
     )
 
     print("🚀 SFT-LoRA 학습을 시작합니다!")
