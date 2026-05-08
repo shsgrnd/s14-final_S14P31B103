@@ -4,6 +4,7 @@ import {
   ConflictAnalysis,
   AIDraft,
   Branch,
+  WorktreeInfo,
   OutboundMessage,
   GitStatusSummary,
   BranchCleanupSettings,
@@ -57,6 +58,7 @@ interface GitCatState {
   conflicts: ConflictAnalysis[];
   currentAIDraft: AIDraft | null;
   currentBranch: string;
+  currentWorktreePath: string;
   isAnalyzing: boolean;
   isRefreshingStatus: boolean;
   isPulling: boolean;
@@ -89,6 +91,11 @@ interface GitCatState {
   // AI PR 설명 추천 결과 (PR_SUGGESTION 수신 시 갱신)
   prSuggestion: string | null;
   isPrLoading: boolean;
+  aiBranchSuggestions: string[];
+  isBranchRecommendationLoading: boolean;
+
+  // 워크트리 목록 (WORKTREE_LIST 수신 시 갱신)
+  worktrees: WorktreeInfo[];
 
   // Stash 목록 (STASH_LIST 수신 시 갱신)
   stashes: StashEntry[];
@@ -118,6 +125,7 @@ interface GitCatState {
   setStashes: (stashes: StashEntry[]) => void;
   clearMergeResult: () => void;
   clearPrSuggestion: () => void;
+  clearBranchSuggestions: () => void;
 
   handleMessage: (event: MessageEvent<OutboundMessage>) => void;
 }
@@ -146,6 +154,7 @@ export const useGitCatStore = create<GitCatState>((set) => ({
   conflicts: [],
   currentAIDraft: null,
   currentBranch: '',
+  currentWorktreePath: '',
   isAnalyzing: false,
   isRefreshingStatus: false,
   isPulling: false,
@@ -164,6 +173,9 @@ export const useGitCatStore = create<GitCatState>((set) => ({
   statusSummary: null,
   prSuggestion: null,
   isPrLoading: false,
+  aiBranchSuggestions: [],
+  isBranchRecommendationLoading: false,
+  worktrees: [],
   stashes: [],
   cleanupSettings: null,
   cleanupPreview: null,
@@ -211,6 +223,7 @@ export const useGitCatStore = create<GitCatState>((set) => ({
   setStashes: (stashes) => set({ stashes }),
   clearMergeResult: () => set({ mergeResult: null }),
   clearPrSuggestion: () => set({ prSuggestion: null }),
+  clearBranchSuggestions: () => set({ aiBranchSuggestions: [] }),
 
   toggleSection: (sectionId) => set((state) => ({
     expandedSections: state.expandedSections.includes(sectionId)
@@ -256,6 +269,7 @@ export const useGitCatStore = create<GitCatState>((set) => ({
       case 'GIT_STATUS_UPDATED':
         set({
           currentBranch: payload.status.branch ?? (payload.status as any).currentBranch ?? 'HEAD',
+          currentWorktreePath: payload.status.currentWorktreePath ?? '',
           isRefreshingStatus: false,
           lastStatusRefreshAt: Date.now(),
         });
@@ -282,6 +296,9 @@ export const useGitCatStore = create<GitCatState>((set) => ({
         if (payload.target === 'RECOMMEND_PR') {
           set({ isPrLoading: payload.loading });
         }
+        if (payload.target === 'branchRecommendation') {
+          set({ isBranchRecommendationLoading: payload.loading });
+        }
         break;
       case 'CONFLICT_RESULT':
         set({ conflicts: payload.candidates });
@@ -293,6 +310,9 @@ export const useGitCatStore = create<GitCatState>((set) => ({
         break;
       case 'COMMIT_SUGGESTIONS':
         set({ aiCommitSuggestion: payload.suggestions.description });
+        break;
+      case 'BRANCH_SUGGESTIONS':
+        set({ aiBranchSuggestions: payload.names });
         break;
 
       case 'GIT_STATUS_SUMMARY':
@@ -428,6 +448,9 @@ export const useGitCatStore = create<GitCatState>((set) => ({
       case 'STASH_LIST':
         // git stash 목록 수신
         set({ stashes: payload.stashes });
+        break;
+      case 'WORKTREE_LIST':
+        set({ worktrees: payload.worktrees });
         break;
       
       case 'BRANCH_CLEANUP_SETTINGS':

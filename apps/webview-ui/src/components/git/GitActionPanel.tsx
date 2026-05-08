@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { GitBranch, Plus, ArrowUp, GitMerge, Check, Sparkles, ChevronDown, ChevronUp, X, CornerDownRight, Clock, RefreshCw, AlertCircle, RotateCw, ExternalLink, GitPullRequest } from 'lucide-react';
+import { GitBranch, Plus, ArrowUp, GitMerge, Check, Sparkles, ChevronDown, ChevronUp, X, CornerDownRight, Clock, RefreshCw, AlertCircle, RotateCw, ExternalLink, GitPullRequest, Lock } from 'lucide-react';
 import { useGitCatStore, type GitPanelPendingOperation } from '../../store/useGitCatStore';
 import { useVsCodeApi } from '../../hooks/useVsCodeApi';
 import { btn, bigBtn, inlineBtn } from '../../shared/styles';
@@ -28,7 +28,9 @@ function toastCompletesPending(message: string, ok: boolean, pending: GitPanelPe
 export const GitActionPanel: React.FC = () => {
   const {
     currentBranch,
+    currentWorktreePath,
     branches,
+    worktrees,
     sectionNotifications,
     clearSectionNotification,
     isRefreshingStatus,
@@ -43,6 +45,9 @@ export const GitActionPanel: React.FC = () => {
     prSuggestion,
     isPrLoading,
     clearPrSuggestion,
+    aiBranchSuggestions,
+    isBranchRecommendationLoading,
+    clearBranchSuggestions,
     clearGitPanelOperationLoading,
     postGitSectionBanner,
   } = useGitCatStore();
@@ -110,6 +115,10 @@ export const GitActionPanel: React.FC = () => {
     setCheckoutingBranch(null);
   }, [currentBranch]);
 
+  useEffect(() => {
+    sendMessage('GET_WORKTREE_LIST', {});
+  }, [sendMessage, lastStatusRefreshAt]);
+
   const closeAIPrompt = () => {
     setShowBranchAI(false);
     setAiPrompt('');
@@ -166,6 +175,24 @@ export const GitActionPanel: React.FC = () => {
       unlockGitPanel();
     }
   }, [sectionNotifications.git, clearGitPanelOperationLoading, unlockGitPanel]);
+
+  useEffect(() => {
+    if (!showNewBranch || showCommitForm) return;
+    if (aiBranchSuggestions.length === 0) return;
+    const suggested = aiBranchSuggestions[0]?.trim();
+    if (suggested && !newBranchName.trim()) {
+      setNewBranchName(suggested);
+      postGitSectionBanner({ type: 'success', message: `AI 추천 브랜치명: ${suggested}` });
+    }
+    clearBranchSuggestions();
+  }, [
+    aiBranchSuggestions,
+    showNewBranch,
+    showCommitForm,
+    newBranchName,
+    clearBranchSuggestions,
+    postGitSectionBanner,
+  ]);
 
   const handleGitAdd = () => {
     lockGitPanel('add');
@@ -228,6 +255,14 @@ export const GitActionPanel: React.FC = () => {
   };
 
   const selectableBranches = branches.filter((branch) => branch.name !== currentBranch && !branch.isRemote);
+  const displayWorktrees = worktrees;
+
+  const compactPath = (path: string): string => {
+    const normalized = path.replace(/\\/g, '/');
+    const chunks = normalized.split('/').filter(Boolean);
+    if (chunks.length <= 3) return normalized;
+    return `.../${chunks.slice(-3).join('/')}`;
+  };
 
   const handleAISubmit = () => {
     const prompt = aiPrompt.trim();
@@ -347,9 +382,9 @@ export const GitActionPanel: React.FC = () => {
           border: '1px solid var(--vscode-panel-border)',
           borderTop: 'none',
           borderRadius: '0 0 4px 4px',
-          overflow: 'hidden',
+          overflowY: 'auto',
           background: 'var(--vscode-editor-background)',
-          maxHeight: isBranchListOpen ? '220px' : '0px',
+          maxHeight: isBranchListOpen ? '320px' : '0px',
           opacity: isBranchListOpen ? 1 : 0,
           transform: isBranchListOpen ? 'translateY(0)' : 'translateY(-6px)',
           transition: 'max-height 0.22s ease, opacity 0.18s ease, transform 0.22s ease, margin 0.22s ease',
@@ -401,6 +436,83 @@ export const GitActionPanel: React.FC = () => {
             );
           })
         }
+        <div style={{ borderTop: '1px solid var(--vscode-panel-border)', padding: '8px 10px' }}>
+            <div style={{
+              fontSize: '10px',
+              fontWeight: 600,
+              letterSpacing: '0.3px',
+              color: 'var(--vscode-descriptionForeground)',
+              marginBottom: '6px',
+              textTransform: 'uppercase',
+            }}>
+              Worktrees ({displayWorktrees.length})
+            </div>
+            {displayWorktrees.length === 0 ? (
+              <div style={{
+                fontSize: '11px',
+                color: 'var(--vscode-descriptionForeground)',
+                opacity: 0.72,
+                padding: '2px 0',
+              }}>
+                추가 워크트리가 없습니다.
+              </div>
+            ) : displayWorktrees.map((wt) => {
+              const isCurrent = !!currentWorktreePath && wt.path === currentWorktreePath;
+              return (
+                <div
+                  key={wt.path}
+                  style={{
+                    border: '1px solid var(--vscode-panel-border)',
+                    borderRadius: '3px',
+                    padding: '6px 8px',
+                    marginBottom: '6px',
+                    background: isCurrent ? 'var(--vscode-list-activeSelectionBackground)' : 'var(--vscode-editor-background)',
+                  }}
+                  title={wt.path}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+                      <GitBranch size={11} style={{ color: 'var(--vscode-descriptionForeground)', flexShrink: 0 }} />
+                      <span style={{
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}>
+                        {wt.branch ?? '(detached)'}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0 }}>
+                      {isCurrent && (
+                        <span style={{
+                          fontSize: '9px',
+                          border: '1px solid var(--vscode-focusBorder)',
+                          borderRadius: '999px',
+                          padding: '1px 6px',
+                          color: 'var(--vscode-focusBorder)',
+                        }}>
+                          current
+                        </span>
+                      )}
+                      {wt.isLocked && <Lock size={10} style={{ color: 'var(--vscode-descriptionForeground)' }} />}
+                    </div>
+                  </div>
+                  <div style={{
+                    marginTop: '4px',
+                    fontSize: '10px',
+                    color: 'var(--vscode-descriptionForeground)',
+                    whiteSpace: 'nowrap',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    opacity: 0.85,
+                  }}>
+                    {compactPath(wt.path)}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
       </div >
 
       {/* ── New Branch Row ── */}
@@ -857,6 +969,7 @@ export const GitActionPanel: React.FC = () => {
             <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
               <button
                 onClick={handleAISubmit}
+                disabled={isBranchRecommendationLoading && !showCommitForm}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -870,10 +983,11 @@ export const GitActionPanel: React.FC = () => {
                   color: '#fff',
                   border: 'none',
                   borderRadius: '3px',
-                  cursor: 'pointer'
+                  cursor: (isBranchRecommendationLoading && !showCommitForm) ? 'not-allowed' : 'pointer',
+                  opacity: (isBranchRecommendationLoading && !showCommitForm) ? 0.65 : 1,
                 }}
               >
-                <CornerDownRight size={13} /> Enter
+                <CornerDownRight size={13} /> {isBranchRecommendationLoading && !showCommitForm ? '추천 중...' : 'Enter'}
               </button>
               <button
                 onClick={closeAIPrompt}
