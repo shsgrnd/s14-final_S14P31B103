@@ -1,0 +1,13 @@
+{
+  "title": "Webview 크래시 fallback 수정 브랜치명 추천",
+  "summary": "빈 payload로 인한 Webview 크래시를 막는 null guard 및 fallback 브랜치명을 추천합니다.",
+  "recommendation_type": "branch_name",
+  "primary_text": "fix/extension/webview-crash-fallback/S14P31B103-208",
+  "alternative_texts": [
+    "fix/extension/recommendation-null-guard/S14P31B103-208",
+    "fix/webview/result-payload-fallback/S14P31B103-208"
+  ],
+  "generation_basis_summary": "hotfix의 사용자 영향이 즉각적이므로 crash와 fallback이라는 핵심 결과어를 직접 노출했습니다.",
+  "format_notes": "extension 메시지 경계 문제로 보고 extension scope를 우선 사용했습니다.",
+  "warnings": []
+}

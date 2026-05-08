@@ -1,0 +1,13 @@
+{
+  "title": "인증 응답 DTO 및 패널 연동 커밋 메시지 추천",
+  "summary": "응답 DTO 정리와 결과 패널 동기화를 함께 설명하는 커밋 메시지를 추천합니다.",
+  "recommendation_type": "commit_message",
+  "primary_text": "feat: align auth response dto with result panel (#S14P31B103-201)",
+  "alternative_texts": [
+    "feat: sync auth response mapping and AI result panel (#S14P31B103-201)",
+    "feat: normalize auth dto for merge result panel (#S14P31B103-201)"
+  ],
+  "generation_basis_summary": "DTO 정리와 패널 연결이라는 두 축을 모두 담되 subject 길이를 짧게 유지했습니다.",
+  "format_notes": "conventional commit 형식의 feat prefix와 Jira tail을 유지했습니다.",
+  "warnings": []
+}

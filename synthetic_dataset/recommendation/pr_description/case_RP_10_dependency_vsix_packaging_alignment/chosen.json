@@ -1,0 +1,13 @@
+{
+  "title": "VSIX 패키징 정렬 PR 설명 추천",
+  "summary": "extension 패키징 설정 보정과 lockfile 정리를 설명하는 PR 제목/본문을 추천합니다.",
+  "recommendation_type": "pr_description",
+  "primary_text": "Title: chore: align VSIX packaging config and dependency lockfile\n\n## Summary\n- extension VSIX 패키징 과정에서 필요 없는 sharp 번들을 배제하고 경로 설정을 정리했습니다.\n- 관련 lockfile도 함께 정리해 빌드 재현성을 높였습니다.\n\n## Changes\n- packaging external 설정 보정\n- shared-types path / alias 정리\n- lockfile refresh\n\n## Validation\n- extension package build 확인\n- VSIX 패키징 시 불필요 번들 포함 여부 점검",
+  "alternative_texts": [
+    "Title: chore: stabilize extension VSIX packaging\n\n## Summary\n- extension 패키징 경로와 의존성 정렬로 build 재현성을 높였습니다.",
+    "Title: fix: sync packaging config with shared-types path updates\n\n## Summary\n- shared-types 경로 변경에 맞춰 packaging config를 보정했습니다."
+  ],
+  "generation_basis_summary": "패키징 성공과 재현성이 핵심이라 config alignment와 lockfile refresh를 본문 중심으로 두었습니다.",
+  "format_notes": "build/packaging PR에 맞춰 Validation 섹션에 패키징 검증 항목을 명시했습니다.",
+  "warnings": []
+}

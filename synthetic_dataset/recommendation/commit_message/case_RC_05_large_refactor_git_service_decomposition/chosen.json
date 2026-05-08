@@ -1,0 +1,15 @@
+{
+  "title": "GitService 분해 리팩토링 커밋 메시지 추천",
+  "summary": "GitService 책임 분리와 호출부 재배치를 드러내는 커밋 메시지를 추천합니다.",
+  "recommendation_type": "commit_message",
+  "primary_text": "refactor: decompose GitService into focused modules",
+  "alternative_texts": [
+    "refactor: split GitService responsibilities by domain",
+    "refactor: extract branch diff and merge services"
+  ],
+  "generation_basis_summary": "서비스 분해가 리뷰 핵심이므로 decompose와 focused modules라는 표현을 사용했습니다.",
+  "format_notes": "구조 이동 성격이 강해 refactor type과 명확한 동사 decompose를 유지했습니다.",
+  "warnings": [
+    "인터페이스 변경이 크면 extract보다 split responsibilities 대안이 더 직관적일 수 있습니다."
+  ]
+}

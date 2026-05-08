@@ -16,6 +16,11 @@ import {
  * 비교하는 데 사용합니다.
  */
 interface DatasetRow {
+  case_id?: string;
+  case_path?: string;
+  dataset_domain?: string;
+  feature_type?: string;
+  recommendation_type?: string;
   prompt: string;
   chosen: string;
 }
@@ -31,7 +36,10 @@ interface DatasetRow {
  */
 interface BaselineEvalRecord {
   case_id: string;
+  case_path?: string;
+  dataset_domain?: string;
   feature_type: string;
+  recommendation_type?: string;
   prompt: string;
   chosen: string;
   raw_response: string;
@@ -62,14 +70,6 @@ function getDatasetJsonlPath(workspaceRoot: string): string {
     'data',
     'synthetic_conflict_dataset.jsonl',
   );
-}
-
-/**
- * 사람이 직접 작성한 원본 케이스 폴더 위치입니다.
- * case_id를 추출할 때 사용합니다.
- */
-function getSyntheticDatasetRoot(workspaceRoot: string): string {
-  return path.join(workspaceRoot, 'synthetic_dataset');
 }
 
 /**
@@ -105,21 +105,6 @@ function readJsonl(filePath: string): DatasetRow[] {
     .map((line) => line.trim())
     .filter(Boolean)
     .map((line) => JSON.parse(line) as DatasetRow);
-}
-
-/**
- * synthetic_dataset 아래 case_* 폴더 이름을 정렬해서 가져옵니다.
- *
- * 주의:
- * JSONL은 case 폴더 순서대로 만들어진다고 가정하므로,
- * 여기서도 같은 정렬 기준을 써서 case_id와 prompt/chosen을 매칭합니다.
- */
-function listCaseIds(datasetRoot: string): string[] {
-  return fs
-    .readdirSync(datasetRoot, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory() && entry.name.startsWith('case_'))
-    .map((entry) => entry.name)
-    .sort();
 }
 
 /**
@@ -223,9 +208,13 @@ function sanitizeValue<T>(value: T, workspaceRoot: string): T {
  * baseline 요약에서 merge_patch_draft / conflict_explanation / merge_mediation
  * 성능을 따로 집계하기 위해 사용합니다.
  */
-function inferFeatureType(chosen: string): string {
+function inferFeatureType(row: DatasetRow): string {
+  if (row.feature_type) {
+    return row.feature_type;
+  }
+
   try {
-    const parsed = JSON.parse(chosen) as Record<string, unknown>;
+    const parsed = JSON.parse(row.chosen) as Record<string, unknown>;
     if ('merged_code' in parsed) {
       return 'merge_patch_draft';
     }
@@ -234,6 +223,12 @@ function inferFeatureType(chosen: string): string {
     }
     if ('cause_summary' in parsed) {
       return 'conflict_explanation';
+    }
+    if (
+      ('primary_text' in parsed && 'alternative_texts' in parsed)
+      || typeof parsed.recommendation_type === 'string'
+    ) {
+      return 'recommendation';
     }
   } catch {
     // no-op
@@ -311,6 +306,7 @@ function buildSummaryMarkdown(
   const jsonOk = records.filter((record) => record.json_parse_ok).length;
   const exactMatch = records.filter((record) => record.exact_json_match).length;
   const featureCounts = new Map<string, { total: number; exact: number }>();
+  const recommendationCounts = new Map<string, { total: number; exact: number }>();
 
   for (const record of records) {
     const current = featureCounts.get(record.feature_type) ?? { total: 0, exact: 0 };
@@ -319,6 +315,16 @@ function buildSummaryMarkdown(
       current.exact += 1;
     }
     featureCounts.set(record.feature_type, current);
+
+    if (record.recommendation_type) {
+      const recommendationCurrent =
+        recommendationCounts.get(record.recommendation_type) ?? { total: 0, exact: 0 };
+      recommendationCurrent.total += 1;
+      if (record.exact_json_match) {
+        recommendationCurrent.exact += 1;
+      }
+      recommendationCounts.set(record.recommendation_type, recommendationCurrent);
+    }
   }
 
   const lines: string[] = [
@@ -341,6 +347,14 @@ function buildSummaryMarkdown(
 
   for (const [featureType, count] of featureCounts.entries()) {
     lines.push(`| ${featureType} | ${count.total} | ${count.exact} |`);
+  }
+
+  if (recommendationCounts.size > 0) {
+    lines.push('', '## recommendation_type별 요약', '| recommendation_type | total | exact_match |', '| --- | --- | --- |');
+
+    for (const [recommendationType, count] of recommendationCounts.entries()) {
+      lines.push(`| ${recommendationType} | ${count.total} | ${count.exact} |`);
+    }
   }
 
   lines.push('', '## 케이스별 결과', '| case_id | feature_type | json_parse_ok | exact_json_match |', '| --- | --- | --- | --- |');
@@ -367,7 +381,6 @@ async function main(): Promise<void> {
   loadRootEnv();
   const workspaceRoot = getWorkspaceRoot();
   const datasetPath = getDatasetJsonlPath(workspaceRoot);
-  const datasetRoot = getSyntheticDatasetRoot(workspaceRoot);
   const resultsDir = getResultsDir(workspaceRoot);
   const args = process.argv.slice(2).filter((arg) => arg !== '--');
   const limitArgIndex = args.findIndex((arg) => arg === '--limit');
@@ -387,13 +400,6 @@ async function main(): Promise<void> {
   }
 
   const datasetRows = readJsonl(datasetPath);
-  const caseIds = listCaseIds(datasetRoot);
-
-  if (datasetRows.length !== caseIds.length) {
-    console.warn(
-      `[Baseline Eval] Warning: JSONL rows (${datasetRows.length}) and dataset folders (${caseIds.length}) differ.`,
-    );
-  }
 
   const effectiveRows = typeof limit === 'number' && Number.isFinite(limit)
     ? datasetRows.slice(0, limit)
@@ -416,8 +422,8 @@ async function main(): Promise<void> {
 
   for (let index = 0; index < effectiveRows.length; index += 1) {
     const row = effectiveRows[index];
-    const caseId = caseIds[index] ?? `case_${String(index + 1).padStart(2, '0')}`;
-    const featureType = inferFeatureType(row.chosen);
+    const caseId = row.case_id ?? `case_${String(index + 1).padStart(2, '0')}`;
+    const featureType = inferFeatureType(row);
     const { systemPrompt, userPrompt } = extractSystemAndUserPrompt(row.prompt);
 
     console.log(`[Baseline Eval] (${index + 1}/${effectiveRows.length}) ${caseId}`);
@@ -435,7 +441,10 @@ async function main(): Promise<void> {
 
       const record = sanitizeValue<BaselineEvalRecord>({
         case_id: caseId,
+        case_path: row.case_path,
+        dataset_domain: row.dataset_domain,
         feature_type: featureType,
+        recommendation_type: row.recommendation_type,
         prompt: row.prompt,
         chosen: row.chosen,
         raw_response: rawResponse,
@@ -451,7 +460,10 @@ async function main(): Promise<void> {
       const message = error instanceof Error ? error.message : String(error);
       const record = sanitizeValue<BaselineEvalRecord>({
         case_id: caseId,
+        case_path: row.case_path,
+        dataset_domain: row.dataset_domain,
         feature_type: featureType,
+        recommendation_type: row.recommendation_type,
         prompt: row.prompt,
         chosen: row.chosen,
         raw_response: '',

@@ -1,0 +1,15 @@
+{
+  "title": "어수선한 API 응답 정리 변경용 커밋 메시지 추천",
+  "summary": "산발적인 수정을 recommendation 응답 포맷 정리 작업으로 묶는 커밋 메시지를 추천합니다.",
+  "recommendation_type": "commit_message",
+  "primary_text": "refactor: normalize recommendation response fields",
+  "alternative_texts": [
+    "refactor: clean up recommendation response schema",
+    "refactor: align response keys across recommendation flow"
+  ],
+  "generation_basis_summary": "messy commit 상태일수록 잡수정보다 공통된 설계 축을 제목에 올리는 편이 리뷰와 revert에 유리합니다.",
+  "format_notes": "cleanup 단독 표현보다 normalize와 align을 사용해 실제 의도를 더 선명하게 드러냈습니다.",
+  "warnings": [
+    "디버그 로그 제거가 주 변경이라고 오해받지 않도록 response fields를 명시했습니다."
+  ]
+}

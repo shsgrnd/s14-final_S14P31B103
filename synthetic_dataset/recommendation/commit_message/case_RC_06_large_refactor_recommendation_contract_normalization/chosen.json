@@ -1,0 +1,13 @@
+{
+  "title": "recommendation 계약 정규화 커밋 메시지 추천",
+  "summary": "payload, parser, dto 간 schema sync를 설명하는 커밋 메시지를 추천합니다.",
+  "recommendation_type": "commit_message",
+  "primary_text": "refactor: normalize recommendation payload contracts",
+  "alternative_texts": [
+    "refactor: align recommendation schema across pipeline",
+    "refactor: sync parser and DTO recommendation fields"
+  ],
+  "generation_basis_summary": "추천 파이프라인 전반의 공통 변화가 contract normalization이므로 subject의 핵심으로 삼았습니다.",
+  "format_notes": "normalize와 contract를 사용해 naming-only 변경과 구분되도록 했습니다.",
+  "warnings": []
+}

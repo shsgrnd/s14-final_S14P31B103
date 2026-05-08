@@ -1,0 +1,13 @@
+{
+  "title": "recommendation 계약 정규화 리팩토링 브랜치명 추천",
+  "summary": "payload, parser, DTO, message shape를 함께 맞추는 recommendation 계층 리팩토링 브랜치명을 추천합니다.",
+  "recommendation_type": "branch_name",
+  "primary_text": "refactor/ai/recommendation-contract-normalization/S14P31B103-206",
+  "alternative_texts": [
+    "refactor/ai/recommendation-schema-sync/S14P31B103-206",
+    "refactor/ai/recommendation-payload-parser-alignment/S14P31B103-206"
+  ],
+  "generation_basis_summary": "여러 컴포넌트에 걸친 schema sync 성격이 강하므로 contract normalization이 가장 넓고 정확한 표현입니다.",
+  "format_notes": "AI 파이프라인 중심 리팩토링으로 보고 ai scope를 사용했습니다.",
+  "warnings": []
+}

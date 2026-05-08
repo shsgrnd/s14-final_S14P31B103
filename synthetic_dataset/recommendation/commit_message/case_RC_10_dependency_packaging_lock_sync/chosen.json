@@ -1,0 +1,13 @@
+{
+  "title": "vsix 패키징 정렬 커밋 메시지 추천",
+  "summary": "패키징 설정 보정과 lockfile sync를 드러내는 커밋 메시지를 추천합니다.",
+  "recommendation_type": "commit_message",
+  "primary_text": "chore: align VSIX packaging config and lockfile",
+  "alternative_texts": [
+    "chore: stabilize extension packaging dependencies",
+    "fix: sync packaging config with shared-types path changes"
+  ],
+  "generation_basis_summary": "build 재현성과 packaging alignment가 핵심이라 config와 lockfile을 제목에 직접 올렸습니다.",
+  "format_notes": "주 변경이 정비 작업이라 chore를 우선 추천하되, 실제 장애 대응일 경우 fix 대안을 함께 남겼습니다.",
+  "warnings": []
+}
