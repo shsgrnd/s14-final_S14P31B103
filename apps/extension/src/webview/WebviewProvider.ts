@@ -62,6 +62,11 @@ export class WebviewProvider {
         );
     }
 
+    public closePrPanel(): void {
+        if (!this.panel || this.panelMode !== 'pr') return;
+        this.panel.dispose();
+    }
+
     private getHtmlForWebview(webview: vscode.Webview, viewMode: 'sidebar' | 'main' | 'pr'): string {
         const distPath = vscode.Uri.file(
             path.join(this.context.extensionPath, '..', 'webview-ui', 'dist')

@@ -6,6 +6,23 @@ const HAS_HANGUL = /[\uAC00-\uD7A3]/;
 
 const RULES: Rule[] = [
   {
+    test: (m) => /is not a valid branch name/i.test(m),
+    to: (m) => {
+      const branch = m.match(/fatal:\s*'([^']+)'\s+is not a valid branch name/i)?.[1];
+      return branch
+        ? `브랜치 이름 '${branch}' 형식이 올바르지 않습니다. 공백/특수문자를 제거하고 다시 시도해 주세요.`
+        : '브랜치 이름 형식이 올바르지 않습니다. 공백/특수문자를 제거하고 다시 시도해 주세요.';
+    },
+  },
+  {
+    test: (m) =>
+      /\[rejected\]\s*\(non-fast-forward\)/i.test(m) ||
+      /updates were rejected because the tip of your current branch is behind/i.test(m) ||
+      /non-fast-forward/i.test(m) && /failed to push some refs/i.test(m),
+    to: () =>
+      'Push가 거절되었습니다. 원격 브랜치가 더 앞서 있어 fast-forward가 불가능합니다. 먼저 Pull(또는 rebase)로 동기화한 뒤 다시 Push해 주세요.',
+  },
+  {
     test: (m) => /couldn'?t find remote ref/i.test(m),
     to: (m) => {
       const match = m.match(/remote ref\s+([^\s]+)\s*$/i);
@@ -26,6 +43,18 @@ const RULES: Rule[] = [
   {
     test: (m) => /please commit your changes or stash them/i.test(m),
     to: () => '커밋하지 않은 변경이 있습니다. 커밋하거나 stash한 뒤 다시 시도해 주세요.',
+  },
+  {
+    test: (m) =>
+      /your local changes to the following files would be overwritten by checkout/i.test(m) ||
+      /would be overwritten by checkout/i.test(m),
+    to: () => '현재 변경사항 때문에 브랜치를 전환할 수 없습니다. 변경을 커밋·stash·되돌린 뒤 다시 시도해 주세요.',
+  },
+  {
+    test: (m) =>
+      /please commit your changes or stash them before you switch branches/i.test(m) ||
+      /before you switch branches/i.test(m),
+    to: () => '브랜치 전환 전 현재 변경사항을 먼저 커밋하거나 stash해야 합니다.',
   },
   {
     test: (m) => /would be overwritten by merge/i.test(m),

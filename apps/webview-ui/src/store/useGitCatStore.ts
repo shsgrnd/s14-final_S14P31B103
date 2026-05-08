@@ -72,10 +72,14 @@ interface GitCatState {
   /** RUN_MERGE 등 merge 타깃 LOADING */
   isMerging: boolean;
   lastStatusRefreshAt: number | null;
+  stagedCount: number;
 
   // Phase 2 New Data
   branches: Branch[];
   aiCommitSuggestion: string;
+  aiCommitAlternatives: string[];
+  aiCommitSuggestedBranchNames: string[];
+  commitSuggestionNonce: number;
   expandedSections: string[];
   expandedSnapshotId: string | null;
 
@@ -92,8 +96,14 @@ interface GitCatState {
   // AI PR 설명 추천 결과 (PR_SUGGESTION 수신 시 갱신)
   prSuggestion: PRSuggestion | null;
   isPrLoading: boolean;
+  isCreatingPr: boolean;
   aiBranchSuggestions: string[];
   isBranchRecommendationLoading: boolean;
+  isCommitRecommendationLoading: boolean;
+  pendingRecommendationFlow: 'branch' | 'commit' | 'pr' | null;
+  branchRecommendationError: string | null;
+  commitRecommendationError: string | null;
+  prRecommendationError: string | null;
 
   // 워크트리 목록 (WORKTREE_LIST 수신 시 갱신)
   worktrees: WorktreeInfo[];
@@ -127,6 +137,10 @@ interface GitCatState {
   clearMergeResult: () => void;
   clearPrSuggestion: () => void;
   clearBranchSuggestions: () => void;
+  beginRecommendationRequest: (flow: 'branch' | 'commit' | 'pr') => void;
+  clearBranchRecommendationError: () => void;
+  clearCommitRecommendationError: () => void;
+  clearPrRecommendationError: () => void;
 
   handleMessage: (event: MessageEvent<OutboundMessage>) => void;
 }
@@ -150,7 +164,7 @@ function isPrimaryGitPanelCompletionNotification(raw: string): boolean {
 
 const GIT_PANEL_OPERATION_FAILURE = ['GIT_ADD_ALL', 'EXECUTE_COMMIT', 'GIT_PUSH', 'EXECUTE_PULL', 'RUN_MERGE'] as const;
 
-export const useGitCatStore = create<GitCatState>((set) => ({
+export const useGitCatStore = create<GitCatState>((set, get) => ({
   snapshots: [],
   conflicts: [],
   currentAIDraft: null,
@@ -164,8 +178,12 @@ export const useGitCatStore = create<GitCatState>((set) => ({
   isPushing: false,
   isMerging: false,
   lastStatusRefreshAt: null,
+  stagedCount: 0,
   branches: [],
   aiCommitSuggestion: '',
+  aiCommitAlternatives: [],
+  aiCommitSuggestedBranchNames: [],
+  commitSuggestionNonce: 0,
   expandedSections: ['safety', 'branch'],
   expandedSnapshotId: null,
   globalNotification: null,
@@ -174,8 +192,14 @@ export const useGitCatStore = create<GitCatState>((set) => ({
   statusSummary: null,
   prSuggestion: null,
   isPrLoading: false,
+  isCreatingPr: false,
   aiBranchSuggestions: [],
   isBranchRecommendationLoading: false,
+  isCommitRecommendationLoading: false,
+  pendingRecommendationFlow: null,
+  branchRecommendationError: null,
+  commitRecommendationError: null,
+  prRecommendationError: null,
   worktrees: [],
   stashes: [],
   cleanupSettings: null,
@@ -225,6 +249,16 @@ export const useGitCatStore = create<GitCatState>((set) => ({
   clearMergeResult: () => set({ mergeResult: null }),
   clearPrSuggestion: () => set({ prSuggestion: null }),
   clearBranchSuggestions: () => set({ aiBranchSuggestions: [] }),
+  beginRecommendationRequest: (flow) => set((state) => ({
+    pendingRecommendationFlow: flow,
+    isPrLoading: flow === 'pr' ? true : state.isPrLoading,
+    branchRecommendationError: flow === 'branch' ? null : state.branchRecommendationError,
+    commitRecommendationError: flow === 'commit' ? null : state.commitRecommendationError,
+    prRecommendationError: flow === 'pr' ? null : state.prRecommendationError,
+  })),
+  clearBranchRecommendationError: () => set({ branchRecommendationError: null }),
+  clearCommitRecommendationError: () => set({ commitRecommendationError: null }),
+  clearPrRecommendationError: () => set({ prRecommendationError: null }),
 
   toggleSection: (sectionId) => set((state) => ({
     expandedSections: state.expandedSections.includes(sectionId)
@@ -273,6 +307,7 @@ export const useGitCatStore = create<GitCatState>((set) => ({
           currentWorktreePath: payload.status.currentWorktreePath ?? '',
           isRefreshingStatus: false,
           lastStatusRefreshAt: Date.now(),
+          stagedCount: payload.status.staged?.length ?? 0,
         });
         break;
       case 'LOADING':
@@ -297,8 +332,14 @@ export const useGitCatStore = create<GitCatState>((set) => ({
         if (payload.target === 'RECOMMEND_PR') {
           set({ isPrLoading: payload.loading });
         }
+        if (payload.target === 'CREATE_PR') {
+          set({ isCreatingPr: payload.loading });
+        }
         if (payload.target === 'branchRecommendation') {
           set({ isBranchRecommendationLoading: payload.loading });
+        }
+        if (payload.target === 'commitRecommendation') {
+          set({ isCommitRecommendationLoading: payload.loading });
         }
         break;
       case 'CONFLICT_RESULT':
@@ -309,11 +350,30 @@ export const useGitCatStore = create<GitCatState>((set) => ({
           set({ currentAIDraft: payload.proposals[0] });
         }
         break;
-      case 'COMMIT_SUGGESTIONS':
-        set({ aiCommitSuggestion: payload.suggestions.description });
+      case 'COMMIT_SUGGESTIONS': {
+        const description = (payload.suggestions.description ?? '').trim();
+        const alternatives = ((payload.suggestions.messages ?? []) as string[])
+          .map((msg: string) => msg.trim())
+          .filter((msg) => !!msg && msg !== description);
+        const suggestedBranchNames = ((payload.suggestions.branch_names ?? []) as string[])
+          .map((name: string) => name.trim())
+          .filter(Boolean);
+        set((state) => ({
+          aiCommitSuggestion: payload.suggestions.description ?? '',
+          aiCommitAlternatives: [...new Set(alternatives)],
+          aiCommitSuggestedBranchNames: suggestedBranchNames,
+          commitSuggestionNonce: state.commitSuggestionNonce + 1,
+          pendingRecommendationFlow: null,
+          commitRecommendationError: null,
+        }));
         break;
+      }
       case 'BRANCH_SUGGESTIONS':
-        set({ aiBranchSuggestions: payload.names });
+        set({
+          aiBranchSuggestions: payload.names,
+          pendingRecommendationFlow: null,
+          branchRecommendationError: null,
+        });
         break;
 
       case 'GIT_STATUS_SUMMARY':
@@ -321,7 +381,12 @@ export const useGitCatStore = create<GitCatState>((set) => ({
         break;
 
       case 'PR_SUGGESTION':
-        set({ prSuggestion: payload, isPrLoading: false });
+        set({
+          prSuggestion: payload,
+          isPrLoading: false,
+          pendingRecommendationFlow: null,
+          prRecommendationError: null,
+        });
         break;
 
       case 'PR_CREATED':
@@ -348,6 +413,32 @@ export const useGitCatStore = create<GitCatState>((set) => ({
 
       case 'ERROR': {
         const rawMsg = payload.message ?? '';
+        const recommendationFlow = get().pendingRecommendationFlow;
+        const recommendationMessage = translateUserFacingGitMessage(rawMsg, 'error');
+        if (recommendationFlow === 'branch') {
+          set({
+            branchRecommendationError: recommendationMessage,
+            isBranchRecommendationLoading: false,
+            pendingRecommendationFlow: null,
+          });
+          break;
+        }
+        if (recommendationFlow === 'commit') {
+          set({
+            commitRecommendationError: recommendationMessage,
+            isCommitRecommendationLoading: false,
+            pendingRecommendationFlow: null,
+          });
+          break;
+        }
+        if (recommendationFlow === 'pr') {
+          set({
+            prRecommendationError: recommendationMessage,
+            isPrLoading: false,
+            pendingRecommendationFlow: null,
+          });
+          break;
+        }
         const isMergeConflict = rawMsg.startsWith('병합 충돌이 발생했습니다:');
         if (isMergeConflict) {
           const filesStr = rawMsg.replace('병합 충돌이 발생했습니다:', '').trim();

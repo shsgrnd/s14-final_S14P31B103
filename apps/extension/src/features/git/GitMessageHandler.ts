@@ -342,6 +342,15 @@ export class GitMessageHandler {
   ): Promise<void> {
     this.sendLoading(webview, 'commit', true);
     try {
+      // 커밋 전 가드: staged가 없으면 빈 커밋을 만들지 않고 명확히 거부한다.
+      const status = await this.gitService.getStatus();
+      if ((status.staged?.length ?? 0) === 0) {
+        const message = '스테이징된 변경사항이 없습니다. 먼저 변경 파일을 stage 해주세요.';
+        this.sendOperationResult(webview, 'EXECUTE_COMMIT', { success: false, message });
+        this.sendError(webview, message);
+        return;
+      }
+
       const result = await this.gitService.runCommit(payload.message, payload.body);
       this.sendOperationResult(webview, 'EXECUTE_COMMIT', result);
       if (result.success) {
