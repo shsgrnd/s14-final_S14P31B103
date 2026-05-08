@@ -38,8 +38,14 @@ SSH 연결이 끊어져도 학습이 유지되도록 `tmux`를 적극 활용합�
 # tmux 세션 생성
 tmux new -s gitcat-train
 
-# (tmux 내부에서) 학습 스크립트 실행
+# (tmux 내부에서) 전체 dataset 기준 SFT 학습 실행
 python train_sft.py
+
+# recommendation domain만 빠르게 smoke test
+python train_sft.py --dataset-domain recommendation --max-samples 8 --max-steps 20
+
+# branch_name recommendation만 분리 실험
+python train_sft.py --dataset-domain recommendation --recommendation-type branch_name
 
 # tmux 빠져나오기 (백그라운드로 돌리기)
 # Ctrl + B 누른 후, D 누르기
@@ -57,6 +63,15 @@ wandb login
 ```
 
 학습이 정상적으로 완료되면 가중치(`.safetensors` 또는 체크포인트)는 `outputs/` 폴더에 생성됩니다. 이를 로컬로 가져와(`scp`) 추론 서버에 연동하여 검증합니다.
+
+### 스크립트 핵심 옵션
+
+- `--model-id`: 기본값은 `Qwen/Qwen2.5-Coder-7B-Instruct`
+- `--dataset-path`: `build_jsonl.py`가 만든 JSONL 경로
+- `--dataset-domain`: `merge` 또는 `recommendation`만 따로 학습할 때 사용
+- `--recommendation-type`: `branch_name`, `commit_message`, `pr_description` 중 하나만 분리 실험할 때 사용
+- `--max-samples`, `--max-steps`: 긴 GPU 학습 전에 smoke test용으로 사용
+- `--report-to wandb`: WandB 로그인 환경에서만 활성화
 
 ## 5. 평가 결과 기록
 
