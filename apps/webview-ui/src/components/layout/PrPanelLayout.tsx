@@ -33,9 +33,9 @@ export const PrPanelLayout: React.FC = () => {
   // AI 추천 결과 수신 시 폼 자동 입력
   useEffect(() => {
     if (prSuggestion) {
-      setPrDescription(prev => prev ? `${prev}\n\n${prSuggestion}` : prSuggestion);
+      setPrDescription(prev => prev ? `${prev}\n\n${prSuggestion.markdown}` : prSuggestion.markdown);
       if (!prTitle) {
-        setPrTitle('AI 추천 PR 제목');
+        setPrTitle(prSuggestion.title);
       }
       clearPrSuggestion();
     }

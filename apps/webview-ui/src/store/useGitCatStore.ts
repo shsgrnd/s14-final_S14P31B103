@@ -10,6 +10,7 @@ import {
   BranchCleanupSettings,
   BranchCleanupPreviewResult,
   BranchCleanupExecuteResult,
+  PRSuggestion,
 } from '@gitcat/shared-types';
 import { translateUserFacingGitMessage, type UiMessageTone } from '../shared/gitMessageKo';
 
@@ -89,7 +90,7 @@ interface GitCatState {
   statusSummary: GitStatusSummary | null;
 
   // AI PR 설명 추천 결과 (PR_SUGGESTION 수신 시 갱신)
-  prSuggestion: string | null;
+  prSuggestion: PRSuggestion | null;
   isPrLoading: boolean;
   aiBranchSuggestions: string[];
   isBranchRecommendationLoading: boolean;
@@ -320,7 +321,7 @@ export const useGitCatStore = create<GitCatState>((set) => ({
         break;
 
       case 'PR_SUGGESTION':
-        set({ prSuggestion: payload.markdown, isPrLoading: false });
+        set({ prSuggestion: payload, isPrLoading: false });
         break;
 
       case 'PR_CREATED':

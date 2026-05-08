@@ -47,6 +47,7 @@ export class RecommendationTruncationStrategy implements ITruncationStrategy<Rec
   }
 
   private stage1_truncateDiffSummary(payload: RecommendationInput): RecommendationInput {
+    if (payload.recommendation_type === 'branch_name') return payload;
     if (!payload.diff_summary || payload.diff_summary.length <= STAGE1_MAX_DIFF_LENGTH) {
       return payload;
     }
@@ -62,6 +63,7 @@ export class RecommendationTruncationStrategy implements ITruncationStrategy<Rec
   }
 
   private stage2_capChangedFiles(payload: RecommendationInput): RecommendationInput {
+    if (payload.recommendation_type === 'branch_name') return payload;
     if (payload.changed_files.length <= STAGE2_MAX_FILES) return payload;
     console.warn(
       `[RecommendationTruncationStrategy] changed_files ${payload.changed_files.length}개 → ${STAGE2_MAX_FILES}개로 제한`
@@ -77,6 +79,14 @@ export class RecommendationTruncationStrategy implements ITruncationStrategy<Rec
     const warning =
       ` [주의: 토큰 예산 초과로 코드 컨텍스트 일부가 생략됨` +
       ` (원본 ${originalTokens}tok → 절단 후 ${finalTokens}tok)]`;
+    
+    if (payload.recommendation_type === 'branch_name') {
+      return {
+        ...payload,
+        work_intent: payload.work_intent + warning,
+      };
+    }
+
     return {
       ...payload,
       change_summary: payload.change_summary + warning,

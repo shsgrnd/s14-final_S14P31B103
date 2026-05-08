@@ -74,14 +74,14 @@ export class MergeAiService {
     if (optimizedPayload.feature_type === 'recommendation') {
       parsedResult = this.recommendationParser.parse(
         rawResponse,
-        optimizedPayload.session_id,
+        optimizedPayload.session_id ?? '',
         (optimizedPayload as RecommendationInput).recommendation_type,
       );
     } else {
       parsedResult = await this.parser.parse(
         rawResponse,
         optimizedPayload.feature_type,
-        optimizedPayload.session_id,
+        optimizedPayload.session_id ?? '',
         { workspaceRoot: options.workspaceRoot },
       );
     }

@@ -12,6 +12,7 @@ import { RecommendationHistoryQueryService } from './RecommendationHistoryQueryS
 import type { PrRecommendationRawDataDto, PrRecommendationResultDto } from './PrRecommendationDto';
 
 interface PrRecommendationAiResponse {
+  title: string;
   markdown: string;
   generationBasisSummary: string | null;
   alternativeTexts: string[];
@@ -93,6 +94,7 @@ export class PrRecommendationService {
     await this.saveHistory(payload, aiResponse);
 
     return {
+      title: aiResponse.title,
       markdown: aiResponse.markdown,
     };
   }
@@ -170,6 +172,7 @@ export class PrRecommendationService {
     }
 
     return {
+      title: parsedResult.title,
       markdown: parsedResult.primary_text,
       generationBasisSummary: parsedResult.generation_basis_summary ?? null,
       alternativeTexts: parsedResult.alternative_texts,

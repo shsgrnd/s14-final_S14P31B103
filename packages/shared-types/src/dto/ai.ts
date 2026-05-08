@@ -133,24 +133,53 @@ export const MergeProposalInputSchema = z.object({
 });
 export type MergeProposalInput = z.infer<typeof MergeProposalInputSchema>;
 
-// 추천 기능 payload
-export const RecommendationInputSchema = z.object({
+// 공통 추천 베이스
+export const RecommendationBaseSchema = z.object({
   project_id: z.string(),
-  session_id: z.string(),
+  session_id: z.string().nullable(),
   feature_type: z.literal('recommendation'),
-  recommendation_type: RecommendationTypeEnum,
   current_branch: z.string(),
   workspace_summary: z.string().optional(),
-  change_summary: z.string(),
-  changed_files: z.array(z.string()),
   work_intent: z.string(),
-  diff_summary: z.string().optional(),
-  branch_context: z.string().optional(),
   ticket_ref: z.string().optional(),
-  naming_constraints: z.array(z.string()).optional(),
-  message_constraints: z.array(z.string()).optional(),
   schema_version: z.string(),
 });
+
+// 브랜치 추천 payload
+export const BranchRecommendationInputSchema = RecommendationBaseSchema.extend({
+  recommendation_type: z.literal('branch_name'),
+  branch_context: z.string().optional(),
+  naming_constraints: z.array(z.string()).optional(),
+});
+export type BranchRecommendationInput = z.infer<typeof BranchRecommendationInputSchema>;
+
+// 커밋 추천 payload
+export const CommitRecommendationInputSchema = RecommendationBaseSchema.extend({
+  recommendation_type: z.literal('commit_message'),
+  change_summary: z.string(),
+  changed_files: z.array(z.string()),
+  diff_summary: z.string().optional(),
+  branch_context: z.string().optional(),
+  message_constraints: z.array(z.string()).optional(),
+});
+export type CommitRecommendationInput = z.infer<typeof CommitRecommendationInputSchema>;
+
+// PR 추천 payload
+export const PrRecommendationInputSchema = RecommendationBaseSchema.extend({
+  recommendation_type: z.literal('pr_description'),
+  change_summary: z.string(),
+  changed_files: z.array(z.string()),
+  diff_summary: z.string().optional(),
+  branch_context: z.string(),
+});
+export type PrRecommendationInput = z.infer<typeof PrRecommendationInputSchema>;
+
+// 추천 기능 payload (통합)
+export const RecommendationInputSchema = z.discriminatedUnion('recommendation_type', [
+  BranchRecommendationInputSchema,
+  CommitRecommendationInputSchema,
+  PrRecommendationInputSchema,
+]);
 export type RecommendationInput = z.infer<typeof RecommendationInputSchema>;
 
 // ==========================================
@@ -260,6 +289,7 @@ export const CommitSuggestionSchema = z.object({
 export type CommitSuggestion = z.infer<typeof CommitSuggestionSchema>;
 
 export const PRSuggestionSchema = z.object({
+  title: z.string(),
   markdown: z.string(),
 });
 export type PRSuggestion = z.infer<typeof PRSuggestionSchema>;
