@@ -129,18 +129,26 @@ export class BranchCleanupService {
     const failedBranches: string[] = [];
     const skippedBranches: string[] = [];
 
-    // 안전 삭제 로직: 보호 브랜치, 현재 브랜치 필터링
+    // 안전 삭제 로직: 현재/보호 브랜치는 항상 차단
     const candidatesResult = await this.getCandidates();
-    const deletableMap = new Map(
-      candidatesResult.candidates
-        .filter((c: BranchCleanupCandidate) => c.shouldDelete)
-        .map((c: BranchCleanupCandidate) => [c.branchName, c])
+    const candidateMap = new Map(
+      candidatesResult.candidates.map((c: BranchCleanupCandidate) => [c.branchName, c])
     );
 
     for (const name of branchNames) {
-      const candidate = deletableMap.get(name);
+      const candidate = candidateMap.get(name);
       if (!candidate) {
-        skippedBranches.push(name);
+        skippedBranches.push(`${name} (Branch not found in current local candidates)`);
+        continue;
+      }
+
+      if (candidate.isCurrent) {
+        skippedBranches.push(`${name} (Current branch)`);
+        continue;
+      }
+
+      if (candidate.isProtected) {
+        skippedBranches.push(`${name} (Protected branch)`);
         continue;
       }
 

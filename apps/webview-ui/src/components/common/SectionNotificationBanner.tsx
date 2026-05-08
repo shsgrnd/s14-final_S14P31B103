@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { AlertCircle, Info, X } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Info, X } from 'lucide-react';
 import type { GlobalNotification } from '../../store/useGitCatStore';
 
 interface SectionNotificationBannerProps {
@@ -21,6 +21,30 @@ export const SectionNotificationBanner: React.FC<SectionNotificationBannerProps>
 
   if (!notification) return null;
 
+  const green = 'var(--vscode-charts-green)';
+  const border =
+    notification.type === 'error'
+      ? 'var(--vscode-inputValidation-errorBorder)'
+      : notification.type === 'warning'
+        ? 'var(--vscode-inputValidation-warningBorder)'
+        : notification.type === 'success'
+          ? green
+          : 'var(--vscode-focusBorder)';
+  const background =
+    notification.type === 'error'
+      ? 'var(--vscode-inputValidation-errorBackground)'
+      : notification.type === 'warning'
+        ? 'var(--vscode-inputValidation-warningBackground)'
+        : notification.type === 'success'
+          ? 'rgba(78, 201, 176, 0.1)'
+          : 'var(--vscode-inputValidation-infoBackground)';
+  const color =
+    notification.type === 'error'
+      ? 'var(--vscode-errorForeground)'
+      : notification.type === 'success'
+        ? green
+        : 'var(--vscode-foreground)';
+
   return (
     <div
       style={{
@@ -31,26 +55,15 @@ export const SectionNotificationBanner: React.FC<SectionNotificationBannerProps>
         alignItems: 'flex-start',
         gap: '8px',
         borderRadius: '3px',
-        border: `1px solid ${notification.type === 'error'
-          ? 'var(--vscode-inputValidation-errorBorder)'
-          : notification.type === 'warning'
-            ? 'var(--vscode-inputValidation-warningBorder)'
-            : 'var(--vscode-focusBorder)'
-          }`,
-        background: `${notification.type === 'error'
-          ? 'var(--vscode-inputValidation-errorBackground)'
-          : notification.type === 'warning'
-            ? 'var(--vscode-inputValidation-warningBackground)'
-            : 'var(--vscode-inputValidation-infoBackground)'
-          }`,
-        color: `${notification.type === 'error'
-          ? 'var(--vscode-errorForeground)'
-          : 'var(--vscode-foreground)'
-          }`,
+        border: `1px solid ${border}`,
+        background,
+        color,
       }}
     >
       {notification.type === 'error' ? (
         <AlertCircle size={13} style={{ flexShrink: 0, marginTop: '1px' }} />
+      ) : notification.type === 'success' ? (
+        <CheckCircle2 size={13} style={{ flexShrink: 0, marginTop: '1px', color: green }} />
       ) : (
         <Info size={13} style={{ flexShrink: 0, marginTop: '1px' }} />
       )}

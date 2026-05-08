@@ -2,7 +2,7 @@ import React, { useRef, useState, useCallback } from 'react';
 import { Trash2, Clock, Sparkles, GitBranch, AlertTriangle, Settings, ArrowLeft, Plus, X, ShieldCheck, Lock, Sliders, ChevronRight } from 'lucide-react';
 import { useGitCatStore } from '../../store/useGitCatStore';
 import { useVsCodeApi } from '../../hooks/useVsCodeApi';
-import { BranchCleanupSettings } from '@gitcat/shared-types';
+import { BranchCleanupSettings, BranchCleanupCandidate } from '@gitcat/shared-types';
 import { SectionNotificationBanner } from '../common/SectionNotificationBanner';
 
 type BranchStatus = 'active' | 'merged' | 'stale' | 'protected';
@@ -41,16 +41,17 @@ const DEFAULT_CLEANUP_SETTINGS: BranchCleanupSettings = {
 };
 
 export const BranchCleanupPanel: React.FC = () => {
-  const { branches: allBranches, currentBranch, cleanupSettings, sectionNotifications, clearSectionNotification } = useGitCatStore();
+  const {
+    branches: allBranches,
+    currentBranch,
+    cleanupSettings,
+    cleanupPreview,
+    cleanupExecuteResult,
+    sectionNotifications,
+    clearSectionNotification,
+  } = useGitCatStore();
   const { sendMessage } = useVsCodeApi();
   const dismissCleanupNotification = useCallback(() => clearSectionNotification('branchCleanup'), [clearSectionNotification]);
-
-  // origin 및 원격 관련 브랜치 제외 (메인 브랜치 목록과 통일)
-  const branches = allBranches.filter(b => 
-    !b.name.includes('origin/') && 
-    b.name !== 'origin' && 
-    !b.name.startsWith('remotes/')
-  );
 
   const isGitConnected = currentBranch !== '';
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -62,21 +63,30 @@ export const BranchCleanupPanel: React.FC = () => {
   // “추천 자동 선택”은 최초 1회만(사용자 조작 후에는 절대 강제 선택하지 않음)
   const autoSelectArmedRef = useRef(true);
 
-  const protectedBranchSet = new Set(cleanupSettings?.protectedBranches ?? []);
   const normalizedCurrentBranch = normalizeBranchName(currentBranch);
-  const effectiveBranches = branches.map((branch) => {
-    const isCurrent = normalizeBranchName(branch.name) === normalizedCurrentBranch;
-    const baseStatus = (branch.status || 'active') as BranchStatus;
-    if (isCurrent) return { ...branch, effectiveStatus: 'active' as BranchStatus };
-    if (baseStatus === 'protected' || protectedBranchSet.has(branch.name)) return { ...branch, effectiveStatus: 'protected' as BranchStatus };
-    return { ...branch, effectiveStatus: baseStatus };
-  });
+
+  const effectiveStatusFromCandidate = (c: BranchCleanupCandidate): BranchStatus => {
+    if (c.isCurrent) return 'active';
+    if (c.isProtected) return 'protected';
+    if (c.isMerged) return 'merged';
+    return 'stale';
+  };
+
+  const effectiveBranches = (cleanupPreview?.candidates ?? []).map((c) => ({
+    name: c.branchName,
+    lastActivity: c.lastCommitDate,
+    effectiveStatus: effectiveStatusFromCandidate(c),
+    shouldDelete: c.shouldDelete,
+  }));
 
   const deletableBranches = effectiveBranches.filter((b) =>
-    b.effectiveStatus === 'stale' || (b.effectiveStatus === 'merged' && (cleanupSettings?.deleteMergedBranches ?? true))
+    b.shouldDelete
   );
-  const selectedDeletableCount = deletableBranches.filter(b => selected.has(b.name)).length;
-  const allSelected = deletableBranches.length > 0 && deletableBranches.every(b => selected.has(b.name));
+  const manualSelectableBranches = effectiveBranches.filter((b) =>
+    b.effectiveStatus !== 'active' && b.effectiveStatus !== 'protected'
+  );
+  const selectedManualCount = manualSelectableBranches.filter(b => selected.has(b.name)).length;
+  const allSelected = manualSelectableBranches.length > 0 && manualSelectableBranches.every(b => selected.has(b.name));
 
   // [Dry-run] 브랜치 목록이나 설정이 변경되면 삭제 권장 브랜치 자동 선택
   React.useEffect(() => {
@@ -117,12 +127,31 @@ export const BranchCleanupPanel: React.FC = () => {
     };
   }, []);
 
-  // 컴포넌트 마운트 시 설정 불러오기
+  // 컴포넌트 마운트/연결 시 설정과 후보를 함께 불러오기
   React.useEffect(() => {
     if (isGitConnected) {
       sendMessage('GET_BRANCH_CLEANUP_SETTINGS', {});
+      sendMessage('GET_BRANCH_CLEANUP_CANDIDATES', {});
     }
   }, [isGitConnected, sendMessage]);
+
+  // 브랜치 목록이 갱신되면 후보도 재계산 요청 (삭제/체크아웃 후 최신화)
+  React.useEffect(() => {
+    if (!isGitConnected) return;
+    sendMessage('GET_BRANCH_CLEANUP_CANDIDATES', {});
+  }, [isGitConnected, allBranches, sendMessage]);
+
+  // 설정이 바뀌면 후보도 재조회
+  React.useEffect(() => {
+    if (!isGitConnected || !cleanupSettings) return;
+    sendMessage('GET_BRANCH_CLEANUP_CANDIDATES', {});
+  }, [isGitConnected, cleanupSettings, sendMessage]);
+
+  // 실행 결과 수신 후 후보를 한 번 더 동기화
+  React.useEffect(() => {
+    if (!isGitConnected || !cleanupExecuteResult) return;
+    sendMessage('GET_BRANCH_CLEANUP_CANDIDATES', {});
+  }, [isGitConnected, cleanupExecuteResult, sendMessage]);
 
   const showWarning = (msg: string) => {
     setWarningMsg(msg);
@@ -130,15 +159,15 @@ export const BranchCleanupPanel: React.FC = () => {
   };
 
   const toggleAll = () => {
-    if (deletableBranches.length === 0) return;
+    if (manualSelectableBranches.length === 0) return;
     autoSelectArmedRef.current = false;
     if (allSelected) {
       const next = new Set(selected);
-      deletableBranches.forEach(b => next.delete(b.name));
+      manualSelectableBranches.forEach(b => next.delete(b.name));
       setSelected(next);
     } else {
       const next = new Set(selected);
-      deletableBranches.forEach(b => next.add(b.name));
+      manualSelectableBranches.forEach(b => next.add(b.name));
       setSelected(next);
     }
   };
@@ -168,9 +197,7 @@ export const BranchCleanupPanel: React.FC = () => {
 
   const confirmDelete = () => {
     autoSelectArmedRef.current = false;
-    const selectedBranches = effectiveBranches.filter((branch) => selected.has(branch.name));
-    const force = selectedBranches.some((branch) => branch.effectiveStatus === 'stale');
-    sendMessage('DELETE_BRANCHES', { names: Array.from(selected), force });
+    sendMessage('EXECUTE_BRANCH_CLEANUP', { branchNames: Array.from(selected) });
     setSelected(new Set());
     setShowConfirmModal(false);
   };
@@ -467,8 +494,8 @@ export const BranchCleanupPanel: React.FC = () => {
                 <div
                   style={{
                     display: 'flex', alignItems: 'center', gap: '12px',
-                    padding: '8px 16px', cursor: deletableBranches.length > 0 ? 'pointer' : 'not-allowed',
-                    opacity: deletableBranches.length > 0 ? 1 : 0.6,
+                    padding: '8px 16px', cursor: manualSelectableBranches.length > 0 ? 'pointer' : 'not-allowed',
+                    opacity: manualSelectableBranches.length > 0 ? 1 : 0.6,
                     marginBottom: '4px'
                   }}
                   onClick={toggleAll}
@@ -483,7 +510,7 @@ export const BranchCleanupPanel: React.FC = () => {
                     {allSelected && <ShieldCheck size={12} color="#fff" />}
                   </div>
                   <span style={{ fontSize: '12px', color: 'var(--vscode-foreground)', fontWeight: 600 }}>
-                    정리 가능 브랜치 ({selectedDeletableCount}/{deletableBranches.length})
+                    선택 가능 브랜치 ({selectedManualCount}/{manualSelectableBranches.length})
                   </span>
                 </div>
 
@@ -539,6 +566,20 @@ export const BranchCleanupPanel: React.FC = () => {
                         }}>
                           {STATUS_LABEL[status]}
                         </span>
+                        {branch.shouldDelete && (
+                          <span style={{
+                            fontSize: '10px',
+                            fontWeight: 700,
+                            padding: '3px 8px',
+                            borderRadius: '4px',
+                            flexShrink: 0,
+                            color: '#4ec9b0',
+                            background: 'rgba(78, 201, 176, 0.12)',
+                            border: '1px solid rgba(78, 201, 176, 0.35)',
+                          }}>
+                            자동 추천
+                          </span>
+                        )}
                       </div>
                     );
                   })}
