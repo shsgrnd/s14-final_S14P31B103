@@ -4,8 +4,24 @@ import { useGitCatStore } from '../../store/useGitCatStore';
 import { useVsCodeApi } from '../../hooks/useVsCodeApi';
 import { resolvePullRequestBaseBranch } from '../../features/pull-request/resolvePullRequestBaseBranch';
 
+function inferTitleFromMarkdown(markdown: string): string {
+  const firstLine = markdown.split(/\r?\n/).map((line) => line.trim()).find(Boolean) ?? '';
+  const normalized = firstLine.replace(/^#+\s*/, '');
+  return normalized.slice(0, 120) || 'AI 추천 PR 제목';
+}
+
 export const PrPanelLayout: React.FC = () => {
-  const { prSuggestion, isPrLoading, clearPrSuggestion, branches, currentBranch } = useGitCatStore();
+  const {
+    prSuggestion,
+    isPrLoading,
+    isCreatingPr,
+    clearPrSuggestion,
+    branches,
+    currentBranch,
+    beginRecommendationRequest,
+    prRecommendationError,
+    clearPrRecommendationError,
+  } = useGitCatStore();
   const { sendMessage } = useVsCodeApi();
 
   const [prTitle, setPrTitle] = useState('');
@@ -26,20 +42,19 @@ export const PrPanelLayout: React.FC = () => {
 
   useEffect(() => {
     if (hasRequestedInitialRecommendation || !baseBranch || !currentBranch) return;
+    beginRecommendationRequest('pr');
     sendMessage('RECOMMEND_PR', { base: baseBranch });
     setHasRequestedInitialRecommendation(true);
-  }, [baseBranch, currentBranch, hasRequestedInitialRecommendation, sendMessage]);
+  }, [baseBranch, currentBranch, hasRequestedInitialRecommendation, sendMessage, beginRecommendationRequest]);
 
-  // AI 추천 결과 수신 시 폼 자동 입력
+  // AI 추천 결과 수신 시 폼 자동 입력 (항상 최신 추천으로 덮어씀)
   useEffect(() => {
     if (prSuggestion) {
-      setPrDescription(prev => prev ? `${prev}\n\n${prSuggestion.markdown}` : prSuggestion.markdown);
-      if (!prTitle) {
-        setPrTitle(prSuggestion.title);
-      }
+      setPrTitle(prSuggestion.title?.trim() ? prSuggestion.title : inferTitleFromMarkdown(prSuggestion.markdown));
+      setPrDescription(prSuggestion.markdown);
       clearPrSuggestion();
     }
-  }, [prSuggestion, prTitle, clearPrSuggestion]);
+  }, [prSuggestion, clearPrSuggestion]);
 
   const handleSubmit = () => {
     if (!canCreatePr) return;
@@ -62,9 +77,25 @@ export const PrPanelLayout: React.FC = () => {
         <h1 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>Create Pull Request</h1>
 
         <div style={{ flex: 1 }} />
+        {prRecommendationError && (
+          <div style={{
+            marginRight: '12px',
+            maxWidth: '320px',
+            fontSize: '11px',
+            color: 'var(--vscode-errorForeground)',
+            lineHeight: 1.4,
+            textAlign: 'right',
+          }}>
+            {prRecommendationError}
+          </div>
+        )}
 
         <button
-          onClick={() => sendMessage('RECOMMEND_PR', { base: baseBranch })}
+          onClick={() => {
+            clearPrRecommendationError();
+            beginRecommendationRequest('pr');
+            sendMessage('RECOMMEND_PR', { base: baseBranch });
+          }}
           disabled={isPrLoading || !baseBranch}
           style={{
             display: 'flex', alignItems: 'center', gap: '6px',
@@ -94,7 +125,7 @@ export const PrPanelLayout: React.FC = () => {
           >
             <option value="" disabled>타겟 브랜치를 선택하세요</option>
             {branches
-              .filter(b => b.name !== currentBranch)
+              .filter(b => !b.isRemote && b.name !== currentBranch)
               .map(b => (
                 <option key={b.name} value={b.name}>{b.name}</option>
               ))}
@@ -136,17 +167,26 @@ export const PrPanelLayout: React.FC = () => {
         <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '10px' }}>
           <button
             onClick={handleSubmit}
-            disabled={!canCreatePr}
+            disabled={!canCreatePr || isCreatingPr}
             style={{
               display: 'flex', alignItems: 'center', gap: '6px',
               background: 'var(--vscode-button-background)', color: 'var(--vscode-button-foreground)',
               border: 'none', padding: '8px 16px', borderRadius: '4px',
-              cursor: !canCreatePr ? 'not-allowed' : 'pointer',
-              opacity: !canCreatePr ? 0.5 : 1,
+              cursor: (!canCreatePr || isCreatingPr) ? 'not-allowed' : 'pointer',
+              opacity: (!canCreatePr || isCreatingPr) ? 0.5 : 1,
               fontWeight: 500, fontSize: '13px'
             }}
           >
-            <Check size={16} /> Create Pull Request
+            {isCreatingPr ? (
+              <>
+                <RefreshCw size={16} style={{ animation: 'gitcat-refresh-spin 1s linear infinite' }} />
+                Creating...
+              </>
+            ) : (
+              <>
+                <Check size={16} /> Create Pull Request
+              </>
+            )}
           </button>
         </div>
       </div>

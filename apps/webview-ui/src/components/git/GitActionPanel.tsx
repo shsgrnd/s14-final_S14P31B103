@@ -40,16 +40,24 @@ export const GitActionPanel: React.FC = () => {
     isPushing,
     isMerging,
     lastStatusRefreshAt,
+    stagedCount,
     mergeResult,
     clearMergeResult,
-    prSuggestion,
-    isPrLoading,
-    clearPrSuggestion,
     aiBranchSuggestions,
     isBranchRecommendationLoading,
+    isCommitRecommendationLoading,
+    aiCommitSuggestion,
+    aiCommitAlternatives,
+    aiCommitSuggestedBranchNames,
+    commitSuggestionNonce,
+    branchRecommendationError,
+    commitRecommendationError,
     clearBranchSuggestions,
     clearGitPanelOperationLoading,
     postGitSectionBanner,
+    beginRecommendationRequest,
+    clearBranchRecommendationError,
+    clearCommitRecommendationError,
   } = useGitCatStore();
   const dismissGitNotification = useCallback(() => clearSectionNotification('git'), [clearSectionNotification]);
   const { sendMessage } = useVsCodeApi();
@@ -75,6 +83,7 @@ export const GitActionPanel: React.FC = () => {
   /** Merge 실행 후 로딩 사이클이 끝나면 폼 닫기 */
   const mergePendingCloseRef = useRef(false);
   const mergeSawLoadingRef = useRef(false);
+  const latestCommitSuggestionNonceRef = useRef(0);
 
   const pendingGitOpRef = useRef<GitPanelPendingOperation | null>(null);
   const gitPanelBusyRef = useRef(false);
@@ -127,12 +136,14 @@ export const GitActionPanel: React.FC = () => {
   const closeBranchForm = () => {
     setShowNewBranch(false);
     setNewBranchName('');
+    clearBranchRecommendationError();
     closeAIPrompt();
   };
 
   const closeCommitForm = () => {
     setShowCommitForm(false);
     setCommitMessage('');
+    clearCommitRecommendationError();
     closeAIPrompt();
   };
 
@@ -177,22 +188,13 @@ export const GitActionPanel: React.FC = () => {
   }, [sectionNotifications.git, clearGitPanelOperationLoading, unlockGitPanel]);
 
   useEffect(() => {
-    if (!showNewBranch || showCommitForm) return;
-    if (aiBranchSuggestions.length === 0) return;
-    const suggested = aiBranchSuggestions[0]?.trim();
-    if (suggested && !newBranchName.trim()) {
-      setNewBranchName(suggested);
-      postGitSectionBanner({ type: 'success', message: `AI 추천 브랜치명: ${suggested}` });
+    if (!showCommitForm) return;
+    if (commitSuggestionNonce === latestCommitSuggestionNonceRef.current) return;
+    latestCommitSuggestionNonceRef.current = commitSuggestionNonce;
+    if (aiCommitSuggestion.trim()) {
+      setCommitMessage(aiCommitSuggestion);
     }
-    clearBranchSuggestions();
-  }, [
-    aiBranchSuggestions,
-    showNewBranch,
-    showCommitForm,
-    newBranchName,
-    clearBranchSuggestions,
-    postGitSectionBanner,
-  ]);
+  }, [showCommitForm, commitSuggestionNonce, aiCommitSuggestion]);
 
   const handleGitAdd = () => {
     lockGitPanel('add');
@@ -202,6 +204,10 @@ export const GitActionPanel: React.FC = () => {
   const handleCommit = () => {
     if (showCommitForm) {
       if (!commitMessage.trim()) return;
+      if (stagedCount === 0) {
+        postGitSectionBanner({ type: 'warning', message: '먼저 변경 파일을 stage 한 뒤 커밋할 수 있습니다.' });
+        return;
+      }
       lockGitPanel('commit');
       sendMessage('EXECUTE_COMMIT', { message: commitMessage });
       closeCommitForm();
@@ -254,6 +260,21 @@ export const GitActionPanel: React.FC = () => {
     closeBranchForm();
   };
 
+  const applyBranchCandidate = (name: string) => {
+    const value = name.trim();
+    if (!value) return;
+    setNewBranchName(value);
+  };
+
+  useEffect(() => {
+    if (!showNewBranch || showCommitForm) return;
+    if (aiBranchSuggestions.length === 0) return;
+    if (newBranchName.trim()) return;
+    const first = (aiBranchSuggestions[0] ?? '').trim();
+    if (!first) return;
+    setNewBranchName(first);
+  }, [aiBranchSuggestions, showNewBranch, showCommitForm, newBranchName]);
+
   const selectableBranches = branches.filter((branch) => branch.name !== currentBranch && !branch.isRemote);
   const displayWorktrees = worktrees;
 
@@ -270,9 +291,11 @@ export const GitActionPanel: React.FC = () => {
 
     if (showCommitForm) {
       // RECOMMEND_COMMIT 스키마: { diffText: string, tag?: string }
+      beginRecommendationRequest('commit');
       sendMessage('RECOMMEND_COMMIT', { diffText: prompt });
     } else {
       // RECOMMEND_BRANCH 스키마: { purpose: string }
+      beginRecommendationRequest('branch');
       sendMessage('RECOMMEND_BRANCH', { purpose: prompt });
     }
 
@@ -284,6 +307,8 @@ export const GitActionPanel: React.FC = () => {
     : '어떤 기능을 구현하실 예정인가요? branch에 넣을 내용을 정리해서 입력해주세요.';
 
   const isGitConnected = currentBranch !== '';
+  const isRecommendationLoading =
+    showCommitForm ? isCommitRecommendationLoading : isBranchRecommendationLoading;
 
   return (
     <div className="animate-fade-in" style={{ padding: '8px 4px' }}>
@@ -526,12 +551,40 @@ export const GitActionPanel: React.FC = () => {
             }}>
               <span>Create New Branch</span>
               <button
-                onClick={() => setShowBranchAI(true)}
-                style={{ ...inlineBtn, color: 'var(--vscode-button-foreground)', background: 'var(--vscode-button-background)' }}
+                onClick={() => {
+                  clearBranchRecommendationError();
+                  setShowBranchAI(true);
+                }}
+                disabled={isBranchRecommendationLoading}
+                style={{
+                  ...inlineBtn,
+                  color: 'var(--vscode-button-foreground)',
+                  background: 'var(--vscode-button-background)',
+                  opacity: isBranchRecommendationLoading ? 0.7 : 1,
+                  cursor: isBranchRecommendationLoading ? 'not-allowed' : 'pointer',
+                }}
               >
-                <Sparkles size={11} /> AI 추천
+                {isBranchRecommendationLoading ? (
+                  <>
+                    <RotateCw size={11} style={{ animation: 'gitcat-refresh-spin 0.9s linear infinite' }} /> 추천 중...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={11} /> AI 추천
+                  </>
+                )}
               </button>
             </div>
+            {branchRecommendationError && (
+              <div style={{
+                marginBottom: '8px',
+                color: 'var(--vscode-errorForeground)',
+                fontSize: '11px',
+                lineHeight: 1.4,
+              }}>
+                {branchRecommendationError}
+              </div>
+            )}
             <input
               autoFocus
               value={newBranchName}
@@ -544,10 +597,64 @@ export const GitActionPanel: React.FC = () => {
                 fontSize: '12px', padding: '6px 8px',
                 background: 'var(--vscode-input-background)',
                 color: 'var(--vscode-input-foreground)',
-                border: '1px solid var(--vscode-focusBorder)',
+                border: '1px solid var(--vscode-panel-border)',
                 borderRadius: '3px', outline: 'none',
               }}
+              onFocus={e => (e.target.style.borderColor = 'var(--vscode-focusBorder)')}
+              onBlur={e => (e.target.style.borderColor = 'var(--vscode-panel-border)')}
             />
+            {aiBranchSuggestions.length > 0 && (
+              <div style={{ marginTop: '8px' }}>
+                <div style={{
+                  fontSize: '10px',
+                  fontWeight: 600,
+                  color: 'var(--vscode-descriptionForeground)',
+                  marginBottom: '6px',
+                }}>
+                  추천 브랜치명 예시
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {aiBranchSuggestions.slice(1, 3).map((name, index) => (
+                    <button
+                      key={`${index}-${name}`}
+                      type="button"
+                      onClick={() => applyBranchCandidate(name)}
+                      title={name}
+                      style={{
+                        fontSize: '11px',
+                        padding: '8px 10px',
+                        borderRadius: '6px',
+                        border: '1px solid var(--vscode-focusBorder)',
+                        background: 'var(--vscode-editor-background)',
+                        color: 'var(--vscode-foreground)',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        whiteSpace: 'nowrap',
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                      }}
+                    >
+                      {name}
+                    </button>
+                  ))}
+                </div>
+                <button
+                  type="button"
+                  onClick={clearBranchSuggestions}
+                  style={{
+                    marginTop: '6px',
+                    border: 'none',
+                    background: 'none',
+                    color: 'var(--vscode-textLink-foreground)',
+                    fontSize: '10px',
+                    padding: 0,
+                    cursor: 'pointer',
+                  }}
+                >
+                  후보 목록 닫기
+                </button>
+              </div>
+            )}
           </div>
         )
       }
@@ -577,12 +684,40 @@ export const GitActionPanel: React.FC = () => {
             }}>
               <span>Create Commit message</span>
               <button
-                onClick={() => setShowBranchAI(true)}
-                style={{ ...inlineBtn, color: 'var(--vscode-button-foreground)', background: 'var(--vscode-button-background)' }}
+                onClick={() => {
+                  clearCommitRecommendationError();
+                  setShowBranchAI(true);
+                }}
+                disabled={isCommitRecommendationLoading}
+                style={{
+                  ...inlineBtn,
+                  color: 'var(--vscode-button-foreground)',
+                  background: 'var(--vscode-button-background)',
+                  opacity: isCommitRecommendationLoading ? 0.7 : 1,
+                  cursor: isCommitRecommendationLoading ? 'not-allowed' : 'pointer',
+                }}
               >
-                <Sparkles size={11} /> AI 추천
+                {isCommitRecommendationLoading ? (
+                  <>
+                    <RotateCw size={11} style={{ animation: 'gitcat-refresh-spin 0.9s linear infinite' }} /> 추천 중...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={11} /> AI 추천
+                  </>
+                )}
               </button>
             </div>
+            {commitRecommendationError && (
+              <div style={{
+                marginBottom: '8px',
+                color: 'var(--vscode-errorForeground)',
+                fontSize: '11px',
+                lineHeight: 1.4,
+              }}>
+                {commitRecommendationError}
+              </div>
+            )}
             <textarea
               autoFocus
               value={commitMessage}
@@ -599,14 +734,67 @@ export const GitActionPanel: React.FC = () => {
               onFocus={e => (e.target.style.borderColor = 'var(--vscode-focusBorder)')}
               onBlur={e => (e.target.style.borderColor = 'var(--vscode-panel-border)')}
             />
+            {stagedCount === 0 && (
+              <div style={{
+                marginTop: '8px',
+                fontSize: '11px',
+                color: 'var(--vscode-descriptionForeground)',
+                lineHeight: 1.4,
+                opacity: 0.9,
+              }}>
+                커밋을 만들려면 먼저 변경 파일을 stage 해주세요. (Git Add)
+              </div>
+            )}
+            {(aiCommitAlternatives.length > 0 || aiCommitSuggestedBranchNames.length > 0) && (
+              <div style={{ marginTop: '8px' }}>
+                {aiCommitAlternatives.length > 0 && (
+                  <>
+                    <div style={{
+                      fontSize: '10px',
+                      fontWeight: 600,
+                      color: 'var(--vscode-descriptionForeground)',
+                      marginBottom: '6px',
+                    }}>
+                      대체 커밋 메시지
+                    </div>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
+                      {aiCommitAlternatives.map((msg, index) => (
+                        <button
+                          key={`${index}-${msg.slice(0, 20)}`}
+                          type="button"
+                          onClick={() => setCommitMessage(msg)}
+                          title={msg}
+                          style={{
+                            fontSize: '11px',
+                            padding: '4px 8px',
+                            borderRadius: '4px',
+                            border: '1px solid var(--vscode-focusBorder)',
+                            background: 'var(--vscode-editor-background)',
+                            color: 'var(--vscode-foreground)',
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {msg.length > 48 ? `${msg.slice(0, 48)}...` : msg}
+                        </button>
+                      ))}
+                    </div>
+                  </>
+                )}
+                {aiCommitSuggestedBranchNames.length > 0 && (
+                  <div style={{ fontSize: '10px', color: 'var(--vscode-descriptionForeground)' }}>
+                    참고 브랜치명: {aiCommitSuggestedBranchNames.join(', ')}
+                  </div>
+                )}
+              </div>
+            )}
             <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
               <button
                 onClick={handleCommit}
-                disabled={isCommitting || !commitMessage.trim() || gitPanelBusy}
+                disabled={isCommitting || !commitMessage.trim() || gitPanelBusy || stagedCount === 0}
                 style={{
                   ...btn('primary'),
-                  opacity: isCommitting || !commitMessage.trim() || gitPanelBusy ? 0.55 : 1,
-                  cursor: isCommitting || !commitMessage.trim() || gitPanelBusy ? 'not-allowed' : 'pointer',
+                  opacity: isCommitting || !commitMessage.trim() || gitPanelBusy || stagedCount === 0 ? 0.55 : 1,
+                  cursor: isCommitting || !commitMessage.trim() || gitPanelBusy || stagedCount === 0 ? 'not-allowed' : 'pointer',
                 }}
               >
                 {isCommitting ? (
@@ -969,7 +1157,7 @@ export const GitActionPanel: React.FC = () => {
             <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
               <button
                 onClick={handleAISubmit}
-                disabled={isBranchRecommendationLoading && !showCommitForm}
+                disabled={isRecommendationLoading}
                 style={{
                   display: 'flex',
                   alignItems: 'center',
@@ -983,11 +1171,19 @@ export const GitActionPanel: React.FC = () => {
                   color: '#fff',
                   border: 'none',
                   borderRadius: '3px',
-                  cursor: (isBranchRecommendationLoading && !showCommitForm) ? 'not-allowed' : 'pointer',
-                  opacity: (isBranchRecommendationLoading && !showCommitForm) ? 0.65 : 1,
+                  cursor: isRecommendationLoading ? 'not-allowed' : 'pointer',
+                  opacity: isRecommendationLoading ? 0.65 : 1,
                 }}
               >
-                <CornerDownRight size={13} /> {isBranchRecommendationLoading && !showCommitForm ? '추천 중...' : 'Enter'}
+                {isRecommendationLoading ? (
+                  <>
+                    <RotateCw size={13} style={{ animation: 'gitcat-refresh-spin 0.9s linear infinite' }} /> 추천 중...
+                  </>
+                ) : (
+                  <>
+                    <CornerDownRight size={13} /> Enter
+                  </>
+                )}
               </button>
               <button
                 onClick={closeAIPrompt}
