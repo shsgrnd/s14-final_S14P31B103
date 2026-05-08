@@ -23,8 +23,13 @@ export class RecommendationResultParser {
    * LLM 원시 응답 문자열에서 마크다운 코드블록을 제거하고 순수 JSON 문자열을 반환합니다.
    */
   private cleanResponse(raw: string): string {
-    const jsonMatch = raw.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-    const text = jsonMatch ? jsonMatch[1] : raw;
+    // 1. <think>...</think> 블록 제거
+    let text = raw.replace(/<think>[\s\S]*?<\/think>/g, '');
+
+    // 2. 마크다운 블록을 사용했을 경우 내부 텍스트 추출
+    const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    text = jsonMatch ? jsonMatch[1] : text;
+
     return text.trim();
   }
 
