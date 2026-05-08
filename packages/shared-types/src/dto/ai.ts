@@ -289,6 +289,7 @@ export const CommitSuggestionSchema = z.object({
 export type CommitSuggestion = z.infer<typeof CommitSuggestionSchema>;
 
 export const PRSuggestionSchema = z.object({
+  title: z.string(),
   markdown: z.string(),
 });
 export type PRSuggestion = z.infer<typeof PRSuggestionSchema>;

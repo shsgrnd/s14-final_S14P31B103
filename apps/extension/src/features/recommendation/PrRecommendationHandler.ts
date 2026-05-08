@@ -38,7 +38,7 @@ export class PrRecommendationHandler {
       const result = await this.prRecommendationService.recommendPR(parseResult.data.base);
       webview.postMessage({
         type: 'PR_SUGGESTION',
-        payload: { markdown: result.markdown },
+        payload: { title: result.title, markdown: result.markdown },
       } as OutboundMessage);
     } catch (error) {
       // AI 요청 실패 시 웹뷰로 서비스에서 발생한 에러 메시지 전송
