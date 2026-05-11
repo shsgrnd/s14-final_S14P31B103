@@ -159,7 +159,15 @@ export class GitCliClient implements IGitClient {
   }
 
   async getStagedDiff(): Promise<string> {
-    return this.git.raw(['-c', 'core.quotePath=false', 'diff', '--staged']);
+    return this.git.raw([
+      '-c',
+      'core.quotePath=false',
+      'diff',
+      '--staged',
+      '--patch',
+      '--no-ext-diff',
+      '--text',
+    ]);
   }
 
   async getDiff(base: string, branch: string): Promise<DiffResult[]> {
