@@ -11,9 +11,14 @@ export default defineConfig({
         // 일관된 파일 이름을 위해 해시 제거
         entryFileNames: `assets/[name].js`,
         chunkFileNames: `assets/[name].js`,
-        assetFileNames: `assets/[name].[ext]`
-      }
-    }
+        assetFileNames: `assets/[name].[ext]`,
+        manualChunks(id) {
+          if (id.includes('node_modules/react-dom') || id.includes('node_modules/react/')) {
+            return 'react-vendor';
+          }
+        },
+      },
+    },
   },
   define: {
     'process.env': {}
