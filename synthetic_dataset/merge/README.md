@@ -11,7 +11,8 @@
 구성 원칙:
 
 - 기존 legacy `case_*` 케이스를 모두 `merge/` 아래로 이동해 recommendation 도메인과 구조를 맞춤
-- 각 케이스는 `prompt.md + chosen.json` 한 쌍으로 유지
+- 각 케이스는 기본적으로 `prompt.md + chosen.json`을 유지
+- DPO용 학습 시에는 같은 폴더에 `rejected.json`을 추가로 둔다
 - 케이스 이름은 기존 식별자(`case_A_*`, `case_B_*`, `case_C_*`)를 그대로 보존
 
 예시 구조:

@@ -1,0 +1,13 @@
+{
+  "title": "근거가 약한 충돌 설명 - 추천 결과 사용자 액션 해석 차이 - 클립보드 복사 vs 직접 Git 적용",
+  "summary": "겉으로 드러난 차이만 설명하고 실제 충돌 원인과 영향 범위를 충분히 짚지 못한 설명입니다.",
+  "cause_summary": "정확한 원인 분해 없이 일반적인 충돌 설명만 반복합니다.",
+  "detailed_explanation": "직접 충돌 여부만 보고 판단해 간접 영향, 타입 계약, 후속 파일 반영 여부를 충분히 설명하지 못합니다.",
+  "related_files": [
+    "packages/extension/src/webview/RecommendPanel.ts",
+    "packages/ai-pipeline/src/recommendation/gitService.ts"
+  ],
+  "recommended_resolution_direction": "현재 브랜치 기준으로 우선 병합하고 나머지 세부 사항은 추후 수동 점검합니다.",
+  "risk_level": "low",
+  "explanation": "변경 의도와 연결 파일을 세밀하게 추적하지 않아 왜 충돌이 생겼는지, 어떤 해결이 더 안전한지에 대한 판단 근거가 부족합니다."
+}
