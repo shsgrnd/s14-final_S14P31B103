@@ -367,6 +367,26 @@ export class GitMessageHandler {
   private async handlePush(webview: vscode.Webview): Promise<void> {
     this.sendLoading(webview, 'push', true);
     try {
+      // Push 전 가드: Push할 커밋이 있는지 확인한다.
+      try {
+        const branches = await this.gitService.getBranches();
+        const currentBranch = branches.find((b) => b.isCurrent);
+
+        // 원격 트래킹 브랜치(upstream)가 설정되어 있을 때만 "Push할 커밋 유무"를 검증한다.
+        // 트래킹 브랜치가 없다면 신규 브랜치의 첫 푸시이므로 정상 진행시켜야 한다.
+        if (currentBranch && currentBranch.trackingBranch) {
+          const unpushed = await this.gitService.getUnpushedFiles();
+          if (unpushed.length === 0) {
+            const message = 'Push할 새로운 커밋이 없습니다. (이미 원격 저장소와 최신 상태입니다)';
+            this.sendOperationResult(webview, 'GIT_PUSH', { success: false, message });
+            this.sendNotification(webview, 'info', message);
+            return;
+          }
+        }
+      } catch (error) {
+        console.warn('[GitCat] Push 가드 검증 중 예외 발생:', error);
+      }
+
       const result = await this.gitService.push();
       this.sendOperationResult(webview, 'GIT_PUSH', result);
       if (result.success) {

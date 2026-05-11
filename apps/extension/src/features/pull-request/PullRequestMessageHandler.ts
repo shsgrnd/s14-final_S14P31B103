@@ -7,15 +7,31 @@
  *    → 성공: PR_CREATED 메시지 전송
  *    → 실패: ERROR 메시지 (errorCode 포함)
  *
- * 2. OPEN_PR_PANEL — PR 패널 진입 시
- *    → 현재 브랜치 정보와 함께 LOADING 없이 단순 응답
- *    → 프론트는 이 응답을 받아 base branch를 결정하고
+ * 2. OPEN_PR_PANEL — PR 패널 진입을 요청할 때
+ *    → validateHeadBranchReady()로 push 상태 검증
+ *    → 검증 실패: ERROR { code: 'GITHUB_BRANCH_NOT_PUSHED', message } 전송 후 패널 미개방
+ *    → 검증 성공: openPullRequestPanel() 호출 후 NOTIFICATION 전송
+ *      프론트는 이 응답을 받아 base branch를 결정하고
  *      곧바로 RECOMMEND_PR 메시지를 전송해 추천 흐름을 시작한다.
+ *
+ * 3. GET_PR_TEMPLATES — PR 템플릿 목록 조회 시
+ *    → PullRequestService.listPullRequestTemplates() 호출
+ *    → 성공: PR_TEMPLATES 메시지 전송
+ *    → 실패: ERROR 메시지 (errorCode 포함)
  *
  * [주의]
  * - RECOMMEND_PR은 PrRecommendationHandler가 처리한다 (이 핸들러는 관여하지 않음)
  * - textarea에 description을 직접 입력하는 코드는 없음 (Webview 담당)
  * - PR 생성 후 GitHub merge는 구현하지 않음
+ *
+ * [PR 패널 진입 조건 — push 검증 흐름]
+ * 프론트가 OPEN_PR_PANEL 메시지를 보내면:
+ *   1. git fetch --all --prune 으로 원격 최신화
+ *   2. Detached HEAD 여부 → GITHUB_INVALID_BRANCH 에러
+ *   3. 원격 tracking 브랜치 없음 → GITHUB_BRANCH_NOT_PUSHED 에러
+ *   4. 로컬 커밋이 원격보다 앞섬(ahead > 0) → GITHUB_BRANCH_NOT_PUSHED 에러
+ *   5. 모두 통과 → 패널 오픈 + NOTIFICATION 전송
+ * 프론트는 ERROR 응답을 받으면 Git 섹션/전역 알림으로 사용자에게 안내한다.
  */
 
 import * as vscode from 'vscode';
@@ -162,21 +178,44 @@ export class PullRequestMessageHandler {
    * PR 패널 진입을 처리한다.
    *
    * [역할]
-   * - 패널이 열릴 때 백엔드가 해줄 수 있는 것은 PR 생성 흐름 초기화뿐이다.
+   * - 패널이 열릴 때 백엔드는 push 상태를 먼저 검증한다.
+   * - push되지 않은 브랜치라면 ERROR를 반환하고 패널을 열지 않는다.
+   * - 검증 통과 시에만 openPullRequestPanel()을 호출해 패널을 연다.
    * - 실제 PR description 추천은 프론트가 base branch를 결정한 뒤
    *   RECOMMEND_PR 메시지를 전송하면 PrRecommendationHandler가 처리한다.
    *
    * [프론트 연결 가이드]
-   * - OPEN_PR_PANEL 응답을 받으면 프론트는:
+   * - ERROR { code: 'GITHUB_BRANCH_NOT_PUSHED' } 응답을 받으면:
+   *   → 패널을 열지 말고, Git 섹션 또는 전역 알림으로 사용자에게 안내한다.
+   * - NOTIFICATION { type: 'info' } 응답을 받으면:
+   *   → 패널이 열린 것을 의미하며, RECOMMEND_PR 요청을 보낼 수 있다.
    *   1. 기본 base branch(예: 'main')가 정해진 경우 → 즉시 RECOMMEND_PR 전송
    *   2. base branch 미선택 → 사용자가 선택한 뒤 RECOMMEND_PR 전송
-   *
-   * 현재 구현: NOTIFICATION으로 패널 열림을 알리는 단순 응답만 전송
    */
   private async handleOpenPRPanel(_payload: any, webview: vscode.Webview): Promise<void> {
+    // ─── 1. push 상태 검증 ────────────────────────────────────────────────────
+    // 원격 브랜치가 없거나 ahead 커밋이 있으면 패널을 열지 않고 ERROR를 반환한다.
+    // 프론트는 code: 'GITHUB_BRANCH_NOT_PUSHED'를 받아 사용자에게 안내한다.
+    console.log('[GitCat] PullRequestMessageHandler: OPEN_PR_PANEL — push 상태 검증 시작');
+    const validation = await this.pullRequestService.validateHeadBranchReady();
+
+    if (!validation.ok) {
+      // push되지 않았거나 브랜치 상태가 올바르지 않으면 패널을 열지 않는다.
+      console.warn(
+        `[GitCat] PullRequestMessageHandler: OPEN_PR_PANEL 차단 — code: ${validation.code}, message: ${validation.message}`,
+      );
+      this.sendError(webview, validation.code, validation.message);
+      return; // 패널 오픈 없이 종료
+    }
+
+    // ─── 2. 검증 통과 시에만 패널을 연다 ─────────────────────────────────────
+    console.log(
+      `[GitCat] PullRequestMessageHandler: OPEN_PR_PANEL 통과 — branch: ${validation.branch}, remote: ${validation.remoteBranch}`,
+    );
     this.openPullRequestPanel?.();
 
-    // PR 패널 진입 확인 — 프론트는 이 응답 이후 RECOMMEND_PR 요청을 보내야 한다
+    // PR 패널 진입 확인 알림 전송
+    // 프론트는 이 NOTIFICATION을 받은 후 RECOMMEND_PR 요청을 보내야 한다.
     webview.postMessage({
       type: 'NOTIFICATION',
       payload: {

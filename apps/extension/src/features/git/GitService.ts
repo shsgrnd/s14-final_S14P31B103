@@ -432,6 +432,17 @@ export class GitService {
   }
 
   /**
+   * 원격에 push되지 않은 파일 목록을 반환한다.
+   *
+   * 내부적으로 `git rev-list @{u}..HEAD --name-status`를 사용하므로,
+   * status.ahead(tracking 설정 여부에 따라 0이 될 수 있음)보다 신뢰할 수 있다.
+   * tracking 브랜치가 없는 경우 GitError를 throw하므로 호출부에서 catch 처리가 필요하다.
+   */
+  async getUnpushedFiles() {
+    return this.gitClient.getUnpushedFiles();
+  }
+
+  /**
    * AI PR 추천에 필요한 브랜치 간 실제 텍스트 diff 수집
    */
   async getDiffText(base: string, branch: string): Promise<string> {
