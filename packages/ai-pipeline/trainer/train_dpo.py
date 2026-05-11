@@ -333,12 +333,19 @@ def build_training_args(
     # TRL 버전에 따라 DPO 전용 설정 클래스(DPOConfig)가 있을 수도, 없을 수도 있습니다.
     # 팀원마다 GPU 서버 환경이 조금 다를 수 있어, 버전 차이를 흡수하도록 양쪽을 모두 지원합니다.
     if DPOConfig is not None:
-        return DPOConfig(
-            beta=args.beta,
-            max_prompt_length=args.max_prompt_length,
-            max_length=args.max_length,
-            **training_kwargs,
-        )
+        dpo_config_signature = inspect.signature(DPOConfig.__init__).parameters
+        dpo_config_kwargs = dict(training_kwargs)
+
+        # TRL 버전에 따라 DPOConfig가 받는 필드가 조금씩 다르므로,
+        # 실제 시그니처에 존재하는 인자만 골라 넣어야 서버 환경 차이로 깨지지 않습니다.
+        if "beta" in dpo_config_signature:
+            dpo_config_kwargs["beta"] = args.beta
+        if "max_prompt_length" in dpo_config_signature:
+            dpo_config_kwargs["max_prompt_length"] = args.max_prompt_length
+        if "max_length" in dpo_config_signature:
+            dpo_config_kwargs["max_length"] = args.max_length
+
+        return DPOConfig(**dpo_config_kwargs)
 
     return TrainingArguments(**training_kwargs)
 
