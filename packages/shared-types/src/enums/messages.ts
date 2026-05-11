@@ -72,6 +72,10 @@ export const InboundMessageTypeEnum = z.enum([
   'GET_PR_TEMPLATES',
   'CREATE_PR',
   'OPEN_PR_PANEL',
+  // AI API Key 관리
+  'SAVE_AI_API_KEY',
+  'DELETE_AI_API_KEY',
+  'CHECK_AI_API_KEY',
 ]);
 export type InboundMessageType = z.infer<typeof InboundMessageTypeEnum>;
 
@@ -109,5 +113,7 @@ export const OutboundMessageTypeEnum = z.enum([
   // GitHub PR 생성 성공 응답
   'PR_TEMPLATES',
   'PR_CREATED',
+  // AI API Key 상태 응답
+  'AI_API_KEY_STATUS',
 ]);
 export type OutboundMessageType = z.infer<typeof OutboundMessageTypeEnum>;
