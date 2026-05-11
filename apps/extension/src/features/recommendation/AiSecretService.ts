@@ -10,6 +10,24 @@ export class AiSecretService {
   constructor(private readonly secretStorage: vscode.SecretStorage) {}
 
   /**
+   * AI API Key가 환경 변수나 SecretStorage에 존재하는지 확인합니다.
+   */
+  async hasApiKey(): Promise<boolean> {
+    if (process.env.GMS_KEY) {
+      return true;
+    }
+    const apiKey = await this.secretStorage.get(AI_API_KEY_SECRET_KEY);
+    return Boolean(apiKey);
+  }
+
+  /**
+   * AI API Key를 SecretStorage에 저장합니다.
+   */
+  async saveApiKey(apiKey: string): Promise<void> {
+    await this.secretStorage.store(AI_API_KEY_SECRET_KEY, apiKey.trim());
+  }
+
+  /**
    * AI API Key를 조회합니다.
    * 조회 순서:
    * 1. process.env.GMS_KEY (.env 파일 등에서 로드된 값 우선 사용)

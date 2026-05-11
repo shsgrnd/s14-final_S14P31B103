@@ -7,6 +7,8 @@ import { EventRegistry } from './events';
 import { WebviewProvider } from './webview/WebviewProvider';
 import { SidebarProvider } from './webview/SidebarProvider';
 import { MessageRouter } from './core/MessageRouter';
+import { AiSecretService } from './features/recommendation/AiSecretService';
+import { AiApiKeyMessageHandler } from './features/recommendation/AiApiKeyMessageHandler';
 import { GitService } from './features/git/GitService';
 import { GitMessageHandler } from './features/git/GitMessageHandler';
 import { GitStatusRefreshController } from './features/git/GitStatusRefreshController';
@@ -68,6 +70,11 @@ export async function activate(context: vscode.ExtensionContext) {
     }
   }
 
+
+
+  const aiSecretService = new AiSecretService(context.secrets);
+  const aiApiKeyMessageHandler = new AiApiKeyMessageHandler(aiSecretService);
+
   const messageRouter = new MessageRouter(
     null,
     gitMessageHandler,
@@ -75,6 +82,7 @@ export async function activate(context: vscode.ExtensionContext) {
     undefined,
     undefined,
     pullRequestHandler,  // GitHub PR 생성 핵들러 주입
+    aiApiKeyMessageHandler, // AI API Key 핸들러 주입
   );
 
   if (gitService) {
@@ -102,7 +110,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
   if (rootPath && projectId && gitService) {
     void initializeRecommendationBackfill(
-      context,
+      aiSecretService,
       rootPath,
       projectId,
       gitService,
@@ -112,7 +120,7 @@ export async function activate(context: vscode.ExtensionContext) {
 }
 
 async function initializeRecommendationBackfill(
-  context: vscode.ExtensionContext,
+  aiSecretService: AiSecretService,
   rootPath: string,
   projectId: string,
   gitService: GitService,
@@ -120,10 +128,8 @@ async function initializeRecommendationBackfill(
 ): Promise<void> {
   try {
     const recommendationModule = await import('./features/recommendation');
-    const { AiSecretService } = await import('./features/recommendation/AiSecretService');
     const { MergeAiService, AiClient } = await import('@gitcat/ai-pipeline');
     
-    const aiSecretService = new AiSecretService(context.secrets);
     const aiClient = new AiClient({
       apiKeyProvider: async () => aiSecretService.getApiKey(),
     });

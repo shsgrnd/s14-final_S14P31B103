@@ -124,6 +124,10 @@ export const InboundPayloadSchemaMap = {
     milestone: z.number().int().optional(), // GitHub milestone 번호
   }),
   OPEN_PR_PANEL: z.object({}).strict(),
+  // AI API Key 관리
+  SAVE_AI_API_KEY: z.object({ apiKey: z.string().min(1) }),
+  DELETE_AI_API_KEY: z.object({}).strict(),
+  CHECK_AI_API_KEY: z.object({}).strict(),
 } as const;
 
 /**
@@ -180,6 +184,8 @@ export const OutboundPayloadSchemaMap = {
     base: z.string(),               // base 브랜치
     head: z.string(),               // head 브랜치
   }),
+  // AI API Key 상태 응답
+  AI_API_KEY_STATUS: z.object({ hasKey: z.boolean() }),
 } as const;
 
 /**
