@@ -15,6 +15,7 @@ import {
 } from './CommitRecommendationDto';
 
 type CommitRecommendationRequest = InboundPayloadByType['RECOMMEND_COMMIT'];
+const DEFAULT_COMMIT_RECOMMENDATION_INTENT = '파일 변경 내용에 대한 커밋 메시지 추천';
 
 interface CommitRecommendationServiceOptions {
   historyRepository?: RecommendationHistoryRepository;
@@ -87,7 +88,7 @@ export class CommitRecommendationService {
       project_id: this.projectId,
       session_id: this.sessionId,
       recommendation_type: 'commit_message',
-      work_intent: request.diffText,
+      work_intent: this.resolveWorkIntent(request),
       tag: request.tag,
       current_branch: rawData.currentBranch,
       staged_diff: rawData.stagedDiff,
@@ -138,6 +139,11 @@ export class CommitRecommendationService {
     // 같은 추천 유형의 최근 이력 참고
     const rows = await this.historyRepository.listRecentByType(this.projectId, 'commit_message', 5);
     return rows.map((row) => toCommitRecommendationHistoryContext(row));
+  }
+
+  private resolveWorkIntent(request: CommitRecommendationRequest): string {
+    // 커밋 추천은 staged diff가 핵심 입력이므로 사용자 프롬프트가 없어도 기본 의도로 실행
+    return request.prompt?.trim() || request.diffText?.trim() || DEFAULT_COMMIT_RECOMMENDATION_INTENT;
   }
 
   private async requestCommitSuggestion(
