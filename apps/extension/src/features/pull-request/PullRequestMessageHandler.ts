@@ -28,6 +28,7 @@ export class PullRequestMessageHandler {
   constructor(
     private readonly pullRequestService: PullRequestService,
     private readonly openPullRequestPanel?: () => void,
+    private readonly closePullRequestPanel?: () => void,
   ) {}
 
   /**
@@ -136,6 +137,8 @@ export class PullRequestMessageHandler {
           vscode.env.openExternal(vscode.Uri.parse(result.htmlUrl));
         }
       });
+
+      this.closePullRequestPanel?.();
     } catch (error: any) {
       // GitHubApiError는 errorCode를 가져 구체적인 원인 전달 가능
       if (error instanceof GitHubApiError) {

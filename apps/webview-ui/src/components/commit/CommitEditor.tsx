@@ -1,11 +1,20 @@
-import React, { useState } from 'react';
-import { FileText, ListChecks, Download, Save, X, BrainCircuit, Sparkles } from 'lucide-react';
+import React, { useEffect, useRef, useState } from 'react';
+import { FileText, ListChecks, Download, Save, X, Sparkles } from 'lucide-react';
 import { useGitCatStore } from '../../store/useGitCatStore';
 
 export const CommitEditor: React.FC = () => {
-  const { aiCommitSuggestion } = useGitCatStore();
+  const { aiCommitSuggestion, aiCommitAlternatives, commitSuggestionNonce } = useGitCatStore();
   const [mode, setMode] = useState<'text' | 'form'>('text');
   const [commitMsg, setCommitMsg] = useState(aiCommitSuggestion);
+  const latestNonceRef = useRef(0);
+
+  useEffect(() => {
+    if (commitSuggestionNonce === latestNonceRef.current) return;
+    latestNonceRef.current = commitSuggestionNonce;
+    if (aiCommitSuggestion.trim()) {
+      setCommitMsg(aiCommitSuggestion);
+    }
+  }, [commitSuggestionNonce, aiCommitSuggestion]);
 
   return (
     <div className="h-full flex flex-col bg-[var(--vscode-editor-background)] text-[var(--vscode-editor-foreground)]">
@@ -47,6 +56,25 @@ export const CommitEditor: React.FC = () => {
           AI 초안 반영
         </button>
       </div>
+
+      {mode === 'text' && aiCommitAlternatives.length > 0 && (
+        <div className="px-6 pb-2">
+          <div className="text-[11px] font-bold text-[var(--vscode-descriptionForeground)] mb-2">대체 후보</div>
+          <div className="flex flex-wrap gap-2">
+            {aiCommitAlternatives.map((msg, idx) => (
+              <button
+                key={`${idx}-${msg.slice(0, 24)}`}
+                type="button"
+                onClick={() => setCommitMsg(msg)}
+                title={msg}
+                className="text-[11px] px-2 py-1 rounded border border-[var(--vscode-panel-border)] bg-[var(--vscode-input-background)] hover:bg-[var(--vscode-list-hoverBackground)]"
+              >
+                {msg.length > 42 ? `${msg.slice(0, 42)}...` : msg}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* Editor Area */}
       <div className="flex-1 px-6 pb-6 overflow-hidden flex flex-col">

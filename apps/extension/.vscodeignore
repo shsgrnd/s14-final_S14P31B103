@@ -1,0 +1,12 @@
+.env
+.env.*
+**/.env
+**/.env.*
+src/**
+scripts/**
+tsconfig.json
+.artifacts/**
+.vscode/**
+*.tsbuildinfo
+.DS_Store
+Thumbs.db
