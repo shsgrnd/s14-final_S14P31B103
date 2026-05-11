@@ -7,7 +7,10 @@ import {
 import { AiSecretService } from './AiSecretService';
 
 export class AiApiKeyMessageHandler {
-  constructor(private readonly aiSecretService: AiSecretService) {}
+  constructor(
+    private readonly aiSecretService: AiSecretService,
+    private readonly onKeyChanged?: () => void,
+  ) {}
 
   public async handle(type: string, payload: unknown, webview: vscode.Webview): Promise<boolean> {
     if (type === 'SAVE_AI_API_KEY') {
@@ -38,6 +41,7 @@ export class AiApiKeyMessageHandler {
 
     try {
       await this.aiSecretService.saveApiKey(parseResult.data.apiKey);
+      this.onKeyChanged?.();
       await this.sendStatus(webview);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
@@ -48,6 +52,7 @@ export class AiApiKeyMessageHandler {
   private async handleDelete(webview: vscode.Webview): Promise<void> {
     try {
       await this.aiSecretService.deleteApiKey();
+      this.onKeyChanged?.();
       await this.sendStatus(webview);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);

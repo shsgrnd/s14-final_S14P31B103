@@ -73,7 +73,8 @@ export async function activate(context: vscode.ExtensionContext) {
 
 
   const aiSecretService = new AiSecretService(context.secrets);
-  const aiApiKeyMessageHandler = new AiApiKeyMessageHandler(aiSecretService);
+  let clearAiCache = () => {};
+  const aiApiKeyMessageHandler = new AiApiKeyMessageHandler(aiSecretService, () => clearAiCache());
 
   const messageRouter = new MessageRouter(
     null,
@@ -115,6 +116,7 @@ export async function activate(context: vscode.ExtensionContext) {
       projectId,
       gitService,
       messageRouter,
+      (clearFn) => { clearAiCache = clearFn; },
     );
   }
 }
@@ -125,6 +127,7 @@ async function initializeRecommendationBackfill(
   projectId: string,
   gitService: GitService,
   messageRouter: MessageRouter,
+  setClearAiCache?: (fn: () => void) => void,
 ): Promise<void> {
   try {
     const recommendationModule = await import('./features/recommendation');
@@ -134,6 +137,9 @@ async function initializeRecommendationBackfill(
       apiKeyProvider: async () => aiSecretService.getApiKey(),
     });
     const recommendationAiService = new MergeAiService(aiClient);
+    if (setClearAiCache) {
+      setClearAiCache(() => recommendationAiService.clearCache());
+    }
 
     const branchRecommendationService = new recommendationModule.BranchRecommendationService(gitService, {
       projectId,

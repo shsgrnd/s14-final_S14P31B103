@@ -70,6 +70,13 @@ export class AiClient {
     return this.liveClient.callModel(payload);
   }
 
+  /**
+   * 저장된 캐시 클라이언트를 초기화합니다. API 키 등이 변경되었을 때 호출합니다.
+   */
+  public clearLiveClientCache(): void {
+    this.liveClient = undefined;
+  }
+
   private generateMockResponse(featureType: FeatureType, promptPayload?: PromptPayload): string {
     switch (featureType) {
       case 'merge_patch_draft':
