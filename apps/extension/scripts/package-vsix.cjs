@@ -5,6 +5,7 @@ const { spawnSync } = require('child_process');
 const extensionRoot = path.resolve(__dirname, '..');
 const repoRoot = path.resolve(extensionRoot, '..', '..');
 const packagesRoot = path.join(repoRoot, 'packages');
+const webviewUiRoot = path.join(repoRoot, 'apps', 'webview-ui');
 const artifactsDir = path.join(extensionRoot, '.artifacts');
 const stagingDir = path.join(artifactsDir, 'vsce-staging');
 const extensionPackageJson = require(path.join(extensionRoot, 'package.json'));
@@ -49,6 +50,22 @@ function copyIfExists(relativePath) {
   }
 
   const targetPath = path.join(stagingDir, relativePath);
+  const sourceStat = fs.statSync(sourcePath);
+  if (sourceStat.isDirectory()) {
+    copyDirectory(sourcePath, targetPath);
+    return;
+  }
+
+  ensureDir(path.dirname(targetPath));
+  fs.copyFileSync(sourcePath, targetPath);
+}
+
+function copyAbsolutePathIfExists(sourcePath, targetRelativePath) {
+  if (!fs.existsSync(sourcePath)) {
+    return;
+  }
+
+  const targetPath = path.join(stagingDir, targetRelativePath);
   const sourceStat = fs.statSync(sourcePath);
   if (sourceStat.isDirectory()) {
     copyDirectory(sourcePath, targetPath);
@@ -348,6 +365,7 @@ function stageExtensionPackage(workspacePackages) {
   copyIfExists('README.md');
   copyIfExists('LICENSE');
   copyIfExists('.vscodeignore');
+  copyAbsolutePathIfExists(path.join(webviewUiRoot, 'dist'), path.join('webview-ui', 'dist'));
 
   const stagedWorkspacePackages = new Set();
   const stagedDependencyKeys = new Set();
@@ -379,6 +397,8 @@ for (const dependencyName of Object.keys(extensionPackageJson.dependencies ?? {}
 
   buildWorkspacePackage(dependencyName, workspacePackages, builtWorkspacePackages);
 }
+
+runCommand(process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm', ['run', 'build'], webviewUiRoot);
 
 // 실제 패키징은 스테이징 결과물을 사용하지만, extension 엔트리 번들은 먼저 최신 상태로 맞춥니다.
 runCommand(process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm', ['run', 'compile'], extensionRoot);
