@@ -81,7 +81,11 @@ def main():
                 continue
                 
             data = json.loads(line)
-            prompt_text = f"{data['instruction']}\n\n{data['input']}"
+            # input 필드가 dict 객체인 경우 JSON 문자열로 변환하여 SFT 학습 포맷과 일치시킴
+            raw_input = data['input']
+            if isinstance(raw_input, dict):
+                raw_input = json.dumps(raw_input, ensure_ascii=False)
+            prompt_text = f"{data['instruction']}\n\n{raw_input}"
             
             candidates = []
             sys.stdout.write(f"\nProcessing prompt (length {len(prompt_text)})... ")
