@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import { MessageRouter } from '../core/MessageRouter';
+import { resolveWebviewDistPath } from './webviewAssets';
 
 export class SidebarProvider implements vscode.WebviewViewProvider {
     constructor(
@@ -14,11 +15,13 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
         _context: vscode.WebviewViewResolveContext,
         _token: vscode.CancellationToken,
     ) {
+        const distPath = resolveWebviewDistPath(this.context.extensionPath);
+
         // 웹뷰 옵션 설정
         webviewView.webview.options = {
             enableScripts: true,
             localResourceRoots: [
-                vscode.Uri.file(path.join(this.context.extensionPath, '..', 'webview-ui', 'dist')),
+                vscode.Uri.file(distPath),
                 vscode.Uri.file(path.join(this.context.extensionPath, 'media'))
             ]
         };
@@ -39,9 +42,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
     }
 
     private getHtmlForWebview(webview: vscode.Webview): string {
-        const distPath = vscode.Uri.file(
-            path.join(this.context.extensionPath, '..', 'webview-ui', 'dist')
-        );
+        const distPath = vscode.Uri.file(resolveWebviewDistPath(this.context.extensionPath));
         const logoPath = vscode.Uri.file(
             path.join(this.context.extensionPath, 'media', 'GitCat_icon.png')
         );

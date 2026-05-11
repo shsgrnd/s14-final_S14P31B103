@@ -8,13 +8,13 @@
 
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { GitMessageHandler } from '../features/git/GitMessageHandler';
-import {
+import type { GitMessageHandler } from '../features/git/GitMessageHandler';
+import type {
   BranchRecommendationMessageHandler,
   CommitRecommendationMessageHandler,
 } from '../features/recommendation';
-import { PrRecommendationHandler } from '../features/recommendation/PrRecommendationHandler';
-import { PullRequestMessageHandler } from '../features/pull-request/PullRequestMessageHandler';
+import type { PrRecommendationHandler } from '../features/recommendation/PrRecommendationHandler';
+import type { PullRequestMessageHandler } from '../features/pull-request/PullRequestMessageHandler';
 import {
   InboundMessage,
   InboundMessageSchema,
@@ -27,9 +27,9 @@ import {
  */
 export class MessageRouter {
   private readonly gitHandler: GitMessageHandler | null;
-  private readonly branchRecommendationHandler: BranchRecommendationMessageHandler | null;
-  private readonly commitRecommendationHandler: CommitRecommendationMessageHandler | null;
-  private readonly prRecommendationHandler: PrRecommendationHandler | null;
+  private branchRecommendationHandler: BranchRecommendationMessageHandler | null;
+  private commitRecommendationHandler: CommitRecommendationMessageHandler | null;
+  private prRecommendationHandler: PrRecommendationHandler | null;
   /** GitHub PR 생성 핵들러 (CREATE_PR, OPEN_PR_PANEL) */
   private readonly pullRequestHandler: PullRequestMessageHandler | null;
   private readonly webviews = new Set<vscode.Webview>();
@@ -47,6 +47,22 @@ export class MessageRouter {
     this.commitRecommendationHandler = commitRecommendationHandler ?? null;
     this.prRecommendationHandler = prRecommendationHandler ?? null;
     this.pullRequestHandler = pullRequestHandler ?? null;
+  }
+
+  public configureRecommendationHandlers(handlers: {
+    branchRecommendationHandler?: BranchRecommendationMessageHandler;
+    commitRecommendationHandler?: CommitRecommendationMessageHandler;
+    prRecommendationHandler?: PrRecommendationHandler;
+  }): void {
+    if (handlers.branchRecommendationHandler) {
+      this.branchRecommendationHandler = handlers.branchRecommendationHandler;
+    }
+    if (handlers.commitRecommendationHandler) {
+      this.commitRecommendationHandler = handlers.commitRecommendationHandler;
+    }
+    if (handlers.prRecommendationHandler) {
+      this.prRecommendationHandler = handlers.prRecommendationHandler;
+    }
   }
 
   public registerWebview(webview: vscode.Webview): vscode.Disposable {
