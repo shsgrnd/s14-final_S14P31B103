@@ -1,0 +1,15 @@
+{
+  "title": "문맥 반영이 약한 추천 - 인증 응답 DTO 및 패널 연동 커밋 메시지 추천",
+  "summary": "변경 맥락은 반영하지 못하고 지나치게 일반적인 추천을 제시한 결과입니다.",
+  "recommendation_type": "commit_message",
+  "primary_text": "update code",
+  "alternative_texts": [
+    "minor update",
+    "fix code"
+  ],
+  "generation_basis_summary": "변경 목적과 도메인 용어를 충분히 반영하지 못한 일반적 추천입니다.",
+  "format_notes": "형식은 맞지만 구체성과 구분력이 부족한 예시입니다.",
+  "warnings": [
+    "변경 맥락 반영 부족"
+  ]
+}
