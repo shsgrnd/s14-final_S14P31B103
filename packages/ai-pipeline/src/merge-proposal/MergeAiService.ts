@@ -41,6 +41,13 @@ export class MergeAiService {
   }
 
   /**
+   * 저장된 AI 클라이언트 캐시를 비웁니다.
+   */
+  public clearCache(): void {
+    this.client.clearLiveClientCache();
+  }
+
+  /**
    * 입력 페이로드를 기반으로 AI 결과를 생성하고 파싱하는 주 진입점.
    *
    * 흐름: 스키마 검증 → 토큰 최적화(TokenBudgetGuard) → 프롬프트 생성 → AI 호출 → 전용 파서

@@ -13,6 +13,7 @@ export interface PromptPayload {
 export interface AiClientOptions {
   mode?: 'mock' | 'live';
   apiKey?: string;
+  apiKeyProvider?: () => Promise<string | undefined>;
   model?: string;
   temperature?: number;
   timeoutMs?: number;
@@ -21,39 +22,13 @@ export interface AiClientOptions {
 
 export class AiClient {
   private readonly mode: 'mock' | 'live';
-
-  private readonly liveClient?: GitCatAIClient;
+  private readonly options: AiClientOptions;
+  private liveClient?: GitCatAIClient;
 
   constructor(options: AiClientOptions = {}) {
     loadRootEnv();
-
+    this.options = options;
     this.mode = options.mode ?? (process.env.GITCAT_AI_MODE === 'live' ? 'live' : 'mock');
-
-    if (this.mode === 'live') {
-      const apiKey = options.apiKey ?? process.env.GMS_KEY;
-      const gmsBaseUrl = process.env.GMS_BASE_URL;
-
-      if (!apiKey) {
-        throw new Error(
-          'AiClient live mode requires GMS_KEY or an explicit apiKey option',
-        );
-      }
-      if (!gmsBaseUrl && !options.baseURL) {
-        throw new Error(
-          'AiClient live mode requires GMS_BASE_URL or an explicit baseURL option',
-        );
-      }
-
-      this.liveClient = new GitCatAIClient({
-        apiKey,
-        model: options.model ?? process.env.GMS_MODEL,
-        temperature: options.temperature,
-        timeoutMs: options.timeoutMs,
-        baseURL:
-          options.baseURL ??
-          resolveGmsOpenAiBaseUrl(gmsBaseUrl),
-      });
-    }
   }
 
   /**
@@ -70,10 +45,36 @@ export class AiClient {
 
   private async generateLiveResponse(payload: PromptPayload): Promise<string> {
     if (!this.liveClient) {
-      throw new Error('Live AI client is not initialized');
+      const apiKey = this.options.apiKeyProvider
+        ? await this.options.apiKeyProvider()
+        : (this.options.apiKey ?? process.env.GMS_KEY);
+
+      const gmsBaseUrl = process.env.GMS_BASE_URL;
+
+      if (!apiKey) {
+        throw new Error('AI API Key가 설정되지 않았습니다. 추천을 진행할 수 없습니다.');
+      }
+      if (!gmsBaseUrl && !this.options.baseURL) {
+        throw new Error('AiClient live mode requires GMS_BASE_URL or an explicit baseURL option');
+      }
+
+      this.liveClient = new GitCatAIClient({
+        apiKey,
+        model: this.options.model ?? process.env.GMS_MODEL,
+        temperature: this.options.temperature,
+        timeoutMs: this.options.timeoutMs,
+        baseURL: this.options.baseURL ?? resolveGmsOpenAiBaseUrl(gmsBaseUrl),
+      });
     }
 
     return this.liveClient.callModel(payload);
+  }
+
+  /**
+   * 저장된 캐시 클라이언트를 초기화합니다. API 키 등이 변경되었을 때 호출합니다.
+   */
+  public clearLiveClientCache(): void {
+    this.liveClient = undefined;
   }
 
   private generateMockResponse(featureType: FeatureType, promptPayload?: PromptPayload): string {

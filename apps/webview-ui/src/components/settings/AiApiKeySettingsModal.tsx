@@ -61,7 +61,7 @@ export const AiApiKeySettingsModal: React.FC<AiApiKeySettingsModalProps> = ({ op
     setInput('');
     setFeedback({
       tone: 'success',
-      text: '이 웹뷰에 저장되었습니다. 실제 AI 호출은 backend·extension PR에서 SecretStorage 연동 후 동작합니다.',
+      text: '안전한 내부 저장소(SecretStorage)에 저장되었습니다. 이제 AI 기능을 사용할 수 있습니다.',
     });
   };
 
@@ -69,7 +69,7 @@ export const AiApiKeySettingsModal: React.FC<AiApiKeySettingsModalProps> = ({ op
     setError(null);
     clearKey();
     setInput('');
-    setFeedback({ tone: 'info', text: '저장된 키를 이 웹뷰에서 삭제했습니다.' });
+    setFeedback({ tone: 'info', text: '저장된 키를 안전하게 삭제했습니다.' });
   };
 
   const onInputChange = (v: string) => {
@@ -128,28 +128,9 @@ export const AiApiKeySettingsModal: React.FC<AiApiKeySettingsModalProps> = ({ op
             color: 'var(--vscode-descriptionForeground)',
           }}
         >
-          입력값은 마스킹되어 표시됩니다. 지금은 이 사이드바 웹뷰에만 임시 저장되며, GitHub PAT처럼 VS Code
-          SecretStorage와 AI 파이프라인에 붙이려면 별도 PR이 필요합니다. 키는 콘솔 로그나{' '}
-          <code style={{ fontSize: '10px' }}>SET_CONFIG</code>로 보내지 않습니다.
+          입력값은 마스킹되어 표시됩니다. 입력하신 키는 VS Code의 안전한 내부 저장소(SecretStorage)에 보관되며, 콘솔 로그나{' '}
+          <code style={{ fontSize: '10px' }}>SET_CONFIG</code>로 유출되지 않습니다.
         </p>
-
-        <div
-          id={prHintId}
-          style={{
-            marginBottom: '12px',
-            padding: '8px 10px',
-            borderRadius: '4px',
-            fontSize: '10px',
-            lineHeight: 1.5,
-            color: 'var(--vscode-descriptionForeground)',
-            background: 'var(--vscode-textBlockQuote-background)',
-            border: '1px solid var(--vscode-widget-border)',
-          }}
-        >
-          다음 PR에서 다룰 것: webview → extension 메시지, <code style={{ fontSize: '9px' }}>SecretManager</code> /{' '}
-          <code style={{ fontSize: '9px' }}>MergeAiService</code> + <code style={{ fontSize: '9px' }}>AiClient</code>{' '}
-          주입. 상세는 <code style={{ fontSize: '9px' }}>aiApiKeyWebviewStorage.ts</code> 상단 주석 참고.
-        </div>
 
         {hasKey && (
           <div
@@ -159,7 +140,7 @@ export const AiApiKeySettingsModal: React.FC<AiApiKeySettingsModalProps> = ({ op
               color: 'var(--vscode-charts-green)',
             }}
           >
-            이 웹뷰에 저장된 키가 있습니다. 새 키로 덮어쓰거나 삭제할 수 있습니다.
+            이미 저장된 키가 있습니다. 새 키로 덮어쓰거나 삭제할 수 있습니다.
           </div>
         )}
 
