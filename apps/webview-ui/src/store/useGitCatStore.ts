@@ -1,8 +1,6 @@
 import { create } from 'zustand';
 import {
   Snapshot,
-  ConflictAnalysis,
-  AIDraft,
   Branch,
   WorktreeInfo,
   OutboundMessage,
@@ -11,6 +9,8 @@ import {
   BranchCleanupPreviewResult,
   BranchCleanupExecuteResult,
   PRSuggestion,
+  MergeConflictCandidateView,
+  MergeProposalView,
 } from '@gitcat/shared-types';
 import { translateUserFacingGitMessage, type UiMessageTone } from '../shared/gitMessageKo';
 
@@ -56,8 +56,9 @@ function mapGitSectionBannerType(
 interface GitCatState {
   // Data
   snapshots: Snapshot[];
-  conflicts: ConflictAnalysis[];
-  currentAIDraft: AIDraft | null;
+  // 병합 화면은 AI/DB 원본이 아니라 Webview projection DTO만 보관합니다.
+  conflicts: MergeConflictCandidateView[];
+  currentAIDraft: MergeProposalView | null;
   currentBranch: string;
   currentWorktreePath: string;
   isAnalyzing: boolean;
@@ -118,8 +119,8 @@ interface GitCatState {
 
   // Actions
   setSnapshots: (snapshots: Snapshot[]) => void;
-  setConflicts: (conflicts: ConflictAnalysis[]) => void;
-  setAIDraft: (draft: AIDraft | null) => void;
+  setConflicts: (conflicts: MergeConflictCandidateView[]) => void;
+  setAIDraft: (draft: MergeProposalView | null) => void;
   setCurrentBranch: (branch: string) => void;
   setAnalyzing: (isAnalyzing: boolean) => void;
   setRefreshingStatus: (isRefreshingStatus: boolean) => void;

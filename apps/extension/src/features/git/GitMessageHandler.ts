@@ -429,7 +429,19 @@ export class GitMessageHandler {
         error: result.success ? undefined : result.stderr,
       });
       if (result.success) {
-        webview.postMessage({ type: 'MERGE_COMPLETE', payload: {} });
+        // 병합 완료 응답은 Webview projection DTO 기준으로 전송합니다.
+        webview.postMessage({
+          type: 'MERGE_COMPLETE',
+          payload: {
+            merge: {
+              status: 'completed',
+              message: result.stdout || 'Merge completed.',
+              source: payload.source,
+              target: payload.target,
+              completedAt: new Date().toISOString(),
+            },
+          },
+        });
         this.sendNotification(webview, 'info', '병합이 완료되었습니다.');
         await this.handleRefreshStatus(webview);
       } else {
@@ -468,7 +480,17 @@ export class GitMessageHandler {
       this.sendOperationResult(webview, 'MERGE_CONTINUE', result);
       if (result.success) {
         this.sendNotification(webview, 'info', result.message ?? '병합이 계속 진행됩니다.');
-        webview.postMessage({ type: 'MERGE_COMPLETE', payload: {} });
+        // merge continue 성공도 동일한 완료 projection으로 Webview에 알립니다.
+        webview.postMessage({
+          type: 'MERGE_COMPLETE',
+          payload: {
+            merge: {
+              status: 'continued',
+              message: result.message,
+              completedAt: new Date().toISOString(),
+            },
+          },
+        });
       } else {
         this.sendError(webview, result.message ?? '병합 계속 진행에 실패했습니다.');
       }
