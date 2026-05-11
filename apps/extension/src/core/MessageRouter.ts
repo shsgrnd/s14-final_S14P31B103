@@ -14,6 +14,7 @@ import type {
   CommitRecommendationMessageHandler,
 } from '../features/recommendation';
 import type { PrRecommendationHandler } from '../features/recommendation/PrRecommendationHandler';
+import type { AiApiKeyMessageHandler } from '../features/recommendation/AiApiKeyMessageHandler';
 import type { PullRequestMessageHandler } from '../features/pull-request/PullRequestMessageHandler';
 import {
   InboundMessage,
@@ -32,6 +33,7 @@ export class MessageRouter {
   private prRecommendationHandler: PrRecommendationHandler | null;
   /** GitHub PR 생성 핵들러 (CREATE_PR, OPEN_PR_PANEL) */
   private readonly pullRequestHandler: PullRequestMessageHandler | null;
+  private readonly aiApiKeyMessageHandler: AiApiKeyMessageHandler | null;
   private readonly webviews = new Set<vscode.Webview>();
 
   constructor(
@@ -41,12 +43,14 @@ export class MessageRouter {
     commitRecommendationHandler?: CommitRecommendationMessageHandler,
     prRecommendationHandler?: PrRecommendationHandler,
     pullRequestHandler?: PullRequestMessageHandler,
+    aiApiKeyMessageHandler?: AiApiKeyMessageHandler,
   ) {
     this.gitHandler = gitHandler ?? null;
     this.branchRecommendationHandler = branchRecommendationHandler ?? null;
     this.commitRecommendationHandler = commitRecommendationHandler ?? null;
     this.prRecommendationHandler = prRecommendationHandler ?? null;
     this.pullRequestHandler = pullRequestHandler ?? null;
+    this.aiApiKeyMessageHandler = aiApiKeyMessageHandler ?? null;
   }
 
   public configureRecommendationHandlers(handlers: {
@@ -118,6 +122,11 @@ export class MessageRouter {
       // GitHub PR 생성 핸들러 위임 (CREATE_PR, OPEN_PR_PANEL)
       if (this.pullRequestHandler) {
         const handled = await this.pullRequestHandler.handle(message.type, message.payload, webview);
+        if (handled) return;
+      }
+      // AI API Key 핸들러 위임
+      if (this.aiApiKeyMessageHandler) {
+        const handled = await this.aiApiKeyMessageHandler.handle(message.type, message.payload, webview);
         if (handled) return;
       }
 
