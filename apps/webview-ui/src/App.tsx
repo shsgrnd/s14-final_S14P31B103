@@ -52,12 +52,21 @@ function App() {
     // 2. 이미 데이터를 가져왔거나 아직 Git이 연결되지 않았다면 중단
     if (initialFetchDone.current || !isGitConnected) return;
 
-    // 3. 연결된 것이 확인되면 나머지 데이터(스냅샷, 브랜치 등)를 가져옴
+    // 3. 연결된 것이 확인되면 나머지 데이터(스냅샷, 브랜치 등)를 가져옴 — 한 프레임 이후로 미뤄 첫 페인트·지연 청크와 경합 완화
     initialFetchDone.current = true;
-    sendMessage('GET_SNAPSHOT_LIST', {});
-    sendMessage('REFRESH_STATUS', { fetchRemote: true });
-    sendMessage('GET_BRANCH_LIST', {});
-    sendMessage('GET_STASH_LIST', {}); // 스태시 목록도 함께 요청
+    let innerRaf = 0;
+    const outerRaf = requestAnimationFrame(() => {
+      innerRaf = requestAnimationFrame(() => {
+        sendMessage('GET_SNAPSHOT_LIST', {});
+        sendMessage('REFRESH_STATUS', { fetchRemote: true });
+        sendMessage('GET_BRANCH_LIST', {});
+        sendMessage('GET_STASH_LIST', {});
+      });
+    });
+    return () => {
+      cancelAnimationFrame(outerRaf);
+      cancelAnimationFrame(innerRaf);
+    };
   }, [isGitConnected]);
 
   useEffect(() => {
@@ -70,7 +79,7 @@ function App() {
 
   // ── 로딩 스플래시 타이머 ──
   useEffect(() => {
-    const splashTimer = window.setTimeout(() => setShowInitialSplash(false), 900);
+    const splashTimer = window.setTimeout(() => setShowInitialSplash(false), 400);
     const slowBootTimer = window.setTimeout(() => setIsSlowBoot(true), 3000);
     return () => {
       window.clearTimeout(splashTimer);
@@ -78,7 +87,6 @@ function App() {
     };
   }, []);
 
-  // window.VIEW_MODE 직접 참조 대신 Context Hook 사용
   const viewMode = useViewMode();
 
   // ── 사이드바 모드 ──
