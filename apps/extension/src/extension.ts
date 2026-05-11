@@ -7,6 +7,8 @@ import { EventRegistry } from './events';
 import { WebviewProvider } from './webview/WebviewProvider';
 import { SidebarProvider } from './webview/SidebarProvider';
 import { MessageRouter } from './core/MessageRouter';
+import { AiSecretService } from './features/recommendation/AiSecretService';
+import { AiApiKeyMessageHandler } from './features/recommendation/AiApiKeyMessageHandler';
 import { GitService } from './features/git/GitService';
 import { GitMessageHandler } from './features/git/GitMessageHandler';
 import { GitStatusRefreshController } from './features/git/GitStatusRefreshController';
@@ -68,6 +70,12 @@ export async function activate(context: vscode.ExtensionContext) {
     }
   }
 
+
+
+  const aiSecretService = new AiSecretService(context.secrets);
+  let clearAiCache = () => {};
+  const aiApiKeyMessageHandler = new AiApiKeyMessageHandler(aiSecretService, () => clearAiCache());
+
   const messageRouter = new MessageRouter(
     null,
     gitMessageHandler,
@@ -75,6 +83,7 @@ export async function activate(context: vscode.ExtensionContext) {
     undefined,
     undefined,
     pullRequestHandler,  // GitHub PR 생성 핵들러 주입
+    aiApiKeyMessageHandler, // AI API Key 핸들러 주입
   );
 
   if (gitService) {
@@ -102,24 +111,35 @@ export async function activate(context: vscode.ExtensionContext) {
 
   if (rootPath && projectId && gitService) {
     void initializeRecommendationBackfill(
+      aiSecretService,
       rootPath,
       projectId,
       gitService,
       messageRouter,
+      (clearFn) => { clearAiCache = clearFn; },
     );
   }
 }
 
 async function initializeRecommendationBackfill(
+  aiSecretService: AiSecretService,
   rootPath: string,
   projectId: string,
   gitService: GitService,
   messageRouter: MessageRouter,
+  setClearAiCache?: (fn: () => void) => void,
 ): Promise<void> {
   try {
     const recommendationModule = await import('./features/recommendation');
-    const { MergeAiService } = await import('@gitcat/ai-pipeline');
-    const recommendationAiService = new MergeAiService();
+    const { MergeAiService, AiClient } = await import('@gitcat/ai-pipeline');
+    
+    const aiClient = new AiClient({
+      apiKeyProvider: async () => aiSecretService.getApiKey(),
+    });
+    const recommendationAiService = new MergeAiService(aiClient);
+    if (setClearAiCache) {
+      setClearAiCache(() => recommendationAiService.clearCache());
+    }
 
     const branchRecommendationService = new recommendationModule.BranchRecommendationService(gitService, {
       projectId,
