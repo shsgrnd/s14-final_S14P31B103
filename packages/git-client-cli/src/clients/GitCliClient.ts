@@ -166,7 +166,6 @@ export class GitCliClient implements IGitClient {
       '--staged',
       '--patch',
       '--no-ext-diff',
-      '--text',
     ]);
   }
 
