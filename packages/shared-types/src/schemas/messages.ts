@@ -55,7 +55,10 @@ export const InboundPayloadSchemaMap = {
     tag: z.string().optional(),
   }).strict(),
   RECOMMEND_BRANCH: z.object({ purpose: z.string().min(1) }),
-  RECOMMEND_PR: z.object({ base: z.string().min(1) }),
+  RECOMMEND_PR: z.object({
+    base: z.string().min(1),
+    template: z.string().optional(),
+  }),
   APPLY_COMMIT: z.object({ message: z.string().min(1), body: z.string().optional() }),
   APPLY_BRANCH: z.object({ name: z.string().min(1) }),
   DELETE_BRANCHES: z.object({ names: z.array(z.string().min(1)).min(1), force: z.boolean() }),
