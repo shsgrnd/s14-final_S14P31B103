@@ -102,6 +102,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
   if (rootPath && projectId && gitService) {
     void initializeRecommendationBackfill(
+      context,
       rootPath,
       projectId,
       gitService,
@@ -111,6 +112,7 @@ export async function activate(context: vscode.ExtensionContext) {
 }
 
 async function initializeRecommendationBackfill(
+  context: vscode.ExtensionContext,
   rootPath: string,
   projectId: string,
   gitService: GitService,
@@ -118,8 +120,14 @@ async function initializeRecommendationBackfill(
 ): Promise<void> {
   try {
     const recommendationModule = await import('./features/recommendation');
-    const { MergeAiService } = await import('@gitcat/ai-pipeline');
-    const recommendationAiService = new MergeAiService();
+    const { AiSecretService } = await import('./features/recommendation/AiSecretService');
+    const { MergeAiService, AiClient } = await import('@gitcat/ai-pipeline');
+    
+    const aiSecretService = new AiSecretService(context.secrets);
+    const aiClient = new AiClient({
+      apiKeyProvider: async () => aiSecretService.getApiKey(),
+    });
+    const recommendationAiService = new MergeAiService(aiClient);
 
     const branchRecommendationService = new recommendationModule.BranchRecommendationService(gitService, {
       projectId,
