@@ -6,6 +6,7 @@
 
 - `build_jsonl.py`: `synthetic_dataset/` 원본 케이스를 학습/평가용 JSONL로 변환
 - `train_sft.py`: SFT 학습 실행 스크립트
+- `train_dpo.py`: DPO 학습 실행 스크립트
 - `eval/`: 현행 LLM baseline, 오픈소스 모델 비교 결과, 평가 메모 기록 공간
 
 ## 1. 셋업 (GPU 서버 환경)
@@ -87,7 +88,67 @@ CUDA_VISIBLE_DEVICES=0 python train_sft.py --dataset-domain recommendation --rec
 tmux attach -t gitcat-train
 ```
 
-## 4. 모니터링 (WandB 연동)
+## 4. DPO 데이터 준비
+
+DPO는 SFT처럼 단일 정답이 아니라 **선호도 데이터셋**이 필요합니다.  
+각 row는 아래 3개 필드를 포함해야 합니다.
+
+```json
+{
+  "prompt": "...",
+  "chosen": "...",
+  "rejected": "..."
+}
+```
+
+- `prompt`: 동일 입력
+- `chosen`: 더 좋은 답변
+- `rejected`: 덜 좋은 답변
+
+GitCat 기준으로는 `training_candidate_payload`의 `prompt_ref`, `chosen_ref`, `rejected_ref`를 펼친 export 결과를 이 포맷으로 사용합니다.
+
+기술 검증은 아래 스크립트로 먼저 확인합니다.
+
+```bash
+python3 packages/ai-pipeline/scripts/validate_dpo_data.py \
+  packages/ai-pipeline/data/dpo_training_data.jsonl
+```
+
+## 5. DPO 학습 실행
+
+SFT 어댑터를 이미 GPU 서버에 올려 둔 상태라면, 그 경로를 `--sft-adapter-path`로 넘겨 이어서 DPO를 학습합니다.
+
+```bash
+conda activate gitcat-sft
+cd /path/to/repo/packages/ai-pipeline/trainer
+
+CUDA_VISIBLE_DEVICES=0 python train_dpo.py \
+  --dataset-path ../data/dpo_training_data.jsonl \
+  --sft-adapter-path /path/to/gitcat-sft-lora-final \
+  --max-samples 8 \
+  --max-steps 20
+```
+
+smoke test가 통과하면 전체 학습으로 넘어갑니다.
+
+```bash
+CUDA_VISIBLE_DEVICES=0 python train_dpo.py \
+  --dataset-path ../data/dpo_training_data.jsonl \
+  --sft-adapter-path /path/to/gitcat-sft-lora-final
+```
+
+### DPO 스크립트 핵심 옵션
+
+- `--dataset-path`: DPO preference JSONL 경로
+- `--sft-adapter-path`: 시작점으로 사용할 SFT 어댑터 경로
+- `--dataset-domain`: `merge` 또는 `recommendation`만 분리 실험할 때 사용
+- `--recommendation-type`: `branch_name`, `commit_message`, `pr_description` 중 하나만 분리 실험할 때 사용
+- `--beta`: DPO 선호도 강도 조절 하이퍼파라미터
+- `--max-prompt-length`, `--max-length`: 프롬프트/전체 시퀀스 길이 제한
+- `--max-samples`, `--max-steps`: 긴 GPU 학습 전에 smoke test용으로 사용
+- `--report-to wandb`: WandB 로그인 환경에서만 활성화
+
+## 6. 모니터링 (WandB 연동)
 
 학습 실행 전 터미널에 WandB API 키를 등록하면, 로컬 PC 브라우저에서 GPU 서버의 Loss 하락 추이를 실시간으로 모니터링할 수 있습니다.
 
@@ -122,7 +183,7 @@ CUDA_VISIBLE_DEVICES=0 python train_sft.py --dataset-domain recommendation --max
 
 smoke test가 통과하면 전체 학습으로 넘어갑니다.
 
-## 5. 평가 결과 기록
+## 7. 평가 결과 기록
 
 현행 LLM baseline 평가나 이후 오픈소스 모델 비교 결과는 `eval/` 아래에 남깁니다.
 
