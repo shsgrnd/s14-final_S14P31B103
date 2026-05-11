@@ -100,6 +100,15 @@ export class PullRequestService implements PullRequestServiceContract {
       };
     }
 
+    // ── main/master 브랜치 PR 생성 제한 ──────────────────────────────────────
+    if (branchName === 'main' || branchName === 'master') {
+      return {
+        ok: false,
+        code: 'GITHUB_INVALID_BRANCH',
+        message: `현재 브랜치 '${branchName}'에서는 PR 생성을 시작할 수 없습니다. 새로운 브랜치를 생성하여 작업해 주세요.`,
+      };
+    }
+
     // ── 미커밋 변경사항 확인 ────────────────────────────────────────────────
     // 현재 체크아웃된 브랜치에 대해 PR을 생성하려고 할 때, 커밋하지 않은 작업 내역이 있다면 차단
     if (branchName === status.currentBranch) {
