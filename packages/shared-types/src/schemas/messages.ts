@@ -49,7 +49,11 @@ export const InboundPayloadSchemaMap = {
   ACCEPT_MERGE: z.object({ filePath: z.string(), code: z.string() }),
   REJECT_MERGE: z.object({ filePath: z.string() }),
   RUN_MERGE: z.object({ source: z.string(), target: z.string() }),
-  RECOMMEND_COMMIT: z.object({ diffText: z.string().min(1), tag: z.string().optional() }),
+  RECOMMEND_COMMIT: z.object({
+    prompt: z.string().trim().optional(),
+    diffText: z.string().trim().optional(),
+    tag: z.string().optional(),
+  }).strict(),
   RECOMMEND_BRANCH: z.object({ purpose: z.string().min(1) }),
   RECOMMEND_PR: z.object({ base: z.string().min(1) }),
   APPLY_COMMIT: z.object({ message: z.string().min(1), body: z.string().optional() }),
@@ -182,7 +186,7 @@ export const OutboundPayloadSchemaMap = {
  * 메시지 type별 payload 타입 매핑입니다.
  *
  * 결과 예시:
- * - RECOMMEND_COMMIT -> { diffText: string; tag?: string }
+ * - RECOMMEND_COMMIT -> { prompt?: string; diffText?: string; tag?: string }
  * - RECOMMEND_PR -> { base: string }
  */
 export type InboundPayloadByType = {

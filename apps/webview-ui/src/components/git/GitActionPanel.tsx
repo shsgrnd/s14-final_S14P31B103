@@ -297,17 +297,18 @@ export const GitActionPanel: React.FC = () => {
 
   const handleAISubmit = () => {
     const prompt = aiPrompt.trim();
-    if (!prompt) return;
-
     if (showCommitForm) {
       // RECOMMEND_COMMIT 스키마: { diffText: string, tag?: string }
       beginRecommendationRequest('commit');
-      sendMessage('RECOMMEND_COMMIT', { diffText: prompt });
-    } else {
-      // RECOMMEND_BRANCH 스키마: { purpose: string }
-      beginRecommendationRequest('branch');
-      sendMessage('RECOMMEND_BRANCH', { purpose: prompt });
+      sendMessage('RECOMMEND_COMMIT', prompt ? { prompt } : {});
+      closeAIPrompt();
+      return;
     }
+
+    if (!prompt) return;
+      // RECOMMEND_BRANCH 스키마: { purpose: string }
+    beginRecommendationRequest('branch');
+    sendMessage('RECOMMEND_BRANCH', { purpose: prompt });
 
     closeAIPrompt();
   };
