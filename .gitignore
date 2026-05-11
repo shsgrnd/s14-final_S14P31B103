@@ -89,6 +89,7 @@ packages/ai-pipeline/trainer/outputs/
 packages/ai-pipeline/trainer/wandb/
 packages/ai-pipeline/trainer/models/
 packages/ai-pipeline/data/synthetic_conflict_dataset.jsonl
+packages/ai-pipeline/trainer/eval/results/sft_model_results_final.jsonl
 
 # AI RAG (생성 파일 - 커밋 불필요)
 packages/ai-pipeline/trainer/rag/chroma_db/
