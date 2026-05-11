@@ -100,10 +100,25 @@ export class PullRequestService implements PullRequestServiceContract {
       };
     }
 
+    // ── 미커밋 변경사항 확인 ────────────────────────────────────────────────
+    // 현재 체크아웃된 브랜치에 대해 PR을 생성하려고 할 때, 커밋하지 않은 작업 내역이 있다면 차단
+    if (branchName === status.currentBranch) {
+      const hasUncommittedChanges = status.staged.length > 0 || status.unstaged.length > 0;
+      if (hasUncommittedChanges) {
+        return {
+          ok: false,
+          code: 'GITHUB_INVALID_BRANCH', // 프론트엔드에서 에러로 표시하기 적합한 코드 사용
+          message: '현재 브랜치에 커밋되지 않은 변경사항이 있습니다. 먼저 변경사항을 커밋해 주세요.',
+        };
+      }
+    }
+
     const localBranch = branches.find((branch) => !branch.isRemote && branch.name === branchName);
     const remoteBranchName = localBranch?.trackingBranch ?? `origin/${branchName}`;
     const remoteBranch = branches.find((branch) => branch.isRemote && branch.name === remoteBranchName);
 
+    // ── 원격 브랜치 존재 여부 확인 ───────────────────────────────────────
+    // fetch 이후에도 원격 브랜치가 없으면 한 번도 push하지 않은 것이다.
     if (!remoteBranch) {
       return {
         ok: false,
@@ -112,24 +127,42 @@ export class PullRequestService implements PullRequestServiceContract {
       };
     }
 
-    if (
-      localBranch?.lastCommitHash &&
-      remoteBranch.lastCommitHash &&
-      localBranch.lastCommitHash !== remoteBranch.lastCommitHash
-    ) {
-      return {
-        ok: false,
-        code: 'GITHUB_BRANCH_NOT_PUSHED',
-        message: `현재 브랜치 '${branchName}'의 로컬 커밋이 원격 브랜치 '${remoteBranchName}'와 다릅니다. 먼저 push 또는 동기화한 뒤 PR 생성을 다시 시도해 주세요.`,
-      };
-    }
-
-    if (branchName === status.currentBranch && status.ahead > 0) {
-      return {
-        ok: false,
-        code: 'GITHUB_BRANCH_NOT_PUSHED',
-        message: `현재 브랜치 '${branchName}'에 아직 push되지 않은 커밋이 ${status.ahead}개 있습니다. 먼저 push한 뒤 PR 생성을 다시 시도해 주세요.`,
-      };
+    // ── commit hash 비교 ──────────────────────────────────────────────────
+    // lastCommitHash가 undefined인 경우 비교 불가능 → getUnpushedFiles()로 대체 판단
+    // 둘 다 있고 값이 다르면 명확히 미push 상태이다.
+    if (localBranch?.lastCommitHash && remoteBranch.lastCommitHash) {
+      if (localBranch.lastCommitHash !== remoteBranch.lastCommitHash) {
+        return {
+          ok: false,
+          code: 'GITHUB_BRANCH_NOT_PUSHED',
+          message: `현재 브랜치 '${branchName}'의 로컬 커밋이 원격 브랜치 '${remoteBranchName}'와 다릅니다. 먼저 push 또는 동기화한 뒤 PR 생성을 다시 시도해 주세요.`,
+        };
+      }
+    } else {
+      // ── fallback: rev-list 기반 미push 커밋 직접 탐지 ────────────────────
+      // status.ahead는 tracking 브랜치가 설정되지 않은 경우 0을 반환하므로 신뢰할 수 없다.
+      // getUnpushedFiles()는 내부적으로 `git rev-list @{u}..HEAD`를 사용해
+      // tracking 설정과 무관하게 실제 미push 파일 목록을 정확히 반환한다.
+      try {
+        const unpushedFiles = await this.gitService.getUnpushedFiles();
+        if (unpushedFiles.length > 0) {
+          return {
+            ok: false,
+            code: 'GITHUB_BRANCH_NOT_PUSHED',
+            message: `현재 브랜치 '${branchName}'에 아직 push되지 않은 커밋이 있습니다 (변경 파일 ${unpushedFiles.length}개). 먼저 push한 뒤 PR 생성을 다시 시도해 주세요.`,
+          };
+        }
+      } catch {
+        // @{u} 없음(tracking 브랜치 미설정) 예외 → 보수적으로 status.ahead로 fallback
+        // status.ahead > 0이 아니더라도 원격 브랜치가 존재하므로 넘어간다.
+        if (status.ahead > 0) {
+          return {
+            ok: false,
+            code: 'GITHUB_BRANCH_NOT_PUSHED',
+            message: `현재 브랜치 '${branchName}'에 아직 push되지 않은 커밋이 ${status.ahead}개 있습니다. 먼저 push한 뒤 PR 생성을 다시 시도해 주세요.`,
+          };
+        }
+      }
     }
 
     return {
