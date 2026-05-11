@@ -93,3 +93,6 @@ packages/ai-pipeline/data/synthetic_conflict_dataset.jsonl
 # AI RAG (생성 파일 - 커밋 불필요)
 packages/ai-pipeline/trainer/rag/chroma_db/
 
+# VSIX 패키징 결과물 및 빌드 산출물
+apps/extension/.artifacts/
+
