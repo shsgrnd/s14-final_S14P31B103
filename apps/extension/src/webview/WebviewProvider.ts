@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import { MessageRouter } from '../core/MessageRouter';
+import { resolveWebviewDistPath } from './webviewAssets';
 
 export class WebviewProvider {
     private panel: vscode.WebviewPanel | undefined;
@@ -26,7 +27,7 @@ export class WebviewProvider {
             return;
         }
 
-        const distPath = path.join(this.context.extensionPath, '..', 'webview-ui', 'dist');
+        const distPath = resolveWebviewDistPath(this.context.extensionPath);
 
         this.panel = vscode.window.createWebviewPanel(
             'gitcat',
@@ -68,9 +69,7 @@ export class WebviewProvider {
     }
 
     private getHtmlForWebview(webview: vscode.Webview, viewMode: 'sidebar' | 'main' | 'pr'): string {
-        const distPath = vscode.Uri.file(
-            path.join(this.context.extensionPath, '..', 'webview-ui', 'dist')
-        );
+        const distPath = vscode.Uri.file(resolveWebviewDistPath(this.context.extensionPath));
         const indexPath = path.join(distPath.fsPath, 'index.html');
 
         if (!fs.existsSync(indexPath)) {

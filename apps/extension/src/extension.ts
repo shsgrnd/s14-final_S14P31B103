@@ -2,7 +2,6 @@ import * as vscode from 'vscode';
 import { createHash } from 'crypto';
 import { GitCatDatabase, SqliteRecommendationHistoryRepository } from '@gitcat/storage';
 import { GitCliClient } from '@gitcat/git-client-cli';
-import { MergeAiService } from '@gitcat/ai-pipeline';
 import { CommandRegistry } from './commands';
 import { EventRegistry } from './events';
 import { WebviewProvider } from './webview/WebviewProvider';
@@ -10,19 +9,8 @@ import { SidebarProvider } from './webview/SidebarProvider';
 import { MessageRouter } from './core/MessageRouter';
 import { GitService } from './features/git/GitService';
 import { GitMessageHandler } from './features/git/GitMessageHandler';
-import { GitMetadataSyncService } from './features/git/GitMetadataSyncService';
 import { GitStatusRefreshController } from './features/git/GitStatusRefreshController';
 import { BranchCleanupService } from './features/git/BranchCleanupService';
-import {
-  BranchRecommendationMessageHandler,
-  BranchRecommendationService,
-  CommitRecommendationMessageHandler,
-  CommitRecommendationRawDataService,
-  CommitRecommendationService,
-} from './features/recommendation';
-import { RecommendationHistoryQueryService } from './features/recommendation/RecommendationHistoryQueryService';
-import { PrRecommendationService } from './features/recommendation/PrRecommendationService';
-import { PrRecommendationHandler } from './features/recommendation/PrRecommendationHandler';
 import { GitHubTokenProvider } from './integrations/github/GitHubTokenProvider';
 import { GitHubClient } from './integrations/github/GitHubClient';
 import { PullRequestService } from './features/pull-request/PullRequestService';
@@ -41,78 +29,20 @@ export async function activate(context: vscode.ExtensionContext) {
     ? `project_${createHash('sha1').update(rootPath).digest('hex').slice(0, 16)}`
     : undefined;
 
-  let dbInstance: any = null;
-  if (rootPath && projectId) {
-    const dbPath = GitCatDatabase.getDatabasePath(rootPath);
-    try {
-      const database = await GitCatDatabase.create(rootPath);
-      dbInstance = database.getInstance();
-      console.log('GitCat Database initialized successfully at:', dbPath);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error);
-      console.error('Failed to initialize GitCat Database:', error);
-      vscode.window.showErrorMessage(`GitCat DB 초기화 실패: ${message}`);
-    }
-  }
-
   let gitMessageHandler: GitMessageHandler | undefined;
-  let branchRecommendationHandler: BranchRecommendationMessageHandler | undefined;
-  let commitRecommendationHandler: CommitRecommendationMessageHandler | undefined;
   let gitService: GitService | undefined;
-  let recommendationAiService: MergeAiService | undefined;
   if (rootPath && projectId) {
     try {
       const gitClient = new GitCliClient(rootPath);
-      const gitMetadataSync = dbInstance
-        ? new GitMetadataSyncService(dbInstance, rootPath)
-        : undefined;
-      gitService = new GitService(gitClient, gitMetadataSync);
+      gitService = new GitService(gitClient);
 
       const branchCleanupService = new BranchCleanupService(gitService);
       gitMessageHandler = new GitMessageHandler(gitService, branchCleanupService);
-
-      recommendationAiService = new MergeAiService();
-      const branchHistoryRepository = dbInstance
-        ? new SqliteRecommendationHistoryRepository(dbInstance)
-        : undefined;
-      const branchRecommendationService = new BranchRecommendationService(gitService, {
-        historyRepository: branchHistoryRepository,
-        projectId,
-        aiService: recommendationAiService,
-      });
-      branchRecommendationHandler = new BranchRecommendationMessageHandler(branchRecommendationService);
-
-      const commitRawDataService = new CommitRecommendationRawDataService(gitService);
-      const commitRecommendationService = new CommitRecommendationService(commitRawDataService, {
-        historyRepository: branchHistoryRepository,
-        projectId,
-        aiService: recommendationAiService,
-      });
-      commitRecommendationHandler = new CommitRecommendationMessageHandler(commitRecommendationService);
 
       console.log('GitCat Git layer initialized at:', rootPath);
     } catch (error) {
       console.error('Failed to initialize GitCat Git layer:', error);
       vscode.window.showWarningMessage('GitCat Git 기능 초기화에 실패했습니다. Git 기능을 사용할 수 없습니다.');
-    }
-  }
-
-  let prRecommendationHandler: PrRecommendationHandler | undefined;
-  if (rootPath && gitService && dbInstance && projectId) {
-    try {
-      const historyRepository = new SqliteRecommendationHistoryRepository(dbInstance);
-      const historyQueryService = new RecommendationHistoryQueryService(historyRepository);
-      const prRecommendationService = new PrRecommendationService(
-        gitService,
-        recommendationAiService ?? new MergeAiService(),
-        historyRepository,
-        projectId,
-        historyQueryService,  // 추천 이력 조회 Query 서비스 주입
-      );
-      prRecommendationHandler = new PrRecommendationHandler(prRecommendationService);
-      console.log('GitCat PR Recommendation layer initialized');
-    } catch (error) {
-      console.error('Failed to initialize GitCat PR Recommendation layer:', error);
     }
   }
 
@@ -139,11 +69,11 @@ export async function activate(context: vscode.ExtensionContext) {
   }
 
   const messageRouter = new MessageRouter(
-    dbInstance,
+    null,
     gitMessageHandler,
-    branchRecommendationHandler,
-    commitRecommendationHandler,
-    prRecommendationHandler,
+    undefined,
+    undefined,
+    undefined,
     pullRequestHandler,  // GitHub PR 생성 핵들러 주입
   );
 
@@ -157,7 +87,9 @@ export async function activate(context: vscode.ExtensionContext) {
   openPullRequestPanelRef.current = () => webviewProvider.createOrShow('pr');
   closePullRequestPanelRef.current = () => webviewProvider.closePrPanel();
   const sidebarProvider = new SidebarProvider(context, messageRouter);
-  vscode.window.registerWebviewViewProvider('gitcat-sidebar-webview', sidebarProvider);
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider('gitcat-sidebar-webview', sidebarProvider)
+  );
 
   context.subscriptions.push(
     vscode.workspace.onDidChangeWorkspaceFolders(() => {
@@ -167,6 +99,90 @@ export async function activate(context: vscode.ExtensionContext) {
 
   CommandRegistry.registerAll(context, webviewProvider, gitService);
   EventRegistry.registerAll(context);
+
+  if (rootPath && projectId && gitService) {
+    void initializeRecommendationBackfill(
+      rootPath,
+      projectId,
+      gitService,
+      messageRouter,
+    );
+  }
+}
+
+async function initializeRecommendationBackfill(
+  rootPath: string,
+  projectId: string,
+  gitService: GitService,
+  messageRouter: MessageRouter,
+): Promise<void> {
+  try {
+    const recommendationModule = await import('./features/recommendation');
+    const { MergeAiService } = await import('@gitcat/ai-pipeline');
+    const recommendationAiService = new MergeAiService();
+
+    const branchRecommendationService = new recommendationModule.BranchRecommendationService(gitService, {
+      projectId,
+      aiService: recommendationAiService,
+    });
+    const commitRawDataService = new recommendationModule.CommitRecommendationRawDataService(gitService);
+    const commitRecommendationService = new recommendationModule.CommitRecommendationService(commitRawDataService, {
+      projectId,
+      aiService: recommendationAiService,
+    });
+
+    messageRouter.configureRecommendationHandlers({
+      branchRecommendationHandler: new recommendationModule.BranchRecommendationMessageHandler(branchRecommendationService),
+      commitRecommendationHandler: new recommendationModule.CommitRecommendationMessageHandler(commitRecommendationService),
+    });
+
+    const dbPath = GitCatDatabase.getDatabasePath(rootPath);
+    const database = await GitCatDatabase.create(rootPath);
+    const dbInstance = database.getInstance();
+    const historyRepository = new SqliteRecommendationHistoryRepository(dbInstance);
+    const { RecommendationHistoryQueryService } = await import('./features/recommendation/RecommendationHistoryQueryService');
+    const { PrRecommendationService } = await import('./features/recommendation/PrRecommendationService');
+    const { PrRecommendationHandler } = await import('./features/recommendation/PrRecommendationHandler');
+    const historyQueryService = new RecommendationHistoryQueryService(historyRepository);
+
+    const branchRecommendationServiceWithHistory = new recommendationModule.BranchRecommendationService(gitService, {
+      historyRepository,
+      projectId,
+      aiService: recommendationAiService,
+    });
+    const commitRecommendationServiceWithHistory = new recommendationModule.CommitRecommendationService(commitRawDataService, {
+      historyRepository,
+      projectId,
+      aiService: recommendationAiService,
+    });
+    const prRecommendationService = new PrRecommendationService(
+      gitService,
+      recommendationAiService,
+      historyRepository,
+      projectId,
+      historyQueryService,
+    );
+
+    messageRouter.configureRecommendationHandlers({
+      branchRecommendationHandler: new recommendationModule.BranchRecommendationMessageHandler(branchRecommendationServiceWithHistory),
+      commitRecommendationHandler: new recommendationModule.CommitRecommendationMessageHandler(commitRecommendationServiceWithHistory),
+      prRecommendationHandler: new PrRecommendationHandler(prRecommendationService),
+    });
+
+    console.log('GitCat Database initialized successfully at:', dbPath);
+    console.log('GitCat recommendation history layer initialized');
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('Failed to initialize GitCat recommendation layer:', error);
+    void vscode.window.showWarningMessage(`GitCat 추천 기능 초기화가 지연되거나 실패했습니다: ${message}`);
+    void messageRouter.broadcast({
+      type: 'NOTIFICATION',
+      payload: {
+        type: 'warning',
+        message: 'GitCat 추천 기능이 아직 준비되지 않아 일부 AI 기능이 제한됩니다.',
+      },
+    });
+  }
 }
 
 export function deactivate() {
