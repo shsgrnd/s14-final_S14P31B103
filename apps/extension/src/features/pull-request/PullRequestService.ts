@@ -25,6 +25,7 @@ import type {
   PullRequestCreatedResult,
   PullRequestTemplate,
 } from '../../integrations/github/interfaces';
+import type { ErrorCode } from '@gitcat/shared-types';
 import type { PullRequestServiceContract } from './interfaces';
 import type { GitService } from '../git/GitService';
 import { GitHubClient as GitHubClientImpl } from '../../integrations/github/GitHubClient';
@@ -33,6 +34,18 @@ const PR_TEMPLATE_PATHS = [
   '.github/pull_request_template.md',
   '.github/PULL_REQUEST_TEMPLATE.md',
 ] as const;
+
+export type PullRequestBranchValidationResult =
+  | {
+      ok: true;
+      branch: string;
+      remoteBranch: string;
+    }
+  | {
+      ok: false;
+      code: ErrorCode;
+      message: string;
+    };
 
 export class PullRequestService implements PullRequestServiceContract {
   constructor(
@@ -50,6 +63,80 @@ export class PullRequestService implements PullRequestServiceContract {
 
     const repoInfo = await this.resolveOwnerAndRepo();
     return this.githubClient.listPullRequestTemplates(repoInfo.owner, repoInfo.repo, input.base);
+  }
+
+  async validateHeadBranchReady(
+    headBranch?: string,
+  ): Promise<PullRequestBranchValidationResult> {
+    try {
+      await this.gitService.fetchAllPrune();
+    } catch (error: any) {
+      return {
+        ok: false,
+        code: 'GIT_OPERATION_FAILED',
+        message: `원격 브랜치 상태를 확인할 수 없습니다. 네트워크 또는 Git remote 설정을 확인해 주세요: ${error?.message ?? String(error)}`,
+      };
+    }
+
+    const [status, branches] = await Promise.all([
+      this.gitService.getStatus(),
+      this.gitService.getBranches(),
+    ]);
+
+    if (!headBranch && status.isDetachedHead) {
+      return {
+        ok: false,
+        code: 'GITHUB_INVALID_BRANCH',
+        message: 'Detached HEAD 상태에서는 PR을 생성할 수 없습니다. 브랜치를 체크아웃한 뒤 다시 시도해 주세요.',
+      };
+    }
+
+    const branchName = headBranch ?? status.currentBranch;
+    if (!branchName || branchName === 'HEAD') {
+      return {
+        ok: false,
+        code: 'GITHUB_INVALID_BRANCH',
+        message: 'PR을 생성할 head 브랜치를 확인할 수 없습니다. 브랜치를 체크아웃한 뒤 다시 시도해 주세요.',
+      };
+    }
+
+    const localBranch = branches.find((branch) => !branch.isRemote && branch.name === branchName);
+    const remoteBranchName = localBranch?.trackingBranch ?? `origin/${branchName}`;
+    const remoteBranch = branches.find((branch) => branch.isRemote && branch.name === remoteBranchName);
+
+    if (!remoteBranch) {
+      return {
+        ok: false,
+        code: 'GITHUB_BRANCH_NOT_PUSHED',
+        message: `현재 브랜치 '${branchName}'가 원격에 없습니다. 먼저 push한 뒤 PR 생성을 다시 시도해 주세요.`,
+      };
+    }
+
+    if (
+      localBranch?.lastCommitHash &&
+      remoteBranch.lastCommitHash &&
+      localBranch.lastCommitHash !== remoteBranch.lastCommitHash
+    ) {
+      return {
+        ok: false,
+        code: 'GITHUB_BRANCH_NOT_PUSHED',
+        message: `현재 브랜치 '${branchName}'의 로컬 커밋이 원격 브랜치 '${remoteBranchName}'와 다릅니다. 먼저 push 또는 동기화한 뒤 PR 생성을 다시 시도해 주세요.`,
+      };
+    }
+
+    if (branchName === status.currentBranch && status.ahead > 0) {
+      return {
+        ok: false,
+        code: 'GITHUB_BRANCH_NOT_PUSHED',
+        message: `현재 브랜치 '${branchName}'에 아직 push되지 않은 커밋이 ${status.ahead}개 있습니다. 먼저 push한 뒤 PR 생성을 다시 시도해 주세요.`,
+      };
+    }
+
+    return {
+      ok: true,
+      branch: branchName,
+      remoteBranch: remoteBranchName,
+    };
   }
 
   private async listLocalPullRequestTemplates(): Promise<PullRequestTemplate[]> {
@@ -85,6 +172,11 @@ export class PullRequestService implements PullRequestServiceContract {
    * 4. 성공 결과 반환
    */
   async createPullRequest(input: CreatePullRequestInput): Promise<PullRequestCreatedResult> {
+    const validation = await this.validateHeadBranchReady(input.headBranch);
+    if (!validation.ok) {
+      throw new GitHubApiError(validation.code, validation.message);
+    }
+
     // ─── 1. owner/repo 조회 ───────────────────────────────────────────────
     // input에 owner/repo가 이미 있으면 그것을 사용하고,
     // 없으면 Git remote URL에서 자동으로 추출한다.
