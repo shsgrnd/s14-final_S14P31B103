@@ -51,7 +51,6 @@ export const InboundMessageTypeEnum = z.enum([
   'GIT_PUSH',
   'OPEN_MERGE_PANEL',
   'CHECKOUT_BRANCH',
-  'REJECT_AI_DRAFT',
   // stash 작업
   'GET_STASH_LIST',
   'STASH_SAVE',
@@ -77,6 +76,10 @@ export const InboundMessageTypeEnum = z.enum([
   'GET_PR_DEFAULT_BASE_BRANCH',
   'SET_PR_DEFAULT_BASE_BRANCH',
   'CLEAR_PR_DEFAULT_BASE_BRANCH',
+  // AI API Key 관리
+  'SAVE_AI_API_KEY',
+  'DELETE_AI_API_KEY',
+  'CHECK_AI_API_KEY',
 ]);
 export type InboundMessageType = z.infer<typeof InboundMessageTypeEnum>;
 
@@ -117,5 +120,7 @@ export const OutboundMessageTypeEnum = z.enum([
   'PR_CREATED',
   /** PR 환경설정 — 현재 저장된 기본 target 브랜치(또는 미지정) */
   'PR_DEFAULT_BASE_BRANCH',
+  // AI API Key 상태 응답
+  'AI_API_KEY_STATUS',
 ]);
 export type OutboundMessageType = z.infer<typeof OutboundMessageTypeEnum>;

@@ -171,6 +171,7 @@ export const PrRecommendationInputSchema = RecommendationBaseSchema.extend({
   changed_files: z.array(z.string()),
   diff_summary: z.string().optional(),
   branch_context: z.string(),
+  template: z.string().optional(),
 });
 export type PrRecommendationInput = z.infer<typeof PrRecommendationInputSchema>;
 

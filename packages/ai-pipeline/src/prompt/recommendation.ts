@@ -36,6 +36,8 @@ function buildRecommendationContext(payload: RecommendationInput): string {
     lines.push(`Changed Files: ${payload.changed_files.join(', ')}`);
     lines.push(`Diff Summary: ${payload.diff_summary ?? 'Not provided'}`);
     lines.push(`Branch Context: ${payload.branch_context}`);
+    lines.push(`Template Provided: ${payload.template ? 'Yes' : 'No'}`);
+    lines.push(`Template Markdown:\n${payload.template ?? 'Not provided'}`);
   }
 
   return lines.join('\n');
@@ -55,6 +57,7 @@ export function getRecommendationSystemPrompt(): string {
     'Required JSON fields: title, summary, recommendation_type, primary_text, alternative_texts.',
     'Optional JSON fields: generation_basis_summary, explanation, confidence_score.',
     'alternative_texts must contain practical alternatives, not decorative variations.',
+    'If the request includes a PR template, primary_text must follow that template structure closely.',
   ].join('\\n');
 }
 
@@ -98,11 +101,14 @@ export function buildRecommendationUserPrompt(payload: RecommendationInput): str
         'Task (Chain of Thought):',
         '- Step 1 (의도 파악): PR 범위 요약(change_summary)과 작업 의도(work_intent)를 바탕으로 PR의 핵심 목적을 파악한다.',
         '- Step 2 (상세 분석): 실제 변경 사항이 모두 포함된 Diff 원문(diff_summary)을 중점적으로 분석하고, 커밋 로그(branch_context)를 종합하여 코드 변경 사항의 전체 흐름을 파악한다.',
-        '- Step 3 (포맷팅): 코드 리뷰어가 변경 목적, 핵심 내용, 유의사항을 한눈에 파악할 수 있도록 마크다운(Markdown) 형식의 PR Description을 작성한다.',
+        '- Step 3 (포맷팅): template가 제공되면 그 마크다운 섹션 구조와 순서를 최대한 유지한 채 내용을 채우고, template가 없으면 코드 리뷰어가 변경 목적, 핵심 내용, 유의사항을 한눈에 파악할 수 있도록 마크다운(Markdown) 형식의 PR Description을 작성한다.',
         '',
         'Additional Instructions:',
         '- Use readability-focused markdown formatting.',
-        '- primary_text will be the full markdown string.'
+        '- primary_text will be the full markdown string.',
+        '- If Template Markdown is provided, preserve its section headings and order as closely as possible.',
+        '- Fill the template with concrete PR content rather than repeating empty placeholders.',
+        '- Do not add new top-level sections unless they are necessary to complete the template intent.'
       );
       break;
   }

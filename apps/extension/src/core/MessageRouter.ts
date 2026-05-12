@@ -14,6 +14,7 @@ import type {
   CommitRecommendationMessageHandler,
 } from '../features/recommendation';
 import type { PrRecommendationHandler } from '../features/recommendation/PrRecommendationHandler';
+import type { AiApiKeyMessageHandler } from '../features/recommendation/AiApiKeyMessageHandler';
 import type { PullRequestMessageHandler } from '../features/pull-request/PullRequestMessageHandler';
 import type { PrSettingsMessageHandler } from '../features/settings/PrSettingsMessageHandler';
 import {
@@ -35,6 +36,7 @@ export class MessageRouter {
   private readonly pullRequestHandler: PullRequestMessageHandler | null;
   /** PR 환경설정 (기본 target 브랜치 저장/조회) */
   private prSettingsHandler: PrSettingsMessageHandler | null;
+  private readonly aiApiKeyMessageHandler: AiApiKeyMessageHandler | null;
   private readonly webviews = new Set<vscode.Webview>();
 
   constructor(
@@ -45,6 +47,7 @@ export class MessageRouter {
     prRecommendationHandler?: PrRecommendationHandler,
     pullRequestHandler?: PullRequestMessageHandler,
     prSettingsHandler?: PrSettingsMessageHandler,
+    aiApiKeyMessageHandler?: AiApiKeyMessageHandler,
   ) {
     this.gitHandler = gitHandler ?? null;
     this.branchRecommendationHandler = branchRecommendationHandler ?? null;
@@ -52,6 +55,7 @@ export class MessageRouter {
     this.prRecommendationHandler = prRecommendationHandler ?? null;
     this.pullRequestHandler = pullRequestHandler ?? null;
     this.prSettingsHandler = prSettingsHandler ?? null;
+    this.aiApiKeyMessageHandler = aiApiKeyMessageHandler ?? null;
   }
 
   public setPrSettingsHandler(handler: PrSettingsMessageHandler): void {
@@ -134,6 +138,11 @@ export class MessageRouter {
         const handled = await this.prSettingsHandler.handle(message.type, message.payload, webview);
         if (handled) return;
       }
+      // AI API Key 핸들러 위임
+      if (this.aiApiKeyMessageHandler) {
+        const handled = await this.aiApiKeyMessageHandler.handle(message.type, message.payload, webview);
+        if (handled) return;
+      }
 
       // 핸들러가 없거나 처리 못 한 메시지 — type별 분기
       switch (message.type) {
@@ -202,10 +211,6 @@ export class MessageRouter {
 
         case 'GET_AI_DRAFT':
           this.sendNotImplemented(webview, 'GET_AI_DRAFT', 'AI 초안 조회 (4단계 구현 예정)');
-          break;
-
-        case 'REJECT_AI_DRAFT':
-          this.sendNotImplemented(webview, 'REJECT_AI_DRAFT', 'AI 초안 거절 (4단계 구현 예정)');
           break;
 
         // ─── 유틸리티 ─────────────────────────────────────────────────────

@@ -80,9 +80,9 @@ export class PrRecommendationService {
   /**
    * PR description 추천 실행
    */
-  async recommendPR(base: string): Promise<PrRecommendationResultDto> {
+  async recommendPR(base: string, template?: string): Promise<PrRecommendationResultDto> {
     // PR 추천용 Git raw data 수집
-    const rawData = await this.collectRawData(base);
+    const rawData = await this.collectRawData(base, template);
 
     // AI 파이프라인 입력 payload 구성
     const payload = await this.buildAiPayload(rawData);
@@ -99,7 +99,7 @@ export class PrRecommendationService {
     };
   }
 
-  private async collectRawData(base: string): Promise<PrRecommendationRawDataDto> {
+  private async collectRawData(base: string, template?: string): Promise<PrRecommendationRawDataDto> {
     // 현재 브랜치 확인
     const status = await this.gitService.getStatus();
     const currentBranch = status.currentBranch;
@@ -131,6 +131,7 @@ export class PrRecommendationService {
         date: commit.date,
         body: commit.body,
       })),
+      template,
     };
   }
 
@@ -159,6 +160,7 @@ export class PrRecommendationService {
         `Recent PR recommendation count: ${historyContext.length}`,
       ].join('\n'),
       schema_version: '1.0',
+      template: rawData.template,
     };
   }
 
@@ -188,7 +190,7 @@ export class PrRecommendationService {
       project_id: this.projectId,
       session_id: payload.session_id,
       recommendation_type: 'pr_description',
-      input_summary: payload.change_summary ?? payload.work_intent ?? null,
+      input_summary: (payload.change_summary ?? payload.work_intent ?? '') + (payload.template ? ' [Template Applied]' : ''),
       result_text: response.markdown,
       alternative_texts: response.alternativeTexts,
       generation_basis_summary: response.generationBasisSummary,

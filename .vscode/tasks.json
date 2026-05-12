@@ -6,7 +6,7 @@
             "type": "shell",
             "command": "corepack pnpm --filter @gitcat/shared-types run build; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; corepack pnpm --filter @gitcat/storage run build; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; corepack pnpm --filter @gitcat/git-core run build; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; corepack pnpm --filter @gitcat/git-client-cli run build; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; corepack pnpm --filter @gitcat/webview-ui run build; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; corepack pnpm --filter gitcat run compile",
             "options": {
-                "cwd": "${workspaceFolder}",
+                "cwd": "c:/Users/SSAFY/Desktop/s14-final_S14P31B103",
                 "shell": {
                     "executable": "powershell.exe",
                     "args": [
@@ -33,7 +33,7 @@
                 "watch"
             ],
             "options": {
-                "cwd": "${workspaceFolder}/apps/extension"
+                "cwd": "c:/Users/SSAFY/Desktop/s14-final_S14P31B103/apps/extension"
             },
             "isBackground": true,
             "group": {
