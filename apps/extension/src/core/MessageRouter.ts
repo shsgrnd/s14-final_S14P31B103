@@ -199,10 +199,6 @@ export class MessageRouter {
           this.sendNotImplemented(webview, 'GET_AI_DRAFT', 'AI 초안 조회 (4단계 구현 예정)');
           break;
 
-        case 'REJECT_AI_DRAFT':
-          this.sendNotImplemented(webview, 'REJECT_AI_DRAFT', 'AI 초안 거절 (4단계 구현 예정)');
-          break;
-
         // ─── 유틸리티 ─────────────────────────────────────────────────────
         case 'OPEN_FILE_DIFF':
           await this.handleOpenFileDiff((message.payload as any));

@@ -11,6 +11,7 @@ export interface PrRecommendationRawDataDto {
   diffText: string;
   changedFiles: string[];
   commits: LogEntryResponse[];
+  template?: string;
 }
 
 /**

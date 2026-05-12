@@ -20,15 +20,24 @@ export const AIDraftPanel: React.FC = () => {
   }
 
   const handleApprove = () => {
+    // 병합안 수락은 proposalId 기준의 표준 메시지로 전송합니다.
     sendMessage('ACCEPT_MERGE', {
+      proposalId: currentAIDraft.proposalId,
+      candidateId: currentAIDraft.candidateId,
       filePath: currentAIDraft.filePath,
-      code: currentAIDraft.proposedContent
+      proposedContent: currentAIDraft.proposedContent,
+      finalExplanation: currentAIDraft.explanation,
     });
     setAIDraft(null);
   };
 
   const handleReject = () => {
-    sendMessage('REJECT_AI_DRAFT', { id: currentAIDraft.id });
+    // AI 초안 거절도 REJECT_MERGE 하나로 통일합니다.
+    sendMessage('REJECT_MERGE', {
+      proposalId: currentAIDraft.proposalId,
+      candidateId: currentAIDraft.candidateId,
+      filePath: currentAIDraft.filePath,
+    });
     setAIDraft(null);
   };
 
@@ -72,7 +81,7 @@ export const AIDraftPanel: React.FC = () => {
             상대 변경사항 (Incoming)
           </div>
           <div className="flex-1 p-4 font-mono text-[12px] overflow-auto custom-scrollbar opacity-60">
-            <pre className="leading-5">{currentAIDraft.originalContent || '// No incoming changes detected'}</pre>
+            <pre className="leading-5">{currentAIDraft.targetContent || '// No incoming changes detected'}</pre>
           </div>
         </div>
 
@@ -83,7 +92,7 @@ export const AIDraftPanel: React.FC = () => {
             내 변경사항 (Current)
           </div>
           <div className="flex-1 p-4 font-mono text-[12px] overflow-auto custom-scrollbar opacity-60">
-            <pre className="leading-5">{currentAIDraft.originalContent || '// No local changes detected'}</pre>
+            <pre className="leading-5">{currentAIDraft.sourceContent || '// No local changes detected'}</pre>
           </div>
         </div>
 
@@ -108,7 +117,7 @@ export const AIDraftPanel: React.FC = () => {
                 <div className="flex-1 space-y-1">
                   <div className="text-[11px] font-bold">AI 중재 근거</div>
                   <p className="text-[11px] leading-relaxed opacity-80 italic">
-                    "{currentAIDraft.mediationOpinion || '코드의 중복성을 제거하고 공통 타입 정의를 우선적으로 적용했습니다.'}"
+                    "{currentAIDraft.explanation || '코드의 중복성을 제거하고 공통 타입 정의를 우선적으로 적용했습니다.'}"
                   </p>
                 </div>
               </div>
@@ -128,4 +137,3 @@ export const AIDraftPanel: React.FC = () => {
     </div>
   );
 };
-

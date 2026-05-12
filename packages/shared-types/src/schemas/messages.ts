@@ -4,14 +4,18 @@ import { InboundMessageTypeEnum, OutboundMessageTypeEnum } from '../enums/messag
 import {
   BranchSuggestionSchema,
   CommitSuggestionSchema,
-  ConflictCandidateSchema,
-  MergeProposalSchema,
   PRSuggestionSchema,
 } from '../dto/ai';
 import {
+  AcceptMergeRequestSchema,
+  AnalyzeConflictRequestSchema,
+  MergeCompleteViewSchema,
+  MergeConflictCandidateViewSchema,
+  MergeProposalViewSchema,
+  RejectMergeRequestSchema,
+} from '../dto/merge';
+import {
   SnapshotSchema,
-  ConflictAnalysisSchema,
-  AIDraftSchema,
   BranchSchema,
   GitResultSchema,
   GitStatusSchema,
@@ -45,9 +49,9 @@ export const EnvelopeSchema = z.object({
  */
 export const InboundPayloadSchemaMap = {
   RESTORE_SNAPSHOT: z.object({ snapshotId: z.string() }),
-  ANALYZE_CONFLICT: z.object({ source: z.string(), target: z.string() }),
-  ACCEPT_MERGE: z.object({ filePath: z.string(), code: z.string() }),
-  REJECT_MERGE: z.object({ filePath: z.string() }),
+  ANALYZE_CONFLICT: AnalyzeConflictRequestSchema,
+  ACCEPT_MERGE: AcceptMergeRequestSchema,
+  REJECT_MERGE: RejectMergeRequestSchema,
   RUN_MERGE: z.object({ source: z.string(), target: z.string() }),
   RECOMMEND_COMMIT: z.object({
     prompt: z.string().trim().optional(),
@@ -55,7 +59,10 @@ export const InboundPayloadSchemaMap = {
     tag: z.string().optional(),
   }).strict(),
   RECOMMEND_BRANCH: z.object({ purpose: z.string().min(1) }),
-  RECOMMEND_PR: z.object({ base: z.string().min(1) }),
+  RECOMMEND_PR: z.object({
+    base: z.string().min(1),
+    template: z.string().optional(),
+  }),
   APPLY_COMMIT: z.object({ message: z.string().min(1), body: z.string().optional() }),
   APPLY_BRANCH: z.object({ name: z.string().min(1) }),
   DELETE_BRANCHES: z.object({ names: z.array(z.string().min(1)).min(1), force: z.boolean() }),
@@ -92,7 +99,6 @@ export const InboundPayloadSchemaMap = {
   GIT_PUSH: z.object({}).strict(),
   OPEN_MERGE_PANEL: z.object({}).strict(),
   CHECKOUT_BRANCH: z.object({ name: z.string() }),
-  REJECT_AI_DRAFT: z.object({ id: z.string() }),
   // stash
   GET_STASH_LIST: z.object({}).strict(),
   STASH_SAVE: z.object({ message: z.string().optional() }),
@@ -142,9 +148,10 @@ export const OutboundPayloadSchemaMap = {
   SNAPSHOT_LIST: z.object({ snapshots: z.array(SnapshotSchema) }),
   SNAPSHOT_CREATED: z.object({ snapshot: SnapshotSchema }),
   RESTORE_DONE: z.object({ snapshotId: z.string() }),
-  CONFLICT_RESULT: z.object({ candidates: z.array(ConflictAnalysisSchema) }),
-  MERGE_PROPOSAL: z.object({ proposals: z.array(AIDraftSchema) }),
-  MERGE_COMPLETE: z.object({}),
+  // 병합 화면 응답은 AI/DB 원본 DTO가 아닌 projection DTO로 고정합니다.
+  CONFLICT_RESULT: z.object({ candidates: z.array(MergeConflictCandidateViewSchema) }),
+  MERGE_PROPOSAL: z.object({ proposals: z.array(MergeProposalViewSchema) }),
+  MERGE_COMPLETE: z.object({ merge: MergeCompleteViewSchema }),
   COMMIT_SUGGESTIONS: z.object({ suggestions: CommitSuggestionSchema }),
   BRANCH_SUGGESTIONS: BranchSuggestionSchema,
   PR_SUGGESTION: PRSuggestionSchema,
