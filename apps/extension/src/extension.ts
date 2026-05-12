@@ -4,6 +4,7 @@ import { GitCatDatabase, SqliteRecommendationHistoryRepository } from '@gitcat/s
 import { GitCliClient } from '@gitcat/git-client-cli';
 import { CommandRegistry } from './commands';
 import { EventRegistry } from './events';
+import { SessionManager } from './features/safety/session/SessionManager';
 import { WebviewProvider } from './webview/WebviewProvider';
 import { SidebarProvider } from './webview/SidebarProvider';
 import { MessageRouter } from './core/MessageRouter';
@@ -114,8 +115,9 @@ export async function activate(context: vscode.ExtensionContext) {
     })
   );
 
+  const sessionManager = new SessionManager();
   CommandRegistry.registerAll(context, webviewProvider, gitService);
-  EventRegistry.registerAll(context);
+  EventRegistry.registerAll(context, sessionManager);
 
   if (rootPath && projectId && gitService) {
     void initializeRecommendationBackfill(
