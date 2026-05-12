@@ -1,7 +1,7 @@
 import React from 'react';
 import { useGitCatStore } from '../../store/useGitCatStore';
 import { useVsCodeApi } from '../../hooks/useVsCodeApi';
-import { ConflictAnalysis } from '@gitcat/shared-types';
+import { MergeConflictCandidateView } from '@gitcat/shared-types';
 
 /**
  * ConflictAnalysisView 컴포넌트
@@ -12,7 +12,7 @@ export const ConflictAnalysisView: React.FC = () => {
   const { conflicts, isAnalyzing } = useGitCatStore();
   const { sendMessage } = useVsCodeApi();
 
-  const handleFocusConflict = (conflict: ConflictAnalysis) => {
+  const handleFocusConflict = (conflict: MergeConflictCandidateView) => {
     // 에디터에서 해당 위치로 이동 요청
     sendMessage('OPEN_FILE_DIFF', { 
       filePath: conflict.filePath
@@ -50,7 +50,7 @@ export const ConflictAnalysisView: React.FC = () => {
 };
 
 const ConflictItem: React.FC<{ 
-  conflict: ConflictAnalysis; 
+  conflict: MergeConflictCandidateView;
   onClick: () => void;
 }> = ({ conflict, onClick }) => {
   return (
@@ -61,7 +61,7 @@ const ConflictItem: React.FC<{
       <div className="flex items-center gap-2 mb-1">
         <SeverityIcon severity={conflict.severity} />
         <span className="text-[11px] font-medium truncate opacity-90">{conflict.filePath.split('/').pop()}</span>
-        <span className="text-[10px] opacity-40 italic">L{conflict.lineRange[0]}</span>
+        <span className="text-[10px] opacity-40 italic">L{conflict.lineStart}</span>
       </div>
       
       <p className="text-[10px] leading-relaxed opacity-60 line-clamp-2 mb-1">
@@ -80,7 +80,7 @@ const ConflictItem: React.FC<{
   );
 };
 
-const SeverityIcon: React.FC<{ severity: ConflictAnalysis['severity'] }> = ({ severity }) => {
+const SeverityIcon: React.FC<{ severity: MergeConflictCandidateView['severity'] }> = ({ severity }) => {
   const colorClass = severity === 'high' ? 'bg-red-500' : severity === 'medium' ? 'bg-orange-500' : 'bg-blue-500';
   return <div className={`w-1.5 h-1.5 rounded-full ${colorClass}`} />;
 };

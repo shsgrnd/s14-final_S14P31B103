@@ -197,83 +197,142 @@
 
 ## 4단계. 병합 충돌 해결
 
-### 백엔드 1
-- source/target 선택용 Git/브랜치/워크트리/워크트리 인스턴스 데이터 수집
-- merge base 계산용 Git adapter 연결
-- diff/merge command 실행 배선
-- git merge / merge continue / merge abort 실행 배선
-- conflict marker 재스캔 트리거
-- merge artifact 로컬 경로 생성
-- ANALYZE_CONFLICT / RUN_MERGE / ACCEPT_MERGE / REJECT_MERGE 메시지 라우팅
-- 병합 관련 결과를 Webview로 넘기는 최소 흐름 구현
+### 분담 원칙
+- 병합 충돌 해결 단계는 백엔드 1/2로 나누지 않고 하나의 백엔드가 기능 단위로 끝까지 구현한다.
+- 이 단계는 단순 Git 명령 추가보다 계약 정리와 연결 흐름 구현이 핵심이다.
+- 이미 구현된 Git merge 관련 기능은 재구현하지 않고 재사용한다.
+- AI ↔ Extension, Webview ↔ Extension, DB 저장 모델은 목적별 DTO를 분리한다.
 
-### 백엔드 2
-- merge_analyses / conflict_candidates / merge_proposals / proposal_feedbacks repository 구현
-- MergeAnalysisService 구현
-- ConflictAnalyzer orchestration interface 구현
-- MergeProposalService 구현
-- ProposalFeedbackService 구현
-- 과거 proposal_feedbacks를 현재 병합 제안 입력의 참고 데이터로 조회하는 서비스 구현
-- analysis_artifact_path / proposals_artifact_path 메타데이터 관리
-- ANALYZE_CONFLICT / CONFLICT_RESULT / MERGE_PROPOSAL / ACCEPT_MERGE / REJECT_MERGE 관련 DTO, validator, handler 구현
+---
 
-### 단계 종료 후 연결
-- 백엔드 1의 Git diff/merge 결과를 백엔드 2 병합 분석 서비스에 전달
-- 백엔드 2의 conflict/proposal 결과를 백엔드 1 라우터로 전달
-- proposal_feedback 저장 흐름까지 맞춘다
+### 티켓 4-1. 병합 계약 정리 및 DTO 통일
+
+#### 티켓명
+[BE] 병합 계약 정리 및 DTO 통일
+
+#### 해야 할 일
+- `ANALYZE_CONFLICT` 입력 계약 확정
+- Extension → AI 입력을 `MergeProposalInputSchema` 기준으로 정리
+- Extension → Webview 출력은 화면용 projection DTO로 분리
+- `CONFLICT_RESULT`, `MERGE_PROPOSAL`, `MERGE_COMPLETE` payload 재정의
+- `REJECT_AI_DRAFT`와 `REJECT_MERGE` 중 하나를 표준 메시지로 통일
+- shared-types / AI DTO / Webview store가 같은 규약을 쓰도록 정리
+
+#### 단계 종료 후 연결
+- AI 담당은 `MergeProposalInputSchema` 기준 입력을 받을 수 있다.
+- 프론트 담당은 병합용 projection DTO 기준으로 UI를 붙일 수 있다.
+
+---
+
+### 티켓 4-2. 병합 입력 조합 서비스 구현
+
+#### 티켓명
+[BE] 병합 입력 조합 서비스 구현
+
+#### 해야 할 일
+- source / target / session / worktree context 수집
+- `getMergeBase`, `getDiff`, `getDiffText` 기반 입력 assembler 구현
+- 병합 분석용 raw data 조합
+- AI 병합 제안용 raw data 조합
+- `session_id`가 필수인 현재 AI 입력 계약 반영
+- 충돌 분석 service와 AI 제안 service가 공통으로 사용할 입력 모델 정리
+
+#### 단계 종료 후 연결
+- 충돌 분석 service가 바로 사용할 입력 구조가 준비된다.
+- AI 병합 제안 입력 raw data가 준비된다.
+
+---
+
+### 티켓 4-3. 병합 분석 저장 구조 보강
+
+#### 티켓명
+[BE] 병합 분석 저장 구조 보강
+
+#### 해야 할 일
+- `MergeAnalysisRepository`, `ConflictCandidateRepository`, `MergeProposalRepository`, `ProposalFeedbackRepository` 구현 상태 점검
+- 기존 구현 재사용 가능 여부 확인
+- 없는 repository만 보강
+- export / DI 연결
+- `analysis_artifact_path`, `proposals_artifact_path` 저장 흐름 연결
+- DB에는 메타데이터 / 상태 / 경로 / 요약만 저장하는 원칙 유지
+
+#### 단계 종료 후 연결
+- 분석/제안/피드백 service가 사용할 repository 구조가 정리된다.
+- 로컬 산출물 경로와 DB 메타데이터 연결이 가능해진다.
+
+---
+
+### 티켓 4-4. 충돌 후보 분석 핸들러·서비스 구현
+
+#### 티켓명
+[BE] 충돌 후보 분석 핸들러·서비스 구현
+
+#### 해야 할 일
+- `ANALYZE_CONFLICT` handler 구현
+- merge base 계산
+- diff 비교
+- 충돌 후보 탐지
+- `conflict_candidates` 저장
+- `analysis.json` 경로 저장
+- `CONFLICT_RESULT`를 Webview projection DTO 기준으로 응답
+
+#### 단계 종료 후 연결
+- 프론트 담당은 충돌 후보 목록 UI를 붙일 수 있다.
+- AI 담당은 충돌 후보 결과를 병합 제안 입력으로 사용할 수 있다.
+
+---
+
+### 티켓 4-5. AI 병합 제안 및 피드백 흐름 구현
+
+#### 티켓명
+[BE] AI 병합 제안 및 피드백 흐름 구현
+
+#### 해야 할 일
+- `MergeProposalService` 구현
+- AI 입력은 `MergeProposalInputSchema` 기준으로 조합
+- AI 결과는 parser 결과 모델 기준으로 수신
+- DB에는 메타데이터 / 요약 / 상태 저장
+- 실제 제안 코드와 긴 설명은 `proposals.json`에 저장
+- `MERGE_PROPOSAL` 응답 연결
+- `ACCEPT_MERGE` / `REJECT_MERGE` 처리
+- `proposal_feedbacks` 저장
+- 과거 feedback을 이후 AI 참고 이력으로 조회 가능한 구조 준비
+
+#### 단계 종료 후 연결
+- AI 담당은 병합 제안 생성 / explanation 생성 / feedback 반영 품질을 붙일 수 있다.
+- 프론트 담당은 Accept / Reject UI를 붙일 수 있다.
+
+---
+
+### 티켓 4-6. 병합 실행 및 최종 상태 반영 구현
+
+#### 티켓명
+[BE] 병합 실행 및 최종 상태 반영 구현
+
+#### 해야 할 일
+- 기존 `RUN_MERGE`, `MERGE_ABORT`, `MERGE_CONTINUE` 흐름 재사용
+- Accept된 제안 반영 후 병합 실행
+- Reject된 제안은 feedback만 저장하고 conflict 유지 가능하도록 처리
+- conflict marker 재스캔
+- `MERGE_COMPLETE`, 오류 응답, 상태 갱신 응답 정리
+- 병합 완료 / 미완료 / abort / continue 상태를 Webview projection DTO 기준으로 반영
+
+#### 단계 종료 후 연결
+- 프론트 담당은 병합 실행/완료/오류 상태 UI를 붙일 수 있다.
+- 병합 완료 이후 상태 갱신까지 end-to-end 흐름이 맞춰진다.
+
+---
 
 ### 프론트 연결 시점
-- 이 단계 끝나면 프론트는
-  - 충돌 후보 목록
-  - 병합안 비교
-  - Accept/Reject
-  - 병합 실행
-  UI를 붙일 수 있다.
+- 티켓 4-1 완료 후: 병합용 payload/DTO 기준으로 UI 연결 가능
+- 티켓 4-4 완료 후: 충돌 후보 목록 UI 연결 가능
+- 티켓 4-5 완료 후: 병합안 비교, Accept / Reject UI 연결 가능
+- 티켓 4-6 완료 후: 병합 실행 및 완료 상태 UI 연결 가능
 
 ### AI 연결 시점
-- 이 단계에서 AI 담당과 두 번째 본격 연동
-- AI 담당은 병합 제안 생성, explanation 생성, feedback 반영 품질을 붙인다.
-
----
-
-# 충돌 방지 규칙
-
-## 백엔드 1이 임의 변경하면 안 되는 것
-- SQLite schema 구조
-- repository 인터페이스 명세
-- recommendation_histories / proposal_feedbacks 데이터 구조
-- shared DTO / enum 핵심 값
-
-## 백엔드 2가 임의 변경하면 안 되는 것
-- extension entry / command registration 구조
-- Git adapter 구조
-- 실제 snapshot / merge artifact 파일 저장 규칙
-- event hook 구조
-
----
-
-# 단계별 산출물 체크
-
-## 1단계 완료 기준
-- Git GUI 핵심 기능 실행 가능
-- branch / add / commit / push / stash / merge 기본 흐름 가능
-- 프론트에서 Git 작업 UI 연동 가능
-
-## 2단계 완료 기준
-- 추천 요청/응답 배선 가능
-- recommendation history 저장/조회 가능
-- AI 담당 연결 가능
-
-## 3단계 완료 기준
-- 세션 생성 가능
-- 스냅샷 생성 / 조회 / 원복 가능
-- 프론트에서 snapshot UI 연동 가능
-
-## 4단계 완료 기준
-- 충돌 분석 / 제안 / 피드백 저장 가능
-- 병합 UI 연동 가능
-- AI 담당 연결 가능
-
+- 티켓 4-1 완료 후: 병합 입력/출력 계약 기준 합의 가능
+- 티켓 4-2 완료 후: AI 입력용 raw data 전달 가능
+- 티켓 4-5 완료 후: 병합 제안 생성과 feedback 반영 품질 연결 가능
 ---
 
 # 최종 목표
