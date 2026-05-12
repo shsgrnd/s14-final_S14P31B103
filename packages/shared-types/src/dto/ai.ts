@@ -128,6 +128,7 @@ export const MergeProposalInputSchema = z.object({
   related_files: z.array(z.string()),
   conflict_candidates: z.array(ConflictCandidateSchema),
   working_tree_diff_ref: z.string(),
+  context_bundle_ref: z.string().optional(),
   risk_summary: z.string().optional(),
   schema_version: z.string(),
 });
