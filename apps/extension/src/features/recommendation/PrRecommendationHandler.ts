@@ -35,7 +35,10 @@ export class PrRecommendationHandler {
 
     // 서비스 호출 및 결과 응답 전송
     try {
-      const result = await this.prRecommendationService.recommendPR(parseResult.data.base);
+      const result = await this.prRecommendationService.recommendPR(
+        parseResult.data.base,
+        parseResult.data.template
+      );
       webview.postMessage({
         type: 'PR_SUGGESTION',
         payload: { title: result.title, markdown: result.markdown },
