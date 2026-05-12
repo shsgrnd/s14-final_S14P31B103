@@ -133,7 +133,10 @@ def main():
             fout.write(f"- **Average:** {case['avg']:.2f}/10  |  "
                        f"**Similarity:** {case['similarity']:.4f}\n\n")
             fout.write("### ❓ Problem (Input)\n")
-            fout.write("```json\n" + case["input"] + "\n```\n\n")
+            raw_input = case["input"]
+            if isinstance(raw_input, dict):
+                raw_input = json.dumps(raw_input, ensure_ascii=False, indent=2)
+            fout.write("```json\n" + raw_input + "\n```\n\n")
             fout.write("### ❌ AI Response\n")
             fout.write(case["response"] + "\n\n---\n\n")
 
