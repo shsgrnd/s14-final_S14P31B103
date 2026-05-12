@@ -2,6 +2,7 @@ import os
 import json
 import sys
 import re
+import argparse
 from openai import OpenAI
 from dotenv import load_dotenv
 
@@ -47,7 +48,7 @@ def score_with_llm(prompt_text, model_response):
 """
     try:
         response = client.chat.completions.create(
-            model="gpt-4.1-mini", # 요청하신 4.1-mini 버전 적용
+            model="gpt-4.1-mini",
             messages=[{"role": "user", "content": judge_prompt}],
             temperature=0.1, # 일관된 채점을 위해 온도를 낮춤
             max_tokens=100
@@ -66,7 +67,6 @@ def score_with_llm(prompt_text, model_response):
         print(f"\n[ERROR] LLM Evaluation failed: {e}", flush=True)
         return {"accuracy": 0, "clarity": 0, "format": 0}
 
-import argparse
 
 def parse_args():
     parser = argparse.ArgumentParser(description="Evaluate model responses using GPT-4o.")

@@ -87,8 +87,7 @@ def main():
                 outputs = model.generate(
                     **inputs,
                     max_new_tokens=1024,
-                    temperature=0.1, # 평가를 위해 일관된 답변을 생성하도록 낮은 온도 설정
-                    do_sample=False,
+                    do_sample=False,      # 평가 시 일관성을 위해 그리디 디코딩 사용
                     pad_token_id=tokenizer.eos_token_id
                 )
             
