@@ -69,8 +69,13 @@ export const InboundMessageTypeEnum = z.enum([
   'EXECUTE_BRANCH_CLEANUP',
   // PR 관련
   'GET_PR_TEMPLATES',
+  'GET_PR_FORM_METADATA',
   'CREATE_PR',
   'OPEN_PR_PANEL',
+  // PR 환경설정 — 사용자 기본 target 브랜치 (workspaceState에 영속)
+  'GET_PR_DEFAULT_BASE_BRANCH',
+  'SET_PR_DEFAULT_BASE_BRANCH',
+  'CLEAR_PR_DEFAULT_BASE_BRANCH',
   // AI API Key 관리
   'SAVE_AI_API_KEY',
   'DELETE_AI_API_KEY',
@@ -111,7 +116,10 @@ export const OutboundMessageTypeEnum = z.enum([
   'BRANCH_CLEANUP_RESULT',
   // GitHub PR 생성 성공 응답
   'PR_TEMPLATES',
+  'PR_FORM_METADATA',
   'PR_CREATED',
+  /** PR 환경설정 — 현재 저장된 기본 target 브랜치(또는 미지정) */
+  'PR_DEFAULT_BASE_BRANCH',
   // AI API Key 상태 응답
   'AI_API_KEY_STATUS',
 ]);

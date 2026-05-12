@@ -47,6 +47,10 @@ function App() {
     // 1. 아직 한 번도 상태를 물어보지 않았다면 상태 확인 요청 (연결 여부 파악용)
     if (!initialFetchDone.current) {
       sendMessage('REFRESH_STATUS', {});
+      // PR 환경설정(기본 target 브랜치)을 워크스페이스 단위 영속 저장소(workspaceState)에서
+      // 가져온다. 사이드바 webview와 PR Create panel webview가 서로 다른 webview state를
+      // 갖기 때문에, 양쪽 모두 마운트 시 한 번씩 GET을 보내 store를 동기화한다.
+      sendMessage('GET_PR_DEFAULT_BASE_BRANCH', {});
     }
 
     // 2. 이미 데이터를 가져왔거나 아직 Git이 연결되지 않았다면 중단

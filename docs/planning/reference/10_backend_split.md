@@ -202,6 +202,10 @@
 - 이 단계는 단순 Git 명령 추가보다 계약 정리와 연결 흐름 구현이 핵심이다.
 - 이미 구현된 Git merge 관련 기능은 재구현하지 않고 재사용한다.
 - AI ↔ Extension, Webview ↔ Extension, DB 저장 모델은 목적별 DTO를 분리한다.
+- 병합 AI 입력에서 `working_tree_diff_ref`, `context_bundle_ref` 같은 ref는 AI provider가 직접 로컬 파일을 읽기 위한 값이 아니다.
+- Extension/backend orchestration 계층이 ref를 로컬 스토리지 artifact로 resolve/materialize한 뒤, 실제 코드 본문 또는 excerpt를 AI prompt 재료로 넘기는 구조를 우선한다.
+- SQLite에는 병합 분석/제안/피드백의 메타데이터, 상태, 요약, artifact path/ref만 저장하고, 긴 diff·코드 본문·prompt 원문·AI 산출물은 로컬 파일 스토리지에 저장한다.
+- `worktree_instance_id`는 Git에서 직접 조회되는 값이 아니라, GitCat이 `worktree + branch` 조합을 추적하기 위해 생성하는 내부 식별자다.
 
 ---
 
@@ -235,11 +239,14 @@
 - 병합 분석용 raw data 조합
 - AI 병합 제안용 raw data 조합
 - `session_id`가 필수인 현재 AI 입력 계약 반영
+- `working_tree_diff_ref`와 `context_bundle_ref`를 AI 입력 계약에 포함하되, 실제 로컬 스토리지 저장/조회는 다음 작업에서 구현
+- `context_bundle_ref`는 충돌 후보 파일 본문, 주변 코드, import/type/interface, 관련 테스트/의존 파일 excerpt를 묶는 로컬 artifact의 연결점으로 사용
 - 충돌 분석 service와 AI 제안 service가 공통으로 사용할 입력 모델 정리
 
 #### 단계 종료 후 연결
 - 충돌 분석 service가 바로 사용할 입력 구조가 준비된다.
 - AI 병합 제안 입력 raw data가 준비된다.
+- 다음 작업에서는 `context_bundle_ref`가 가리키는 실제 코드 context bundle을 로컬 스토리지에 생성하고, AI 호출 직전 resolve/materialize하는 흐름을 구현한다.
 
 ---
 
@@ -290,6 +297,9 @@
 #### 해야 할 일
 - `MergeProposalService` 구현
 - AI 입력은 `MergeProposalInputSchema` 기준으로 조합
+- AI 호출 직전 `context_bundle_ref`를 resolve하여 로컬 스토리지의 코드 context bundle을 읽고, prompt에 실제 코드 본문/excerpt가 포함되도록 materialize
+- AI provider 또는 순수 ai-pipeline이 VS Code workspace의 로컬 파일을 직접 읽지 않도록 한다.
+- ai-pipeline은 전달받은 materialized payload/prompt context를 검증, 토큰 최적화, prompt 생성, parser 처리하는 책임에 집중한다.
 - AI 결과는 parser 결과 모델 기준으로 수신
 - DB에는 메타데이터 / 요약 / 상태 저장
 - 실제 제안 코드와 긴 설명은 `proposals.json`에 저장

@@ -116,6 +116,7 @@ export const AiInputPayloadSchema = z.object({
   related_files: z.array(z.string()).optional(),
   conflict_candidates: z.array(ConflictCandidateSchema).optional(),
   working_tree_diff_ref: z.string().optional(),
+  context_bundle_ref: z.string().optional(),
   risk_summary: z.string().optional(),
   schema_version: z.string(),
   recommendation_type: RecommendationTypeEnum.optional(),
