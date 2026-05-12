@@ -1,5 +1,6 @@
 import os
 import json
+import re
 import argparse
 from tqdm import tqdm
 from openai import OpenAI
@@ -55,7 +56,6 @@ def generate_synthetic_case(conflict_type):
         content = response.choices[0].message.content.strip()
         
         # JSON 블록 추출
-        import re
         json_match = re.search(r'\{.*\}', content, re.DOTALL)
         if json_match:
             return json.loads(json_match.group(0))

@@ -34,7 +34,7 @@ if [ $? -ne 0 ]; then
 fi
 
 echo ""
-echo "▶ 2단계: GPT-4o를 이용한 답안 채점 (LLM-as-a-Judge)"
+echo "▶ 2단계: GPT-4.1-mini를 이용한 답안 채점 (LLM-as-a-Judge)"
 echo "----------------------------------------------------------"
 python "$SCRIPT_DIR/evaluate_llm_judge.py" --model-type "$MODEL_TYPE"
 
