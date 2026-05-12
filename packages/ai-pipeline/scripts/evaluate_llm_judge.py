@@ -66,11 +66,20 @@ def score_with_llm(prompt_text, model_response):
         print(f"\n[ERROR] LLM Evaluation failed: {e}", flush=True)
         return {"accuracy": 0, "clarity": 0, "format": 0}
 
+import argparse
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="Evaluate model responses using GPT-4o.")
+    parser.add_argument("--model-type", type=str, choices=["base", "sft", "dpo"], required=True,
+                        help="평가할 모델의 종류 (base, sft, dpo)")
+    return parser.parse_args()
+
 def main():
-    # 이 파일은 run_eval_inference.py 가 만들어낸 모델 답변 파일을 읽습니다.
-    # 예시용으로 sft_model_results_final.jsonl 을 읽도록 설정
-    input_file = os.path.join(BASE_DIR, "../trainer/eval/results/sft_model_results_final.jsonl")
-    output_file = os.path.join(BASE_DIR, "../trainer/eval/results/llm_judge_scores.jsonl")
+    args = parse_args()
+    
+    # run_eval_inference.py 가 만들어낸 모델 답변 파일을 읽습니다.
+    input_file = os.path.join(BASE_DIR, f"../trainer/eval/results/{args.model_type}_model_results.jsonl")
+    output_file = os.path.join(BASE_DIR, f"../trainer/eval/results/{args.model_type}_llm_judge_scores.jsonl")
     
     if not os.path.exists(input_file):
         print(f"[ERROR] Inference results not found: {input_file}")
@@ -92,7 +101,7 @@ def main():
                 
             data = json.loads(line)
             prompt = data.get('input', '')
-            response = data.get('sft_response', '')
+            response = data.get(f'{args.model_type}_response', '')
             
             if not response:
                 continue
