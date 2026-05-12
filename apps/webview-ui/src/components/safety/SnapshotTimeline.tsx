@@ -2,7 +2,7 @@ import React, { useCallback } from 'react';
 import { FileText, Rewind, ChevronRight, BrainCircuit, ShieldCheck, User, Merge, Plus, Edit2, Trash2, Star, History, Check } from 'lucide-react';
 import { useGitCatStore } from '../../store/useGitCatStore';
 import { useVsCodeApi } from '../../hooks/useVsCodeApi';
-import { Snapshot } from '@gitcat/shared-types';
+import { SnapshotMeta } from '@gitcat/shared-types';
 import { iconBtn } from '../../shared/styles';
 import { SectionNotificationBanner } from '../common/SectionNotificationBanner';
 
@@ -26,10 +26,16 @@ export const SnapshotTimeline: React.FC = () => {
 
   const getTypeIcon = (type: string) => {
     switch (type) {
-      case 'AI_TASK': return <BrainCircuit size={14} style={{ color: 'var(--vscode-charts-purple)', flexShrink: 0 }} />;
-      case 'BEFORE_MERGE': return <Merge size={14} style={{ color: 'var(--vscode-charts-blue)', flexShrink: 0 }} />;
-      case 'MANUAL': return <User size={14} style={{ color: 'var(--vscode-charts-green)', flexShrink: 0 }} />;
-      case 'SAFETY_BACKUP': return <ShieldCheck size={14} style={{ color: 'var(--vscode-charts-red)', flexShrink: 0 }} />;
+      case 'ai_pre_action':
+      case 'ai_result':
+        return <BrainCircuit size={14} style={{ color: 'var(--vscode-charts-purple)', flexShrink: 0 }} />;
+      case 'auto_dirty_before_ai':
+        return <Merge size={14} style={{ color: 'var(--vscode-charts-blue)', flexShrink: 0 }} />;
+      case 'manual_checkpoint':
+      case 'manual_edit_result':
+        return <User size={14} style={{ color: 'var(--vscode-charts-green)', flexShrink: 0 }} />;
+      case 'pre_restore':
+        return <ShieldCheck size={14} style={{ color: 'var(--vscode-charts-red)', flexShrink: 0 }} />;
       default: return <FileText size={14} style={{ flexShrink: 0 }} />;
     }
   };
@@ -47,10 +53,10 @@ export const SnapshotTimeline: React.FC = () => {
     showStatus('스냅샷이 삭제되었습니다.', true);
   };
 
-  const handleRestore = (snapshot: Snapshot) => {
+  const handleRestore = (snapshot: SnapshotMeta) => {
     // window.confirm 차단 우회
-    sendMessage('RESTORE_SNAPSHOT', { snapshotId: snapshot.id });
-    showStatus(`'${snapshot.title}' 시점으로 원복 완료! (안전 백업 생성됨)`, true);
+    sendMessage('RESTORE_SNAPSHOT', { snapshotId: snapshot.snapshotId });
+    showStatus(`'${snapshot.summary || snapshot.type}' 시점으로 원복 완료! (안전 백업 생성됨)`, true);
   };
 
   return (
@@ -101,16 +107,18 @@ export const SnapshotTimeline: React.FC = () => {
           </div>
         )}
         {snapshots.map((snapshot) => {
-          const isExpanded = expandedSnapshotId === snapshot.id;
-          const addedLines = snapshot.files?.reduce((acc: number, f: any) => acc + (f.added || 0), 0) ?? 0;
-          const removedLines = snapshot.files?.reduce((acc: number, f: any) => acc + (f.removed || 0), 0) ?? 0;
-          const fileCount = snapshot.files?.length ?? 0;
+          const isExpanded = expandedSnapshotId === snapshot.snapshotId;
+          const files = (snapshot as any).files;
+          const addedLines = files?.reduce((acc: number, f: any) => acc + (f.added || 0), 0) ?? 0;
+          const removedLines = files?.reduce((acc: number, f: any) => acc + (f.removed || 0), 0) ?? 0;
+          const fileCount = files?.length ?? 0;
+          const title = snapshot.summary || snapshot.type;
 
           return (
-            <div key={snapshot.id}>
+            <div key={snapshot.snapshotId}>
               {/* Row */}
               <div
-                onClick={() => setExpandedSnapshotId(isExpanded ? null : snapshot.id)}
+                onClick={() => setExpandedSnapshotId(isExpanded ? null : snapshot.snapshotId)}
                 className="snapshot-row"
                 style={{
                   display: 'flex', alignItems: 'flex-start', gap: '8px',
@@ -143,17 +151,17 @@ export const SnapshotTimeline: React.FC = () => {
                   <div style={{
                     fontSize: '13px', fontWeight: 500,
                     overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                    fontStyle: snapshot.type === 'SAFETY_BACKUP' ? 'italic' : 'normal',
-                    opacity: snapshot.type === 'SAFETY_BACKUP' ? 0.85 : 1,
+                    fontStyle: snapshot.type === 'pre_restore' ? 'italic' : 'normal',
+                    opacity: snapshot.type === 'pre_restore' ? 0.85 : 1,
                   }}>
-                    {snapshot.title}
+                    {title}
                   </div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', fontSize: '11px', color: 'var(--vscode-descriptionForeground)', overflow: 'hidden' }}>
                     <span style={{ fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 }}>📄 {fileCount} files</span>
                     {addedLines > 0 && <span style={{ color: 'var(--vscode-gitDecoration-addedResourceForeground)', whiteSpace: 'nowrap', flexShrink: 0 }}>+{addedLines}</span>}
                     {removedLines > 0 && <span style={{ color: 'var(--vscode-gitDecoration-deletedResourceForeground)', whiteSpace: 'nowrap', flexShrink: 0 }}>-{removedLines}</span>}
                     <span style={{ marginLeft: 'auto', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                      {snapshot.timestamp ? formatRelativeTime(snapshot.timestamp) : ''}
+                      {snapshot.createdAt ? formatRelativeTime(Date.parse(snapshot.createdAt)) : ''}
                     </span>
                   </div>
                 </div>
@@ -162,16 +170,16 @@ export const SnapshotTimeline: React.FC = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0, marginTop: '2px' }}
                   onClick={e => e.stopPropagation()}>
                   <button
-                    onClick={() => sendMessage('TOGGLE_SNAPSHOT_STAR', { snapshotId: snapshot.id })}
+                    onClick={() => sendMessage('TOGGLE_SNAPSHOT_STAR', { snapshotId: snapshot.snapshotId })}
                     title="즐겨찾기"
-                    style={{ ...iconBtn, color: snapshot.isStarred ? 'var(--vscode-charts-yellow)' : undefined }}
+                    style={{ ...iconBtn, color: snapshot.isCheckpoint ? 'var(--vscode-charts-yellow)' : undefined }}
                   >
-                    <Star size={13} style={{ fill: snapshot.isStarred ? 'var(--vscode-charts-yellow)' : 'none' }} />
+                    <Star size={13} style={{ fill: snapshot.isCheckpoint ? 'var(--vscode-charts-yellow)' : 'none' }} />
                   </button>
-                  <button onClick={() => handleRename(snapshot.id, snapshot.title)} title="이름 변경" style={iconBtn}>
+                  <button onClick={() => handleRename(snapshot.snapshotId, title)} title="이름 변경" style={iconBtn}>
                     <Edit2 size={12} />
                   </button>
-                  <button onClick={() => handleDelete(snapshot.id)} title="삭제" style={{ ...iconBtn, color: 'var(--vscode-errorForeground)' }}>
+                  <button onClick={() => handleDelete(snapshot.snapshotId)} title="삭제" style={{ ...iconBtn, color: 'var(--vscode-errorForeground)' }}>
                     <Trash2 size={12} />
                   </button>
                 </div>
@@ -184,11 +192,11 @@ export const SnapshotTimeline: React.FC = () => {
                   borderLeft: '1px solid var(--vscode-panel-border)',
                   marginBottom: '8px', paddingBottom: '4px', paddingTop: '4px',
                 }}>
-                  {snapshot.files && snapshot.files.length > 0 ? (
-                    snapshot.files.map((file: any, idx: number) => (
+                  {files && files.length > 0 ? (
+                    files.map((file: any, idx: number) => (
                       <div
                         key={idx}
-                        onClick={() => sendMessage('OPEN_FILE_DIFF', { snapshotId: snapshot.id, filePath: file.path })}
+                        onClick={() => sendMessage('OPEN_FILE_DIFF', { snapshotId: snapshot.snapshotId, filePath: file.path })}
                         style={{
                           display: 'flex', alignItems: 'center', gap: '8px',
                           padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px',
