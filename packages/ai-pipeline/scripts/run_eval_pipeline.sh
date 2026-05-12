@@ -28,7 +28,8 @@ echo "   선택된 모델: $MODEL_TYPE"
 echo "=========================================================="
 
 echo ""
-echo "▶ 1단계: 모델 추론 (시험 응시)"
+echo "▶ 1단계: 모델 추론 시작 (시험 응시)"
+# 추론 단계에서 생성된 JSONL은 이후 judge와 비교 리포트의 공통 입력이 됩니다.
 echo "----------------------------------------------------------"
 python "$SCRIPT_DIR/run_eval_inference.py" --model-type "$MODEL_TYPE"
 if [ $? -ne 0 ]; then
@@ -37,7 +38,7 @@ if [ $? -ne 0 ]; then
 fi
 
 echo ""
-echo "▶ 2단계: GPT-4.1-mini 자동 채점 (LLM-as-a-Judge)"
+echo "▶ 2단계: LLM-as-a-Judge 채점"
 echo "----------------------------------------------------------"
 python "$SCRIPT_DIR/evaluate_llm_judge.py" --model-type "$MODEL_TYPE"
 if [ $? -ne 0 ]; then

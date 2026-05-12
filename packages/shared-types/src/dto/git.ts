@@ -135,33 +135,7 @@ export const MergeResultSchema = GitResultSchema.extend({
 });
 export type MergeResult = z.infer<typeof MergeResultSchema>;
 
-/**
- * 스냅샷 내 개별 파일 정보
- */
-export const SnapshotFileSchema = z.object({
-  path: z.string(),
-  status: z.enum(['MODIFIED', 'ADDED', 'DELETED']),
-  added: z.number().optional(),
-  removed: z.number().optional(),
-});
-export type SnapshotFile = z.infer<typeof SnapshotFileSchema>;
 
-/**
- * 스냅샷 데이터 인터페이스
- */
-export const SnapshotSchema = z.object({
-  id: z.string(),
-  title: z.string(),
-  timestamp: z.number(),
-  type: z.enum(['AI_TASK', 'BEFORE_MERGE', 'MANUAL', 'SAFETY_BACKUP']),
-  isStarred: z.boolean(),
-  changesCount: z.number(),
-  description: z.string().optional(),
-  reason: z.string().optional(),
-  snapshotPath: z.string().optional(),
-  files: z.array(SnapshotFileSchema).optional(),
-});
-export type Snapshot = z.infer<typeof SnapshotSchema>;
 
 /**
  * 충돌 분석 결과 인터페이스

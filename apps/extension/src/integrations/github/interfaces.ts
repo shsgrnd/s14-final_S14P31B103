@@ -60,6 +60,12 @@ export interface PullRequestCreatedResult {
   base: string;
   /** head 브랜치명 */
   head: string;
+  /**
+   * 부분 실패 경고 메시지 목록.
+   * PR은 생성됐지만 reviewers/assignees/labels/milestone 중 일부가 적용되지 않은 경우,
+   * 사용자에게 안내할 한국어 메시지를 담는다. 모두 성공한 경우 빈 배열.
+   */
+  metadataWarnings: string[];
 }
 
 export interface PullRequestTemplate {
