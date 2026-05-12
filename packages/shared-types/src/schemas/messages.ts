@@ -15,7 +15,6 @@ import {
   RejectMergeRequestSchema,
 } from '../dto/merge';
 import {
-  SnapshotSchema,
   BranchSchema,
   GitResultSchema,
   GitStatusSchema,
@@ -27,6 +26,11 @@ import {
   BranchCleanupPreviewResultSchema,
   BranchCleanupExecuteResultSchema,
 } from '../dto/git';
+import {
+  SnapshotMetaSchema,
+  SnapshotDetailSchema,
+  RestoreHistorySchema,
+} from './safety';
 
 /** PR 생성 폼 — GitHub API로 채우는 메타데이터 항목 */
 export const PrFormCollaboratorSchema = z.object({
@@ -111,6 +115,10 @@ export const InboundPayloadSchemaMap = {
   RENAME_SNAPSHOT: z.object({ snapshotId: z.string(), newTitle: z.string() }),
   TOGGLE_SNAPSHOT_STAR: z.object({ snapshotId: z.string() }),
   GET_SNAPSHOT_FILES: z.object({ snapshotId: z.string() }),
+  GET_SNAPSHOT_DETAIL: z.object({ snapshotId: z.string() }),
+  GET_SNAPSHOT_FILE_DIFF: z.object({ snapshotId: z.string(), filePath: z.string() }),
+  UNSET_CHECKPOINT: z.object({ snapshotId: z.string() }),
+  GET_RESTORE_HISTORY: z.object({}).strict(),
   OPEN_FILE_DIFF: z.object({ filePath: z.string(), snapshotId: z.string().optional() }),
   OPEN_WORKSPACE_FILE: z.object({ filePath: z.string(), status: z.string().optional() }),
   EXECUTE_PULL: z.object({}).strict(),
@@ -176,8 +184,11 @@ export const InboundPayloadSchemaMap = {
 export const OutboundPayloadSchemaMap = {
   GIT_STATUS_UPDATED: z.object({ status: GitStatusSchema }),
   GIT_STATUS_SUMMARY: z.object({ summary: GitStatusSummarySchema }),
-  SNAPSHOT_LIST: z.object({ snapshots: z.array(SnapshotSchema) }),
-  SNAPSHOT_CREATED: z.object({ snapshot: SnapshotSchema }),
+  SNAPSHOT_LIST: z.object({ snapshots: z.array(SnapshotMetaSchema) }),
+  SNAPSHOT_CREATED: z.object({ snapshot: SnapshotMetaSchema }),
+  SNAPSHOT_DETAIL: z.object({ detail: SnapshotDetailSchema }),
+  SNAPSHOT_FILE_DIFF: z.object({ diffText: z.string() }),
+  RESTORE_HISTORY_LIST: z.object({ histories: z.array(RestoreHistorySchema) }),
   RESTORE_DONE: z.object({ snapshotId: z.string() }),
   // 병합 화면 응답은 AI/DB 원본 DTO가 아닌 projection DTO로 고정합니다.
   CONFLICT_RESULT: z.object({ candidates: z.array(MergeConflictCandidateViewSchema) }),

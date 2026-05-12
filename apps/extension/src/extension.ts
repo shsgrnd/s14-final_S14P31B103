@@ -85,6 +85,7 @@ export async function activate(context: vscode.ExtensionContext) {
     undefined,
     undefined,
     pullRequestHandler,  // GitHub PR 생성 핵들러 주입
+    undefined,
     aiApiKeyMessageHandler, // AI API Key 핸들러 주입
   );
 

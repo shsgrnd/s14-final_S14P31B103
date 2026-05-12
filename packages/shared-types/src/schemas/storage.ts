@@ -7,11 +7,13 @@ import {
   QualityTagEnum,
   RecommendationTypeEnum,
   SelectionStatusEnum,
-  SnapshotReasonEnum,
-  SessionTypeEnum,
-  WorkSessionStatusEnum,
-  ChangeTypeEnum,
 } from '../enums/ai';
+import {
+  SessionTypeEnum,
+  SessionStatusEnum,
+  SnapshotTypeEnum,
+  ChangedFileStatusEnum,
+} from '../enums/safety';
 
 // ==========================================
 // 1. Core Metadata Tables
@@ -94,7 +96,7 @@ export const WorkSessionRowSchema = z.object({
   session_type: SessionTypeEnum,
   base_snapshot_id: z.string().nullable(),
   description: z.string().nullable(),
-  status: WorkSessionStatusEnum,
+  status: SessionStatusEnum,
   started_at: z.string(),
   ended_at: z.string().nullable(),
 });
@@ -102,7 +104,7 @@ export const WorkSessionRowSchema = z.object({
 export const SnapshotRowSchema = z.object({
   snapshot_id: z.string(),
   session_id: z.string(),
-  reason: SnapshotReasonEnum,
+  type: SnapshotTypeEnum,
   is_checkpoint: z.number().int(),
   label: z.string().nullable(),
   created_at: z.string(),
@@ -130,7 +132,7 @@ export const ChangedFileRowSchema = z.object({
   changed_file_id: z.string(),
   record_id: z.string(),
   file_path: z.string(),
-  change_type: ChangeTypeEnum,
+  change_type: ChangedFileStatusEnum,
   location: z.string().nullable(),
   summary: z.string().nullable(),
   created_at: z.string(),

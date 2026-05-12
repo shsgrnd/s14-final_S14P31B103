@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import {
-  Snapshot,
+  SnapshotMeta,
   Branch,
   WorktreeInfo,
   OutboundMessage,
@@ -56,7 +56,7 @@ function mapGitSectionBannerType(
 
 interface GitCatState {
   // Data
-  snapshots: Snapshot[];
+  snapshots: SnapshotMeta[];
   // 병합 화면은 AI/DB 원본이 아니라 Webview projection DTO만 보관합니다.
   conflicts: MergeConflictCandidateView[];
   currentAIDraft: MergeProposalView | null;
@@ -150,7 +150,7 @@ interface GitCatState {
   prDefaultBaseBranch: string | null | undefined;
 
   // Actions
-  setSnapshots: (snapshots: Snapshot[]) => void;
+  setSnapshots: (snapshots: SnapshotMeta[]) => void;
   setConflicts: (conflicts: MergeConflictCandidateView[]) => void;
   setAIDraft: (draft: MergeProposalView | null) => void;
   setCurrentBranch: (branch: string) => void;
