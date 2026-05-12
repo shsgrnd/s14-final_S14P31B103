@@ -15,7 +15,6 @@ import {
   RejectMergeRequestSchema,
 } from '../dto/merge';
 import {
-  SnapshotSchema,
   BranchSchema,
   GitResultSchema,
   GitStatusSchema,
@@ -27,6 +26,34 @@ import {
   BranchCleanupPreviewResultSchema,
   BranchCleanupExecuteResultSchema,
 } from '../dto/git';
+import {
+  SnapshotMetaSchema,
+  SnapshotDetailSchema,
+  RestoreHistorySchema,
+} from './safety';
+
+/** PR 생성 폼 — GitHub API로 채우는 메타데이터 항목 */
+export const PrFormCollaboratorSchema = z.object({
+  login: z.string(),
+  avatarUrl: z.string(),
+  htmlUrl: z.string(),
+});
+
+export const PrFormLabelSchema = z.object({
+  name: z.string(),
+  color: z.string(),
+  description: z.string(),
+});
+
+export const PrFormMilestoneSchema = z.object({
+  number: z.number().int(),
+  title: z.string(),
+  state: z.string(),
+});
+
+export type PrFormCollaboratorDto = z.infer<typeof PrFormCollaboratorSchema>;
+export type PrFormLabelDto = z.infer<typeof PrFormLabelSchema>;
+export type PrFormMilestoneDto = z.infer<typeof PrFormMilestoneSchema>;
 
 /**
  * 메시지 공통 봉투(envelope) 구조입니다.
@@ -88,6 +115,10 @@ export const InboundPayloadSchemaMap = {
   RENAME_SNAPSHOT: z.object({ snapshotId: z.string(), newTitle: z.string() }),
   TOGGLE_SNAPSHOT_STAR: z.object({ snapshotId: z.string() }),
   GET_SNAPSHOT_FILES: z.object({ snapshotId: z.string() }),
+  GET_SNAPSHOT_DETAIL: z.object({ snapshotId: z.string() }),
+  GET_SNAPSHOT_FILE_DIFF: z.object({ snapshotId: z.string(), filePath: z.string() }),
+  UNSET_CHECKPOINT: z.object({ snapshotId: z.string() }),
+  GET_RESTORE_HISTORY: z.object({}).strict(),
   OPEN_FILE_DIFF: z.object({ filePath: z.string(), snapshotId: z.string().optional() }),
   OPEN_WORKSPACE_FILE: z.object({ filePath: z.string(), status: z.string().optional() }),
   EXECUTE_PULL: z.object({}).strict(),
@@ -118,6 +149,14 @@ export const InboundPayloadSchemaMap = {
   GET_PR_TEMPLATES: z.object({
     base: z.string().min(1).optional(),
   }).strict(),
+  /** PR 생성 패널 — GitHub reviewers/assignees/labels 등 선택용 데이터 조회 */
+  GET_PR_FORM_METADATA: z.object({}).strict(),
+  /** PR 환경설정 — 저장된 기본 target 브랜치 조회 */
+  GET_PR_DEFAULT_BASE_BRANCH: z.object({}).strict(),
+  /** PR 환경설정 — 기본 target 브랜치 저장 (workspaceState) */
+  SET_PR_DEFAULT_BASE_BRANCH: z.object({ branch: z.string().min(1) }).strict(),
+  /** PR 환경설정 — 기본 target 브랜치 해제 */
+  CLEAR_PR_DEFAULT_BASE_BRANCH: z.object({}).strict(),
   // PR 관련 — 프론트가 Create Pull Request 버튼 클릭 시 전달하는 DTO
   CREATE_PR: z.object({
     title: z.string().min(1),
@@ -145,8 +184,11 @@ export const InboundPayloadSchemaMap = {
 export const OutboundPayloadSchemaMap = {
   GIT_STATUS_UPDATED: z.object({ status: GitStatusSchema }),
   GIT_STATUS_SUMMARY: z.object({ summary: GitStatusSummarySchema }),
-  SNAPSHOT_LIST: z.object({ snapshots: z.array(SnapshotSchema) }),
-  SNAPSHOT_CREATED: z.object({ snapshot: SnapshotSchema }),
+  SNAPSHOT_LIST: z.object({ snapshots: z.array(SnapshotMetaSchema) }),
+  SNAPSHOT_CREATED: z.object({ snapshot: SnapshotMetaSchema }),
+  SNAPSHOT_DETAIL: z.object({ detail: SnapshotDetailSchema }),
+  SNAPSHOT_FILE_DIFF: z.object({ diffText: z.string() }),
+  RESTORE_HISTORY_LIST: z.object({ histories: z.array(RestoreHistorySchema) }),
   RESTORE_DONE: z.object({ snapshotId: z.string() }),
   // 병합 화면 응답은 AI/DB 원본 DTO가 아닌 projection DTO로 고정합니다.
   CONFLICT_RESULT: z.object({ candidates: z.array(MergeConflictCandidateViewSchema) }),
@@ -183,6 +225,18 @@ export const OutboundPayloadSchemaMap = {
       content: z.string(),
     })),
   }),
+  PR_FORM_METADATA: z.object({
+    collaborators: z.array(PrFormCollaboratorSchema),
+    labels: z.array(PrFormLabelSchema),
+    milestones: z.array(PrFormMilestoneSchema),
+    /** 현재 로그인한 GitHub 사용자명. reviewer 후보에서 본인을 자동 제외할 때 사용한다. */
+    currentUserLogin: z.string().nullable().optional(),
+  }),
+  /** PR 환경설정 — workspaceState에 저장된 기본 target 브랜치 */
+  PR_DEFAULT_BASE_BRANCH: z.object({
+    /** 저장된 브랜치 이름 (없으면 null) */
+    branch: z.string().nullable(),
+  }).strict(),
   // GitHub PR 생성 성공 응답
   PR_CREATED: z.object({
     prNumber: z.number().int(),    // GitHub PR 번호
@@ -190,6 +244,8 @@ export const OutboundPayloadSchemaMap = {
     title: z.string(),              // PR 제목
     base: z.string(),               // base 브랜치
     head: z.string(),               // head 브랜치
+    /** PR은 생성됐지만 reviewers/assignees/labels/milestone 등 일부 설정이 실패한 경우의 안내 메시지 목록 */
+    metadataWarnings: z.array(z.string()).optional(),
   }),
   // AI API Key 상태 응답
   AI_API_KEY_STATUS: z.object({ hasKey: z.boolean() }),

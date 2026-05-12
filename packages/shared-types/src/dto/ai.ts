@@ -9,10 +9,7 @@ import {
   SelectionStatusEnum,
   QualityTagEnum,
   RiskLevelEnum,
-  ChangeTypeEnum,
   DetectionMethodEnum,
-  SnapshotReasonEnum,
-  SessionTypeEnum,
   RecommendationTypeEnum,
   InferenceRunTypeEnum,
   InferenceRunStatusEnum,
@@ -23,15 +20,18 @@ import {
   RiskLevel,
   RecommendationType,
 } from '../enums/ai';
+import {
+  ChangedFileStatusEnum,
+  SessionTypeEnum,
+} from '../enums/safety';
 
 // ==========================================
 // 1. Git 공통 타입
 // ==========================================
 
-// ERD: changed_files 테이블 기준
 export const ChangedFileSchema = z.object({
   file_path: z.string(),
-  change_type: ChangeTypeEnum,         // 'added' | 'modified' | 'deleted' | 'renamed'
+  change_type: ChangedFileStatusEnum,         // 'added' | 'modified' | 'deleted' | 'renamed'
   location: z.string().optional(),
   summary: z.string().optional(),
 });
@@ -128,6 +128,7 @@ export const MergeProposalInputSchema = z.object({
   related_files: z.array(z.string()),
   conflict_candidates: z.array(ConflictCandidateSchema),
   working_tree_diff_ref: z.string(),
+  context_bundle_ref: z.string().optional(),
   risk_summary: z.string().optional(),
   schema_version: z.string(),
 });

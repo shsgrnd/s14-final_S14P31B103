@@ -123,3 +123,60 @@ body {
   color: var(--foreground);
 }
 
+/* Markdown preview (PR description preview tab) */
+.gitcat-md-preview > *:first-child { margin-top: 0; }
+.gitcat-md-preview > *:last-child { margin-bottom: 0; }
+.gitcat-md-preview h1,
+.gitcat-md-preview h2,
+.gitcat-md-preview h3,
+.gitcat-md-preview h4 {
+  margin: 14px 0 8px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--vscode-foreground);
+}
+.gitcat-md-preview h1 { font-size: 18px; border-bottom: 1px solid var(--vscode-panel-border); padding-bottom: 4px; }
+.gitcat-md-preview h2 { font-size: 16px; border-bottom: 1px solid var(--vscode-panel-border); padding-bottom: 3px; }
+.gitcat-md-preview h3 { font-size: 14px; }
+.gitcat-md-preview h4 { font-size: 13px; color: var(--vscode-descriptionForeground); }
+.gitcat-md-preview p { margin: 6px 0; }
+.gitcat-md-preview ul,
+.gitcat-md-preview ol { margin: 6px 0 6px 22px; padding: 0; }
+.gitcat-md-preview li { margin: 3px 0; }
+.gitcat-md-preview a {
+  color: var(--vscode-textLink-foreground);
+  text-decoration: underline;
+}
+.gitcat-md-preview a:hover { color: var(--vscode-textLink-activeForeground, var(--vscode-textLink-foreground)); }
+.gitcat-md-preview code {
+  font-family: var(--vscode-editor-font-family, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 12px;
+  background: var(--vscode-textBlockQuote-background, rgba(127,127,127,0.12));
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+.gitcat-md-preview pre {
+  margin: 8px 0;
+  padding: 10px 12px;
+  background: var(--vscode-textBlockQuote-background, rgba(127,127,127,0.12));
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 6px;
+  overflow-x: auto;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.gitcat-md-preview pre code {
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+}
+.gitcat-md-preview blockquote {
+  margin: 8px 0;
+  padding: 4px 10px;
+  border-left: 3px solid var(--vscode-textBlockQuote-border, var(--vscode-focusBorder));
+  background: var(--vscode-textBlockQuote-background, rgba(127,127,127,0.08));
+  color: var(--vscode-descriptionForeground);
+}
+.gitcat-md-preview strong { font-weight: 700; }
+.gitcat-md-preview em { font-style: italic; }
+

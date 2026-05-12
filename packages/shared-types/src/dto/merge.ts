@@ -11,24 +11,20 @@ import {
  *
  * 실제 AI 입력은 MergeProposalInputSchema 기준으로 조립합니다.
  * 이 DTO는 화면에서 Extension에 분석을 요청하는 계약만 담당합니다.
- * session context는 Extension/storage 흐름에서 보강할 수 있으므로
- * 로컬 MVP의 Webview 요청에서는 필수로 요구하지 않습니다.
+ * project, workspace, worktree instance 식별자는 Extension/storage 흐름에서 확정하므로
+ * Webview 요청 계약에 포함하지 않습니다.
  */
 export const AnalyzeConflictRequestSchema = z.object({
   source: z.string().min(1),
   target: z.string().min(1),
   sessionId: z.string().min(1).optional(),
-  projectId: z.string().min(1).optional(),
-  sourceWorktreeInstanceId: z.string().min(1).optional(),
-  targetWorktreeInstanceId: z.string().min(1).optional(),
-  workspaceRoot: z.string().min(1).optional(),
 }).strict();
 export type AnalyzeConflictRequest = z.infer<typeof AnalyzeConflictRequestSchema>;
 
 /** 병합안 수락 요청 payload DTO */
 export const AcceptMergeRequestSchema = z.object({
   proposalId: z.string().min(1),
-  candidateId: z.string().min(1).optional(),
+  candidateId: z.string().min(1),
   filePath: z.string().min(1),
   proposedContent: z.string(),
   finalExplanation: z.string().optional(),
@@ -38,7 +34,7 @@ export type AcceptMergeRequest = z.infer<typeof AcceptMergeRequestSchema>;
 /** 병합안 거절 요청 payload DTO */
 export const RejectMergeRequestSchema = z.object({
   proposalId: z.string().min(1),
-  candidateId: z.string().min(1).optional(),
+  candidateId: z.string().min(1),
   filePath: z.string().min(1).optional(),
   feedbackNote: z.string().optional(),
 }).strict();

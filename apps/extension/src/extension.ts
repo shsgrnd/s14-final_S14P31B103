@@ -17,6 +17,8 @@ import { GitHubTokenProvider } from './integrations/github/GitHubTokenProvider';
 import { GitHubClient } from './integrations/github/GitHubClient';
 import { PullRequestService } from './features/pull-request/PullRequestService';
 import { PullRequestMessageHandler } from './features/pull-request/PullRequestMessageHandler';
+import { PrSettingsService } from './features/settings/PrSettingsService';
+import { PrSettingsMessageHandler } from './features/settings/PrSettingsMessageHandler';
 
 export async function activate(context: vscode.ExtensionContext) {
   console.log('GitCat Extension is now active!');
@@ -83,8 +85,14 @@ export async function activate(context: vscode.ExtensionContext) {
     undefined,
     undefined,
     pullRequestHandler,  // GitHub PR 생성 핵들러 주입
+    undefined,
     aiApiKeyMessageHandler, // AI API Key 핸들러 주입
   );
+
+  // PR 환경설정 핸들러 — 두 webview가 공유할 기본 target 브랜치 등을 workspaceState에 저장한다.
+  const prSettingsService = new PrSettingsService(context.workspaceState);
+  const prSettingsHandler = new PrSettingsMessageHandler(prSettingsService, messageRouter);
+  messageRouter.setPrSettingsHandler(prSettingsHandler);
 
   if (gitService) {
     const gitStatusRefreshController = new GitStatusRefreshController(gitService, messageRouter);

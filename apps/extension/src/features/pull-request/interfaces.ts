@@ -15,6 +15,11 @@ import type {
   PullRequestCreatedResult,
   PullRequestTemplate,
 } from '../../integrations/github/interfaces';
+import type {
+  PrFormCollaboratorDto,
+  PrFormLabelDto,
+  PrFormMilestoneDto,
+} from '@gitcat/shared-types';
 import type { PullRequestBranchValidationResult } from './PullRequestService';
 
 /**
@@ -38,6 +43,16 @@ export interface PullRequestServiceContract {
   createPullRequest(input: CreatePullRequestInput): Promise<PullRequestCreatedResult>;
 
   listPullRequestTemplates(input?: { base?: string }): Promise<PullRequestTemplate[]>;
+
+  /**
+   * GitHub에서 PR 생성 폼에 쓸 collaborators / labels / open milestones 를 조회한다.
+   */
+  listPrFormMetadata(): Promise<{
+    collaborators: PrFormCollaboratorDto[];
+    labels: PrFormLabelDto[];
+    milestones: PrFormMilestoneDto[];
+    currentUserLogin: string | null;
+  }>;
 
   /**
    * PR 생성 진입 전, head 브랜치가 원격에 push된 상태인지 검증한다.
