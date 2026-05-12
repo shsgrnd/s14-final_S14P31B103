@@ -19,6 +19,11 @@
  *    → 성공: PR_TEMPLATES 메시지 전송
  *    → 실패: ERROR 메시지 (errorCode 포함)
  *
+ * 4. GET_PR_FORM_METADATA — PR 패널에서 reviewers/assignees/labels 후보 데이터 요청 시
+ *    → PullRequestService.listPrFormMetadata() 호출
+ *    → 성공: PR_FORM_METADATA 메시지 전송
+ *    → 실패: ERROR 메시지 (errorCode 포함)
+ *
  * [주의]
  * - RECOMMEND_PR은 PrRecommendationHandler가 처리한다 (이 핸들러는 관여하지 않음)
  * - textarea에 description을 직접 입력하는 코드는 없음 (Webview 담당)
@@ -55,6 +60,10 @@ export class PullRequestMessageHandler {
     switch (type) {
       case 'GET_PR_TEMPLATES':
         await this.handleGetPRTemplates(payload, webview);
+        return true;
+
+      case 'GET_PR_FORM_METADATA':
+        await this.handleGetPrFormMetadata(payload, webview);
         return true;
 
       case 'CREATE_PR':
@@ -111,6 +120,31 @@ export class PullRequestMessageHandler {
     }
   }
 
+  private async handleGetPrFormMetadata(payload: any, webview: vscode.Webview): Promise<void> {
+    this.sendLoading(webview, 'GET_PR_FORM_METADATA', true);
+
+    try {
+      InboundPayloadSchemaMap.GET_PR_FORM_METADATA.parse(payload ?? {});
+      const meta = await this.pullRequestService.listPrFormMetadata();
+      webview.postMessage({
+        type: 'PR_FORM_METADATA',
+        payload: meta,
+      });
+    } catch (error: any) {
+      if (error instanceof GitHubApiError) {
+        this.sendError(webview, error.errorCode, error.message);
+      } else {
+        this.sendError(
+          webview,
+          'INVALID_PARAMETER',
+          `PR 메타데이터 조회를 처리할 수 없습니다: ${error?.message ?? String(error)}`,
+        );
+      }
+    } finally {
+      this.sendLoading(webview, 'GET_PR_FORM_METADATA', false);
+    }
+  }
+
   private async handleCreatePR(payload: any, webview: vscode.Webview): Promise<void> {
     this.sendLoading(webview, 'CREATE_PR', true);
 
@@ -132,7 +166,9 @@ export class PullRequestMessageHandler {
         milestone: validated.milestone,
       });
 
-      // 성공 응답 — 프론트는 이 메시지를 받아 PR 링크를 표시하거나 패널을 닫는다
+      // 성공 응답 — 프론트는 이 메시지를 받아 PR 링크를 표시한다.
+      // 부분 실패(reviewers 등)는 metadataWarnings로 함께 전달해 사용자에게 명시적으로 안내한다.
+      const metadataWarnings = result.metadataWarnings ?? [];
       webview.postMessage({
         type: 'PR_CREATED',
         payload: {
@@ -141,12 +177,15 @@ export class PullRequestMessageHandler {
           title: result.title,
           base: result.base,
           head: result.head,
+          metadataWarnings,
         },
       });
 
       // VS Code 알림으로도 PR URL 표시 (사용자 편의)
       vscode.window.showInformationMessage(
-        `✅ PR이 생성되었습니다: ${result.title}`,
+        metadataWarnings.length > 0
+          ? `PR이 생성되었습니다(일부 메타데이터 설정 실패): ${result.title}`
+          : `PR이 생성되었습니다: ${result.title}`,
         'GitHub에서 보기',
       ).then((selection) => {
         if (selection === 'GitHub에서 보기') {
@@ -154,7 +193,15 @@ export class PullRequestMessageHandler {
         }
       });
 
-      this.closePullRequestPanel?.();
+      // 부분 실패가 있으면 별도 NOTIFICATION 으로도 안내 (인패널 배너로 사용)
+      for (const warning of metadataWarnings) {
+        webview.postMessage({
+          type: 'NOTIFICATION',
+          payload: { type: 'warning', message: warning },
+        });
+      }
+
+      // 패널 자동 종료는 하지 않는다 — 사용자가 PR 링크와 경고를 확인한 뒤 직접 닫도록 함.
     } catch (error: any) {
       // GitHubApiError는 errorCode를 가져 구체적인 원인 전달 가능
       if (error instanceof GitHubApiError) {

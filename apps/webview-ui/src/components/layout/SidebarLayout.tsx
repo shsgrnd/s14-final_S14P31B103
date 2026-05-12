@@ -1,8 +1,9 @@
 import React, { Suspense, lazy, useState } from 'react';
-import { Settings } from 'lucide-react';
+import { KeyRound, SlidersHorizontal } from 'lucide-react';
 import { SectionHeader } from '../common/SectionHeader';
 import { SectionLoading } from '../common/SectionLoading';
 import { AiApiKeySettingsModal } from '../settings/AiApiKeySettingsModal';
+import { PrSettingsSidebar } from '../settings/PrSettingsSidebar';
 import { footerIconBtn } from '../../shared/styles';
 import { useGitCatStore } from '../../store/useGitCatStore';
 
@@ -37,6 +38,7 @@ export const SidebarLayout: React.FC = () => {
   ).length;
 
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [prSettingsOpen, setPrSettingsOpen] = useState(false);
 
   const [expanded, setExpanded] = useState({
     filetree: true,
@@ -56,6 +58,7 @@ export const SidebarLayout: React.FC = () => {
         background: 'var(--vscode-sideBar-background)',
         color: 'var(--vscode-sideBar-foreground)',
         overflow: 'hidden',
+        position: 'relative',
       }}
     >
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
@@ -179,6 +182,7 @@ export const SidebarLayout: React.FC = () => {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'flex-end',
+          gap: 4,
           padding: '6px 10px',
           borderTop: '1px solid var(--vscode-panel-border)',
           background: 'var(--vscode-sideBar-background)',
@@ -188,14 +192,25 @@ export const SidebarLayout: React.FC = () => {
         <button
           type="button"
           style={footerIconBtn}
-          title="설정 (AI API 키)"
+          title="AI API 키 설정"
+          aria-label="AI API 키 설정"
           onClick={() => setSettingsOpen(true)}
         >
-          <Settings size={15} />
+          <KeyRound size={15} />
+        </button>
+        <button
+          type="button"
+          style={footerIconBtn}
+          title="환경설정"
+          aria-label="환경설정 (PR 기본 target 브랜치 등)"
+          onClick={() => setPrSettingsOpen(true)}
+        >
+          <SlidersHorizontal size={15} />
         </button>
       </footer>
 
       <AiApiKeySettingsModal open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+      <PrSettingsSidebar open={prSettingsOpen} onClose={() => setPrSettingsOpen(false)} />
     </div>
   );
 };
