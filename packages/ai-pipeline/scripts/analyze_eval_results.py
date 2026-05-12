@@ -20,20 +20,14 @@ evaluate_llm_judge.py 가 생성한 채점 결과를 읽어
 import os
 import json
 import argparse
-from difflib import SequenceMatcher
 from datetime import datetime
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 RESULTS_DIR = os.path.join(BASE_DIR, "../trainer/eval/results")
 
-PASS_THRESHOLD = 7    # accuracy 점수 합격 기준
+PASS_THRESHOLD = 7    # accuracy 점수 합격 기준 (10점 만점 중 7점)
 FAIL_THRESHOLD = 6.0  # 평균 점수 실패 기준
-
-def compute_similarity(text_a: str, text_b: str) -> float:
-    """두 텍스트의 유사도를 0.0~1.0으로 반환 (Python 표준 라이브러리 사용)."""
-    if not text_a or not text_b:
-        return 0.0
-    return SequenceMatcher(None, text_a, text_b).ratio()
+# NOTE: Similarity 지표는 팀원 A의 analyze_sft_comparison.py 에서 담당합니다.
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -57,7 +51,7 @@ def main():
 
     os.makedirs(RESULTS_DIR, exist_ok=True)
 
-    total_pass, total_sim, count = 0, 0.0, 0
+    total_pass, count = 0, 0
     fail_cases = []
 
     print(f"\n[START] Analyzing eval results for [{args.model_type.upper()}]...")
@@ -76,19 +70,14 @@ def main():
             fmt      = scores.get("format", 0)
             avg      = (acc + clarity + fmt) / 3.0
 
-            model_resp   = data.get(f"{args.model_type}_response", "")
-            ground_truth = data.get("ground_truth", "")
+            model_resp = data.get(f"{args.model_type}_response", "")
 
-            # ── 지표 계산 ──────────────────────────────
-            is_pass  = 1 if acc >= PASS_THRESHOLD else 0
-            sim      = compute_similarity(model_resp, ground_truth)
-
-            data["pass_at_1"]  = is_pass
-            data["similarity"] = round(sim, 4)
+            # ── Pass@1 계산 (팀원 C 고유 지표) ────────
+            is_pass = 1 if acc >= PASS_THRESHOLD else 0
+            data["pass_at_1"] = is_pass
             fout.write(json.dumps(data, ensure_ascii=False) + "\n")
 
             total_pass += is_pass
-            total_sim  += sim
             count      += 1
 
             # ── 실패 케이스 수집 ───────────────────────
@@ -99,7 +88,6 @@ def main():
                     "response":    model_resp,
                     "scores":      scores,
                     "avg":         avg,
-                    "similarity":  sim,
                 })
 
     if count == 0:
@@ -107,14 +95,12 @@ def main():
         return
 
     pass_rate = (total_pass / count) * 100
-    avg_sim   = total_sim / count
 
     # ── 터미널 요약 출력 ───────────────────────────────
     print("\n" + "="*50)
     print(f"📐 [{args.model_type.upper()}] Metrics Summary")
     print(f"  Total Samples : {count}")
     print(f"  Pass@1        : {total_pass}/{count} ({pass_rate:.1f}%)")
-    print(f"  Avg Similarity: {avg_sim:.4f}")
     print(f"  Fail Cases    : {len(fail_cases)}")
     print("="*50)
 
@@ -130,8 +116,7 @@ def main():
             fout.write(f"- **Accuracy:** {case['scores'].get('accuracy')}/10\n")
             fout.write(f"- **Clarity:** {case['scores'].get('clarity')}/10\n")
             fout.write(f"- **Format:** {case['scores'].get('format')}/10\n")
-            fout.write(f"- **Average:** {case['avg']:.2f}/10  |  "
-                       f"**Similarity:** {case['similarity']:.4f}\n\n")
+            fout.write(f"- **Average:** {case['avg']:.2f}/10\n\n")
             fout.write("### ❓ Problem (Input)\n")
             raw_input = case["input"]
             if isinstance(raw_input, dict):
