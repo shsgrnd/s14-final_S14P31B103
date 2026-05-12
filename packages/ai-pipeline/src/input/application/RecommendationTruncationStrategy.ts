@@ -6,6 +6,8 @@ import { TokenCounter } from './TokenCounter';
 // diff_summary 최대 길이 (대략 3000자 ≈ ~750~1000 토큰)
 const STAGE1_MAX_DIFF_LENGTH = 3000;
 const STAGE2_MAX_FILES = 20;
+const STAGE2B_MAX_BRANCH_CONTEXT_LENGTH = 1500;
+const STAGE4_MAX_TEMPLATE_LENGTH = 2000;
 
 /**
  * RecommendationInput 전용 3단계 절단 전략.
@@ -15,7 +17,9 @@ const STAGE2_MAX_FILES = 20;
  *
  * 1단계: diff_summary 텍스트 3000자로 자르기
  * 2단계: changed_files 20개로 제한
- * 3단계: change_summary 끝에 경고 메타데이터 삽입
+ * 2.5단계: branch_context 길이 제한
+ * 3단계: template는 마지막 수단으로만 축소
+ * 4단계: change_summary 끝에 경고 메타데이터 삽입
  *         (work_intent 필드 오용을 피하기 위해 change_summary를 사용)
  */
 export class RecommendationTruncationStrategy implements ITruncationStrategy<RecommendationInput> {
@@ -39,10 +43,24 @@ export class RecommendationTruncationStrategy implements ITruncationStrategy<Rec
       return result;
     }
 
-    // 3단계: change_summary에 경고 삽입
+    // 2.5단계: branch_context 길이 제한
+    result = this.stage2b_truncateBranchContext(result);
+    if (this.tokenCounter.countPayloadTokens(result) <= config.safeThresholdTokens) {
+      console.log('[RecommendationTruncationStrategy] 2.5단계(branch_context 축소)로 해결됨');
+      return result;
+    }
+
+    // 3단계: template는 마지막 수단으로만 축소
+    result = this.stage3_truncateTemplateAsLastResort(result);
+    if (this.tokenCounter.countPayloadTokens(result) <= config.safeThresholdTokens) {
+      console.log('[RecommendationTruncationStrategy] 3단계(template 최후 축소)로 해결됨');
+      return result;
+    }
+
+    // 4단계: change_summary에 경고 삽입
     // (work_intent는 AI가 사용자의 의도로 직접 해석하는 핵심 필드이므로 오염을 피합니다)
-    result = this.stage3_appendWarning(result, initialTokens);
-    console.warn('[RecommendationTruncationStrategy] 3단계까지 절단했으나 여전히 초과. change_summary에 경고 삽입.');
+    result = this.stage4_appendWarning(result, initialTokens);
+    console.warn('[RecommendationTruncationStrategy] 4단계까지 절단했으나 여전히 초과. change_summary에 경고 삽입.');
     return result;
   }
 
@@ -74,7 +92,54 @@ export class RecommendationTruncationStrategy implements ITruncationStrategy<Rec
     };
   }
 
-  private stage3_appendWarning(payload: RecommendationInput, originalTokens: number): RecommendationInput {
+  private stage2b_truncateBranchContext(payload: RecommendationInput): RecommendationInput {
+    if (!payload.branch_context || payload.branch_context.length <= STAGE2B_MAX_BRANCH_CONTEXT_LENGTH) {
+      return payload;
+    }
+
+    console.warn(
+      `[RecommendationTruncationStrategy] branch_context ${payload.branch_context.length}자 → ${STAGE2B_MAX_BRANCH_CONTEXT_LENGTH}자로 제한`
+    );
+
+    return {
+      ...payload,
+      branch_context:
+        payload.branch_context.substring(0, STAGE2B_MAX_BRANCH_CONTEXT_LENGTH) +
+        '\n\n... [BRANCH CONTEXT TRUNCATED: 토큰 한도 초과로 이후 브랜치/커밋 맥락 생략됨] ...',
+    };
+  }
+
+  private stage3_truncateTemplateAsLastResort(payload: RecommendationInput): RecommendationInput {
+    if (payload.recommendation_type !== 'pr_description' || !payload.template) {
+      return payload;
+    }
+
+    if (payload.template.length <= STAGE4_MAX_TEMPLATE_LENGTH) {
+      return payload;
+    }
+
+    console.warn(
+      `[RecommendationTruncationStrategy] template ${payload.template.length}자 → ${STAGE4_MAX_TEMPLATE_LENGTH}자로 제한`
+    );
+
+    const truncatedLines: string[] = [];
+    let currentLength = 0;
+    for (const line of payload.template.split('\n')) {
+      const nextLength = currentLength + line.length + 1;
+      if (nextLength > STAGE4_MAX_TEMPLATE_LENGTH) break;
+      truncatedLines.push(line);
+      currentLength = nextLength;
+    }
+
+    const truncatedTemplate = truncatedLines.join('\n').trimEnd();
+    return {
+      ...payload,
+      template:
+        `${truncatedTemplate}\n\n...[TEMPLATE TRUNCATED: token budget exceeded, preserve the visible structure first]...`,
+    };
+  }
+
+  private stage4_appendWarning(payload: RecommendationInput, originalTokens: number): RecommendationInput {
     const finalTokens = this.tokenCounter.countPayloadTokens(payload);
     const warning =
       ` [주의: 토큰 예산 초과로 코드 컨텍스트 일부가 생략됨` +
