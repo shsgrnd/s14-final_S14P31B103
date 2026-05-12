@@ -44,6 +44,16 @@ if [ $? -ne 0 ]; then
 fi
 
 echo ""
+echo "▶ 3단계: 실패 케이스(Fail-case) 자동 추출"
+echo "----------------------------------------------------------"
+python "$SCRIPT_DIR/extract_fail_cases.py" --model-type "$MODEL_TYPE"
+
+echo ""
+echo "▶ 4단계: 종합 평가 리포트(Markdown) 생성 및 업데이트"
+echo "----------------------------------------------------------"
+python "$SCRIPT_DIR/generate_eval_report.py"
+
+echo ""
 echo "=========================================================="
 echo "✅ [SUCCESS] 모든 평가 자동화 파이프라인이 완료되었습니다!"
 echo "결과 리포트는 아래 폴더를 확인하세요:"
