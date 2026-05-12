@@ -44,7 +44,12 @@ if [ $? -ne 0 ]; then
 fi
 
 echo ""
-echo "▶ 3단계: 실패 케이스(Fail-case) 자동 추출"
+echo "▶ 3단계: Pass@1 & Similarity 지표 계산"
+echo "----------------------------------------------------------"
+python "$SCRIPT_DIR/compute_metrics.py" --model-type "$MODEL_TYPE"
+
+echo ""
+echo "▶ 4단계: 실패 케이스(Fail-case) 자동 추출"
 echo "----------------------------------------------------------"
 python "$SCRIPT_DIR/extract_fail_cases.py" --model-type "$MODEL_TYPE"
 
