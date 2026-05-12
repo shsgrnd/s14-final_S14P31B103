@@ -47,7 +47,7 @@ def score_with_llm(prompt_text, model_response):
 """
     try:
         response = client.chat.completions.create(
-            model="gpt-4o-mini", # 비용 효율을 위해 mini 사용, 필요시 gpt-4o로 변경
+            model="gpt-4.1", # 요청하신 4.1 버전 적용
             messages=[{"role": "user", "content": judge_prompt}],
             temperature=0.1, # 일관된 채점을 위해 온도를 낮춤
             max_tokens=100
