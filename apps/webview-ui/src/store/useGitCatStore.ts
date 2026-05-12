@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import {
-  Snapshot,
+  SnapshotMeta,
   Branch,
   WorktreeInfo,
   OutboundMessage,
@@ -56,7 +56,7 @@ function mapGitSectionBannerType(
 
 interface GitCatState {
   // Data
-  snapshots: Snapshot[];
+  snapshots: SnapshotMeta[];
   // 병합 화면은 AI/DB 원본이 아니라 Webview projection DTO만 보관합니다.
   conflicts: MergeConflictCandidateView[];
   currentAIDraft: MergeProposalView | null;
@@ -122,6 +122,18 @@ interface GitCatState {
   prFormMetadata: OutboundPayload<'PR_FORM_METADATA'> | null;
   isPrFormMetadataLoading: boolean;
 
+  /**
+   * PR 템플릿 목록 (PR_TEMPLATES 수신 시 갱신).
+   * 사용자가 선택한 template content는 RECOMMEND_PR payload.template로 함께 전송된다.
+   *
+   * 의미:
+   *  - `undefined`: 아직 응답을 받지 못함 (요청 진행 중 또는 미요청)
+   *  - `[]`       : 응답 받았지만 사용 가능한 template 없음
+   *  - `[...]`    : 사용 가능한 template 목록
+   */
+  prTemplates: OutboundPayload<'PR_TEMPLATES'>['templates'] | undefined;
+  isPrTemplatesLoading: boolean;
+
   /** 마지막으로 생성된 PR 결과 (PR_CREATED 수신 시 저장) */
   lastCreatedPr: OutboundPayload<'PR_CREATED'> | null;
 
@@ -138,7 +150,7 @@ interface GitCatState {
   prDefaultBaseBranch: string | null | undefined;
 
   // Actions
-  setSnapshots: (snapshots: Snapshot[]) => void;
+  setSnapshots: (snapshots: SnapshotMeta[]) => void;
   setConflicts: (conflicts: MergeConflictCandidateView[]) => void;
   setAIDraft: (draft: MergeProposalView | null) => void;
   setCurrentBranch: (branch: string) => void;
@@ -229,6 +241,8 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
   cleanupExecuteResult: null,
   prFormMetadata: null,
   isPrFormMetadataLoading: false,
+  prTemplates: undefined,
+  isPrTemplatesLoading: false,
   lastCreatedPr: null,
   prDefaultBaseBranch: undefined,
 
@@ -365,6 +379,9 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
         if (payload.target === 'GET_PR_FORM_METADATA') {
           set({ isPrFormMetadataLoading: payload.loading });
         }
+        if (payload.target === 'GET_PR_TEMPLATES') {
+          set({ isPrTemplatesLoading: payload.loading });
+        }
         if (payload.target === 'branchRecommendation') {
           set({ isBranchRecommendationLoading: payload.loading });
         }
@@ -451,15 +468,41 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
         });
         break;
 
+      case 'PR_TEMPLATES':
+        // PR 템플릿 목록 수신 — 사용자 선택 UI에서 사용
+        set({
+          prTemplates: payload.templates,
+          isPrTemplatesLoading: false,
+        });
+        break;
+
       case 'PR_DEFAULT_BASE_BRANCH':
         set({ prDefaultBaseBranch: payload.branch });
         break;
 
       // ── 백엔드 에러 / 알림 수신 처리 ──
 
-      case 'MERGE_COMPLETE':
-        set({ mergeResult: null });
+      case 'MERGE_COMPLETE': {
+        // Extension에서 보내는 새 payload 구조: { merge: MergeCompleteView }
+        // - status: 'completed' | 'continued' → 성공
+        // - status: 'conflicted'              → 충돌 (conflictedFiles 활용)
+        // - status: 'aborted'                 → 사용자 중단 (mergeResult 초기화)
+        const view = payload.merge;
+        if (view.status === 'completed' || view.status === 'continued') {
+          set({ mergeResult: { success: true } });
+        } else if (view.status === 'conflicted') {
+          set({
+            mergeResult: {
+              success: false,
+              conflictedFiles: view.conflictedFiles ?? [],
+            },
+          });
+        } else {
+          // aborted: merge 흐름이 종료됐으므로 결과 배너를 닫는다.
+          set({ mergeResult: null });
+        }
         break;
+      }
 
       case 'ERROR': {
         const rawMsg = payload.message ?? '';
