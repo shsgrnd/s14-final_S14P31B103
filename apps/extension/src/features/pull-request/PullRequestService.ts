@@ -26,6 +26,11 @@ import type {
   PullRequestTemplate,
 } from '../../integrations/github/interfaces';
 import type { ErrorCode } from '@gitcat/shared-types';
+import type {
+  PrFormCollaboratorDto,
+  PrFormLabelDto,
+  PrFormMilestoneDto,
+} from '@gitcat/shared-types';
 import type { PullRequestServiceContract } from './interfaces';
 import type { GitService } from '../git/GitService';
 import { GitHubClient as GitHubClientImpl } from '../../integrations/github/GitHubClient';
@@ -63,6 +68,38 @@ export class PullRequestService implements PullRequestServiceContract {
 
     const repoInfo = await this.resolveOwnerAndRepo();
     return this.githubClient.listPullRequestTemplates(repoInfo.owner, repoInfo.repo, input.base);
+  }
+
+  /**
+   * PR 생성 폼용 메타데이터(협력자·라벨·마일스톤)를 GitHub API에서 조회한다.
+   * 개별 API 실패 시 해당 배열만 비우고 나머지는 채운다.
+   */
+  async listPrFormMetadata(): Promise<{
+    collaborators: PrFormCollaboratorDto[];
+    labels: PrFormLabelDto[];
+    milestones: PrFormMilestoneDto[];
+    currentUserLogin: string | null;
+  }> {
+    const { owner, repo } = await this.resolveOwnerAndRepo();
+    const [collaborators, labels, milestones, currentUserLogin] = await Promise.all([
+      this.githubClient.listRepoCollaborators(owner, repo).catch((e: unknown) => {
+        console.warn('[GitCat] PullRequestService: collaborators 조회 실패', e);
+        return [];
+      }),
+      this.githubClient.listRepoLabels(owner, repo).catch((e: unknown) => {
+        console.warn('[GitCat] PullRequestService: labels 조회 실패', e);
+        return [];
+      }),
+      this.githubClient.listOpenRepoMilestones(owner, repo).catch((e: unknown) => {
+        console.warn('[GitCat] PullRequestService: milestones 조회 실패', e);
+        return [];
+      }),
+      this.githubClient.getAuthenticatedUserLogin().catch((e: unknown) => {
+        console.warn('[GitCat] PullRequestService: authenticated user 조회 실패', e);
+        return null;
+      }),
+    ]);
+    return { collaborators, labels, milestones, currentUserLogin };
   }
 
   async validateHeadBranchReady(

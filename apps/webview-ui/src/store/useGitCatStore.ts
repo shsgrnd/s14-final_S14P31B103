@@ -9,6 +9,7 @@ import {
   BranchCleanupPreviewResult,
   BranchCleanupExecuteResult,
   PRSuggestion,
+  OutboundPayload,
   MergeConflictCandidateView,
   MergeProposalView,
 } from '@gitcat/shared-types';
@@ -117,6 +118,25 @@ interface GitCatState {
   cleanupPreview: BranchCleanupPreviewResult | null;
   cleanupExecuteResult: BranchCleanupExecuteResult | null;
 
+  /** PR 생성 폼 — GitHub collaborators / labels / milestones (GET_PR_FORM_METADATA 응답) */
+  prFormMetadata: OutboundPayload<'PR_FORM_METADATA'> | null;
+  isPrFormMetadataLoading: boolean;
+
+  /** 마지막으로 생성된 PR 결과 (PR_CREATED 수신 시 저장) */
+  lastCreatedPr: OutboundPayload<'PR_CREATED'> | null;
+
+  /**
+   * 사용자 환경설정에 저장된 기본 PR target 브랜치 (PR_DEFAULT_BASE_BRANCH 수신 시 갱신).
+   * 두 webview(사이드바 / PR Create panel)가 공유하기 위해 workspaceState에 영속되며,
+   * 한쪽에서 변경되면 extension이 모든 webview에 broadcast 한다.
+   *
+   * 의미:
+   *  - `undefined`: 아직 한 번도 응답을 못 받은 상태(초기 GET 진행 중)
+   *  - `null`     : 응답은 받았지만 저장된 값이 없음(자동 추론 모드)
+   *  - `string`   : 저장된 브랜치 이름
+   */
+  prDefaultBaseBranch: string | null | undefined;
+
   // Actions
   setSnapshots: (snapshots: Snapshot[]) => void;
   setConflicts: (conflicts: MergeConflictCandidateView[]) => void;
@@ -137,6 +157,7 @@ interface GitCatState {
   setStashes: (stashes: StashEntry[]) => void;
   clearMergeResult: () => void;
   clearPrSuggestion: () => void;
+  clearLastCreatedPr: () => void;
   clearBranchSuggestions: () => void;
   beginRecommendationRequest: (flow: 'branch' | 'commit' | 'pr') => void;
   clearBranchRecommendationError: () => void;
@@ -206,6 +227,10 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
   cleanupSettings: null,
   cleanupPreview: null,
   cleanupExecuteResult: null,
+  prFormMetadata: null,
+  isPrFormMetadataLoading: false,
+  lastCreatedPr: null,
+  prDefaultBaseBranch: undefined,
 
   setSnapshots: (snapshots) => set({ snapshots }),
   setConflicts: (conflicts) => set({ conflicts }),
@@ -249,6 +274,7 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
   setStashes: (stashes) => set({ stashes }),
   clearMergeResult: () => set({ mergeResult: null }),
   clearPrSuggestion: () => set({ prSuggestion: null }),
+  clearLastCreatedPr: () => set({ lastCreatedPr: null }),
   clearBranchSuggestions: () => set({ aiBranchSuggestions: [] }),
   beginRecommendationRequest: (flow) => set((state) => ({
     pendingRecommendationFlow: flow,
@@ -336,6 +362,9 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
         if (payload.target === 'CREATE_PR') {
           set({ isCreatingPr: payload.loading });
         }
+        if (payload.target === 'GET_PR_FORM_METADATA') {
+          set({ isPrFormMetadataLoading: payload.loading });
+        }
         if (payload.target === 'branchRecommendation') {
           set({ isBranchRecommendationLoading: payload.loading });
         }
@@ -390,20 +419,40 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
         });
         break;
 
-      case 'PR_CREATED':
+      case 'PR_CREATED': {
+        const warnings = payload.metadataWarnings ?? [];
+        const baseMsg = `PR #${payload.prNumber} 생성 완료: ${payload.htmlUrl}`;
+        const notifMsg =
+          warnings.length > 0
+            ? `${baseMsg} (일부 설정 적용 실패: ${warnings.length}건)`
+            : baseMsg;
         set((state) => ({
+          lastCreatedPr: payload,
+          isCreatingPr: false,
           globalNotification: {
-            type: 'success',
-            message: `PR #${payload.prNumber} 생성 완료: ${payload.htmlUrl}`,
+            type: warnings.length > 0 ? 'warning' : 'success',
+            message: notifMsg,
           },
           sectionNotifications: {
             ...state.sectionNotifications,
             git: {
-              type: 'success',
-              message: `PR #${payload.prNumber} 생성 완료: ${payload.htmlUrl}`,
+              type: warnings.length > 0 ? 'warning' : 'success',
+              message: notifMsg,
             },
           },
         }));
+        break;
+      }
+
+      case 'PR_FORM_METADATA':
+        set({
+          prFormMetadata: payload,
+          isPrFormMetadataLoading: false,
+        });
+        break;
+
+      case 'PR_DEFAULT_BASE_BRANCH':
+        set({ prDefaultBaseBranch: payload.branch });
         break;
 
       // ── 백엔드 에러 / 알림 수신 처리 ──

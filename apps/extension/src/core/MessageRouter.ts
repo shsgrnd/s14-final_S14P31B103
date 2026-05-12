@@ -16,6 +16,7 @@ import type {
 import type { PrRecommendationHandler } from '../features/recommendation/PrRecommendationHandler';
 import type { AiApiKeyMessageHandler } from '../features/recommendation/AiApiKeyMessageHandler';
 import type { PullRequestMessageHandler } from '../features/pull-request/PullRequestMessageHandler';
+import type { PrSettingsMessageHandler } from '../features/settings/PrSettingsMessageHandler';
 import {
   InboundMessage,
   InboundMessageSchema,
@@ -33,6 +34,8 @@ export class MessageRouter {
   private prRecommendationHandler: PrRecommendationHandler | null;
   /** GitHub PR 생성 핵들러 (CREATE_PR, OPEN_PR_PANEL) */
   private readonly pullRequestHandler: PullRequestMessageHandler | null;
+  /** PR 환경설정 (기본 target 브랜치 저장/조회) */
+  private prSettingsHandler: PrSettingsMessageHandler | null;
   private readonly aiApiKeyMessageHandler: AiApiKeyMessageHandler | null;
   private readonly webviews = new Set<vscode.Webview>();
 
@@ -43,6 +46,7 @@ export class MessageRouter {
     commitRecommendationHandler?: CommitRecommendationMessageHandler,
     prRecommendationHandler?: PrRecommendationHandler,
     pullRequestHandler?: PullRequestMessageHandler,
+    prSettingsHandler?: PrSettingsMessageHandler,
     aiApiKeyMessageHandler?: AiApiKeyMessageHandler,
   ) {
     this.gitHandler = gitHandler ?? null;
@@ -50,7 +54,12 @@ export class MessageRouter {
     this.commitRecommendationHandler = commitRecommendationHandler ?? null;
     this.prRecommendationHandler = prRecommendationHandler ?? null;
     this.pullRequestHandler = pullRequestHandler ?? null;
+    this.prSettingsHandler = prSettingsHandler ?? null;
     this.aiApiKeyMessageHandler = aiApiKeyMessageHandler ?? null;
+  }
+
+  public setPrSettingsHandler(handler: PrSettingsMessageHandler): void {
+    this.prSettingsHandler = handler;
   }
 
   public configureRecommendationHandlers(handlers: {
@@ -122,6 +131,11 @@ export class MessageRouter {
       // GitHub PR 생성 핸들러 위임 (CREATE_PR, OPEN_PR_PANEL)
       if (this.pullRequestHandler) {
         const handled = await this.pullRequestHandler.handle(message.type, message.payload, webview);
+        if (handled) return;
+      }
+      // PR 환경설정 핸들러 위임 (GET/SET/CLEAR_PR_DEFAULT_BASE_BRANCH)
+      if (this.prSettingsHandler) {
+        const handled = await this.prSettingsHandler.handle(message.type, message.payload, webview);
         if (handled) return;
       }
       // AI API Key 핸들러 위임
