@@ -51,7 +51,6 @@ export const InboundMessageTypeEnum = z.enum([
   'GIT_PUSH',
   'OPEN_MERGE_PANEL',
   'CHECKOUT_BRANCH',
-  'REJECT_AI_DRAFT',
   // stash 작업
   'GET_STASH_LIST',
   'STASH_SAVE',
