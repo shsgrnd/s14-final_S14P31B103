@@ -1,0 +1,7 @@
+{
+  "title": "불완전한 병합 초안 - RecommendPanel 세미콜론 포맷팅 규칙 병합",
+  "summary": "충돌의 일부만 반영하고 나머지 영향 범위를 놓친 병합 초안입니다.",
+  "explanation": "한쪽 브랜치 변경을 우선 반영했지만, 연결된 타입/호출부/검증 포인트를 충분히 맞추지 못해 실제 적용 시 회귀 위험이 남습니다.",
+  "merged_code": "// rejected candidate\n// partial resolution only\n// linked files and validation paths are not fully synchronized",
+  "validation_summary": "핵심 동작 검증이 빠져 있어 수동 재검토가 필요합니다."
+}

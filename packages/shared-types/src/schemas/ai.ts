@@ -127,6 +127,7 @@ export const AiInputPayloadSchema = z.object({
   ticket_ref: z.string().optional(),
   naming_constraints: z.array(z.string()).optional(),
   message_constraints: z.array(z.string()).optional(),
+  template: z.string().optional(),
 }).refine(
   (data) => {
     if (['merge_patch_draft', 'conflict_explanation', 'merge_mediation'].includes(data.feature_type)) {

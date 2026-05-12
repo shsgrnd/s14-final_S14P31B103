@@ -59,7 +59,10 @@ export const InboundPayloadSchemaMap = {
     tag: z.string().optional(),
   }).strict(),
   RECOMMEND_BRANCH: z.object({ purpose: z.string().min(1) }),
-  RECOMMEND_PR: z.object({ base: z.string().min(1) }),
+  RECOMMEND_PR: z.object({
+    base: z.string().min(1),
+    template: z.string().optional(),
+  }),
   APPLY_COMMIT: z.object({ message: z.string().min(1), body: z.string().optional() }),
   APPLY_BRANCH: z.object({ name: z.string().min(1) }),
   DELETE_BRANCHES: z.object({ names: z.array(z.string().min(1)).min(1), force: z.boolean() }),
@@ -127,6 +130,10 @@ export const InboundPayloadSchemaMap = {
     milestone: z.number().int().optional(), // GitHub milestone 번호
   }),
   OPEN_PR_PANEL: z.object({}).strict(),
+  // AI API Key 관리
+  SAVE_AI_API_KEY: z.object({ apiKey: z.string().min(1) }),
+  DELETE_AI_API_KEY: z.object({}).strict(),
+  CHECK_AI_API_KEY: z.object({}).strict(),
 } as const;
 
 /**
@@ -184,6 +191,8 @@ export const OutboundPayloadSchemaMap = {
     base: z.string(),               // base 브랜치
     head: z.string(),               // head 브랜치
   }),
+  // AI API Key 상태 응답
+  AI_API_KEY_STATUS: z.object({ hasKey: z.boolean() }),
 } as const;
 
 /**

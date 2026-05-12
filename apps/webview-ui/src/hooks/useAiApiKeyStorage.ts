@@ -1,30 +1,34 @@
-import { useCallback, useMemo, useState } from 'react';
-import { clearStoredAiApiKey, hasStoredAiApiKey, writeStoredAiApiKey } from '../lib/aiApiKeyWebviewStorage';
+import { useCallback, useEffect, useState } from 'react';
+import { sendMessage } from './useVsCodeApi';
 
 /**
- * AI 키 저장 여부를 React와 동기화한다. (저장소 구현은 aiApiKeyWebviewStorage 참고)
+ * AI 키 저장 여부를 React와 동기화한다. (Extension의 SecretStorage 연동)
  */
 export function useAiApiKeyStorage() {
-  const [version, setVersion] = useState(0);
-  const bump = useCallback(() => setVersion((v) => v + 1), []);
+  const [hasKey, setHasKey] = useState(false);
 
-  const hasKey = useMemo(() => {
-    void version;
-    return hasStoredAiApiKey();
-  }, [version]);
+  useEffect(() => {
+    const handleMessage = (e: MessageEvent) => {
+      const msg = e.data;
+      if (msg && msg.type === 'AI_API_KEY_STATUS' && msg.payload) {
+        setHasKey(msg.payload.hasKey);
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    
+    // 초기 마운트 시 키 상태 요청
+    sendMessage('CHECK_AI_API_KEY', {});
 
-  const saveKey = useCallback(
-    (raw: string) => {
-      writeStoredAiApiKey(raw);
-      bump();
-    },
-    [bump],
-  );
+    return () => window.removeEventListener('message', handleMessage);
+  }, []);
+
+  const saveKey = useCallback((raw: string) => {
+    sendMessage('SAVE_AI_API_KEY', { apiKey: raw });
+  }, []);
 
   const clearKey = useCallback(() => {
-    clearStoredAiApiKey();
-    bump();
-  }, [bump]);
+    sendMessage('DELETE_AI_API_KEY', {});
+  }, []);
 
   return { hasKey, saveKey, clearKey };
 }
