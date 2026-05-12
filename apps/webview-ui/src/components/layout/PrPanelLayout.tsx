@@ -28,6 +28,8 @@ export const PrPanelLayout: React.FC = () => {
     clearPrRecommendationError,
     prFormMetadata,
     isPrFormMetadataLoading,
+    prTemplates,
+    isPrTemplatesLoading,
     lastCreatedPr,
     clearLastCreatedPr,
     sectionNotifications,
@@ -50,12 +52,35 @@ export const PrPanelLayout: React.FC = () => {
   const [prMilestone, setPrMilestone] = useState<number | null>(null);
   const [descriptionMode, setDescriptionMode] = useState<DescriptionMode>('write');
   const [hasRequestedInitialRecommendation, setHasRequestedInitialRecommendation] = useState(false);
+  // 선택된 PR 템플릿 경로. 빈 문자열이면 "선택 안 함"(미사용).
+  const [selectedTemplatePath, setSelectedTemplatePath] = useState<string>('');
   const isRecommendationInProgress = isPrLoading;
   const canCreatePr = Boolean(prTitle.trim() && prDescription.trim() && baseBranch && currentBranch);
+
+  // 선택된 template content를 RECOMMEND_PR payload에 함께 보내기 위해 미리 계산한다.
+  // 비어 있거나 "선택 안 함"이면 undefined를 전송해 백엔드가 기본 동작을 유지하도록 한다.
+  const selectedTemplateContent =
+    prTemplates?.find((t) => t.path === selectedTemplatePath)?.content;
 
   useEffect(() => {
     sendMessage('GET_PR_FORM_METADATA', {});
   }, [sendMessage]);
+
+  // PR 패널 진입 시 한 번 PR 템플릿 목록을 요청한다.
+  // base에 따라 결과가 달라질 수 있지만(.github/PULL_REQUEST_TEMPLATE/*.md 등),
+  // 현재 백엔드는 base 옵션 없이 로컬 PR 템플릿을 우선 노출하므로 단일 요청으로 충분하다.
+  useEffect(() => {
+    sendMessage('GET_PR_TEMPLATES', {});
+  }, [sendMessage]);
+
+  // 템플릿이 도착하면 첫 번째 항목을 기본 선택해 사용자가 별도 클릭 없이도
+  // RECOMMEND_PR에 PR 가이드라인을 반영할 수 있도록 한다.
+  // 이후 사용자가 직접 '(선택 안 함)' 또는 다른 항목으로 바꾸면 그 선택을 유지한다.
+  useEffect(() => {
+    if (!prTemplates || prTemplates.length === 0) return;
+    if (selectedTemplatePath) return;
+    setSelectedTemplatePath(prTemplates[0].path);
+  }, [prTemplates, selectedTemplatePath]);
 
   // GitHub은 PR 작성자 본인을 reviewer로 받지 않는다.
   // 메타데이터가 도착하면 reviewers 배열에서 본인을 자동으로 제거한다.
@@ -92,9 +117,19 @@ export const PrPanelLayout: React.FC = () => {
   useEffect(() => {
     if (hasRequestedInitialRecommendation || !baseBranch || !currentBranch) return;
     beginRecommendationRequest('pr');
-    sendMessage('RECOMMEND_PR', { base: baseBranch });
+    sendMessage('RECOMMEND_PR', {
+      base: baseBranch,
+      ...(selectedTemplateContent ? { template: selectedTemplateContent } : {}),
+    });
     setHasRequestedInitialRecommendation(true);
-  }, [baseBranch, currentBranch, hasRequestedInitialRecommendation, sendMessage, beginRecommendationRequest]);
+  }, [
+    baseBranch,
+    currentBranch,
+    hasRequestedInitialRecommendation,
+    selectedTemplateContent,
+    sendMessage,
+    beginRecommendationRequest,
+  ]);
 
   // AI 추천 결과 수신 시 폼 자동 입력 (항상 최신 추천으로 덮어씀)
   useEffect(() => {
@@ -149,7 +184,10 @@ export const PrPanelLayout: React.FC = () => {
           onClick={() => {
             clearPrRecommendationError();
             beginRecommendationRequest('pr');
-            sendMessage('RECOMMEND_PR', { base: baseBranch });
+            sendMessage('RECOMMEND_PR', {
+              base: baseBranch,
+              ...(selectedTemplateContent ? { template: selectedTemplateContent } : {}),
+            });
           }}
           disabled={isPrLoading || !baseBranch}
           style={{
@@ -403,6 +441,103 @@ export const PrPanelLayout: React.FC = () => {
               }}
             />
           </div>
+        </div>
+
+        {/*
+          PR 템플릿 선택 UI
+          - 사용자가 선택한 template content는 RECOMMEND_PR payload.template로 함께 전송된다.
+          - 템플릿이 없으면(저장소에 .github/pull_request_template.md 등이 없음) 빈 상태 안내를 표시한다.
+          - 로딩 중에는 select를 비활성화한다.
+        */}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+          <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--vscode-foreground)' }}>
+            PR Template
+            <span
+              style={{
+                marginLeft: 6,
+                fontSize: 11,
+                fontWeight: 400,
+                color: 'var(--vscode-descriptionForeground)',
+              }}
+            >
+              (선택 시 AI 추천 프롬프트에 함께 반영됩니다)
+            </span>
+          </label>
+          {isPrTemplatesLoading ? (
+            <div
+              style={{
+                padding: '8px 12px',
+                background: 'var(--vscode-input-background)',
+                border: '1px solid var(--vscode-input-border, var(--vscode-panel-border))',
+                borderRadius: '6px',
+                fontSize: '12px',
+                color: 'var(--vscode-descriptionForeground)',
+                display: 'flex',
+                alignItems: 'center',
+                gap: 8,
+              }}
+            >
+              <RefreshCw size={12} style={{ animation: 'gitcat-refresh-spin 1s linear infinite' }} />
+              템플릿 목록을 불러오는 중...
+            </div>
+          ) : prTemplates && prTemplates.length > 0 ? (
+            <div style={{ position: 'relative', width: '100%' }}>
+              <select
+                value={selectedTemplatePath}
+                onChange={(e) => setSelectedTemplatePath(e.target.value)}
+                disabled={isRecommendationInProgress}
+                style={{
+                  width: '100%',
+                  boxSizing: 'border-box',
+                  appearance: 'none',
+                  WebkitAppearance: 'none',
+                  MozAppearance: 'none',
+                  padding: '8px 40px 8px 12px',
+                  background: 'var(--vscode-input-background)',
+                  color: 'var(--vscode-input-foreground)',
+                  border: '1px solid var(--vscode-input-border, var(--vscode-panel-border))',
+                  borderRadius: '6px',
+                  outline: 'none',
+                  fontSize: '13px',
+                  cursor: isRecommendationInProgress ? 'not-allowed' : 'pointer',
+                  opacity: isRecommendationInProgress ? 0.75 : 1,
+                }}
+              >
+                <option value="">(선택 안 함 — 자유 형식 추천)</option>
+                {prTemplates.map((t) => (
+                  <option key={t.path} value={t.path}>
+                    {t.name} ({t.path})
+                  </option>
+                ))}
+              </select>
+              <ChevronDown
+                size={16}
+                aria-hidden
+                style={{
+                  position: 'absolute',
+                  right: '12px',
+                  top: '50%',
+                  transform: 'translateY(-50%)',
+                  pointerEvents: 'none',
+                  color: 'var(--vscode-input-foreground)',
+                  opacity: 0.72,
+                }}
+              />
+            </div>
+          ) : (
+            <div
+              style={{
+                padding: '8px 12px',
+                background: 'var(--vscode-input-background)',
+                border: '1px dashed var(--vscode-input-border, var(--vscode-panel-border))',
+                borderRadius: '6px',
+                fontSize: '12px',
+                color: 'var(--vscode-descriptionForeground)',
+              }}
+            >
+              사용 가능한 PR 템플릿이 없습니다. AI는 자유 형식으로 PR 설명을 추천합니다.
+            </div>
+          )}
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
