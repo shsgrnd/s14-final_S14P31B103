@@ -1,75 +1,121 @@
+"""
+generate_eval_report.py
+========================
+명세서 요구사항:
+- [실험 결과를 csv 또는 markdown report로 자동 정리]
+- [결과 요약 테이블 자동 생성]
+
+analyze_eval_results.py 가 생성한 분석 결과를 종합하여
+Base / SFT / DPO 세 모델의 성능을 한눈에 비교하는
+단일 Markdown 리포트(final_evaluation_report.md)를 자동 생성합니다.
+
+포함 내용:
+- 모델별 Accuracy / Clarity / Format 평균 (LLM-as-a-Judge)
+- 모델별 Pass@1, Avg Similarity
+- 종합 Final Average 점수
+"""
 import os
 import json
 from datetime import datetime
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-RESULTS_DIR = os.path.join(BASE_DIR, "../trainer/eval/results")
-MODELS_TO_EVALUATE = ["base", "sft", "dpo"]
+BASE_DIR     = os.path.dirname(os.path.abspath(__file__))
+RESULTS_DIR  = os.path.join(BASE_DIR, "../trainer/eval/results")
+MODELS       = ["base", "sft", "dpo"]
 
-def generate_report():
+def load_model_stats(model: str) -> dict | None:
+    """
+    analyze_eval_results.py 가 만든 analyzed_results 파일을 읽어
+    모델 전체 평균 지표를 계산합니다.
+    """
+    analyzed_file = os.path.join(RESULTS_DIR, f"{model}_analyzed_results.jsonl")
+    
+    # 분석 파일이 없으면 judge score 파일로 폴백
+    source_file = analyzed_file
+    if not os.path.exists(analyzed_file):
+        source_file = os.path.join(RESULTS_DIR, f"{model}_llm_judge_scores.jsonl")
+        if not os.path.exists(source_file):
+            return None
+
+    totals = {"accuracy": 0, "clarity": 0, "format": 0,
+              "pass_at_1": 0, "similarity": 0.0}
+    count = 0
+
+    with open(source_file, "r", encoding="utf-8") as f:
+        for line in f:
+            if not line.strip():
+                continue
+            data   = json.loads(line)
+            scores = data.get("llm_judge_scores", {})
+            totals["accuracy"]   += scores.get("accuracy", 0)
+            totals["clarity"]    += scores.get("clarity", 0)
+            totals["format"]     += scores.get("format", 0)
+            totals["pass_at_1"]  += data.get("pass_at_1", 0)
+            totals["similarity"] += data.get("similarity", 0.0)
+            count += 1
+
+    if count == 0:
+        return None
+
+    return {
+        "model":      model.upper(),
+        "count":      count,
+        "accuracy":   totals["accuracy"]  / count,
+        "clarity":    totals["clarity"]   / count,
+        "format":     totals["format"]    / count,
+        "pass_rate":  (totals["pass_at_1"] / count) * 100,
+        "avg_sim":    totals["similarity"] / count,
+        "final_avg":  (totals["accuracy"] + totals["clarity"] + totals["format"]) / (count * 3),
+    }
+
+def main():
     output_file = os.path.join(RESULTS_DIR, "final_evaluation_report.md")
     os.makedirs(RESULTS_DIR, exist_ok=True)
-    
-    report_data = []
-    
-    print("[START] Generating Final Evaluation Report...")
-    
-    for model in MODELS_TO_EVALUATE:
-        score_file = os.path.join(RESULTS_DIR, f"{model}_llm_judge_scores.jsonl")
-        
-        if not os.path.exists(score_file):
-            print(f"- [SKIP] No score file found for '{model}' model.")
-            continue
-            
-        total_acc, total_clarity, total_fmt, count = 0, 0, 0, 0
-        
-        with open(score_file, 'r', encoding='utf-8') as f:
-            for line in f:
-                if not line.strip():
-                    continue
-                data = json.loads(line)
-                scores = data.get('llm_judge_scores', {})
-                
-                total_acc += scores.get('accuracy', 0)
-                total_clarity += scores.get('clarity', 0)
-                total_fmt += scores.get('format', 0)
-                count += 1
-                
-        if count > 0:
-            report_data.append({
-                "model": model.upper(),
-                "accuracy": total_acc / count,
-                "clarity": total_clarity / count,
-                "format": total_fmt / count,
-                "average": (total_acc + total_clarity + total_fmt) / (count * 3)
-            })
-            print(f"- [OK] Processed {count} records for '{model}' model.")
 
-    if not report_data:
-        print("[ERROR] No evaluation data found to generate a report.")
+    print("[START] Generating Final Evaluation Report...")
+
+    stats_list = []
+    for model in MODELS:
+        stats = load_model_stats(model)
+        if stats:
+            stats_list.append(stats)
+            print(f"- [OK] {model.upper()} — {stats['count']} records")
+        else:
+            print(f"- [SKIP] No data found for '{model}' model.")
+
+    if not stats_list:
+        print("[ERROR] No evaluation data found. Aborting.")
         return
 
-    # 마크다운 리포트 생성
-    with open(output_file, 'w', encoding='utf-8') as fout:
-        fout.write("# 📊 GitCat AI Model Evaluation Report\n\n")
-        fout.write(f"**Generated At:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
-        
-        fout.write("## 🏆 Model Performance Comparison\n\n")
-        fout.write("| Model Type | Accuracy (10) | Clarity (10) | Format (10) | **Final Average** |\n")
-        fout.write("| :--- | :---: | :---: | :---: | :---: |\n")
-        
-        for data in report_data:
-            fout.write(f"| **{data['model']}** | {data['accuracy']:.2f} | {data['clarity']:.2f} | {data['format']:.2f} | **{data['average']:.2f}** |\n")
-            
-        fout.write("\n---\n\n")
-        fout.write("### 📌 Metrics Description\n")
-        fout.write("- **Accuracy:** 충돌 원인 분석 및 해결 코드의 기술적 타당성\n")
-        fout.write("- **Clarity:** 설명의 흐름 및 주니어 개발자 친화적인 명확성\n")
-        fout.write("- **Format:** 마크다운 가독성 및 코드 블록 구조화 상태\n")
-        
-        fout.write("\n\n> *This report is auto-generated by the LLM-as-a-Judge evaluation pipeline.*\n")
-        
-    print(f"\n[SUCCESS] Final report generated successfully at: {output_file}")
+    with open(output_file, "w", encoding="utf-8") as f:
+        f.write("# 📊 GitCat AI Model Evaluation Report\n\n")
+        f.write(f"**Generated At:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+
+        # ── 1. LLM-as-a-Judge 비교표 ───────────────────────────────
+        f.write("## 🏆 LLM-as-a-Judge — Model Performance Comparison\n\n")
+        f.write("| Model | Accuracy /10 | Clarity /10 | Format /10 | **Final Avg** |\n")
+        f.write("| :--- | :---: | :---: | :---: | :---: |\n")
+        for s in stats_list:
+            f.write(f"| **{s['model']}** | {s['accuracy']:.2f} | "
+                    f"{s['clarity']:.2f} | {s['format']:.2f} | **{s['final_avg']:.2f}** |\n")
+
+        # ── 2. Pass@1 & Similarity 비교표 ──────────────────────────
+        f.write("\n## 📐 Pass@1 & Similarity Metrics\n\n")
+        f.write("| Model | Samples | Pass@1 (%) | Avg Similarity |\n")
+        f.write("| :--- | :---: | :---: | :---: |\n")
+        for s in stats_list:
+            f.write(f"| **{s['model']}** | {s['count']} | "
+                    f"{s['pass_rate']:.1f}% | {s['avg_sim']:.4f} |\n")
+
+        # ── 3. 지표 설명 ────────────────────────────────────────────
+        f.write("\n---\n\n### 📌 Metrics Description\n")
+        f.write("- **Accuracy:** 충돌 원인 분석 및 해결 코드의 기술적 타당성\n")
+        f.write("- **Clarity:** 설명의 흐름 및 주니어 개발자 친화적인 명확성\n")
+        f.write("- **Format:** 마크다운 가독성 및 코드 블록 구조화 상태\n")
+        f.write("- **Pass@1:** LLM Judge accuracy ≥ 7 인 비율 (첫 시도 합격률)\n")
+        f.write("- **Avg Similarity:** 모델 응답과 ground truth 간 텍스트 유사도\n")
+        f.write("\n> *This report is auto-generated by the GitCat AI evaluation pipeline.*\n")
+
+    print(f"\n[SUCCESS] Report saved to: {output_file}")
 
 if __name__ == "__main__":
-    generate_report()
+    main()
