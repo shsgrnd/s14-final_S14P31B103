@@ -1,5 +1,6 @@
 import * as vscode from 'vscode';
 import { SessionType, SessionMeta } from '@gitcat/shared-types';
+import { AiChangeDetector } from './AiChangeDetector';
 
 export class SessionManager {
   private currentSession: SessionMeta | null = null;
@@ -7,6 +8,7 @@ export class SessionManager {
   private currentTextCache = new Map<string, string>(); // filePath -> latest text
   private changedFiles = new Set<string>(); // filePaths
   private dirtyFiles = new Set<string>(); // filePaths currently with unsaved changes
+  private aiChangeDetector = new AiChangeDetector();
 
   constructor() {
     console.log('SessionManager initialized');
@@ -97,9 +99,18 @@ export class SessionManager {
       return;
     }
 
-    // 변경이 일어났는데 세션이 없다면 수동 세션으로 간주하여 자동 시작
-    if (!this.currentSession) {
-      this.startManualSession();
+    // AI성 대량 변경인지 분석
+    const isAiChange = await this.aiChangeDetector.analyzeChange(event);
+
+    if (isAiChange) {
+      if (!this.currentSession || this.currentSession.type !== 'ai') {
+        this.startAiSession();
+      }
+    } else {
+      // 변경이 일어났는데 세션이 없다면 수동 세션으로 간주하여 자동 시작
+      if (!this.currentSession) {
+        this.startManualSession();
+      }
     }
 
     this.changedFiles.add(fsPath);
