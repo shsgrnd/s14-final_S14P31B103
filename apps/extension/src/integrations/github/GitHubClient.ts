@@ -26,10 +26,32 @@ import type {
   GitHubRepoInfo,
   PullRequestTemplate,
 } from './interfaces';
+import type {
+  PrFormCollaboratorDto,
+  PrFormLabelDto,
+  PrFormMilestoneDto,
+} from '@gitcat/shared-types';
 import { GitHubApiError } from './interfaces';
 
 /** GitHub API Base URL */
 const GITHUB_API_BASE = 'api.github.com';
+
+function extractApiMessage(error: unknown): string {
+  if (error instanceof GitHubApiError) return error.message;
+  if (error instanceof Error) return error.message;
+  return String(error);
+}
+
+function formatReviewerWarning(error: unknown, reviewers: string[]): string {
+  const msg = extractApiMessage(error).toLowerCase();
+  if (msg.includes('pull request author') || msg.includes('cannot be requested')) {
+    return `PR 작성자 본인은 reviewer로 지정할 수 없습니다. 다른 사용자만 추가하거나 본인을 제외하고 다시 시도해주세요.${
+      reviewers.length > 0 ? ` (요청한 reviewers: ${reviewers.join(', ')})` : ''
+    }`;
+  }
+  return `reviewers 설정에 실패했습니다: ${extractApiMessage(error)}`;
+}
+
 const PR_TEMPLATE_PATHS = [
   '.github/pull_request_template.md',
   '.github/PULL_REQUEST_TEMPLATE.md',
@@ -86,24 +108,19 @@ export class GitHubClient {
     }
 
     const prNumber: number = prData.number;
+    const metadataWarnings: string[] = [];
 
-    // reviewers 설정 (실패해도 PR 자체는 성공으로 처리하되, 에러 로그 기록)
+    // reviewers 설정 (실패해도 PR 자체는 성공으로 처리하고, 이후 단계로 계속 진행)
     if (input.reviewers && input.reviewers.length > 0) {
       try {
         await this.requestReviewers(token, input.owner, input.repo, prNumber, input.reviewers);
       } catch (error) {
-        // GITHUB_METADATA_FAILED는 reviewers 설정 실패를 의미
-        // PR 자체는 생성되었으므로 에러를 throw하지 않고 로그만 남긴다
         console.warn('[GitCat] GitHubClient: reviewers 설정 실패 (PR은 생성됨)', error);
-        throw new GitHubApiError(
-          'GITHUB_METADATA_FAILED',
-          `PR이 생성되었지만 reviewers 설정에 실패했습니다 (PR #${prNumber}). 수동으로 설정해주세요.`,
-          error,
-        );
+        metadataWarnings.push(formatReviewerWarning(error, input.reviewers));
       }
     }
 
-    // assignees, labels, milestone 업데이트 (옵션)
+    // assignees, labels, milestone 업데이트 (옵션) — reviewers 실패와 독립적으로 진행
     const hasMetadata =
       (input.assignees && input.assignees.length > 0) ||
       (input.labels && input.labels.length > 0) ||
@@ -124,10 +141,8 @@ export class GitHubClient {
         );
       } catch (error) {
         console.warn('[GitCat] GitHubClient: 메타데이터 설정 실패 (PR은 생성됨)', error);
-        throw new GitHubApiError(
-          'GITHUB_METADATA_FAILED',
-          `PR이 생성되었지만 assignees/labels/milestone 설정에 실패했습니다 (PR #${prNumber}).`,
-          error,
+        metadataWarnings.push(
+          `assignees/labels/milestone 설정에 실패했습니다: ${extractApiMessage(error)}`,
         );
       }
     }
@@ -138,6 +153,7 @@ export class GitHubClient {
       title: prData.title,
       base: prData.base?.ref ?? input.baseBranch,
       head: prData.head?.ref ?? input.headBranch,
+      metadataWarnings,
     };
   }
 
@@ -282,6 +298,91 @@ export class GitHubClient {
       name: data.name ?? templatePath.split('/').pop() ?? templatePath,
       content: Buffer.from(data.content.replace(/\s/g, ''), 'base64').toString('utf8'),
     };
+  }
+
+  /**
+   * 현재 PAT로 인증된 GitHub 사용자 정보를 가져온다.
+   * SecretStorage에 저장된 token으로 `GET /user`를 호출하므로 사용자의 별도 입력이 필요 없다.
+   * token이 없으면 null 반환 (인증 실패는 throw).
+   */
+  async getAuthenticatedUserLogin(): Promise<string | null> {
+    const token = await this.tokenProvider.getToken();
+    if (!token) return null;
+    const data = await this.request(token, 'GET', '/user');
+    if (!data || typeof data.login !== 'string' || !data.login) return null;
+    return data.login as string;
+  }
+
+  /**
+   * 저장소 협력자 목록 (push 권한이 있는 사용자) — reviewers/assignees 후보.
+   */
+  async listRepoCollaborators(owner: string, repo: string): Promise<PrFormCollaboratorDto[]> {
+    const token = await this.tokenProvider.getToken();
+    if (!token) {
+      throw new GitHubApiError(
+        'GITHUB_AUTH_FAILED',
+        'GitHub token이 설정되지 않았습니다. 설정에서 GitHub Personal Access Token을 입력해주세요.',
+      );
+    }
+    const path = `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/collaborators?per_page=100`;
+    const data = await this.request(token, 'GET', path);
+    if (!Array.isArray(data)) {
+      return [];
+    }
+    return data
+      .filter((u: any) => u && typeof u.login === 'string')
+      .map((u: any) => ({
+        login: u.login as string,
+        avatarUrl: typeof u.avatar_url === 'string' ? u.avatar_url : '',
+        htmlUrl: typeof u.html_url === 'string' ? u.html_url : `https://github.com/${u.login}`,
+      }));
+  }
+
+  /** 저장소 라벨 목록 */
+  async listRepoLabels(owner: string, repo: string): Promise<PrFormLabelDto[]> {
+    const token = await this.tokenProvider.getToken();
+    if (!token) {
+      throw new GitHubApiError(
+        'GITHUB_AUTH_FAILED',
+        'GitHub token이 설정되지 않았습니다. 설정에서 GitHub Personal Access Token을 입력해주세요.',
+      );
+    }
+    const path = `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/labels?per_page=100`;
+    const data = await this.request(token, 'GET', path);
+    if (!Array.isArray(data)) {
+      return [];
+    }
+    return data
+      .filter((l: any) => l && typeof l.name === 'string')
+      .map((l: any) => ({
+        name: l.name as string,
+        color: typeof l.color === 'string' && l.color.length > 0 ? l.color : 'ededed',
+        description: typeof l.description === 'string' ? l.description : '',
+      }));
+  }
+
+  /** 열린 마일스톤 목록 */
+  async listOpenRepoMilestones(owner: string, repo: string): Promise<PrFormMilestoneDto[]> {
+    const token = await this.tokenProvider.getToken();
+    if (!token) {
+      throw new GitHubApiError(
+        'GITHUB_AUTH_FAILED',
+        'GitHub token이 설정되지 않았습니다. 설정에서 GitHub Personal Access Token을 입력해주세요.',
+      );
+    }
+    const path =
+      `/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/milestones?state=open&per_page=100&sort=due_on&direction=asc`;
+    const data = await this.request(token, 'GET', path);
+    if (!Array.isArray(data)) {
+      return [];
+    }
+    return data
+      .filter((m: any) => m && typeof m.title === 'string' && typeof m.number === 'number')
+      .map((m: any) => ({
+        number: m.number as number,
+        title: m.title as string,
+        state: typeof m.state === 'string' ? m.state : 'open',
+      }));
   }
 
   static parseGitHubRepoInfo(remoteUrl: string): GitHubRepoInfo | null {
