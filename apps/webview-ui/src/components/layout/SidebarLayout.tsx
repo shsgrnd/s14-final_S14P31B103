@@ -314,16 +314,16 @@ export const SidebarLayout: React.FC = () => {
             style={{
               width: '100%',
               maxWidth: '560px',
-              /* 알림 개수와 무관하게 동일한 높이 — 목록만 스크롤. 웹뷰/창이 낮으면 maxHeight만큼 축소 */
-              height: '420px',
+              /* 알림 개수와 무관하게 동일한 높이 — 목록만 스크롤. 웹뷰/창이 낮으면 maxHeight만큼 축소 (기존 420px의 1.5배) */
+              height: '630px',
               maxHeight: 'min(80vh, calc(100% - 32px))',
               minHeight: 0,
               boxSizing: 'border-box',
               background: 'var(--vscode-editor-background)',
               border: '1px solid var(--vscode-panel-border)',
               borderRadius: '6px',
-              display: 'flex',
-              flexDirection: 'column',
+              display: 'grid',
+              gridTemplateRows: 'auto minmax(0, 1fr)',
               overflow: 'hidden',
             }}
             onClick={(e) => e.stopPropagation()}
@@ -335,7 +335,6 @@ export const SidebarLayout: React.FC = () => {
                 justifyContent: 'space-between',
                 padding: '10px 12px',
                 borderBottom: '1px solid var(--vscode-panel-border)',
-                flexShrink: 0,
               }}
             >
               <div style={{ fontSize: '13px', fontWeight: 600 }}>오류/알림 기록</div>
@@ -365,15 +364,10 @@ export const SidebarLayout: React.FC = () => {
             </div>
             <div
               ref={logListRef}
+              className="gitcat-notification-log-scroll"
               style={{
-                flex: 1,
-                minHeight: 0,
-                overflowY: 'auto',
-                overflowX: 'hidden',
                 padding: '10px 12px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '8px',
+                WebkitOverflowScrolling: 'touch',
               }}
             >
               {notificationLogs.length === 0 ? (
@@ -381,7 +375,14 @@ export const SidebarLayout: React.FC = () => {
                   아직 기록된 알림이 없습니다.
                 </div>
               ) : (
-                notificationLogs.map((log) => (
+                <div
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '8px',
+                  }}
+                >
+                  {notificationLogs.map((log) => (
                   <div key={log.id} style={{ borderRadius: '4px', overflow: 'hidden' }}>
                     <div
                       style={{
@@ -421,7 +422,8 @@ export const SidebarLayout: React.FC = () => {
                     </div>
                   </div>
                   </div>
-                ))
+                ))}
+                </div>
               )}
             </div>
           </div>
