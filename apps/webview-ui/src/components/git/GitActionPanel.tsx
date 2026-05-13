@@ -44,6 +44,7 @@ export const GitActionPanel: React.FC = () => {
     mergeResult,
     clearMergeResult,
     aiBranchSuggestions,
+    branchSuggestionNonce,
     isBranchRecommendationLoading,
     isCommitRecommendationLoading,
     aiCommitSuggestion,
@@ -63,6 +64,7 @@ export const GitActionPanel: React.FC = () => {
   const { sendMessage } = useVsCodeApi();
   const [showNewBranch, setShowNewBranch] = useState(false);
   const [newBranchName, setNewBranchName] = useState('');
+  const [branchNameError, setBranchNameError] = useState<string | null>(null);
   const [showBranchAI, setShowBranchAI] = useState(false);
   const [aiPrompt, setAiPrompt] = useState('');
   const [showCommitForm, setShowCommitForm] = useState(false);
@@ -84,6 +86,7 @@ export const GitActionPanel: React.FC = () => {
   const mergePendingCloseRef = useRef(false);
   const mergeSawLoadingRef = useRef(false);
   const latestCommitSuggestionNonceRef = useRef(0);
+  const latestBranchSuggestionNonceRef = useRef(0);
 
   const pendingGitOpRef = useRef<GitPanelPendingOperation | null>(null);
   const gitPanelBusyRef = useRef(false);
@@ -134,6 +137,13 @@ export const GitActionPanel: React.FC = () => {
     }
   }, [sectionNotifications.git, checkoutingBranch]);
 
+  // 예외 케이스 방지: 체크아웃 응답이 오지 않으면 로컬 상태를 자동 해제
+  useEffect(() => {
+    if (!checkoutingBranch) return;
+    const t = window.setTimeout(() => setCheckoutingBranch(null), 12000);
+    return () => window.clearTimeout(t);
+  }, [checkoutingBranch]);
+
   useEffect(() => {
     sendMessage('GET_WORKTREE_LIST', {});
   }, [sendMessage, lastStatusRefreshAt]);
@@ -146,6 +156,7 @@ export const GitActionPanel: React.FC = () => {
   const closeBranchForm = () => {
     setShowNewBranch(false);
     setNewBranchName('');
+    setBranchNameError(null);
     clearBranchRecommendationError();
     closeAIPrompt();
   };
@@ -206,6 +217,16 @@ export const GitActionPanel: React.FC = () => {
     }
   }, [showCommitForm, commitSuggestionNonce, aiCommitSuggestion]);
 
+  useEffect(() => {
+    if (!showNewBranch || showCommitForm) return;
+    if (branchSuggestionNonce === latestBranchSuggestionNonceRef.current) return;
+    latestBranchSuggestionNonceRef.current = branchSuggestionNonce;
+    const first = (aiBranchSuggestions[0] ?? '').trim();
+    if (!first) return;
+    setNewBranchName(first);
+    setBranchNameError(null);
+  }, [showNewBranch, showCommitForm, branchSuggestionNonce, aiBranchSuggestions]);
+
   const handleGitAdd = () => {
     lockGitPanel('add');
     sendMessage('GIT_ADD_ALL', {});
@@ -265,8 +286,16 @@ export const GitActionPanel: React.FC = () => {
   };
 
   const handleCreateBranch = () => {
-    if (!newBranchName.trim()) return;
-    sendMessage('APPLY_BRANCH', { name: newBranchName });
+    const candidate = newBranchName.trim();
+    if (!candidate) return;
+    if (/\s/.test(candidate)) {
+      const message = '브랜치명에는 공백을 사용할 수 없습니다. 공백 없이 다시 입력해 주세요.';
+      setBranchNameError(message);
+      postGitSectionBanner({ type: 'error', message });
+      return;
+    }
+    setBranchNameError(null);
+    sendMessage('APPLY_BRANCH', { name: candidate });
     closeBranchForm();
   };
 
@@ -275,15 +304,6 @@ export const GitActionPanel: React.FC = () => {
     if (!value) return;
     setNewBranchName(value);
   };
-
-  useEffect(() => {
-    if (!showNewBranch || showCommitForm) return;
-    if (aiBranchSuggestions.length === 0) return;
-    if (newBranchName.trim()) return;
-    const first = (aiBranchSuggestions[0] ?? '').trim();
-    if (!first) return;
-    setNewBranchName(first);
-  }, [aiBranchSuggestions, showNewBranch, showCommitForm, newBranchName]);
 
   const selectableBranches = branches.filter((branch) => branch.name !== currentBranch && !branch.isRemote);
   const displayWorktrees = worktrees;
@@ -306,9 +326,13 @@ export const GitActionPanel: React.FC = () => {
     }
 
     if (!prompt) return;
-      // RECOMMEND_BRANCH 스키마: { purpose: string }
+    // RECOMMEND_BRANCH 스키마: { purpose: string }
+    const draft = newBranchName.trim();
+    const purpose = draft
+      ? `${prompt}\n\nbranch-name-draft: ${draft}`
+      : prompt;
     beginRecommendationRequest('branch');
-    sendMessage('RECOMMEND_BRANCH', { purpose: prompt });
+    sendMessage('RECOMMEND_BRANCH', { purpose });
 
     closeAIPrompt();
   };
@@ -320,6 +344,7 @@ export const GitActionPanel: React.FC = () => {
   const isGitConnected = currentBranch !== '';
   const isRecommendationLoading =
     showCommitForm ? isCommitRecommendationLoading : isBranchRecommendationLoading;
+  const isCheckoutPending = !!checkoutingBranch;
 
   return (
     <div className="animate-fade-in" style={{ padding: '8px 4px' }}>
@@ -346,6 +371,18 @@ export const GitActionPanel: React.FC = () => {
             }}>
               {isGitConnected ? currentBranch : '저장소가 연결되지 않음'}
             </span>
+            {isCheckoutPending && (
+              <span
+                style={{
+                  fontSize: '10px',
+                  fontWeight: 600,
+                  color: 'var(--vscode-charts-blue)',
+                  flexShrink: 0,
+                }}
+              >
+                전환 중...
+              </span>
+            )}
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <button
@@ -393,18 +430,18 @@ export const GitActionPanel: React.FC = () => {
             opacity: isRefreshActive ? 1 : 0.82,
             overflow: 'hidden',
           }}>
-            {isRefreshActive && (
+            {(isRefreshActive || isCheckoutPending) && (
               <span style={{
                 width: '5px',
                 height: '5px',
                 borderRadius: '50%',
-                background: 'var(--vscode-charts-blue)',
+                background: isCheckoutPending ? 'var(--vscode-charts-orange)' : 'var(--vscode-charts-blue)',
                 boxShadow: '0 0 0 2px rgba(111, 179, 224, 0.18)',
                 flexShrink: 0,
               }} />
             )}
             <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {refreshStatusLabel}
+              {isCheckoutPending ? `브랜치 전환 중... (${checkoutingBranch})` : refreshStatusLabel}
             </span>
           </span>
           <span style={{ color: 'var(--vscode-descriptionForeground)', opacity: 0.82 }}>Auto every 20s</span>
@@ -599,7 +636,15 @@ export const GitActionPanel: React.FC = () => {
             <input
               autoFocus
               value={newBranchName}
-              onChange={e => setNewBranchName(e.target.value)}
+              onChange={e => {
+                const value = e.target.value;
+                setNewBranchName(value);
+                if (/\s/.test(value.trim())) {
+                  setBranchNameError('브랜치명에는 공백을 사용할 수 없습니다. 공백 없이 다시 입력해 주세요.');
+                } else {
+                  setBranchNameError(null);
+                }
+              }}
               onKeyDown={e => { if (e.key === 'Enter') handleCreateBranch(); if (e.key === 'Escape') closeBranchForm(); }}
               placeholder="생성할 브랜치명을 작성해주세요"
               maxLength={255}
@@ -614,6 +659,11 @@ export const GitActionPanel: React.FC = () => {
               onFocus={e => (e.target.style.borderColor = 'var(--vscode-focusBorder)')}
               onBlur={e => (e.target.style.borderColor = 'var(--vscode-panel-border)')}
             />
+            {branchNameError && (
+              <div style={{ marginTop: '6px', color: 'var(--vscode-errorForeground)', fontSize: '11px' }}>
+                {branchNameError}
+              </div>
+            )}
             {aiBranchSuggestions.length > 0 && (
               <div style={{ marginTop: '8px' }}>
                 <div style={{
@@ -625,7 +675,7 @@ export const GitActionPanel: React.FC = () => {
                   추천 브랜치명 예시
                 </div>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  {aiBranchSuggestions.slice(1, 3).map((name, index) => (
+                  {aiBranchSuggestions.slice(1, 4).map((name, index) => (
                     <button
                       key={`${index}-${name}`}
                       type="button"
@@ -766,10 +816,10 @@ export const GitActionPanel: React.FC = () => {
                       color: 'var(--vscode-descriptionForeground)',
                       marginBottom: '6px',
                     }}>
-                      대체 커밋 메시지
+                      추천 커밋명 예시
                     </div>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px', marginBottom: '8px' }}>
-                      {aiCommitAlternatives.map((msg, index) => (
+                      {aiCommitAlternatives.slice(0, 3).map((msg, index) => (
                         <button
                           key={`${index}-${msg.slice(0, 20)}`}
                           type="button"
