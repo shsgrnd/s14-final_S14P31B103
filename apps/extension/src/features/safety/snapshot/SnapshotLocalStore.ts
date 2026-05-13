@@ -6,6 +6,7 @@ const SNAPSHOT_ID_PATTERN = /^[A-Za-z0-9._-]+$/;
 const SNAPSHOT_DIR = path.join('.vscode', 'gitcat', 'snapshots');
 const EXCLUDED_PATH_SEGMENTS = new Set(['.git', 'node_modules', 'dist', 'build']);
 const EXCLUDED_FILE_NAMES = new Set(['manifest.json', 'patch.diff', 'hunks.json']);
+const TEMP_DIR_INFIX = '__tmp__';
 
 export interface SnapshotLocalArtifact {
   manifest: SnapshotManifest;
@@ -73,39 +74,41 @@ export class SnapshotLocalStore {
   async saveSnapshotArtifact(artifact: SnapshotLocalArtifact): Promise<SnapshotStoreResult> {
     const snapshotId = artifact.manifest.snapshotId;
     const snapshotDir = this.getSnapshotDir(snapshotId);
+    const tempSnapshotDir = this.getTemporarySnapshotDir(snapshotId);
 
     try {
       this.validateManifestPaths(artifact.manifest);
-      await fs.rm(snapshotDir, { recursive: true, force: true });
-      await fs.mkdir(snapshotDir, { recursive: true });
+      await this.assertSnapshotDoesNotExist(snapshotDir, snapshotId);
+      await fs.mkdir(tempSnapshotDir, { recursive: true });
 
       if (artifact.includeFullFileBackupDir) {
-        await fs.mkdir(path.join(snapshotDir, 'full'), { recursive: true });
+        await fs.mkdir(path.join(tempSnapshotDir, 'full'), { recursive: true });
       }
       if (artifact.includeCodeBlobStoreDir) {
-        await fs.mkdir(path.join(snapshotDir, 'blobs'), { recursive: true });
+        await fs.mkdir(path.join(tempSnapshotDir, 'blobs'), { recursive: true });
       }
 
-      const manifestPath = this.resolveSnapshotFile(snapshotId, 'manifest.json');
-      const patchPath = this.resolveSnapshotFile(snapshotId, 'patch.diff');
-      const hunksPath = this.resolveSnapshotFile(snapshotId, 'hunks.json');
+      const manifestPath = this.resolveArtifactPath(tempSnapshotDir, 'manifest.json');
+      const patchPath = this.resolveArtifactPath(tempSnapshotDir, 'patch.diff');
+      const hunksPath = this.resolveArtifactPath(tempSnapshotDir, 'hunks.json');
 
       await fs.writeFile(manifestPath, `${JSON.stringify(artifact.manifest, null, 2)}\n`, 'utf8');
       await fs.writeFile(patchPath, artifact.patchText, 'utf8');
       await fs.writeFile(hunksPath, `${JSON.stringify(artifact.hunks, null, 2)}\n`, 'utf8');
+      await fs.rename(tempSnapshotDir, snapshotDir);
 
       return {
         ok: true,
         snapshotId,
         snapshotDir,
-        manifestPath,
-        patchPath,
-        hunksPath,
+        manifestPath: this.resolveSnapshotFile(snapshotId, 'manifest.json'),
+        patchPath: this.resolveSnapshotFile(snapshotId, 'patch.diff'),
+        hunksPath: this.resolveSnapshotFile(snapshotId, 'hunks.json'),
       };
     } catch (error) {
       let cleanedUp = false;
       try {
-        await fs.rm(snapshotDir, { recursive: true, force: true });
+        await fs.rm(tempSnapshotDir, { recursive: true, force: true });
         cleanedUp = true;
       } catch {
         cleanedUp = false;
@@ -187,11 +190,15 @@ export class SnapshotLocalStore {
   }
 
   private resolveSnapshotFile(snapshotId: string, fileName: string): string {
+    const snapshotDir = this.getSnapshotDir(snapshotId);
+    return this.resolveArtifactPath(snapshotDir, fileName);
+  }
+
+  private resolveArtifactPath(snapshotDir: string, fileName: string): string {
     if (!EXCLUDED_FILE_NAMES.has(fileName)) {
       throw new Error(`Unsupported snapshot artifact file: ${fileName}`);
     }
 
-    const snapshotDir = this.getSnapshotDir(snapshotId);
     const artifactPath = path.resolve(snapshotDir, fileName);
     this.assertInsideDirectory(snapshotDir, artifactPath, `${fileName} path`);
     return artifactPath;
@@ -218,6 +225,28 @@ export class SnapshotLocalStore {
     }
 
     return snapshotId;
+  }
+
+  private getTemporarySnapshotDir(snapshotId: string): string {
+    const tempDirName = `${this.assertValidSnapshotId(snapshotId)}${TEMP_DIR_INFIX}${Date.now()}_${Math.random()
+      .toString(36)
+      .slice(2, 8)}`;
+    const tempDir = path.resolve(this.snapshotsRoot, tempDirName);
+    this.assertInsideDirectory(this.snapshotsRoot, tempDir, 'temporary snapshot directory');
+    return tempDir;
+  }
+
+  private async assertSnapshotDoesNotExist(snapshotDir: string, snapshotId: string): Promise<void> {
+    try {
+      await fs.access(snapshotDir);
+      throw new Error(`Snapshot already exists and will not be overwritten: ${snapshotId}`);
+    } catch (error) {
+      const nodeError = error as NodeJS.ErrnoException;
+      if (nodeError?.code === 'ENOENT') {
+        return;
+      }
+      throw error;
+    }
   }
 
   private assertMatchingSnapshotId(expected: string, actual: string): void {
