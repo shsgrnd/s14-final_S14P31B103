@@ -117,6 +117,36 @@ body {
   animation: fadeIn 0.2s ease-out forwards;
 }
 
+/**
+ * 아이콘 버튼 공통 hover/press 애니메이션.
+ * - 푸터(SidebarLayout.footer)·BranchCleanup 헤더의 설정/돌아가기 등 공용.
+ * - hover: 배경 강조 + 살짝 떠오르는 듯한 미세 transform
+ * - active(누름): 80ms 안에 축소되며 눌리는 피드백
+ */
+.gitcat-icon-press {
+  transition:
+    background-color 0.18s ease,
+    color 0.18s ease,
+    transform 0.08s ease;
+  will-change: transform, background-color;
+}
+.gitcat-icon-press:hover {
+  background-color: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground)) !important;
+  color: var(--vscode-foreground);
+  transform: translateY(-1px);
+}
+.gitcat-icon-press:active {
+  background-color: var(--vscode-toolbar-activeBackground, var(--vscode-list-activeSelectionBackground)) !important;
+  transform: scale(0.92);
+  transition:
+    background-color 0.06s ease,
+    transform 0.06s ease;
+}
+.gitcat-icon-press:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
+}
+
 /* Sidebar Section Header Style */
 .section-header {
   font-size: 11px;
