@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import {
-  Snapshot,
+  SnapshotMeta,
   Branch,
   WorktreeInfo,
   OutboundMessage,
@@ -19,6 +19,14 @@ import { translateUserFacingGitMessage, type UiMessageTone } from '../shared/git
 export interface GlobalNotification {
   type: 'info' | 'warning' | 'error' | 'success';
   message: string;
+}
+
+export interface NotificationLogEntry {
+  id: string;
+  type: GlobalNotification['type'];
+  message: string;
+  source: 'error' | 'notification' | 'operation' | 'ui';
+  timestamp: number;
 }
 
 type NotificationSection = 'git' | 'files' | 'snapshots' | 'branchCleanup' | 'stash';
@@ -56,7 +64,7 @@ function mapGitSectionBannerType(
 
 interface GitCatState {
   // Data
-  snapshots: Snapshot[];
+  snapshots: SnapshotMeta[];
   // 병합 화면은 AI/DB 원본이 아니라 Webview projection DTO만 보관합니다.
   conflicts: MergeConflictCandidateView[];
   currentAIDraft: MergeProposalView | null;
@@ -88,6 +96,7 @@ interface GitCatState {
   // 전역 알림 (백엔드 ERROR / NOTIFICATION / GIT_OPERATION_RESULT 수신 시 설정)
   globalNotification: GlobalNotification | null;
   sectionNotifications: Partial<Record<NotificationSection, GlobalNotification>>;
+  notificationLogs: NotificationLogEntry[];
 
   // Merge 결과 (MERGE_COMPLETE 수신 시 설정, 충돌 시 ERROR에서 파싱)
   mergeResult: MergeResult | null;
@@ -100,6 +109,7 @@ interface GitCatState {
   isPrLoading: boolean;
   isCreatingPr: boolean;
   aiBranchSuggestions: string[];
+  branchSuggestionNonce: number;
   isBranchRecommendationLoading: boolean;
   isCommitRecommendationLoading: boolean;
   pendingRecommendationFlow: 'branch' | 'commit' | 'pr' | null;
@@ -122,6 +132,18 @@ interface GitCatState {
   prFormMetadata: OutboundPayload<'PR_FORM_METADATA'> | null;
   isPrFormMetadataLoading: boolean;
 
+  /**
+   * PR 템플릿 목록 (PR_TEMPLATES 수신 시 갱신).
+   * 사용자가 선택한 template content는 RECOMMEND_PR payload.template로 함께 전송된다.
+   *
+   * 의미:
+   *  - `undefined`: 아직 응답을 받지 못함 (요청 진행 중 또는 미요청)
+   *  - `[]`       : 응답 받았지만 사용 가능한 template 없음
+   *  - `[...]`    : 사용 가능한 template 목록
+   */
+  prTemplates: OutboundPayload<'PR_TEMPLATES'>['templates'] | undefined;
+  isPrTemplatesLoading: boolean;
+
   /** 마지막으로 생성된 PR 결과 (PR_CREATED 수신 시 저장) */
   lastCreatedPr: OutboundPayload<'PR_CREATED'> | null;
 
@@ -138,7 +160,7 @@ interface GitCatState {
   prDefaultBaseBranch: string | null | undefined;
 
   // Actions
-  setSnapshots: (snapshots: Snapshot[]) => void;
+  setSnapshots: (snapshots: SnapshotMeta[]) => void;
   setConflicts: (conflicts: MergeConflictCandidateView[]) => void;
   setAIDraft: (draft: MergeProposalView | null) => void;
   setCurrentBranch: (branch: string) => void;
@@ -152,6 +174,7 @@ interface GitCatState {
   clearSectionNotification: (section: NotificationSection) => void;
   /** Git & AI 패널 전용 알림 (예: 클라이언트 검증 메시지) */
   postGitSectionBanner: (notification: GlobalNotification) => void;
+  clearNotificationLogs: () => void;
   /** 확장 LOADING false보다 먼저 완료 알림이 올 때 버튼 라벨(Pulling… 등)을 바로 되돌림 */
   clearGitPanelOperationLoading: (op: GitPanelPendingOperation) => void;
   setStashes: (stashes: StashEntry[]) => void;
@@ -184,7 +207,33 @@ function isPrimaryGitPanelCompletionNotification(raw: string): boolean {
   );
 }
 
-const GIT_PANEL_OPERATION_FAILURE = ['GIT_ADD_ALL', 'EXECUTE_COMMIT', 'GIT_PUSH', 'EXECUTE_PULL', 'RUN_MERGE'] as const;
+function makeLogEntry(
+  type: GlobalNotification['type'],
+  message: string,
+  source: NotificationLogEntry['source'],
+): NotificationLogEntry {
+  const timestamp = Date.now();
+  return {
+    id: `${timestamp}-${Math.random().toString(36).slice(2, 8)}`,
+    type,
+    message,
+    source,
+    timestamp,
+  };
+}
+
+function isCheckoutFailureMessage(raw: string): boolean {
+  const m = raw.toLowerCase();
+  return (
+    m.includes('checkout') ||
+    m.includes('switch branches') ||
+    m.includes('브랜치 전환') ||
+    m.includes('브랜치를 전환') ||
+    m.includes('브랜치 변경')
+  );
+}
+
+const GIT_PANEL_OPERATION_FAILURE = ['GIT_ADD_ALL', 'EXECUTE_COMMIT', 'GIT_PUSH', 'EXECUTE_PULL', 'RUN_MERGE', 'CHECKOUT_BRANCH', 'APPLY_BRANCH'] as const;
 
 export const useGitCatStore = create<GitCatState>((set, get) => ({
   snapshots: [],
@@ -210,12 +259,14 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
   expandedSnapshotId: null,
   globalNotification: null,
   sectionNotifications: {},
+  notificationLogs: [],
   mergeResult: null,
   statusSummary: null,
   prSuggestion: null,
   isPrLoading: false,
   isCreatingPr: false,
   aiBranchSuggestions: [],
+  branchSuggestionNonce: 0,
   isBranchRecommendationLoading: false,
   isCommitRecommendationLoading: false,
   pendingRecommendationFlow: null,
@@ -229,6 +280,8 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
   cleanupExecuteResult: null,
   prFormMetadata: null,
   isPrFormMetadataLoading: false,
+  prTemplates: undefined,
+  isPrTemplatesLoading: false,
   lastCreatedPr: null,
   prDefaultBaseBranch: undefined,
 
@@ -253,7 +306,9 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
         ...state.sectionNotifications,
         git: notification,
       },
+      notificationLogs: [...state.notificationLogs, makeLogEntry(notification.type, notification.message, 'ui')],
     })),
+  clearNotificationLogs: () => set({ notificationLogs: [] }),
   clearGitPanelOperationLoading: (op) =>
     set(() => {
       switch (op) {
@@ -365,6 +420,9 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
         if (payload.target === 'GET_PR_FORM_METADATA') {
           set({ isPrFormMetadataLoading: payload.loading });
         }
+        if (payload.target === 'GET_PR_TEMPLATES') {
+          set({ isPrTemplatesLoading: payload.loading });
+        }
         if (payload.target === 'branchRecommendation') {
           set({ isBranchRecommendationLoading: payload.loading });
         }
@@ -399,11 +457,12 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
         break;
       }
       case 'BRANCH_SUGGESTIONS':
-        set({
+        set((state) => ({
           aiBranchSuggestions: payload.names,
+          branchSuggestionNonce: state.branchSuggestionNonce + 1,
           pendingRecommendationFlow: null,
           branchRecommendationError: null,
-        });
+        }));
         break;
 
       case 'GIT_STATUS_SUMMARY':
@@ -451,15 +510,41 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
         });
         break;
 
+      case 'PR_TEMPLATES':
+        // PR 템플릿 목록 수신 — 사용자 선택 UI에서 사용
+        set({
+          prTemplates: payload.templates,
+          isPrTemplatesLoading: false,
+        });
+        break;
+
       case 'PR_DEFAULT_BASE_BRANCH':
         set({ prDefaultBaseBranch: payload.branch });
         break;
 
       // ── 백엔드 에러 / 알림 수신 처리 ──
 
-      case 'MERGE_COMPLETE':
-        set({ mergeResult: null });
+      case 'MERGE_COMPLETE': {
+        // Extension에서 보내는 새 payload 구조: { merge: MergeCompleteView }
+        // - status: 'completed' | 'continued' → 성공
+        // - status: 'conflicted'              → 충돌 (conflictedFiles 활용)
+        // - status: 'aborted'                 → 사용자 중단 (mergeResult 초기화)
+        const view = payload.merge;
+        if (view.status === 'completed' || view.status === 'continued') {
+          set({ mergeResult: { success: true } });
+        } else if (view.status === 'conflicted') {
+          set({
+            mergeResult: {
+              success: false,
+              conflictedFiles: view.conflictedFiles ?? [],
+            },
+          });
+        } else {
+          // aborted: merge 흐름이 종료됐으므로 결과 배너를 닫는다.
+          set({ mergeResult: null });
+        }
         break;
+      }
 
       case 'ERROR': {
         const rawMsg = payload.message ?? '';
@@ -507,12 +592,26 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
         }
         const section = inferSection(rawMsg);
         const message = translateUserFacingGitMessage(rawMsg, 'error');
+        const checkoutFailure = isCheckoutFailureMessage(rawMsg);
         if (section === 'git') {
           set((state) => ({
             sectionNotifications: {
               ...state.sectionNotifications,
               git: { type: 'error', message },
             },
+            notificationLogs: [...state.notificationLogs, makeLogEntry('error', message, 'error')],
+          }));
+          break;
+        }
+        if (checkoutFailure) {
+          set((state) => ({
+            globalNotification: { type: 'error', message },
+            sectionNotifications: {
+              ...state.sectionNotifications,
+              git: { type: 'error', message },
+              [section]: { type: 'error', message },
+            },
+            notificationLogs: [...state.notificationLogs, makeLogEntry('error', message, 'error')],
           }));
           break;
         }
@@ -522,6 +621,7 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
             ...state.sectionNotifications,
             [section]: { type: 'error', message },
           },
+          notificationLogs: [...state.notificationLogs, makeLogEntry('error', message, 'error')],
         }));
         break;
       }
@@ -538,6 +638,7 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
               ...state.sectionNotifications,
               git: { type: bannerType, message },
             },
+            notificationLogs: [...state.notificationLogs, makeLogEntry(bannerType, message, 'notification')],
           }));
           break;
         }
@@ -553,6 +654,7 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
               ...state.sectionNotifications,
               [section]: { type: sectionType, message },
             },
+            notificationLogs: [...state.notificationLogs, makeLogEntry(sectionType, message, 'notification')],
           };
         });
         break;
@@ -570,6 +672,7 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
               ...state.sectionNotifications,
               git: { type: 'error', message },
             },
+            notificationLogs: [...state.notificationLogs, makeLogEntry('error', message, 'operation')],
           }));
           break;
         }
@@ -582,6 +685,7 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
               ...state.sectionNotifications,
               git: { type: 'error', message },
             },
+            notificationLogs: [...state.notificationLogs, makeLogEntry('error', message, 'operation')],
           }));
         }
         break;

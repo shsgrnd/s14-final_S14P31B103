@@ -4,6 +4,8 @@ import { GitCatDatabase, SqliteRecommendationHistoryRepository } from '@gitcat/s
 import { GitCliClient } from '@gitcat/git-client-cli';
 import { CommandRegistry } from './commands';
 import { EventRegistry } from './events';
+import { SafetySessionCoordinator } from './features/safety/session/SafetySessionCoordinator';
+import { MockSnapshotService } from './features/safety/snapshot/MockSnapshotService';
 import { WebviewProvider } from './webview/WebviewProvider';
 import { SidebarProvider } from './webview/SidebarProvider';
 import { MessageRouter } from './core/MessageRouter';
@@ -85,6 +87,7 @@ export async function activate(context: vscode.ExtensionContext) {
     undefined,
     undefined,
     pullRequestHandler,  // GitHub PR 생성 핵들러 주입
+    undefined,
     aiApiKeyMessageHandler, // AI API Key 핸들러 주입
   );
 
@@ -113,8 +116,10 @@ export async function activate(context: vscode.ExtensionContext) {
     })
   );
 
+  const snapshotService = new MockSnapshotService();
+  const sessionCoordinator = new SafetySessionCoordinator(snapshotService);
   CommandRegistry.registerAll(context, webviewProvider, gitService);
-  EventRegistry.registerAll(context);
+  EventRegistry.registerAll(context, sessionCoordinator);
 
   if (rootPath && projectId && gitService) {
     void initializeRecommendationBackfill(
