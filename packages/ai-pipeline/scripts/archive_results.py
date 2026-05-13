@@ -49,19 +49,42 @@ def archive_files():
         {"source": RESULTS_DIR, "dest_name": "eval_results"}
     ]
     
+    # 이전 아카이브 중 가장 최근 시간을 찾기
+    existing_dirs = [os.path.join(ARCHIVE_ROOT, d) for d in os.listdir(ARCHIVE_ROOT) if d.startswith("v") and d != os.path.basename(archive_dir)]
+    last_archive_time = 0
+    if existing_dirs:
+        latest_dir = max(existing_dirs, key=os.path.getmtime)
+        last_archive_time = os.path.getmtime(latest_dir)
+
+    copied_count = 0
     for target in targets:
         src = target["source"]
         dest = os.path.join(archive_dir, target["dest_name"])
         
         if os.path.exists(src):
             if os.path.isdir(src):
-                shutil.copytree(src, dest, dirs_exist_ok=True)
-                print(f"- [COPIED DIR] {os.path.basename(src)} -> {target['dest_name']}")
+                for root, dirs, files in os.walk(src):
+                    for file in files:
+                        file_path = os.path.join(root, file)
+                        # 마지막 아카이브 시간보다 최신인 파일만 복사
+                        if os.path.getmtime(file_path) > last_archive_time:
+                            rel_path = os.path.relpath(file_path, src)
+                            dest_path = os.path.join(dest, rel_path)
+                            os.makedirs(os.path.dirname(dest_path), exist_ok=True)
+                            shutil.copy2(file_path, dest_path)
+                            print(f"- [COPIED] {rel_path} -> {target['dest_name']}")
+                            copied_count += 1
             else:
-                shutil.copy2(src, dest)
-                print(f"- [COPIED FILE] {os.path.basename(src)} -> {target['dest_name']}")
+                if os.path.getmtime(src) > last_archive_time:
+                    os.makedirs(os.path.dirname(dest), exist_ok=True)
+                    shutil.copy2(src, dest)
+                    print(f"- [COPIED FILE] {os.path.basename(src)} -> {target['dest_name']}")
+                    copied_count += 1
         else:
             print(f"- [WARNING] Target not found: {src}")
+
+    if copied_count == 0:
+        print("- [INFO] 새로운 변경사항이 없어 복사된 파일이 없습니다.")
 
     print("\n[SUCCESS] 스냅샷 아카이빙이 완료되었습니다!")
     print(f"👉 보관 위치: trainer/eval/archives/{version}_{date_str}/")
