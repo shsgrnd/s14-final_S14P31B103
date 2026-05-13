@@ -35,8 +35,17 @@ export const SnapshotMetaSchema = z.object({
   reason: z.string().optional(),
 });
 
+export const SafetyWarningSchema = z.object({
+  warningId: z.string(),
+  type: z.enum(['large_deletion', 'sensitive_file_change', 'untracked_conflict']),
+  message: z.string(),
+  filePaths: z.array(z.string()).optional(),
+  severity: z.enum(['low', 'medium', 'high', 'critical']),
+});
+
 export const SnapshotHunkSchema = z.object({
   hunkId: z.string(),
+  filePath: z.string().optional(),
   oldStart: z.number().int(),
   oldLines: z.number().int(),
   newStart: z.number().int(),
@@ -50,6 +59,16 @@ export const SnapshotFileSchema = z.object({
   status: ChangedFileStatusEnum,
   additions: z.number().int().optional(),
   deletions: z.number().int().optional(),
+  beforeHash: z.string().optional(),
+  afterHash: z.string().optional(),
+  hunkCount: z.number().int().optional(),
+  renamedFrom: z.string().optional(),
+  renamedTo: z.string().optional(),
+  isBinary: z.boolean().optional(),
+  isLargeFile: z.boolean().optional(),
+  isCommentOnly: z.boolean().optional(),
+  importance: z.enum(['low', 'medium', 'high']).optional(),
+  excludedReason: z.enum(['binary', 'large_file', 'whitespace_only']).optional(),
   hunks: z.array(SnapshotHunkSchema).optional(),
 });
 
@@ -61,7 +80,7 @@ export const SnapshotManifestSchema = z.object({
   summary: z.string().optional(),
   reason: z.string().optional(),
   changedFiles: z.array(SnapshotFileSchema),
-  warnings: z.array(z.any()).optional(), // or SafetyWarningSchema
+  warnings: z.array(SafetyWarningSchema).optional(),
 });
 
 export const SnapshotDetailSchema = z.object({
@@ -80,16 +99,4 @@ export const RestoreHistorySchema = z.object({
   preRestoreSnapshotId: z.string().optional(),
   status: RestoreStatusEnum,
   restoredAt: z.string(),
-});
-
-// ==========================================
-// 4. Safety Warnings
-// ==========================================
-
-export const SafetyWarningSchema = z.object({
-  warningId: z.string(),
-  type: z.enum(['large_deletion', 'sensitive_file_change', 'untracked_conflict']),
-  message: z.string(),
-  filePaths: z.array(z.string()).optional(),
-  severity: z.enum(['low', 'medium', 'high', 'critical']),
 });
