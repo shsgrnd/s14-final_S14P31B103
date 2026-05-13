@@ -101,11 +101,16 @@ export const SCHEMAS = [
   `CREATE TABLE IF NOT EXISTS snapshots (
     snapshot_id TEXT PRIMARY KEY,
     session_id TEXT NOT NULL,
-    reason TEXT NOT NULL,
+    type TEXT NOT NULL,
+    previous_snapshot_id TEXT,
+    reason TEXT,
+    summary TEXT,
+    local_path TEXT,
     is_checkpoint INTEGER NOT NULL DEFAULT 0,
     label TEXT,
     created_at TEXT NOT NULL,
-    FOREIGN KEY (session_id) REFERENCES work_sessions(session_id)
+    FOREIGN KEY (session_id) REFERENCES work_sessions(session_id),
+    FOREIGN KEY (previous_snapshot_id) REFERENCES snapshots(snapshot_id)
   );`,
   `CREATE TABLE IF NOT EXISTS snapshot_files (
     snapshot_file_id TEXT PRIMARY KEY,
@@ -236,5 +241,17 @@ export const SCHEMAS = [
   `CREATE INDEX IF NOT EXISTS idx_merge_proposals_candidate_status
     ON merge_proposals(candidate_id, status);`,
   `CREATE INDEX IF NOT EXISTS idx_conflict_candidates_analysis
-    ON conflict_candidates(analysis_id);`
+    ON conflict_candidates(analysis_id);`,
+  `CREATE INDEX IF NOT EXISTS idx_work_sessions_instance_status_started
+    ON work_sessions(worktree_instance_id, status, started_at DESC);`,
+  `CREATE INDEX IF NOT EXISTS idx_snapshots_session_created
+    ON snapshots(session_id, created_at DESC);`,
+  `CREATE INDEX IF NOT EXISTS idx_snapshot_files_snapshot
+    ON snapshot_files(snapshot_id);`,
+  `CREATE INDEX IF NOT EXISTS idx_change_records_session_created
+    ON change_records(session_id, created_at DESC);`,
+  `CREATE INDEX IF NOT EXISTS idx_changed_files_record
+    ON changed_files(record_id);`,
+  `CREATE INDEX IF NOT EXISTS idx_restore_histories_target_restored
+    ON restore_histories(target_snapshot_id, restored_at DESC);`
 ];
