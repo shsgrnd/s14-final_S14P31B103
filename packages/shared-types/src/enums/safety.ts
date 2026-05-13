@@ -18,7 +18,6 @@ export const SnapshotTypeEnum = z.enum([
   'ai_pre_action',
   'auto_dirty_before_ai',
   'ai_result',
-  'manual_checkpoint',
   'manual_edit_result',
   'pre_restore',
 ]);

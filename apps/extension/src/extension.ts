@@ -1,11 +1,13 @@
 import * as vscode from 'vscode';
 import { createHash } from 'crypto';
-import { GitCatDatabase, SqliteRecommendationHistoryRepository } from '@gitcat/storage';
+import { GitCatDatabase, SqliteRecommendationHistoryRepository, SqliteSnapshotRepository, SqliteSnapshotFileRepository, SqliteWorkSessionRepository } from '@gitcat/storage';
 import { GitCliClient } from '@gitcat/git-client-cli';
 import { CommandRegistry } from './commands';
 import { EventRegistry } from './events';
 import { SafetySessionCoordinator } from './features/safety/session/SafetySessionCoordinator';
 import { MockSnapshotService } from './features/safety/snapshot/MockSnapshotService';
+import { SnapshotService } from './features/safety/snapshot/SnapshotService';
+import { ISnapshotService } from './features/safety/snapshot/ISnapshotService';
 import { WebviewProvider } from './webview/WebviewProvider';
 import { SidebarProvider } from './webview/SidebarProvider';
 import { MessageRouter } from './core/MessageRouter';
@@ -116,7 +118,26 @@ export async function activate(context: vscode.ExtensionContext) {
     })
   );
 
-  const snapshotService = new MockSnapshotService();
+  // ――― Safety Layer (Snapshot Service) 초기화 ――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――
+  // DB 초기화 성공 시 실제 SnapshotService, 실패 시 MockSnapshotService로 폴백
+  let snapshotService: ISnapshotService = new MockSnapshotService();
+  if (rootPath) {
+    try {
+      const snapshotDb = await GitCatDatabase.create(rootPath);
+      const snapshotDbInstance = snapshotDb.getInstance();
+      snapshotService = new SnapshotService(
+        new SqliteSnapshotRepository(snapshotDbInstance),
+        new SqliteSnapshotFileRepository(snapshotDbInstance),
+        new SqliteWorkSessionRepository(snapshotDbInstance),
+        { workspaceRoot: rootPath },
+      );
+      console.log('GitCat Safety Layer (SnapshotService) initialized at:', rootPath);
+    } catch (snapshotInitError) {
+      console.error('GitCat Safety Layer 초기화 실패, MockSnapshotService로 폴백합니다:', snapshotInitError);
+      vscode.window.showWarningMessage('GitCat Safety Layer 초기화에 실패했습니다. 스냅샷 기능이 제한됩니다.');
+    }
+  }
+
   const sessionCoordinator = new SafetySessionCoordinator(snapshotService);
   CommandRegistry.registerAll(context, webviewProvider, gitService);
   EventRegistry.registerAll(context, sessionCoordinator);

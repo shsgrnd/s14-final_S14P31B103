@@ -127,8 +127,6 @@ export interface CreateSnapshotInput {
   reason?: string | null;
   summary?: string | null;
   local_path?: string | null;
-  is_checkpoint?: number | boolean;
-  label?: string | null;
   created_at?: string;
 }
 
@@ -139,8 +137,6 @@ export interface SnapshotRepository {
   findLatestByWorktreeInstance(worktreeInstanceId: string): Promise<SnapshotRow | null>;
   listRecent(limit?: number): Promise<SnapshotRow[]>;
   listByWorkspace(worktreeInstanceId: string, limit?: number): Promise<SnapshotRow[]>;
-  markCheckpoint(snapshotId: string, label?: string | null): Promise<SnapshotRow | null>;
-  unmarkCheckpoint(snapshotId: string): Promise<SnapshotRow | null>;
   listAutoDeletionCandidates(worktreeInstanceId: string, keepRecent?: number, limit?: number): Promise<SnapshotRow[]>;
   deleteById(snapshotId: string): Promise<void>;
 }
