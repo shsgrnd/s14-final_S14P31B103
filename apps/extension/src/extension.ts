@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { createHash } from 'crypto';
-import { GitCatDatabase } from '@gitcat/storage';
+import { GitCatDatabase, SqliteRecommendationHistoryRepository } from '@gitcat/storage';
 import { GitCliClient } from '@gitcat/git-client-cli';
 import { CommandRegistry } from './commands';
 import { EventRegistry } from './events';
@@ -19,7 +19,6 @@ import { PullRequestService } from './features/pull-request/PullRequestService';
 import { PullRequestMessageHandler } from './features/pull-request/PullRequestMessageHandler';
 import { PrSettingsService } from './features/settings/PrSettingsService';
 import { PrSettingsMessageHandler } from './features/settings/PrSettingsMessageHandler';
-import { createRepositoryBundle } from './storage/createRepositoryBundle';
 
 export async function activate(context: vscode.ExtensionContext) {
   console.log('GitCat Extension is now active!');
@@ -168,8 +167,7 @@ async function initializeRecommendationBackfill(
     const dbPath = GitCatDatabase.getDatabasePath(rootPath);
     const database = await GitCatDatabase.create(rootPath);
     const dbInstance = database.getInstance();
-    const repositories = createRepositoryBundle(dbInstance);
-    const historyRepository = repositories.recommendationHistories;
+    const historyRepository = new SqliteRecommendationHistoryRepository(dbInstance);
     const { RecommendationHistoryQueryService } = await import('./features/recommendation/RecommendationHistoryQueryService');
     const { PrRecommendationService } = await import('./features/recommendation/PrRecommendationService');
     const { PrRecommendationHandler } = await import('./features/recommendation/PrRecommendationHandler');
