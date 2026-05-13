@@ -62,6 +62,25 @@ function mapGitSectionBannerType(
   return 'success';
 }
 
+/**
+ * Extension이 `.github/pull_request_template.md`와 `.github/PULL_REQUEST_TEMPLATE.md`를
+ * 각각 읽을 때, case-insensitive FS(Windows 등)에서는 같은 파일이 두 번 온다.
+ * 표시·선택은 경로 기준(슬래시 통일 + 소문자)으로 한 번만 남긴다.
+ */
+function dedupePrTemplatesForDisplay(
+  templates: OutboundPayload<'PR_TEMPLATES'>['templates'],
+): OutboundPayload<'PR_TEMPLATES'>['templates'] {
+  const seen = new Set<string>();
+  const out: OutboundPayload<'PR_TEMPLATES'>['templates'] = [];
+  for (const t of templates) {
+    const key = t.path.replace(/\\/g, '/').toLowerCase();
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(t);
+  }
+  return out;
+}
+
 interface GitCatState {
   // Data
   snapshots: SnapshotMeta[];
@@ -139,7 +158,7 @@ interface GitCatState {
    * 의미:
    *  - `undefined`: 아직 응답을 받지 못함 (요청 진행 중 또는 미요청)
    *  - `[]`       : 응답 받았지만 사용 가능한 template 없음
-   *  - `[...]`    : 사용 가능한 template 목록
+   *  - `[...]`    : 사용 가능한 template 목록 (표시 전 경로 대소문자만 다른 동일 항목은 1개로 합침)
    */
   prTemplates: OutboundPayload<'PR_TEMPLATES'>['templates'] | undefined;
   isPrTemplatesLoading: boolean;
@@ -511,9 +530,9 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
         break;
 
       case 'PR_TEMPLATES':
-        // PR 템플릿 목록 수신 — 사용자 선택 UI에서 사용
+        // PR 템플릿 목록 수신 — 사용자 선택 UI에서 사용 (동일 파일 대소문자 중복 제거)
         set({
-          prTemplates: payload.templates,
+          prTemplates: dedupePrTemplatesForDisplay(payload.templates),
           isPrTemplatesLoading: false,
         });
         break;
