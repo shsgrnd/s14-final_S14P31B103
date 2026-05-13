@@ -38,7 +38,7 @@ if [ $? -ne 0 ]; then
 fi
 
 echo ""
-echo "▶ 2단계: LLM-as-a-Judge 채점"
+echo "▶ 2단계: GPT-4.1-mini 자동 채점 (LLM-as-a-Judge)"
 echo "----------------------------------------------------------"
 python "$SCRIPT_DIR/evaluate_llm_judge.py" --model-type "$MODEL_TYPE"
 if [ $? -ne 0 ]; then
@@ -59,5 +59,5 @@ python "$SCRIPT_DIR/generate_eval_report.py"
 echo ""
 echo "=========================================================="
 echo "✅ [SUCCESS] 모든 평가 파이프라인이 완료되었습니다!"
-echo "   결과 파일 위치: $PIPELINE_ROOT/trainer/eval/results/"
+echo "   최종 리포트 위치: $PIPELINE_ROOT/trainer/eval/reports/"
 echo "=========================================================="

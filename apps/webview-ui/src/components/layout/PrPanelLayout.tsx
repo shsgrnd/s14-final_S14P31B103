@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Sparkles, Check, RefreshCw, GitPullRequest, ChevronDown, CheckCircle2, AlertTriangle, ExternalLink, X } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Sparkles, Check, RefreshCw, GitPullRequest, ChevronDown, CheckCircle2, AlertTriangle, ExternalLink, X, Info } from 'lucide-react';
 import { useGitCatStore } from '../../store/useGitCatStore';
 import { useVsCodeApi } from '../../hooks/useVsCodeApi';
 import { resolvePullRequestBaseBranch } from '../../features/pull-request/resolvePullRequestBaseBranch';
@@ -8,6 +8,12 @@ import { PrCreateMetadataSidebar } from './PrCreateMetadataSidebar';
 import { MarkdownPreview } from '../common/MarkdownPreview';
 
 type DescriptionMode = 'write' | 'preview';
+
+/** Extension `PullRequestService` / GitHubClient와 동일한 인식 경로 */
+const GITCAT_PR_TEMPLATE_PATHS = [
+  '.github/pull_request_template.md',
+  '.github/PULL_REQUEST_TEMPLATE.md',
+] as const;
 
 function inferTitleFromMarkdown(markdown: string): string {
   const firstLine = markdown.split(/\r?\n/).map((line) => line.trim()).find(Boolean) ?? '';
@@ -54,7 +60,16 @@ export const PrPanelLayout: React.FC = () => {
   const [hasRequestedInitialRecommendation, setHasRequestedInitialRecommendation] = useState(false);
   // 선택된 PR 템플릿 경로. 빈 문자열이면 "선택 안 함"(미사용).
   const [selectedTemplatePath, setSelectedTemplatePath] = useState<string>('');
+  const [prTemplatePathGuideOpen, setPrTemplatePathGuideOpen] = useState(false);
   const isRecommendationInProgress = isPrLoading;
+
+  const prTemplateDetectStatus = useMemo(() => {
+    if (isPrTemplatesLoading) return 'loading' as const;
+    if (prTemplates === undefined) return 'pending' as const;
+    if (prTemplates.length > 0) return 'detected' as const;
+    return 'none' as const;
+  }, [isPrTemplatesLoading, prTemplates]);
+
   const canCreatePr = Boolean(prTitle.trim() && prDescription.trim() && baseBranch && currentBranch);
 
   // 선택된 template content를 RECOMMEND_PR payload에 함께 보내기 위해 미리 계산한다.
@@ -449,20 +464,88 @@ export const PrPanelLayout: React.FC = () => {
           - 템플릿이 없으면(저장소에 .github/pull_request_template.md 등이 없음) 빈 상태 안내를 표시한다.
           - 로딩 중에는 select를 비활성화한다.
         */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--vscode-foreground)' }}>
-            PR Template
-            <span
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              justifyContent: 'space-between',
+              gap: '10px',
+              flexWrap: 'wrap',
+            }}
+          >
+            <label
               style={{
-                marginLeft: 6,
-                fontSize: 11,
-                fontWeight: 400,
-                color: 'var(--vscode-descriptionForeground)',
+                fontSize: '12px',
+                fontWeight: 600,
+                color: 'var(--vscode-foreground)',
+                lineHeight: 1.45,
+                flex: '1 1 200px',
+                minWidth: 0,
               }}
             >
-              (선택 시 AI 추천 프롬프트에 함께 반영됩니다)
+              PR Template
+              <span
+                style={{
+                  display: 'block',
+                  marginTop: 2,
+                  fontSize: 11,
+                  fontWeight: 400,
+                  color: 'var(--vscode-descriptionForeground)',
+                }}
+              >
+                (선택 시 AI 추천 프롬프트에 함께 반영됩니다)
+              </span>
+            </label>
+            <span
+              role="status"
+              aria-live="polite"
+              style={{
+                flexShrink: 0,
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 5,
+                fontSize: 11,
+                fontWeight: 600,
+                padding: '3px 8px',
+                borderRadius: 999,
+                border: '1px solid var(--vscode-panel-border)',
+                background:
+                  prTemplateDetectStatus === 'detected'
+                    ? 'rgba(40, 167, 69, 0.12)'
+                    : prTemplateDetectStatus === 'none'
+                      ? 'rgba(234, 179, 8, 0.12)'
+                      : 'var(--vscode-input-background)',
+                color:
+                  prTemplateDetectStatus === 'detected'
+                    ? 'var(--vscode-charts-green, #3fb950)'
+                    : prTemplateDetectStatus === 'none'
+                      ? 'var(--vscode-editorWarning-foreground)'
+                      : 'var(--vscode-descriptionForeground)',
+              }}
+            >
+              {prTemplateDetectStatus === 'loading' && (
+                <>
+                  <RefreshCw size={11} style={{ animation: 'gitcat-refresh-spin 1s linear infinite' }} />
+                  조회 중
+                </>
+              )}
+              {prTemplateDetectStatus === 'pending' && '대기 중'}
+              {prTemplateDetectStatus === 'detected' && (
+                <>
+                  <CheckCircle2 size={12} aria-hidden />
+                  {prTemplates!.length}개 감지
+                </>
+              )}
+              {prTemplateDetectStatus === 'none' && (
+                <>
+                  <AlertTriangle size={12} aria-hidden />
+                  미감지
+                </>
+              )}
             </span>
-          </label>
+          </div>
+
           {isPrTemplatesLoading ? (
             <div
               style={{
@@ -527,17 +610,139 @@ export const PrPanelLayout: React.FC = () => {
           ) : (
             <div
               style={{
-                padding: '8px 12px',
+                padding: '10px 12px',
                 background: 'var(--vscode-input-background)',
                 border: '1px dashed var(--vscode-input-border, var(--vscode-panel-border))',
                 borderRadius: '6px',
                 fontSize: '12px',
                 color: 'var(--vscode-descriptionForeground)',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 10,
               }}
             >
-              사용 가능한 PR 템플릿이 없습니다. AI는 자유 형식으로 PR 설명을 추천합니다.
+              <div style={{ fontWeight: 600, color: 'var(--vscode-foreground)' }}>
+                사용 가능한 PR 템플릿이 없습니다
+              </div>
+              <p style={{ margin: 0, lineHeight: 1.55 }}>
+                AI 설명 추천은 그대로 가능합니다. 저장소에 아래 경로·파일명 중 하나로 Markdown 파일을 두면 다음부터 이
+                패널에서 선택할 수 있습니다.
+              </p>
+              <ul style={{ margin: 0, paddingLeft: 18, lineHeight: 1.65 }}>
+                {GITCAT_PR_TEMPLATE_PATHS.map((p) => (
+                  <li key={p}>
+                    <code
+                      style={{
+                        fontSize: 11,
+                        fontFamily: 'var(--vscode-editor-font-family, monospace)',
+                        wordBreak: 'break-all',
+                      }}
+                    >
+                      {p}
+                    </code>
+                  </li>
+                ))}
+              </ul>
+              <p style={{ margin: 0, fontSize: 11, lineHeight: 1.5, opacity: 0.9 }}>
+                GitHub의 <code style={{ fontSize: 11 }}>.github/PULL_REQUEST_TEMPLATE/*.md</code> 여러 개 템플릿
+                형식은 현재 GitCat에서 목록에 올리지 않습니다.
+              </p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
+                <button
+                  type="button"
+                  onClick={() => sendMessage('GET_PR_TEMPLATES', {})}
+                  disabled={isPrTemplatesLoading || isRecommendationInProgress}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '5px 10px',
+                    fontSize: 12,
+                    fontWeight: 600,
+                    borderRadius: 4,
+                    cursor:
+                      isPrTemplatesLoading || isRecommendationInProgress ? 'not-allowed' : 'pointer',
+                    opacity: isPrTemplatesLoading || isRecommendationInProgress ? 0.55 : 1,
+                    border: '1px solid var(--vscode-button-secondaryBorder, var(--vscode-contrastBorder))',
+                    background: 'var(--vscode-button-secondaryBackground)',
+                    color: 'var(--vscode-button-secondaryForeground)',
+                  }}
+                >
+                  <RefreshCw size={13} />
+                  목록 다시 불러오기
+                </button>
+                <span style={{ fontSize: 11 }}>파일을 추가한 뒤 눌러 주세요.</span>
+              </div>
             </div>
           )}
+
+          {!isPrTemplatesLoading && prTemplates && prTemplates.length > 0 && (
+            <button
+              type="button"
+              onClick={() => setPrTemplatePathGuideOpen((v) => !v)}
+              style={{
+                alignSelf: 'flex-start',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                padding: 0,
+                fontSize: 11,
+                fontWeight: 600,
+                border: 'none',
+                background: 'transparent',
+                color: 'var(--vscode-textLink-foreground)',
+                cursor: 'pointer',
+              }}
+            >
+              <Info size={13} aria-hidden />
+              {prTemplatePathGuideOpen ? '인식 경로 안내 접기' : 'GitCat이 인식하는 경로 안내'}
+              <ChevronDown
+                size={14}
+                aria-hidden
+                style={{
+                  transform: prTemplatePathGuideOpen ? 'rotate(180deg)' : 'none',
+                  transition: 'transform 0.15s ease',
+                }}
+              />
+            </button>
+          )}
+
+          {!isPrTemplatesLoading && prTemplates && prTemplates.length > 0 && prTemplatePathGuideOpen && (
+            <div
+              role="region"
+              aria-label="PR 템플릿 인식 경로 안내"
+              style={{
+                padding: '10px 12px',
+                borderRadius: 6,
+                border: '1px solid var(--vscode-panel-border)',
+                background: 'var(--vscode-editor-background)',
+                fontSize: 11,
+                lineHeight: 1.55,
+                color: 'var(--vscode-descriptionForeground)',
+              }}
+            >
+              <p style={{ margin: '0 0 8px 0' }}>
+                아래 파일명·경로(대소문자 포함)와 일치할 때만 목록에 나타납니다. 로컬에 없으면 GitHub API로 같은
+                경로를 조회합니다.
+              </p>
+              <ul style={{ margin: 0, paddingLeft: 18 }}>
+                {GITCAT_PR_TEMPLATE_PATHS.map((p) => (
+                  <li key={p}>
+                    <code
+                      style={{
+                        fontSize: 11,
+                        fontFamily: 'var(--vscode-editor-font-family, monospace)',
+                        wordBreak: 'break-all',
+                      }}
+                    >
+                      {p}
+                    </code>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
