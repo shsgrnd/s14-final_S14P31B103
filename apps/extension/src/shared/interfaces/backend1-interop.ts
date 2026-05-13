@@ -1,4 +1,4 @@
-import type { RepositoryBundle } from '../../storage/interfaces';
+import type { MergeRepositoryBundle } from '../../storage/interfaces';
 import type { SettingsAndSecretsBundle } from '../../platform/settings/interfaces';
 import type { Backend2ServiceBundle } from './backend2-interfaces';
 
@@ -9,7 +9,9 @@ import type { Backend2ServiceBundle } from './backend2-interfaces';
  * repositories / settings / services 전달 형태를 명시적으로 고정합니다.
  */
 export interface Backend1ConsumeContracts {
-  repositories: RepositoryBundle;
+  repositories: {
+    merge: MergeRepositoryBundle;
+  };
   settingsAndSecrets: SettingsAndSecretsBundle;
   services: Backend2ServiceBundle;
 }
