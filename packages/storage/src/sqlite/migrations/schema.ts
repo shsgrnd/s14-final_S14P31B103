@@ -17,7 +17,19 @@
  * - packages/storage 최종 ownership을 가진 Core 담당자와 함께 repository 계층/호출 흐름에 맞춰
  *   컬럼명, nullable 여부, 인덱스, 마이그레이션 전략을 최종 확정해야 한다.
  */
+/**
+ * 스키마 버전
+ *
+ * 스키마 변경(DDL 수정) 시 이 값을 올링하면 기존 DB를 자동으로 DROP 후 재생성한다.
+ * MVP에서는 데이터 보존보다 완전한 스키마 동기화를 우선한다.
+ */
+export const SCHEMA_VERSION = 3;
+
 export const SCHEMAS = [
+  // 스키마 버전 관리 테이블 (가장 먼저 생성)
+  `CREATE TABLE IF NOT EXISTS gitcat_schema_version (
+    version INTEGER NOT NULL
+  );`,
   `CREATE TABLE IF NOT EXISTS users (
     user_id TEXT PRIMARY KEY,
     email TEXT,
@@ -106,8 +118,6 @@ export const SCHEMAS = [
     reason TEXT,
     summary TEXT,
     local_path TEXT,
-    is_checkpoint INTEGER NOT NULL DEFAULT 0,
-    label TEXT,
     created_at TEXT NOT NULL,
     FOREIGN KEY (session_id) REFERENCES work_sessions(session_id),
     FOREIGN KEY (previous_snapshot_id) REFERENCES snapshots(snapshot_id)

@@ -2,7 +2,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 // @ts-expect-error: sql.js has incomplete typings for module resolution
 import initSqlJs from 'sql.js';
-import { SCHEMAS } from '../migrations/schema';
+import { SCHEMAS, SCHEMA_VERSION } from '../migrations/schema';
 
 const DB_PATH = '.vscode/gitcat/gitcat.db';
 
@@ -208,13 +208,91 @@ export class GitCatDatabase {
   }
 
   private initializeSchema(): void {
+    // 현재 저장된 스키마 버전 확인
+    const storedVersion = this.getStoredSchemaVersion();
+
+    if (storedVersion !== SCHEMA_VERSION) {
+      // 버전이 다르면: 모든 사용자 테이블 DROP 후 재생성
+      console.log(
+        `[GitCatDatabase] 스키마 버전 불일치 (저장된: ${storedVersion}, 현재: ${SCHEMA_VERSION}) → 자동 재생성`,
+      );
+      this.dropAllUserTables();
+    }
+
+    // 테이블 생성 (이미 있으면 무시)
     const initTransaction = this.db.transaction(() => {
       for (const query of SCHEMAS) {
         this.db.exec(query);
       }
     });
-
     initTransaction();
+
+    // 버전 기록 갱신
+    this.saveSchemaVersion(SCHEMA_VERSION);
+  }
+
+  /**
+   * gitcat_schema_version 테이블에서 저장된 버전을 읽는다.
+   * 테이블이 없거나 비어 있으면 0 반환.
+   */
+  private getStoredSchemaVersion(): number {
+    try {
+      const result = this.db
+        .prepare('SELECT version FROM gitcat_schema_version LIMIT 1')
+        .get();
+      return typeof result?.version === 'number' ? result.version : 0;
+    } catch {
+      // 테이블이 아직 없으면 0 반환
+      return 0;
+    }
+  }
+
+  /**
+   * gitcat_schema_version에 버전을 저장한다.
+   */
+  private saveSchemaVersion(version: number): void {
+    try {
+      this.db.exec('DELETE FROM gitcat_schema_version');
+      this.db.prepare('INSERT INTO gitcat_schema_version (version) VALUES (?)').run(version);
+    } catch (error) {
+      console.error('[GitCatDatabase] 버전 저장 실패:', error);
+    }
+  }
+
+  /**
+   * 모든 사용자 데이터 테이블을 DROP한다.
+   * FK 제약이 있으므로 의존 테이블을 먼저 제거한다.
+   */
+  private dropAllUserTables(): void {
+    const dropOrder = [
+      'restore_histories',
+      'snapshot_files',
+      'snapshots',
+      'change_records',
+      'changed_files',
+      'work_sessions',
+      'worktree_instances',
+      'worktrees',
+      'branches',
+      'project_workspaces',
+      'projects',
+      'devices',
+      'users',
+      'merge_analyses',
+      'conflict_candidates',
+      'merge_proposals',
+      'proposal_feedbacks',
+      'recommendation_histories',
+      'app_states',
+      'app_settings',
+    ];
+
+    const dropTransaction = this.db.transaction(() => {
+      for (const table of dropOrder) {
+        this.db.exec(`DROP TABLE IF EXISTS ${table}`);
+      }
+    });
+    dropTransaction();
   }
 
   private assertDatabaseFileCreated(dbFilePath: string): void {
