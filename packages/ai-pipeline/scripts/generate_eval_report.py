@@ -20,6 +20,7 @@ from datetime import datetime
 
 BASE_DIR     = os.path.dirname(os.path.abspath(__file__))
 RESULTS_DIR  = os.path.join(BASE_DIR, "../trainer/eval/results")
+REPORTS_DIR  = os.path.join(BASE_DIR, "../trainer/eval/reports")
 MODELS       = ["base", "sft", "dpo"]
 
 def load_model_stats(model: str) -> dict | None:
@@ -65,8 +66,8 @@ def load_model_stats(model: str) -> dict | None:
     }
 
 def main():
-    output_file = os.path.join(RESULTS_DIR, "final_evaluation_report.md")
-    os.makedirs(RESULTS_DIR, exist_ok=True)
+    output_file = os.path.join(REPORTS_DIR, "final_evaluation_report.md")
+    os.makedirs(REPORTS_DIR, exist_ok=True)
 
     print("[START] Generating Final Evaluation Report...")
 

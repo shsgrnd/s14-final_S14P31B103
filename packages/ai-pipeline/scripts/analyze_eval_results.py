@@ -24,6 +24,7 @@ from datetime import datetime
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 RESULTS_DIR = os.path.join(BASE_DIR, "../trainer/eval/results")
+REPORTS_DIR = os.path.join(BASE_DIR, "../trainer/eval/reports")
 
 PASS_THRESHOLD = 7    # accuracy 점수 합격 기준 (10점 만점 중 7점)
 FAIL_THRESHOLD = 6.0  # 평균 점수 실패 기준
@@ -42,7 +43,7 @@ def main():
 
     input_file   = os.path.join(RESULTS_DIR, f"{args.model_type}_llm_judge_scores.jsonl")
     output_file  = os.path.join(RESULTS_DIR, f"{args.model_type}_analyzed_results.jsonl")
-    fail_md_file = os.path.join(RESULTS_DIR, f"{args.model_type}_fail_cases.md")
+    fail_md_file = os.path.join(REPORTS_DIR, f"{args.model_type}_fail_cases.md")
 
     if not os.path.exists(input_file):
         print(f"[ERROR] Judge score file not found: {input_file}")
@@ -50,6 +51,7 @@ def main():
         return
 
     os.makedirs(RESULTS_DIR, exist_ok=True)
+    os.makedirs(REPORTS_DIR, exist_ok=True)
 
     total_pass, count = 0, 0
     fail_cases = []

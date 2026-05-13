@@ -5,6 +5,7 @@ from datetime import datetime
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_DIR = os.path.join(BASE_DIR, "../data")
 RESULTS_DIR = os.path.join(BASE_DIR, "../trainer/eval/results")
+REPORTS_DIR = os.path.join(BASE_DIR, "../trainer/eval/reports")
 ARCHIVE_ROOT = os.path.join(BASE_DIR, "../trainer/eval/archives")
 
 def get_next_version():
@@ -46,7 +47,8 @@ def archive_files():
     # 1. 아카이브할 대상 폴더/파일 목록
     targets = [
         {"source": DATA_DIR, "dest_name": "data_snapshot"},
-        {"source": RESULTS_DIR, "dest_name": "eval_results"}
+        {"source": RESULTS_DIR, "dest_name": "eval_results"},
+        {"source": REPORTS_DIR, "dest_name": "eval_reports"}
     ]
     
     # 이전 아카이브 중 가장 최근 시간을 찾기
