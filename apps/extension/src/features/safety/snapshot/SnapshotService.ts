@@ -19,6 +19,14 @@ import { SnapshotAutoCleanupService } from './SnapshotAutoCleanupService';
 export const SNAPSHOT_KEEP_RECENT_COUNT = 10;
 
 /**
+ * 스냅샷 생성 최소 변경 줄 수
+ *
+ * diff 결과의 추가(+)/삭제(-) 줄 합계가 이 값 미만이면 스냅샷을 생성하지 않는다.
+ * 단순 커서 이동 등 의도 없는 변경을 필터링하기 위한 값이다.
+ */
+export const SNAPSHOT_MIN_CHANGED_LINES = 5;
+
+/**
  * SnapshotService 생성 옵션
  */
 export interface SnapshotServiceOptions {
@@ -109,6 +117,17 @@ export class SnapshotService implements ISnapshotService {
     }
 
     const { patchText, hunks, changedFiles, warnings } = diffResult;
+
+    // --- 최소 변경 줄 수 체크 ---
+    // 추가(+)/삭제(-) 줄 합계가 SNAPSHOT_MIN_CHANGED_LINES 미만이면 저장 가치 없음
+    const totalChangedLines = this.countChangedLines(patchText);
+    if (totalChangedLines < SNAPSHOT_MIN_CHANGED_LINES) {
+      console.log(
+        `[SnapshotService] 변경 줄 수 부족 → 스냅샷 생략 ` +
+        `(${totalChangedLines}줄 < ${SNAPSHOT_MIN_CHANGED_LINES}줄, type=${type})`,
+      );
+      return undefined;
+    }
 
     // --- 사용자 변경 diff 계산 (있는 경우) ---
     // userBaselines(직전 AI 세션 종료 시점) → 현재 파일 상태 diff
@@ -366,5 +385,23 @@ export class SnapshotService implements ISnapshotService {
         console.error('[SnapshotService] 자동 삭제 중 오류 발생:', cleanupError);
       }
     });
+  }
+
+  /**
+   * diff patchText에서 실제 변경된 줄 수를 센다.
+   * 유니파이드 diff 형식에서 +/- 로 시작하는 줄을 세되,
+   * +++/--- 헤더 줄은 제외한다.
+   */
+  private countChangedLines(patchText: string): number {
+    if (!patchText) {
+      return 0;
+    }
+    return patchText
+      .split('\n')
+      .filter(
+        (line) =>
+          (line.startsWith('+') && !line.startsWith('+++')) ||
+          (line.startsWith('-') && !line.startsWith('---')),
+      ).length;
   }
 }
