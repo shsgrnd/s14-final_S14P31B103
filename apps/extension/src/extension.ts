@@ -170,6 +170,20 @@ export async function activate(context: vscode.ExtensionContext) {
           workspaceRoot: rootPath,
           // [Task 45] AI 클라이언트를 주입하면 스냅샷 생성 직후 백그라운드에서 자동 요약이 실행됩니다.
           aiClient: snapshotAiClient,
+          // 스냅샷 생성 직후 즉시 브로드캐스트하여 UI가 늦게 뜨는 현상을 방지합니다.
+          onSnapshotCreated: (row) => {
+            messageRouter.broadcast({
+              type: 'SNAPSHOT_CREATED',
+              payload: {
+                snapshot: {
+                  snapshotId: row.snapshot_id,
+                  type: row.type as any,
+                  createdAt: row.created_at,
+                  summary: undefined, // 처음 생성 시에는 요약이 없음
+                },
+              },
+            });
+          },
           // [Task 45] AI 요약이 완료되면 이 콜백이 호출됩니다.
           // messageRouter.broadcast를 통해 연결된 모든 웹뷰에 SNAPSHOT_UPDATED 이벤트를 전송하여
           // 스냅샷 목록의 이름이 실시간으로 갱신되도록 합니다.

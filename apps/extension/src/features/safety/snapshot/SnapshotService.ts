@@ -73,6 +73,12 @@ export interface SnapshotServiceOptions {
   aiClient?: AiClient;
 
   /**
+   * 스냅샷이 생성된 직후 UI에 즉시 알리기 위한 브로드캐스트 콜백.
+   * AI 요약 전에 호출되어 '생성 중...' 또는 빈 제목 상태로 목록에 먼저 추가되도록 합니다.
+   */
+  onSnapshotCreated?: (row: SnapshotRow) => void;
+
+  /**
    * AI 요약 완료 후 UI에 알리기 위한 브로드캐스트 콜백.
    * aiClient와 함께 제공해야 SNAPSHOT_UPDATED 이벤트가 전송된다.
    */
@@ -107,6 +113,8 @@ export class SnapshotService implements ISnapshotService {
   private readonly keepRecentCount: number;
   /** AI 요약 호출에 사용되는 AiClient 인스턴스. 제공되지 않으면 AI 요약 기능이 비활성화됨 */
   private readonly aiClient?: AiClient;
+  /** 스냅샷 생성 직후 웹뷰에 이벤트를 전송하기 위한 콜백 */
+  private readonly onSnapshotCreated?: (row: SnapshotRow) => void;
   /** AI 요약 완료 후 웹뷰에 SNAPSHOT_UPDATED 이벤트를 전송하기 위한 콜백 */
   private readonly onSnapshotUpdated?: (row: SnapshotRow) => void;
   private readonly keepRecentPreRestoreCount: number;
@@ -122,6 +130,7 @@ export class SnapshotService implements ISnapshotService {
     this.diffService = new SnapshotDiffService();
     this.keepRecentCount = options.keepRecentCount ?? SNAPSHOT_KEEP_RECENT_COUNT;
     this.aiClient = options.aiClient;
+    this.onSnapshotCreated = options.onSnapshotCreated;
     this.onSnapshotUpdated = options.onSnapshotUpdated;
     this.keepRecentPreRestoreCount =
       options.keepRecentPreRestoreCount ??
@@ -263,6 +272,15 @@ export class SnapshotService implements ISnapshotService {
 
     // --- snapshot_files DB 저장 ---
     await this.saveSnapshotFiles(snapshotId, changedFiles, createdAt);
+
+    // --- 즉시 UI 업데이트 콜백 호출 ---
+    if (this.onSnapshotCreated && snapshotRow) {
+      try {
+        this.onSnapshotCreated(snapshotRow);
+      } catch (err) {
+        console.error('[SnapshotService] onSnapshotCreated 콜백 중 오류:', err);
+      }
+    }
 
     // --- Safety warning 로그 ---
     if (warnings.length > 0) {
