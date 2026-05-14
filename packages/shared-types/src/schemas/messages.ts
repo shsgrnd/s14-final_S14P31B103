@@ -191,7 +191,11 @@ export const OutboundPayloadSchemaMap = {
   RESTORE_HISTORY_LIST: z.object({ histories: z.array(RestoreHistorySchema) }),
   RESTORE_DONE: z.object({ snapshotId: z.string() }),
   // 병합 화면 응답은 AI/DB 원본 DTO가 아닌 projection DTO로 고정합니다.
-  CONFLICT_RESULT: z.object({ candidates: z.array(MergeConflictCandidateViewSchema) }),
+  CONFLICT_RESULT: z.object({
+    analysisId: z.string().optional(),
+    artifactPath: z.string().nullable().optional(),
+    candidates: z.array(MergeConflictCandidateViewSchema),
+  }),
   MERGE_PROPOSAL: z.object({ proposals: z.array(MergeProposalViewSchema) }),
   MERGE_COMPLETE: z.object({ merge: MergeCompleteViewSchema }),
   COMMIT_SUGGESTIONS: z.object({ suggestions: CommitSuggestionSchema }),
