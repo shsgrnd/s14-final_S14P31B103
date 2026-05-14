@@ -37,10 +37,33 @@ function buildRecommendationContext(payload: RecommendationInput): string {
     lines.push(`Diff Summary: ${payload.diff_summary ?? 'Not provided'}`);
     lines.push(`Branch Context: ${payload.branch_context}`);
     lines.push(`Template Provided: ${payload.template ? 'Yes' : 'No'}`);
-    lines.push(`Template Markdown:\n${payload.template ?? 'Not provided'}`);
+    // HTML 주석(<!-- ... -->) 제거 후 AI에게 전달
+    // 주석은 작성 가이드 역할로만 사용되며, AI 추천 내용에 불필요한 예시 문구가
+    // 혼입되는 것을 방지하기 위해 전처리 단계에서 제거합니다.
+    const cleanedTemplate = payload.template
+      ? stripHtmlComments(payload.template)
+      : 'Not provided';
+    lines.push(`Template Markdown:\n${cleanedTemplate}`);
   }
 
   return lines.join('\n');
+}
+
+/**
+ * PR 템플릿에 포함된 HTML 주석 블록(<!-- ... -->)을 제거합니다.
+ *
+ * Markdown 주석은 GitHub 렌더링 시에는 표시되지 않지만, AI에게는 raw 텍스트로
+ * 전달되어 추천 내용에 예시 문구가 그대로 삽입되는 문제를 일으킵니다.
+ * 주석 제거 후 연속된 빈 줄도 최대 1줄로 정리합니다.
+ *
+ * @param text 주석을 포함한 원본 Markdown 텍스트
+ * @returns 주석이 제거된 정제된 Markdown 텍스트
+ */
+function stripHtmlComments(text: string): string {
+  return text
+    .replace(/<!--[\s\S]*?-->/g, '') // HTML 주석 블록 제거
+    .replace(/\n{3,}/g, '\n\n')      // 연속된 빈 줄 정리 (최대 1줄)
+    .trim();
 }
 
 /**

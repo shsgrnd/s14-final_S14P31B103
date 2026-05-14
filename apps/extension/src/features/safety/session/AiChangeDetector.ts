@@ -8,7 +8,7 @@ export class AiChangeDetector {
   private lastChangeTime = 0;
   private readonly AI_SCORE_THRESHOLD = 70;
 
-  constructor() {}
+  constructor() { }
 
   /**
    * 텍스트 변경 이벤트를 분석하여 AI성 대량 변경인지 확인합니다.
@@ -29,15 +29,15 @@ export class AiChangeDetector {
 
     for (const change of event.contentChanges) {
       // 삽입된 줄 수 (개행 문자 수)
-      const linesAdded = change.text.split('\n').length - 1; 
+      const linesAdded = change.text.split('\n').length - 1;
       // 삭제되거나 대체된 줄 수
       const linesRemoved = change.range.end.line - change.range.start.line;
-      
+
       const linesChanged = Math.max(linesAdded, linesRemoved);
       if (linesChanged > maxLinesAddedOrRemoved) {
         maxLinesAddedOrRemoved = linesChanged;
       }
-      
+
       if (change.text) {
         insertedText += change.text;
       }
@@ -67,7 +67,7 @@ export class AiChangeDetector {
         // 붙여넣기(사용자 Ctrl+V)인 경우
         if (clipboardText && insertedText === clipboardText) {
           // 명백한 사용자의 붙여넣기이므로 점수를 대폭 차감
-          score -= 50; 
+          score -= 50;
         } else {
           // 클립보드와 불일치하는 대용량 텍스트 삽입 -> AI일 확률이 매우 높음
           score += 30;
