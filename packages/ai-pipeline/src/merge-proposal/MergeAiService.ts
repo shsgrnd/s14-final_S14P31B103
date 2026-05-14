@@ -20,6 +20,7 @@ import {
 import {
   buildRecommendationUserPrompt,
   getRecommendationSystemPrompt,
+  RecommendationPromptVariant,
 } from '../prompt/recommendation';
 
 export class MergeAiService {
@@ -100,6 +101,10 @@ export class MergeAiService {
    * 특정 기능 유형에 따라 프롬프트 구성
    */
   private constructPrompt(payload: MergeProposalInput | RecommendationInput): PromptPayload {
+    const recommendationVariant: RecommendationPromptVariant = this.client.isLiveLocalMode()
+      ? 'local-fast'
+      : 'default';
+
     switch (payload.feature_type) {
       case 'merge_patch_draft':
         return {
@@ -118,8 +123,11 @@ export class MergeAiService {
         };
       case 'recommendation':
         return {
-          systemPrompt: getRecommendationSystemPrompt(),
-          userPrompt: buildRecommendationUserPrompt(payload as RecommendationInput),
+          systemPrompt: getRecommendationSystemPrompt(recommendationVariant),
+          userPrompt: buildRecommendationUserPrompt(
+            payload as RecommendationInput,
+            recommendationVariant,
+          ),
         };
       default: {
         // 새 feature_type이 추가되면 여기서 바로 드러나도록 방어합니다.
