@@ -1,5 +1,6 @@
 import React from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
+import { vscodeSidebarViewTitleForeground } from '../../shared/styles';
 
 export interface SectionHeaderProps {
   label: string;
@@ -28,10 +29,31 @@ export const SectionHeader: React.FC<SectionHeaderProps> = ({ label, expanded, b
   >
     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
       {expanded
-        ? <ChevronDown size={14} style={{ color: 'var(--vscode-descriptionForeground)' }} />
-        : <ChevronRight size={14} style={{ color: 'var(--vscode-descriptionForeground)' }} />
-      }
-      <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--vscode-sideBar-foreground)' }}>
+        ? (
+          <ChevronDown
+            size={14}
+            style={{
+              color: vscodeSidebarViewTitleForeground,
+              opacity: 0.82,
+              flexShrink: 0,
+            }}
+          />
+        )
+        : (
+          <ChevronRight
+            size={14}
+            style={{
+              color: vscodeSidebarViewTitleForeground,
+              opacity: 0.82,
+              flexShrink: 0,
+            }}
+          />
+        )}
+      <span style={{
+        fontSize: '11px',
+        fontWeight: 700,
+        color: vscodeSidebarViewTitleForeground,
+      }}>
         {label}
       </span>
     </div>

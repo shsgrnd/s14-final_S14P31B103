@@ -1,4 +1,5 @@
 import React from 'react';
+import { webviewBodyForeground, webviewDescriptionForeground } from '../../shared/styles';
 
 interface LoadingFallbackProps {
   isSlowBoot: boolean;
@@ -17,7 +18,7 @@ export const LoadingFallback: React.FC<LoadingFallbackProps> = ({ isSlowBoot }) 
     alignItems: 'center',
     justifyContent: 'center',
     background: 'var(--vscode-sideBar-background)',
-    color: 'var(--vscode-sideBar-foreground)',
+    color: webviewBodyForeground,
     padding: '24px',
     boxSizing: 'border-box',
   }}>
@@ -62,6 +63,7 @@ export const LoadingFallback: React.FC<LoadingFallbackProps> = ({ isSlowBoot }) 
         fontSize: '14px',
         fontWeight: 700,
         letterSpacing: '0.02em',
+        color: webviewBodyForeground,
       }}>
         GitCat을 불러오는 중입니다...
       </div>
@@ -69,7 +71,8 @@ export const LoadingFallback: React.FC<LoadingFallbackProps> = ({ isSlowBoot }) 
       <div style={{
         fontSize: '11px',
         lineHeight: 1.5,
-        color: 'var(--vscode-descriptionForeground)',
+        color: webviewDescriptionForeground,
+        opacity: 0.92,
       }}>
         {isSlowBoot
           ? '초기 로딩이 지연되고 있습니다. 잠시 후 다시 선택하거나 다른 탭으로 이동 후 돌아와 주세요.'

@@ -30,11 +30,11 @@ const VscFile: React.FC<{ color?: string }> = ({ color }) => (
 // ── 파일 상태별 색상 및 레이블 설정 ──────────────────────────────────────────
 
 const STATUS_CONFIG: Record<string, { color: string; label: string; short: string }> = {
-  staged: { color: '#4ec9b0', label: 'Staged', short: 'S' },
-  unstaged: { color: '#ce9178', label: 'Unstaged', short: 'M' },
-  untracked: { color: '#9cdcfe', label: 'Untracked', short: 'U' },
-  conflicted: { color: '#f48771', label: 'Conflicted', short: '!' },
-  pushable: { color: '#569cd6', label: 'Pushable', short: 'P' },
+  staged: { color: 'var(--vscode-gitDecoration-addedResourceForeground)', label: 'Staged', short: 'S' },
+  unstaged: { color: 'var(--vscode-gitDecoration-modifiedResourceForeground)', label: 'Unstaged', short: 'M' },
+  untracked: { color: 'var(--vscode-gitDecoration-untrackedResourceForeground)', label: 'Untracked', short: 'U' },
+  conflicted: { color: 'var(--vscode-gitDecoration-conflictingResourceForeground)', label: 'Conflicted', short: '!' },
+  pushable: { color: 'var(--vscode-charts-blue)', label: 'Pushable', short: 'P' },
 };
 
 type NodeStatus = 'untracked' | 'unstaged' | 'staged' | 'conflicted';

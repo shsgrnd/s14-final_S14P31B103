@@ -4,22 +4,10 @@
 
 @layer base {
   :root {
-    /* GitCat UI normalization palette (editor-agnostic) */
-    --gc-bg: #111315;
-    --gc-surface: #17191c;
-    --gc-surface-2: #1d2024;
-    --gc-border: #2a2f36;
-    --gc-text: #d6d9de;
-    --gc-text-muted: #9ba3ad;
-    --gc-primary: #6d9fe0;
-    --gc-primary-hover: #79a9e8;
-    --gc-secondary: #6a6a6a;
-    --gc-secondary-hover: #777777;
-    --gc-focus: #6d9fe0;
-
-    /* VS Code Theme Variables Mapping */
+    /* shadcn-style aliases → 호스트 웹뷰가 주입하는 --vscode-* (IDE 테마) */
     --background: var(--vscode-sideBar-background);
-    --foreground: var(--vscode-sideBar-foreground);
+    /* sideBar.foreground 만 어둡게 잡히는 테마 대비: workbench/editor 전경 우선 */
+    --foreground: var(--vscode-foreground, var(--vscode-sideBar-foreground, var(--vscode-editor-foreground)));
     --card: var(--vscode-editor-background);
     --card-foreground: var(--vscode-editor-foreground);
     --primary: var(--vscode-button-background);
@@ -37,38 +25,8 @@
     --ring: var(--vscode-focusBorder);
     
     /* Description Text */
-    --description: var(--vscode-descriptionForeground);
+    --description: var(--vscode-descriptionForeground, var(--vscode-foreground));
   }
-}
-
-/* Force stable color tokens across VS Code/Cursor/other hosts */
-body {
-  --vscode-sideBar-background: var(--gc-bg) !important;
-  --vscode-sideBar-foreground: var(--gc-text) !important;
-  --vscode-editor-background: var(--gc-surface) !important;
-  --vscode-editor-foreground: var(--gc-text) !important;
-  --vscode-panel-border: var(--gc-border) !important;
-  --vscode-input-background: var(--gc-surface-2) !important;
-  --vscode-input-foreground: var(--gc-text) !important;
-  --vscode-descriptionForeground: var(--gc-text-muted) !important;
-  --vscode-focusBorder: var(--gc-focus) !important;
-  --vscode-button-background: var(--gc-primary) !important;
-  --vscode-button-foreground: #f5f8ff !important;
-  --vscode-button-hoverBackground: var(--gc-primary-hover) !important;
-  --vscode-button-secondaryBackground: var(--gc-secondary) !important;
-  --vscode-button-secondaryForeground: #eeeeee !important;
-  --vscode-button-secondaryHoverBackground: var(--gc-secondary-hover) !important;
-  --vscode-list-hoverBackground: #22262c !important;
-  --vscode-list-activeSelectionBackground: #2a3240 !important;
-  --vscode-list-activeSelectionForeground: #eaf1ff !important;
-  --vscode-badge-background: #2f3f57 !important;
-  --vscode-badge-foreground: #d9e6ff !important;
-  --vscode-charts-blue: #6d9fe0 !important;
-  --vscode-charts-green: #6ec8a3 !important;
-  --vscode-charts-purple: #9f7ad6 !important;
-  /* Webview에서 미주입 시 스크롤 썸이 투명해져 보이지 않는 문제 방지 */
-  --vscode-scrollbarSlider-background: rgba(255, 255, 255, 0.22) !important;
-  --vscode-scrollbarSlider-hoverBackground: rgba(255, 255, 255, 0.36) !important;
 }
 
 body {
@@ -147,12 +105,12 @@ body {
   outline-offset: 1px;
 }
 
-/* Sidebar Section Header Style */
+/* Sidebar Section Header Style (레거시 클래스 — SectionHeader 컴포넌트와 동일 토큰 체인) */
 .section-header {
   font-size: 11px;
   font-weight: bold;
   text-transform: uppercase;
-  color: var(--description);
+  color: var(--vscode-sideBarTitle-foreground, var(--vscode-titleBar-activeForeground, var(--vscode-tab-activeForeground, var(--vscode-activityBar-foreground, var(--vscode-sideBar-foreground, var(--vscode-editor-foreground))))));
   padding: 8px 12px;
   display: flex;
   align-items: center;
@@ -162,7 +120,7 @@ body {
 }
 
 .section-header:hover {
-  color: var(--foreground);
+  color: var(--vscode-sideBar-foreground);
 }
 
 /* Markdown preview (PR description preview tab) */
