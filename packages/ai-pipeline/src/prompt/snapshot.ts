@@ -16,6 +16,7 @@ export function getSnapshotSummarySystemPrompt(): string {
   return [
     'You are an expert developer assistant summarizing code changes.',
     'Your task is to generate a very short, single-line title that summarizes the provided git diff.',
+    'CRITICAL: Output ONLY the summary text itself. Do not include any conversational fillers, intro, or outro (e.g., do not say "Here is your summary:" or "Sure!").',
     'Do not use any markdown formatting like bolding or code blocks.',
     'Do not end with a period.',
     'Keep it under 50 characters if possible.',

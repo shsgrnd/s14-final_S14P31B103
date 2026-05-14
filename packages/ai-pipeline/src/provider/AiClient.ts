@@ -150,13 +150,18 @@ export class AiClient {
         });
       case 'recommendation': {
         let recType = 'commit_message';
-        if (promptPayload?.userPrompt.includes('Recommendation Type: branch_name')) {
+        // 스냅샷 요약 AI 프롬프트인 경우
+        if (promptPayload?.userPrompt.includes('Please summarize the following code changes into a single-line title.')) {
+          recType = 'snapshot_summary';
+        } else if (promptPayload?.userPrompt.includes('Recommendation Type: branch_name')) {
           recType = 'branch_name';
         } else if (promptPayload?.userPrompt.includes('Recommendation Type: pr_description')) {
           recType = 'pr_description';
         }
 
-        if (recType === 'branch_name') {
+        if (recType === 'snapshot_summary') {
+          return "Mock 모드 작동 중 (AI 요약이 아닌 테스트 문자열입니다)";
+        } else if (recType === 'branch_name') {
           return "```json\n" + JSON.stringify({
             title: "Branch Name Recommendations",
             summary: "Generated branch names based on intent.",
