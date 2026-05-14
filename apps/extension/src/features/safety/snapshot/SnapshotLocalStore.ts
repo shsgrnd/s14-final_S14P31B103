@@ -64,6 +64,21 @@ export interface SnapshotTrashHandle {
   trashedDir: string;
 }
 
+export interface SnapshotFullStateEntry {
+  filePath: string;
+  content: string | Uint8Array | null;
+}
+
+interface SnapshotFullStateIndexEntry {
+  exists: boolean;
+  storedPath?: string;
+}
+
+interface SnapshotFullStateIndex {
+  before: Record<string, SnapshotFullStateIndexEntry>;
+  after: Record<string, SnapshotFullStateIndexEntry>;
+}
+
 /**
  * .vscode/gitcat/snapshots/{snapshotId} 하위의 스냅샷 산출물을 관리한다.
  *
@@ -235,6 +250,85 @@ export class SnapshotLocalStore {
     await fs.mkdir(blobsDir, { recursive: true });
 
     return { fullDir, blobsDir };
+  }
+
+  async saveFullSnapshotState(
+    snapshotId: string,
+    state: {
+      before?: SnapshotFullStateEntry[];
+      after?: SnapshotFullStateEntry[];
+    },
+  ): Promise<void> {
+    const { fullDir } = await this.ensureAuxiliaryDirs(snapshotId);
+    const stages: Array<'before' | 'after'> = ['before', 'after'];
+    const index: SnapshotFullStateIndex = { before: {}, after: {} };
+
+    for (const stage of stages) {
+      const entries = state[stage] ?? [];
+      for (const entry of entries) {
+        const relativePath = this.toWorkspaceRelativePath(entry.filePath);
+        if (entry.content === null) {
+          index[stage][relativePath] = { exists: false };
+          continue;
+        }
+
+        const stageDir = path.join(fullDir, stage);
+        const destinationPath = path.join(stageDir, ...relativePath.split('/'));
+        this.assertInsideDirectory(stageDir, destinationPath, `${stage} full snapshot file`);
+        await fs.mkdir(path.dirname(destinationPath), { recursive: true });
+
+        const bytes = typeof entry.content === 'string'
+          ? Buffer.from(entry.content, 'utf8')
+          : Buffer.from(entry.content);
+        await fs.writeFile(destinationPath, bytes);
+
+        index[stage][relativePath] = {
+          exists: true,
+          storedPath: path.relative(fullDir, destinationPath).replace(/\\/g, '/'),
+        };
+      }
+    }
+
+    const indexPath = path.join(fullDir, 'index.json');
+    this.assertInsideDirectory(fullDir, indexPath, 'full snapshot index');
+    await fs.writeFile(indexPath, `${JSON.stringify(index, null, 2)}\n`, 'utf8');
+  }
+
+  async readFullSnapshotFile(
+    snapshotId: string,
+    stage: 'before' | 'after',
+    filePath: string,
+  ): Promise<Uint8Array | null | undefined> {
+    const fullDir = path.join(this.getSnapshotDir(snapshotId), 'full');
+    const indexPath = path.join(fullDir, 'index.json');
+    this.assertInsideDirectory(fullDir, indexPath, 'full snapshot index');
+
+    let index: SnapshotFullStateIndex;
+    try {
+      index = JSON.parse(await fs.readFile(indexPath, 'utf8')) as SnapshotFullStateIndex;
+    } catch (error) {
+      const nodeError = error as NodeJS.ErrnoException;
+      if (nodeError?.code === 'ENOENT') {
+        return undefined;
+      }
+      throw error;
+    }
+
+    const relativePath = this.toWorkspaceRelativePath(filePath);
+    const entry = index[stage]?.[relativePath];
+    if (!entry) {
+      return undefined;
+    }
+    if (!entry.exists) {
+      return null;
+    }
+    if (!entry.storedPath) {
+      return undefined;
+    }
+
+    const absolutePath = path.resolve(fullDir, entry.storedPath);
+    this.assertInsideDirectory(fullDir, absolutePath, `${stage} full snapshot file`);
+    return fs.readFile(absolutePath);
   }
 
   toWorkspaceRelativePath(filePath: string): string {

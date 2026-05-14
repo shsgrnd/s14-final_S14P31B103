@@ -10,6 +10,7 @@ export interface CreateSnapshotOptions {
     sessionId?: string;
     reason?: string;
     summary?: string;
+    force?: boolean;
     /** AI 세션 중 변경된 파일 경로 목록 */
     changedFiles?: string[];
     /** AI 세션 시작 시점의 파일 베이스라인 (AI diff 계산용) */

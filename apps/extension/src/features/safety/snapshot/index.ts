@@ -6,3 +6,5 @@ export * from './SnapshotIdGenerator';
 export * from './SnapshotAutoCleanupService';
 export * from './SnapshotService';
 export * from './SnapshotQueryService';
+export * from './RestoreService';
+export * from './RestoreHistoryQueryService';

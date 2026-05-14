@@ -1,6 +1,6 @@
 import * as vscode from 'vscode';
 import { createHash } from 'crypto';
-import { GitCatDatabase, SqliteRecommendationHistoryRepository, SqliteSnapshotRepository, SqliteSnapshotFileRepository, SqliteWorkSessionRepository } from '@gitcat/storage';
+import { GitCatDatabase, SqliteRecommendationHistoryRepository, SqliteRestoreHistoryRepository, SqliteSnapshotRepository, SqliteSnapshotFileRepository, SqliteWorkSessionRepository } from '@gitcat/storage';
 import { GitCliClient } from '@gitcat/git-client-cli';
 import { CommandRegistry } from './commands';
 import { EventRegistry } from './events';
@@ -8,6 +8,8 @@ import { SafetySessionCoordinator } from './features/safety/session/SafetySessio
 import { MockSnapshotService } from './features/safety/snapshot/MockSnapshotService';
 import { SnapshotService } from './features/safety/snapshot/SnapshotService';
 import { SnapshotQueryService } from './features/safety/snapshot/SnapshotQueryService';
+import { RestoreHistoryQueryService } from './features/safety/snapshot/RestoreHistoryQueryService';
+import { RestoreService } from './features/safety/snapshot/RestoreService';
 import { ISnapshotService } from './features/safety/snapshot/ISnapshotService';
 import { WebviewProvider } from './webview/WebviewProvider';
 import { SidebarProvider } from './webview/SidebarProvider';
@@ -156,11 +158,26 @@ export async function activate(context: vscode.ExtensionContext) {
         new SqliteWorkSessionRepository(snapshotDbInstance),
         { workspaceRoot: rootPath },
       );
+      const restoreHistoryRepository = new SqliteRestoreHistoryRepository(snapshotDbInstance);
       messageRouter.setSnapshotService(snapshotService);
       messageRouter.setSnapshotQueryService(
         new SnapshotQueryService(
           new SqliteSnapshotRepository(snapshotDbInstance),
           new SqliteSnapshotFileRepository(snapshotDbInstance),
+          rootPath,
+        ),
+      );
+      messageRouter.setRestoreService(
+        new RestoreService(
+          new SqliteSnapshotRepository(snapshotDbInstance),
+          restoreHistoryRepository,
+          snapshotService,
+          rootPath,
+        ),
+      );
+      messageRouter.setRestoreHistoryQueryService(
+        new RestoreHistoryQueryService(
+          restoreHistoryRepository,
           rootPath,
         ),
       );
