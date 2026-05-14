@@ -1,3 +1,4 @@
+import * as vscode from 'vscode';
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import type {
@@ -25,6 +26,7 @@ export interface RestoreSnapshotResult {
 export class RestoreService {
   private readonly storage: LocalStorageImpl;
   private readonly workspaceRoot: string;
+  private isRestoring = false;
 
   constructor(
     private readonly snapshotRepository: SnapshotRepository,
@@ -37,11 +39,17 @@ export class RestoreService {
   }
 
   async restoreToSnapshot(snapshotId: string): Promise<RestoreSnapshotResult> {
-    const snapshots = await this.listSnapshotsOldestFirst();
-    const targetIndex = snapshots.findIndex((row) => row.snapshot_id === snapshotId);
-    if (targetIndex < 0) {
-      throw new Error(`Snapshot not found: ${snapshotId}`);
+    if (this.isRestoring) {
+      throw new Error('Already restoring a snapshot. Please wait for the current operation to complete.');
     }
+
+    this.isRestoring = true;
+    try {
+      const snapshots = await this.listSnapshotsOldestFirst();
+      const targetIndex = snapshots.findIndex((row) => row.snapshot_id === snapshotId);
+      if (targetIndex < 0) {
+        throw new Error(`Snapshot not found: ${snapshotId}`);
+      }
 
     const manifests = new Map<string, SnapshotManifest>();
     const candidatePaths = await this.collectCandidatePaths(snapshots, manifests);
@@ -99,6 +107,9 @@ export class RestoreService {
       throw new Error(
         `Restore failed: ${historyRow.failure_reason ?? failureReason}`,
       );
+    }
+    } finally {
+      this.isRestoring = false;
     }
   }
 
@@ -272,6 +283,13 @@ export class RestoreService {
     return this.reconstructFromPatch(changedFile, 'before');
   }
 
+  /**
+   * 패치 데이터를 기반으로 파일 상태를 재구성한다.
+   * 
+   * [중요] 이 메서드는 스냅샷 생성 시 Full Backup이 누락된 경우에만 작동하는 Fallback 로직이다.
+   * 현재 SnapshotService는 모든 변경 파일의 Full State를 저장하므로, 주로 레거시 데이터나
+   * 특수한 상황에서의 복원을 위한 용도로 사용된다.
+   */
   private reconstructFromPatch(
     changedFile: SnapshotFile,
     stage: 'before' | 'after',
@@ -341,41 +359,19 @@ export class RestoreService {
     }
   }
 
-  private async collectWorkspacePaths(rootDir = this.workspaceRoot, baseDir = rootDir): Promise<Set<string>> {
+  /**
+   * 워크스페이스 내의 모든 파일 경로를 수집한다.
+   * VS Code의 내장 인덱서를 활용하는 findFiles를 사용하여 대규모 프로젝트에서도 빠르게 동작하며
+   * .gitignore 설정 등을 존중한다.
+   */
+  private async collectWorkspacePaths(): Promise<Set<string>> {
+    const exclude = '{**/.git/**,**/node_modules/**,**/dist/**,**/build/**,**/.vscode/gitcat/**}';
+    const files = await vscode.workspace.findFiles('**/*', exclude);
+    
     const result = new Set<string>();
-    const entries = await fs.readdir(rootDir, { withFileTypes: true });
-
-    for (const entry of entries) {
-      const absolutePath = path.join(rootDir, entry.name);
-      const relativePath = path.relative(baseDir, absolutePath).replace(/\\/g, '/');
-
-      if (entry.isDirectory()) {
-        if (relativePath === '.vscode/gitcat' || relativePath.startsWith('.vscode/gitcat/')) {
-          continue;
-        }
-        if (entry.name === '.vscode' && rootDir === baseDir) {
-          const nested = await this.collectWorkspacePaths(absolutePath, baseDir);
-          for (const nestedPath of nested) {
-            result.add(nestedPath);
-          }
-          continue;
-        }
-        if (EXCLUDED_SEGMENTS.has(entry.name)) {
-          continue;
-        }
-
-        const nested = await this.collectWorkspacePaths(absolutePath, baseDir);
-        for (const nestedPath of nested) {
-          result.add(nestedPath);
-        }
-        continue;
-      }
-
-      if (relativePath && !relativePath.startsWith('.vscode/gitcat/')) {
-        result.add(relativePath);
-      }
+    for (const file of files) {
+      result.add(this.normalizeRelativePath(file.fsPath));
     }
-
     return result;
   }
 
