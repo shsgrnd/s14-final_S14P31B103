@@ -1,5 +1,5 @@
 import React, { useCallback } from 'react';
-import { FileText, Rewind, ChevronRight, BrainCircuit, ShieldCheck, User, Merge, Plus, Edit2, Trash2, History, Check } from 'lucide-react';
+import { FileText, Rewind, ChevronRight, BrainCircuit, ShieldCheck, User, Merge, Plus, Edit2, Trash2, History, Check, Bookmark } from 'lucide-react';
 import { useGitCatStore } from '../../store/useGitCatStore';
 import { useVsCodeApi } from '../../hooks/useVsCodeApi';
 import { SnapshotMeta } from '@gitcat/shared-types';
@@ -33,6 +33,8 @@ export const SnapshotTimeline: React.FC = () => {
         return <Merge size={14} style={{ color: 'var(--vscode-charts-blue)', flexShrink: 0 }} />;
       case 'manual_edit_result':
         return <User size={14} style={{ color: 'var(--vscode-charts-green)', flexShrink: 0 }} />;
+      case 'savepoint':
+        return <Bookmark size={14} style={{ color: 'var(--vscode-charts-yellow)', flexShrink: 0 }} />;
       case 'pre_restore':
         return <ShieldCheck size={14} style={{ color: 'var(--vscode-charts-red)', flexShrink: 0 }} />;
       default: return <FileText size={14} style={{ flexShrink: 0 }} />;

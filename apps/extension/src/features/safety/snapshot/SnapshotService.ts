@@ -118,15 +118,23 @@ export class SnapshotService implements ISnapshotService {
 
     const { patchText, hunks, changedFiles, warnings } = diffResult;
 
-    // --- 최소 변경 줄 수 체크 ---
-    // 추가(+)/삭제(-) 줄 합계가 SNAPSHOT_MIN_CHANGED_LINES 미만이면 저장 가치 없음
-    const totalChangedLines = this.countChangedLines(patchText);
-    if (totalChangedLines < SNAPSHOT_MIN_CHANGED_LINES) {
-      console.log(
-        `[SnapshotService] 변경 줄 수 부족 → 스냅샷 생략 ` +
-        `(${totalChangedLines}줄 < ${SNAPSHOT_MIN_CHANGED_LINES}줄, type=${type})`,
-      );
-      return undefined;
+    // --- 저장 조건 체크 ---
+    if (type === 'savepoint') {
+      // 세이브포인트: 변경 파일이 0개면 저장하지 않음 (줄 수 제한 없음)
+      if (changedFiles.length === 0) {
+        console.log('[SnapshotService] 변경된 파일 없음 → 세이브포인트 생략');
+        return undefined;
+      }
+    } else {
+      // 자동 스냅샷: 변경 줄 수가 최소 기준 미만이면 생략
+      const totalChangedLines = this.countChangedLines(patchText);
+      if (totalChangedLines < SNAPSHOT_MIN_CHANGED_LINES) {
+        console.log(
+          `[SnapshotService] 변경 줄 수 부족 → 스냅샷 생략 ` +
+          `(${totalChangedLines}줄 < ${SNAPSHOT_MIN_CHANGED_LINES}줄, type=${type})`,
+        );
+        return undefined;
+      }
     }
 
     // --- 사용자 변경 diff 계산 (있는 경우) ---

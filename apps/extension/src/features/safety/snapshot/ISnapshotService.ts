@@ -3,6 +3,7 @@ export type SnapshotCreationType =
     | 'auto_dirty_before_ai'
     | 'ai_result'
     | 'manual_edit_result'
+    | 'savepoint'       // 사용자가 수동으로 저장하는 세이브포인트
     | 'pre_restore';
 
 export interface CreateSnapshotOptions {
