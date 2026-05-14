@@ -29,6 +29,8 @@ import {
 import {
   SnapshotMetaSchema,
   SnapshotDetailSchema,
+  SnapshotFileSchema,
+  SnapshotHunkSchema,
   RestoreHistorySchema,
 } from './safety';
 
@@ -105,7 +107,10 @@ export const InboundPayloadSchemaMap = {
   DELETE_SNAPSHOT: z.object({ snapshotId: z.string() }),
   REFRESH_STATUS: z.object({ fetchRemote: z.boolean().optional() }).strict(),
   GET_GIT_STATUS_SUMMARY: z.object({ fetchRemote: z.boolean().optional() }).strict(),
-  GET_SNAPSHOT_LIST: z.object({}).strict(),
+  GET_SNAPSHOT_LIST: z.object({
+    limit: z.number().int().positive().max(200).optional(),
+    offset: z.number().int().nonnegative().optional(),
+  }).strict(),
   GET_BRANCH_LIST: z.object({}).strict(),
   GET_WORKTREE_LIST: z.object({}).strict(),
   GET_WORKSPACE_TREE: z.object({}).strict(),
@@ -182,10 +187,21 @@ export const InboundPayloadSchemaMap = {
 export const OutboundPayloadSchemaMap = {
   GIT_STATUS_UPDATED: z.object({ status: GitStatusSchema }),
   GIT_STATUS_SUMMARY: z.object({ summary: GitStatusSummarySchema }),
-  SNAPSHOT_LIST: z.object({ snapshots: z.array(SnapshotMetaSchema) }),
+  SNAPSHOT_LIST: z.object({
+    snapshots: z.array(SnapshotMetaSchema),
+    limit: z.number().int().positive().optional(),
+    offset: z.number().int().nonnegative().optional(),
+    hasMore: z.boolean().optional(),
+  }),
   SNAPSHOT_CREATED: z.object({ snapshot: SnapshotMetaSchema }),
   SNAPSHOT_DETAIL: z.object({ detail: SnapshotDetailSchema }),
-  SNAPSHOT_FILE_DIFF: z.object({ diffText: z.string() }),
+  SNAPSHOT_FILE_DIFF: z.object({
+    snapshotId: z.string(),
+    filePath: z.string(),
+    diffText: z.string(),
+    file: SnapshotFileSchema.optional(),
+    hunks: z.array(SnapshotHunkSchema).optional(),
+  }),
   RESTORE_HISTORY_LIST: z.object({ histories: z.array(RestoreHistorySchema) }),
   RESTORE_DONE: z.object({ snapshotId: z.string() }),
   // 병합 화면 응답은 AI/DB 원본 DTO가 아닌 projection DTO로 고정합니다.
