@@ -17,6 +17,7 @@
     "Other"
   ],
   "activationEvents": [
+    "onStartupFinished",
     "onView:gitcat-sidebar-webview",
     "onCommand:gitcat.openPanel",
     "onCommand:gitcat.getGitStatus",

@@ -1,5 +1,5 @@
 import React, { useCallback } from 'react';
-import { FileText, Rewind, ChevronRight, BrainCircuit, ShieldCheck, User, Merge, Plus, Edit2, Trash2, Star, History, Check } from 'lucide-react';
+import { FileText, Rewind, ChevronRight, BrainCircuit, ShieldCheck, User, Merge, Plus, Edit2, Trash2, History, Check, Bookmark } from 'lucide-react';
 import { useGitCatStore } from '../../store/useGitCatStore';
 import { useVsCodeApi } from '../../hooks/useVsCodeApi';
 import { SnapshotMeta } from '@gitcat/shared-types';
@@ -31,9 +31,10 @@ export const SnapshotTimeline: React.FC = () => {
         return <BrainCircuit size={14} style={{ color: 'var(--vscode-charts-purple)', flexShrink: 0 }} />;
       case 'auto_dirty_before_ai':
         return <Merge size={14} style={{ color: 'var(--vscode-charts-blue)', flexShrink: 0 }} />;
-      case 'manual_checkpoint':
       case 'manual_edit_result':
         return <User size={14} style={{ color: 'var(--vscode-charts-green)', flexShrink: 0 }} />;
+      case 'savepoint':
+        return <Bookmark size={14} style={{ color: 'var(--vscode-charts-yellow)', flexShrink: 0 }} />;
       case 'pre_restore':
         return <ShieldCheck size={14} style={{ color: 'var(--vscode-charts-red)', flexShrink: 0 }} />;
       default: return <FileText size={14} style={{ flexShrink: 0 }} />;
@@ -169,13 +170,6 @@ export const SnapshotTimeline: React.FC = () => {
                 {/* Action buttons */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0, marginTop: '2px' }}
                   onClick={e => e.stopPropagation()}>
-                  <button
-                    onClick={() => sendMessage('TOGGLE_SNAPSHOT_STAR', { snapshotId: snapshot.snapshotId })}
-                    title="즐겨찾기"
-                    style={{ ...iconBtn, color: snapshot.isCheckpoint ? 'var(--vscode-charts-yellow)' : undefined }}
-                  >
-                    <Star size={13} style={{ fill: snapshot.isCheckpoint ? 'var(--vscode-charts-yellow)' : 'none' }} />
-                  </button>
                   <button onClick={() => handleRename(snapshot.snapshotId, title)} title="이름 변경" style={iconBtn}>
                     <Edit2 size={12} />
                   </button>

@@ -29,7 +29,6 @@ export const SnapshotMetaSchema = z.object({
   snapshotId: z.string(),
   type: SnapshotTypeEnum,
   status: SnapshotStatusEnum.optional(),
-  isCheckpoint: z.boolean(),
   createdAt: z.string(),
   summary: z.string().optional(),
   reason: z.string().optional(),
