@@ -5,13 +5,30 @@ import type { SnapshotHunk, SnapshotManifest } from '@gitcat/shared-types';
 const SNAPSHOT_ID_PATTERN = /^[A-Za-z0-9._-]+$/;
 const SNAPSHOT_DIR = path.join('.vscode', 'gitcat', 'snapshots');
 const EXCLUDED_PATH_SEGMENTS = new Set(['.git', 'node_modules', 'dist', 'build']);
-const EXCLUDED_FILE_NAMES = new Set(['manifest.json', 'patch.diff', 'hunks.json']);
+/**
+ * 스냅샷 디렉터리 내 저장 가능한 아티팩트 파일명 허용 목록
+ * - patch.diff     : AI+사용자 통합 diff (주 diff)
+ * - ai_patch.diff  : AI가 변경한 diff만 분리
+ * - user_patch.diff: 사용자가 변경한 diff만 분리
+ */
+const ALLOWED_ARTIFACT_FILES = new Set([
+  'manifest.json',
+  'patch.diff',
+  'hunks.json',
+  'ai_patch.diff',
+  'user_patch.diff',
+]);
 const TEMP_DIR_INFIX = '__tmp__';
 
 export interface SnapshotLocalArtifact {
   manifest: SnapshotManifest;
+  /** 통합 patch (AI + 사용자 합산, 또는 해당 타입의 주 변경) */
   patchText: string;
   hunks: SnapshotHunk[];
+  /** AI가 변경한 diff. ai_result 타입에서 설정 */
+  aiPatchText?: string;
+  /** 사용자가 변경한 diff. auto_dirty_before_ai/ai_result 타입에서 설정 */
+  userPatchText?: string;
   includeFullFileBackupDir?: boolean;
   includeCodeBlobStoreDir?: boolean;
 }
@@ -95,6 +112,17 @@ export class SnapshotLocalStore {
       await fs.writeFile(manifestPath, `${JSON.stringify(artifact.manifest, null, 2)}\n`, 'utf8');
       await fs.writeFile(patchPath, artifact.patchText, 'utf8');
       await fs.writeFile(hunksPath, `${JSON.stringify(artifact.hunks, null, 2)}\n`, 'utf8');
+
+      // 선택적 diff 파일: 존재하는 경우에만 저장
+      if (artifact.aiPatchText !== undefined) {
+        const aiPatchPath = this.resolveArtifactPath(tempSnapshotDir, 'ai_patch.diff');
+        await fs.writeFile(aiPatchPath, artifact.aiPatchText, 'utf8');
+      }
+      if (artifact.userPatchText !== undefined) {
+        const userPatchPath = this.resolveArtifactPath(tempSnapshotDir, 'user_patch.diff');
+        await fs.writeFile(userPatchPath, artifact.userPatchText, 'utf8');
+      }
+
       await fs.rename(tempSnapshotDir, snapshotDir);
 
       return {
@@ -195,7 +223,7 @@ export class SnapshotLocalStore {
   }
 
   private resolveArtifactPath(snapshotDir: string, fileName: string): string {
-    if (!EXCLUDED_FILE_NAMES.has(fileName)) {
+    if (!ALLOWED_ARTIFACT_FILES.has(fileName)) {
       throw new Error(`Unsupported snapshot artifact file: ${fileName}`);
     }
 
