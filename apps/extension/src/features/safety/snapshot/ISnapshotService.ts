@@ -34,4 +34,9 @@ export interface ISnapshotService {
      * @returns 생성된 스냅샷 ID
      */
     createSnapshot(type: SnapshotCreationType, options?: CreateSnapshotOptions): Promise<string | undefined>;
+    /**
+     * 특정 스냅샷의 로컬 artifact와 DB metadata를 함께 삭제한다.
+     * 삭제 실패 시 가능한 범위에서 롤백하여 불일치를 최소화한다.
+     */
+    deleteSnapshot(snapshotId: string): Promise<void>;
 }

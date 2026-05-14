@@ -1,47 +1,40 @@
-import type { SnapshotRepository } from '@gitcat/shared-types';
+import type { SnapshotRepository, SnapshotRow } from '@gitcat/shared-types';
 import { SnapshotLocalStore } from './SnapshotLocalStore';
 
+export interface SnapshotCleanupPolicy {
+  keepRecent: number;
+  keepRecentPreRestore: number;
+  maxDeletePerRun?: number;
+}
+
 /**
- * Snapshot 자동 삭제 서비스
+ * Snapshot 자동 정리 서비스
  *
  * 정책:
- * - 최근 N개를 초과하는 오래된 Snapshot을 삭제한다.
- * - 삭제 개수(N)는 SnapshotService의 SNAPSHOT_KEEP_RECENT_COUNT 상수로 제어한다.
- * - Local 파일 삭제 → DB 메타데이터 삭제 순서로 진행
- * - 삭제 실패 시 경고 로그만 남기고 계속 진행 (베스트 에포트)
+ * - 일반 snapshot과 pre_restore snapshot을 분리해서 보관 개수를 계산한다.
+ * - 삭제는 "로컬 임시 격리 -> DB metadata 삭제 -> 로컬 최종 삭제" 순서로 수행한다.
+ * - DB 삭제 실패 시 로컬 디렉터리를 원래 위치로 복구해 불일치를 최소화한다.
  */
 export class SnapshotAutoCleanupService {
-  /** 자동 삭제 시 사용하는 기본 유지 개수 */
-  private static readonly DEFAULT_KEEP_RECENT = 10;
+  static readonly DEFAULT_KEEP_RECENT = 10;
+  static readonly DEFAULT_KEEP_RECENT_PRE_RESTORE = 3;
+  private static readonly DEFAULT_MAX_DELETE_PER_RUN = 50;
 
   constructor(
     private readonly snapshotRepository: SnapshotRepository,
     private readonly localStore: SnapshotLocalStore,
-  ) { }
+  ) {}
 
-  /**
-   * 자동 정리를 실행한다.
-   *
-   * @param worktreeInstanceId 대상 워크트리 인스턴스 ID
-   * @param keepRecent 유지할 최근 스냅샷 수 (기본 10)
-   */
   async cleanup(
     worktreeInstanceId: string,
-    keepRecent: number = SnapshotAutoCleanupService.DEFAULT_KEEP_RECENT,
+    policy: number | SnapshotCleanupPolicy = SnapshotAutoCleanupService.DEFAULT_KEEP_RECENT,
   ): Promise<void> {
-    let candidates;
-
-    try {
-      // 최근 N개 초과분을 오래된 순으로 조회
-      candidates = await this.snapshotRepository.listAutoDeletionCandidates(
-        worktreeInstanceId,
-        keepRecent,
-        50, // 한 번에 최대 50개까지 처리
-      );
-    } catch (error) {
-      console.error('[SnapshotAutoCleanupService] 삭제 후보 조회 실패:', error);
-      return;
-    }
+    const resolvedPolicy = this.normalizePolicy(policy);
+    const rows = await this.snapshotRepository.listByWorkspace(
+      worktreeInstanceId,
+      resolvedPolicy.keepRecent + resolvedPolicy.keepRecentPreRestore + 500,
+    );
+    const candidates = this.selectDeletionCandidates(rows, resolvedPolicy);
 
     if (candidates.length === 0) {
       return;
@@ -49,39 +42,80 @@ export class SnapshotAutoCleanupService {
 
     console.log(`[SnapshotAutoCleanupService] 자동 삭제 대상 ${candidates.length}개 발견`);
 
-    // 각 Snapshot을 하나씩 삭제 (실패 시 다음으로 진행)
     for (const candidate of candidates) {
-      await this.deleteOne(candidate.snapshot_id);
+      await this.deleteSnapshot(candidate.snapshot_id);
     }
   }
 
-  /**
-   * 단일 Snapshot의 Local 파일과 DB 메타데이터를 삭제한다.
-   *
-   * @param snapshotId 삭제할 스냅샷 ID
-   */
-  private async deleteOne(snapshotId: string): Promise<void> {
-    // 1) Local 파일 삭제 (없어도 오류 아님)
+  async deleteSnapshot(snapshotId: string): Promise<void> {
+    const trashHandle = await this.localStore.moveSnapshotToTrash(snapshotId);
+
     try {
-      await this.localStore.deleteSnapshot(snapshotId);
+      await this.snapshotRepository.deleteById(snapshotId);
+    } catch (dbError) {
+      if (trashHandle) {
+        try {
+          await this.localStore.restoreSnapshotFromTrash(trashHandle);
+        } catch (restoreError) {
+          console.error(
+            `[SnapshotAutoCleanupService] DB 삭제 실패 후 로컬 복구도 실패했습니다 (snapshotId=${snapshotId}):`,
+            restoreError,
+          );
+        }
+      }
+      throw dbError;
+    }
+
+    if (!trashHandle) {
+      return;
+    }
+
+    try {
+      await this.localStore.deleteTrashedSnapshot(trashHandle);
     } catch (localError) {
-      // 파일이 이미 없거나 삭제 실패해도 DB 정리는 계속 진행
-      console.warn(
-        `[SnapshotAutoCleanupService] 로컬 파일 삭제 실패 (snapshotId=${snapshotId}):`,
+      console.error(
+        `[SnapshotAutoCleanupService] DB 삭제 후 trash 정리 실패 (snapshotId=${snapshotId}):`,
         localError,
       );
     }
+  }
 
-    // 2) DB 메타데이터 삭제
-    try {
-      await this.snapshotRepository.deleteById(snapshotId);
-      console.log(`[SnapshotAutoCleanupService] 스냅샷 삭제 완료: ${snapshotId}`);
-    } catch (dbError) {
-      // DB 삭제 실패는 경고만 남김
-      console.error(
-        `[SnapshotAutoCleanupService] DB 메타데이터 삭제 실패 (snapshotId=${snapshotId}):`,
-        dbError,
-      );
+  private normalizePolicy(policy: number | SnapshotCleanupPolicy): Required<SnapshotCleanupPolicy> {
+    if (typeof policy === 'number') {
+      return {
+        keepRecent: Math.max(0, policy),
+        keepRecentPreRestore: SnapshotAutoCleanupService.DEFAULT_KEEP_RECENT_PRE_RESTORE,
+        maxDeletePerRun: SnapshotAutoCleanupService.DEFAULT_MAX_DELETE_PER_RUN,
+      };
     }
+
+    return {
+      keepRecent: Math.max(0, policy.keepRecent),
+      keepRecentPreRestore: Math.max(0, policy.keepRecentPreRestore),
+      maxDeletePerRun: Math.max(1, policy.maxDeletePerRun ?? SnapshotAutoCleanupService.DEFAULT_MAX_DELETE_PER_RUN),
+    };
+  }
+
+  private selectDeletionCandidates(
+    rows: SnapshotRow[],
+    policy: Required<SnapshotCleanupPolicy>,
+  ): SnapshotRow[] {
+    const regularRows = rows.filter((row) => row.type !== 'pre_restore');
+    const preRestoreRows = rows.filter((row) => row.type === 'pre_restore');
+
+    const regularCandidates = this.takeOverflow(regularRows, policy.keepRecent);
+    const preRestoreCandidates = this.takeOverflow(preRestoreRows, policy.keepRecentPreRestore);
+
+    return [...regularCandidates, ...preRestoreCandidates]
+      .sort((a, b) => a.created_at.localeCompare(b.created_at))
+      .slice(0, policy.maxDeletePerRun);
+  }
+
+  private takeOverflow(rows: SnapshotRow[], keepCount: number): SnapshotRow[] {
+    if (rows.length <= keepCount) {
+      return [];
+    }
+
+    return rows.slice(keepCount).sort((a, b) => a.created_at.localeCompare(b.created_at));
   }
 }

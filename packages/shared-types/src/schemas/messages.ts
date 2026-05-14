@@ -29,6 +29,8 @@ import {
 import {
   SnapshotMetaSchema,
   SnapshotDetailSchema,
+  SnapshotFileSchema,
+  SnapshotHunkSchema,
   RestoreHistorySchema,
 } from './safety';
 
@@ -105,7 +107,10 @@ export const InboundPayloadSchemaMap = {
   DELETE_SNAPSHOT: z.object({ snapshotId: z.string() }),
   REFRESH_STATUS: z.object({ fetchRemote: z.boolean().optional() }).strict(),
   GET_GIT_STATUS_SUMMARY: z.object({ fetchRemote: z.boolean().optional() }).strict(),
-  GET_SNAPSHOT_LIST: z.object({}).strict(),
+  GET_SNAPSHOT_LIST: z.object({
+    limit: z.number().int().positive().max(200).optional(),
+    offset: z.number().int().nonnegative().optional(),
+  }).strict(),
   GET_BRANCH_LIST: z.object({}).strict(),
   GET_WORKTREE_LIST: z.object({}).strict(),
   GET_WORKSPACE_TREE: z.object({}).strict(),
@@ -182,14 +187,34 @@ export const InboundPayloadSchemaMap = {
 export const OutboundPayloadSchemaMap = {
   GIT_STATUS_UPDATED: z.object({ status: GitStatusSchema }),
   GIT_STATUS_SUMMARY: z.object({ summary: GitStatusSummarySchema }),
-  SNAPSHOT_LIST: z.object({ snapshots: z.array(SnapshotMetaSchema) }),
+  SNAPSHOT_LIST: z.object({
+    snapshots: z.array(SnapshotMetaSchema),
+    limit: z.number().int().positive().optional(),
+    offset: z.number().int().nonnegative().optional(),
+    hasMore: z.boolean().optional(),
+  }),
   SNAPSHOT_CREATED: z.object({ snapshot: SnapshotMetaSchema }),
+  /**
+   * 백그라운드 AI 요약 작업이 완료된 후 익스텐션이 웹뷰에 전송하는 이벤트입니다.
+   * 웹뷰는 이 메시지를 수신하면 해당 스냅샷 항목의 제목(summary)을 새로 렌더링해야 합니다.
+   */
+  SNAPSHOT_UPDATED: z.object({ snapshot: SnapshotMetaSchema }),
   SNAPSHOT_DETAIL: z.object({ detail: SnapshotDetailSchema }),
-  SNAPSHOT_FILE_DIFF: z.object({ diffText: z.string() }),
+  SNAPSHOT_FILE_DIFF: z.object({
+    snapshotId: z.string(),
+    filePath: z.string(),
+    diffText: z.string(),
+    file: SnapshotFileSchema.optional(),
+    hunks: z.array(SnapshotHunkSchema).optional(),
+  }),
   RESTORE_HISTORY_LIST: z.object({ histories: z.array(RestoreHistorySchema) }),
   RESTORE_DONE: z.object({ snapshotId: z.string() }),
   // 병합 화면 응답은 AI/DB 원본 DTO가 아닌 projection DTO로 고정합니다.
-  CONFLICT_RESULT: z.object({ candidates: z.array(MergeConflictCandidateViewSchema) }),
+  CONFLICT_RESULT: z.object({
+    analysisId: z.string().optional(),
+    artifactPath: z.string().nullable().optional(),
+    candidates: z.array(MergeConflictCandidateViewSchema),
+  }),
   MERGE_PROPOSAL: z.object({ proposals: z.array(MergeProposalViewSchema) }),
   MERGE_COMPLETE: z.object({ merge: MergeCompleteViewSchema }),
   COMMIT_SUGGESTIONS: z.object({ suggestions: CommitSuggestionSchema }),

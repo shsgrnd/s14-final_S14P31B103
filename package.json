@@ -21,5 +21,11 @@
   },
   "dependencies": {
     "zod": "^4.3.6"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "better-sqlite3",
+      "node-llama-cpp"
+    ]
   }
 }

@@ -13,6 +13,8 @@
     "esModuleInterop": true,
     "baseUrl": ".",
     "paths": {
+      "@gitcat/shared-types": ["../../packages/shared-types/dist"],
+      "@gitcat/storage": ["../../packages/storage/dist"],
       "@gitcat/git-core": ["../../packages/git-core/dist"],
       "@gitcat/git-client-cli": ["../../packages/git-client-cli/dist"],
       "@gitcat/ai-pipeline": ["../../packages/ai-pipeline/dist/ai-pipeline/src"]
