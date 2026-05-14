@@ -1,4 +1,4 @@
-import { getLlama, LlamaModel, LlamaContext, LlamaChatSession } from 'node-llama-cpp';
+import type { LlamaModel, LlamaContext, LlamaChatSession } from 'node-llama-cpp';
 import { PromptPayload } from './AiClient';
 
 export interface LlamaClientOptions {
@@ -29,6 +29,10 @@ export class GitCatLlamaClient {
     }
 
     try {
+      // ESM 모듈인 node-llama-cpp를 CommonJS 환경에서 불러오기 위한 우회 기법
+      const nodeLlamaCpp = await new Function("return import('node-llama-cpp')")();
+      const getLlama = nodeLlamaCpp.getLlama;
+
       // 1. llama 엔진 초기화
       const llama = await getLlama();
       // 2. 모델 로드 (GGUF 파일 적재)
@@ -36,7 +40,7 @@ export class GitCatLlamaClient {
         modelPath: this.modelPath,
       });
       // 3. 컨텍스트 생성 (대화 시퀀스를 관리하기 위한 메모리 공간 할당)
-      this.llamaContext = await this.llamaModel.createContext();
+      this.llamaContext = await this.llamaModel!.createContext();
     } catch (error) {
       console.error('Failed to initialize Llama model:', error);
       throw new Error(`Failed to load local model from ${this.modelPath}. Please check if the path is correct and the file is a valid GGUF model.`);
@@ -53,10 +57,15 @@ export class GitCatLlamaClient {
       throw new Error('LlamaContext is not initialized');
     }
 
+    const nodeLlamaCpp = await new Function("return import('node-llama-cpp')")();
+    const LlamaChatSessionCls = nodeLlamaCpp.LlamaChatSession;
+
+    // 시퀀스를 할당받습니다.
+    const sequence = this.llamaContext.getSequence();
+
     // 매 요청마다 새로운 채팅 세션을 생성합니다.
-    // contextSequence를 전달하여 모델의 기존 컨텍스트를 재사용합니다.
-    const session = new LlamaChatSession({
-      contextSequence: this.llamaContext.getSequence(),
+    const session = new LlamaChatSessionCls({
+      contextSequence: sequence,
       systemPrompt: payload.systemPrompt,
     });
 
@@ -67,6 +76,13 @@ export class GitCatLlamaClient {
     } catch (error) {
       console.error('Llama inference error:', error);
       throw new Error('Local model inference failed.');
+    } finally {
+      // 다음 요청을 위해 시퀀스를 반환(초기화)합니다.
+      if (sequence && typeof sequence.dispose === 'function') {
+        sequence.dispose();
+      } else if (sequence && typeof sequence.clearHistory === 'function') {
+        await sequence.clearHistory();
+      }
     }
   }
 }
