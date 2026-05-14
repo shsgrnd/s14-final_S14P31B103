@@ -18,6 +18,7 @@ import type { AiApiKeyMessageHandler } from '../features/recommendation/AiApiKey
 import type { PullRequestMessageHandler } from '../features/pull-request/PullRequestMessageHandler';
 import type { PrSettingsMessageHandler } from '../features/settings/PrSettingsMessageHandler';
 import type { SnapshotQueryService } from '../features/safety/snapshot/SnapshotQueryService';
+import type { ISnapshotService } from '../features/safety/snapshot/ISnapshotService';
 import {
   InboundMessage,
   InboundMessageSchema,
@@ -39,6 +40,7 @@ export class MessageRouter {
   private prSettingsHandler: PrSettingsMessageHandler | null;
   private readonly aiApiKeyMessageHandler: AiApiKeyMessageHandler | null;
   private snapshotQueryService: SnapshotQueryService | null = null;
+  private snapshotService: ISnapshotService | null = null;
   private readonly webviews = new Set<vscode.Webview>();
 
   constructor(
@@ -66,6 +68,10 @@ export class MessageRouter {
 
   public setSnapshotQueryService(service: SnapshotQueryService): void {
     this.snapshotQueryService = service;
+  }
+
+  public setSnapshotService(service: ISnapshotService): void {
+    this.snapshotService = service;
   }
 
   public configureRecommendationHandlers(handlers: {
@@ -162,7 +168,7 @@ export class MessageRouter {
           break;
 
         case 'DELETE_SNAPSHOT':
-          this.sendNotImplemented(webview, 'DELETE_SNAPSHOT', '스냅샷 삭제 (3단계 구현 예정)');
+          await this.handleDeleteSnapshot(message, webview);
           break;
 
         case 'RESTORE_SNAPSHOT':
@@ -294,6 +300,27 @@ export class MessageRouter {
     await webview.postMessage({
       type: 'SNAPSHOT_DETAIL',
       payload: { detail },
+      requestId: message.requestId,
+    } as OutboundMessage);
+  }
+
+  private async handleDeleteSnapshot(message: InboundMessage, webview: vscode.Webview): Promise<void> {
+    const service = this.requireSnapshotService();
+    const queryService = this.requireSnapshotQueryService();
+    const payload = message.payload as { snapshotId: string };
+
+    await service.deleteSnapshot(payload.snapshotId);
+
+    await webview.postMessage({
+      type: 'NOTIFICATION',
+      payload: { type: 'info', message: 'Snapshot deleted.' },
+      requestId: message.requestId,
+    } as OutboundMessage);
+
+    const result = await queryService.listSnapshots();
+    await webview.postMessage({
+      type: 'SNAPSHOT_LIST',
+      payload: result,
       requestId: message.requestId,
     } as OutboundMessage);
   }
@@ -454,5 +481,13 @@ export class MessageRouter {
     }
 
     return this.snapshotQueryService;
+  }
+
+  private requireSnapshotService(): ISnapshotService {
+    if (!this.snapshotService) {
+      throw new Error('SnapshotService is not initialized.');
+    }
+
+    return this.snapshotService;
   }
 }

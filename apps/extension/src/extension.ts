@@ -122,6 +122,7 @@ export async function activate(context: vscode.ExtensionContext) {
   // ――― Safety Layer (Snapshot Service) 초기화 ――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――
   // DB 초기화 성공 시 실제 SnapshotService, 실패 시 MockSnapshotService로 폴백
   let snapshotService: ISnapshotService = new MockSnapshotService();
+  messageRouter.setSnapshotService(snapshotService);
   if (rootPath) {
     try {
       const snapshotDb = await GitCatDatabase.create(rootPath);
@@ -132,6 +133,7 @@ export async function activate(context: vscode.ExtensionContext) {
         new SqliteWorkSessionRepository(snapshotDbInstance),
         { workspaceRoot: rootPath },
       );
+      messageRouter.setSnapshotService(snapshotService);
       messageRouter.setSnapshotQueryService(
         new SnapshotQueryService(
           new SqliteSnapshotRepository(snapshotDbInstance),
