@@ -123,6 +123,20 @@ export class SqliteSnapshotRepository implements SnapshotRepository {
     return this.mapRows(stmt.all(worktreeInstanceId, keepRecent, limit));
   }
 
+  /**
+   * AI가 생성한 요약 제목을 snapshots 테이블의 summary 컬럼에 업데이트합니다.
+   *
+   * 스냅샷은 처음 생성될 때 summary가 비어 있는 상태로 저장되고,
+   * 백그라운드 AI 요약 작업이 완료된 후 이 메서드를 통해 내용이 채워집니다.
+   *
+   * @param snapshotId 요약을 업데이트할 스냅샷의 고유 ID
+   * @param summary AI가 생성한 한 줄 요약 제목 (예: "[Human] README 오타 수정")
+   */
+  async updateSummary(snapshotId: string, summary: string): Promise<void> {
+    const stmt = this.db.prepare('UPDATE snapshots SET summary = ? WHERE snapshot_id = ?');
+    stmt.run(summary, snapshotId);
+  }
+
   async deleteById(snapshotId: string): Promise<void> {
     const deleteSnapshotFiles = this.db.prepare('DELETE FROM snapshot_files WHERE snapshot_id = ?');
     const deleteSnapshot = this.db.prepare('DELETE FROM snapshots WHERE snapshot_id = ?');
