@@ -28,7 +28,8 @@ echo "   선택된 모델: $MODEL_TYPE"
 echo "=========================================================="
 
 echo ""
-echo "▶ 1단계: 모델 추론 (시험 응시)"
+echo "▶ 1단계: 모델 추론 시작 (시험 응시)"
+# 추론 단계에서 생성된 JSONL은 이후 judge와 비교 리포트의 공통 입력이 됩니다.
 echo "----------------------------------------------------------"
 python "$SCRIPT_DIR/run_eval_inference.py" --model-type "$MODEL_TYPE"
 if [ $? -ne 0 ]; then
@@ -58,5 +59,5 @@ python "$SCRIPT_DIR/generate_eval_report.py"
 echo ""
 echo "=========================================================="
 echo "✅ [SUCCESS] 모든 평가 파이프라인이 완료되었습니다!"
-echo "   결과 파일 위치: $PIPELINE_ROOT/trainer/eval/results/"
+echo "   최종 리포트 위치: $PIPELINE_ROOT/trainer/eval/reports/"
 echo "=========================================================="

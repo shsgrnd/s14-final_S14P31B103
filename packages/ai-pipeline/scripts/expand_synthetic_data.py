@@ -21,8 +21,8 @@ from openai import OpenAI
 from dotenv import load_dotenv
 
 BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
-DATA_FILE  = os.path.join(BASE_DIR, "../data/synthetic_conflict_dataset.jsonl")
-REPORT_FILE = os.path.join(BASE_DIR, "../data/data_distribution_report.md")
+DATA_FILE  = os.path.join(BASE_DIR, "../trainer/data/synthetic_conflict_dataset.jsonl")
+REPORT_FILE = os.path.join(BASE_DIR, "../trainer/data/data_distribution_report.md")
 
 load_dotenv(os.path.join(BASE_DIR, "../../../.env"))
 API_KEY      = os.getenv("GMS_KEY")
