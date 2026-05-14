@@ -29,7 +29,21 @@ export interface NotificationLogEntry {
   timestamp: number;
 }
 
-type NotificationSection = 'git' | 'files' | 'snapshots' | 'branchCleanup' | 'stash';
+export type NotificationSection = 'git' | 'files' | 'snapshots' | 'branchCleanup' | 'stash';
+
+/**
+ * `stash` 단어가 들어간 일반 Git 안내(예: 브랜치 전환 전 stash 권고)를 stash 패널로 보내지 않기 위한 판별.
+ */
+function isLikelyStashOperationMessage(m: string): boolean {
+  if (/\bstash@\{/.test(m)) return true;
+  if (/\bgit\s+stash\b/.test(m)) return true;
+  if (m.includes('stash가 저장') || m.includes('stash가 적용')) return true;
+  if (m.includes('stash 항목')) return true;
+  if (m.includes('stash pop') || m.includes('stash drop') || m.includes('stash save')) return true;
+  if (m.includes('stash 저장') || m.includes('stash 적용')) return true;
+  if (/^saved working directory and index state /im.test(m.trim())) return true;
+  return false;
+}
 
 /** Git 액션 패널에서 잠금 해제 시 동기화할 작업 종류 (LOADING 타깃과 대응) */
 export type GitPanelPendingOperation = 'add' | 'commit' | 'push' | 'pull' | 'merge';
@@ -178,6 +192,9 @@ interface GitCatState {
    */
   prDefaultBaseBranch: string | null | undefined;
 
+  /** 브랜치 정리 패널이「자동 정리 구성」설정 화면일 때 true — 섹션 알림을 패널 안에 유지 */
+  branchCleanupInSettingsMode: boolean;
+
   // Actions
   setSnapshots: (snapshots: SnapshotMeta[]) => void;
   setConflicts: (conflicts: MergeConflictCandidateView[]) => void;
@@ -194,6 +211,7 @@ interface GitCatState {
   /** Git & AI 패널 전용 알림 (예: 클라이언트 검증 메시지) */
   postGitSectionBanner: (notification: GlobalNotification) => void;
   clearNotificationLogs: () => void;
+  removeNotificationLog: (id: string) => void;
   /** 확장 LOADING false보다 먼저 완료 알림이 올 때 버튼 라벨(Pulling… 등)을 바로 되돌림 */
   clearGitPanelOperationLoading: (op: GitPanelPendingOperation) => void;
   setStashes: (stashes: StashEntry[]) => void;
@@ -205,6 +223,7 @@ interface GitCatState {
   clearBranchRecommendationError: () => void;
   clearCommitRecommendationError: () => void;
   clearPrRecommendationError: () => void;
+  setBranchCleanupInSettingsMode: (open: boolean) => void;
 
   handleMessage: (event: MessageEvent<OutboundMessage>) => void;
 }
@@ -303,6 +322,7 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
   isPrTemplatesLoading: false,
   lastCreatedPr: null,
   prDefaultBaseBranch: undefined,
+  branchCleanupInSettingsMode: false,
 
   setSnapshots: (snapshots) => set({ snapshots }),
   setConflicts: (conflicts) => set({ conflicts }),
@@ -328,6 +348,10 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
       notificationLogs: [...state.notificationLogs, makeLogEntry(notification.type, notification.message, 'ui')],
     })),
   clearNotificationLogs: () => set({ notificationLogs: [] }),
+  removeNotificationLog: (id) =>
+    set((state) => ({
+      notificationLogs: state.notificationLogs.filter((l) => l.id !== id),
+    })),
   clearGitPanelOperationLoading: (op) =>
     set(() => {
       switch (op) {
@@ -360,6 +384,7 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
   clearBranchRecommendationError: () => set({ branchRecommendationError: null }),
   clearCommitRecommendationError: () => set({ commitRecommendationError: null }),
   clearPrRecommendationError: () => set({ prRecommendationError: null }),
+  setBranchCleanupInSettingsMode: (open) => set({ branchCleanupInSettingsMode: open }),
 
   toggleSection: (sectionId) => set((state) => ({
     expandedSections: state.expandedSections.includes(sectionId)
@@ -378,7 +403,7 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
       if (/\d+\s+file\(s\)\s+staged/.test(m) || /\d+\s+file\(s\)\s+unstaged/.test(m) || m.includes('파일이 unstage')) {
         return 'files';
       }
-      if (m.includes('stash')) {
+      if (isLikelyStashOperationMessage(m)) {
         return 'stash';
       }
       if (m.includes('스냅샷') || m.includes('snapshot') || m.includes('체크포인트')) {
@@ -623,12 +648,12 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
           break;
         }
         if (checkoutFailure) {
+          // 브랜치 전환류 오류는 Git & AI 한 곳에만 표시 (stash 권고 문구 때문에 inferSection이 stash로 잡히던 중복 방지)
           set((state) => ({
             globalNotification: { type: 'error', message },
             sectionNotifications: {
               ...state.sectionNotifications,
               git: { type: 'error', message },
-              [section]: { type: 'error', message },
             },
             notificationLogs: [...state.notificationLogs, makeLogEntry('error', message, 'error')],
           }));
