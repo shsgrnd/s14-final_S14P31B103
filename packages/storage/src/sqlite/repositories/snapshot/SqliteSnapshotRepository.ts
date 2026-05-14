@@ -124,9 +124,21 @@ export class SqliteSnapshotRepository implements SnapshotRepository {
   }
 
   async deleteById(snapshotId: string): Promise<void> {
+    const detachPreviousSnapshotLinks = this.db.prepare(`
+      UPDATE snapshots
+      SET previous_snapshot_id = NULL
+      WHERE previous_snapshot_id = ?
+    `);
+    const deleteRestoreHistories = this.db.prepare(`
+      DELETE FROM restore_histories
+      WHERE target_snapshot_id = ?
+         OR pre_restore_snapshot_id = ?
+    `);
     const deleteSnapshotFiles = this.db.prepare('DELETE FROM snapshot_files WHERE snapshot_id = ?');
     const deleteSnapshot = this.db.prepare('DELETE FROM snapshots WHERE snapshot_id = ?');
     const deleteInTransaction = this.db.transaction((id: string) => {
+      detachPreviousSnapshotLinks.run(id);
+      deleteRestoreHistories.run(id, id);
       deleteSnapshotFiles.run(id);
       deleteSnapshot.run(id);
     });
