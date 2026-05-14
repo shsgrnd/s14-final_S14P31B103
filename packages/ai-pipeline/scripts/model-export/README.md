@@ -37,12 +37,15 @@ chmod +x export_gguf.sh
 4. 병합된 모델을 `gitcat-merged-f16.gguf` 파일(F16 정밀도)로 변환
 
 ### 4. 4-bit 양자화 적용 (선택 사항이나 강력히 권장)
-생성된 `gitcat-merged-f16.gguf`는 용량이 매우 커서 로컬 PC에서 구동하기 무거울 수 있습니다. `llama.cpp`를 빌드한 후 `Q4_K_M` 양자화를 진행해 주세요. (약 4~5GB로 압축됩니다.)
+생성된 `gitcat-merged-f16.gguf`는 용량이 매우 커서 로컬 PC에서 구동하기 무거울 수 있습니다. `llama.cpp`를 CMake로 빌드한 후 `Q4_K_M` 양자화를 진행해 주세요. (약 4~5GB로 압축됩니다.)
 
 ```bash
 cd llama.cpp
-make -j
-./llama-quantize ../gitcat-merged-f16.gguf ../gitcat-merged-Q4_K_M.gguf Q4_K_M
+cmake -B build
+cmake --build build --config Release
+
+# 리눅스 환경 기준 (Mac이나 환경에 따라 빌드된 실행파일 위치가 ./build/llama-quantize 일 수도 있습니다)
+./build/bin/llama-quantize ../gitcat-merged-f16.gguf ../gitcat-merged-Q4_K_M.gguf Q4_K_M
 ```
 
 ---
