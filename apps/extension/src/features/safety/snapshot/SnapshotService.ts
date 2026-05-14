@@ -119,6 +119,7 @@ export class SnapshotService implements ISnapshotService {
   /** AI 요약 완료 후 웹뷰에 SNAPSHOT_UPDATED 이벤트를 전송하기 위한 콜백 */
   private readonly onSnapshotUpdated?: (row: SnapshotRow) => void;
   private readonly keepRecentPreRestoreCount: number;
+  private restoreOperationDepth = 0;
 
   constructor(
     private readonly snapshotRepository: SnapshotRepository,
@@ -165,6 +166,11 @@ export class SnapshotService implements ISnapshotService {
     type: SnapshotCreationType,
     options: CreateSnapshotOptions = {},
   ): Promise<string | undefined> {
+    if (this.restoreOperationDepth > 0 && type !== 'pre_restore') {
+      console.log(`[SnapshotService] restore lock active, skipped snapshot type=${type}`);
+      return undefined;
+    }
+
     const snapshotId = SnapshotIdGenerator.generate(type);
     const createdAt = new Date().toISOString();
     const primaryBaselines = options.baselines ?? options.userBaselines;
@@ -316,6 +322,18 @@ export class SnapshotService implements ISnapshotService {
     return snapshotRow.snapshot_id;
   }
 
+  beginRestoreOperation(): void {
+    this.restoreOperationDepth += 1;
+  }
+
+  endRestoreOperation(): void {
+    this.restoreOperationDepth = Math.max(0, this.restoreOperationDepth - 1);
+  }
+
+  isRestoreOperationActive(): boolean {
+    return this.restoreOperationDepth > 0;
+  }
+
   // ─────────────────────────────────────────────────────────────────────────
   // Private Helpers
   // ─────────────────────────────────────────────────────────────────────────
@@ -327,10 +345,10 @@ export class SnapshotService implements ISnapshotService {
    * @param changedFilePaths 변경된 파일 경로 목록
    */
   private async buildDiff(
-    baselines: Map<string, string> | undefined,
+    baselines: Map<string, Uint8Array> | undefined,
     changedFilePaths: string[] | undefined,
   ) {
-    const resolvedBaselines = baselines ?? new Map<string, string>();
+    const resolvedBaselines = baselines ?? new Map<string, Uint8Array>();
     const resolvedChanged = changedFilePaths ?? [];
 
     if (resolvedBaselines.size === 0 && resolvedChanged.length === 0) {
@@ -455,7 +473,7 @@ export class SnapshotService implements ISnapshotService {
    */
   private async saveFullSnapshotState(
     snapshotId: string,
-    baselines: Map<string, string> | undefined,
+    baselines: Map<string, Uint8Array> | undefined,
     changedFiles: SnapshotFile[],
   ): Promise<void> {
     if (changedFiles.length === 0) {
@@ -464,8 +482,8 @@ export class SnapshotService implements ISnapshotService {
 
     const beforeEntries: SnapshotFullStateEntry[] = [];
     const afterEntries: SnapshotFullStateEntry[] = [];
-    const normalizedBaselines = new Map<string, string>();
-    for (const [filePath, content] of baselines ?? new Map<string, string>()) {
+    const normalizedBaselines = new Map<string, Uint8Array>();
+    for (const [filePath, content] of baselines ?? new Map<string, Uint8Array>()) {
       normalizedBaselines.set(this.normalizeWorkspacePath(filePath), content);
     }
 

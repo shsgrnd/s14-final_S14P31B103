@@ -14,13 +14,17 @@ import type { ISnapshotService } from './ISnapshotService';
 import { SnapshotIdGenerator } from './SnapshotIdGenerator';
 
 const MAX_SNAPSHOTS = 1000;
-const EXCLUDED_SEGMENTS = new Set(['.git', 'node_modules', 'dist', 'build']);
 
 export interface RestoreSnapshotResult {
   snapshotId: string;
   preRestoreSnapshotId?: string;
   changedPaths: string[];
   restoreHistory: RestoreHistory;
+}
+
+interface ApplyWorkspaceStateResult {
+  appliedPaths: string[];
+  failedPaths: Array<{ path: string; reason: string }>;
 }
 
 export class RestoreService {
@@ -43,7 +47,9 @@ export class RestoreService {
       throw new Error('Already restoring a snapshot. Please wait for the current operation to complete.');
     }
 
+    this.snapshotService.beginRestoreOperation();
     this.isRestoring = true;
+
     try {
       const snapshots = await this.listSnapshotsOldestFirst();
       const targetIndex = snapshots.findIndex((row) => row.snapshot_id === snapshotId);
@@ -51,80 +57,102 @@ export class RestoreService {
         throw new Error(`Snapshot not found: ${snapshotId}`);
       }
 
-    const manifests = new Map<string, SnapshotManifest>();
-    const candidatePaths = await this.collectCandidatePaths(snapshots, manifests);
-    const desiredStates = new Map<string, Uint8Array | null>();
-    const currentStates = new Map<string, Uint8Array | null>();
+      const manifests = new Map<string, SnapshotManifest>();
+      const candidatePaths = await this.collectCandidatePaths(snapshots, manifests);
+      const desiredStates = new Map<string, Uint8Array | null>();
+      const currentStates = new Map<string, Uint8Array | null>();
 
-    for (const candidatePath of candidatePaths) {
-      const desiredState = await this.resolveTargetState(
-        candidatePath,
-        snapshots,
-        manifests,
-        targetIndex,
+      for (const candidatePath of candidatePaths) {
+        const desiredState = await this.resolveTargetState(
+          candidatePath,
+          snapshots,
+          manifests,
+          targetIndex,
+        );
+        desiredStates.set(candidatePath, desiredState);
+        currentStates.set(candidatePath, await this.readWorkspaceFile(candidatePath));
+      }
+
+      const changedPaths = [...candidatePaths].filter((candidatePath) =>
+        !this.areEqualBytes(
+          desiredStates.get(candidatePath) ?? null,
+          currentStates.get(candidatePath) ?? null,
+        ),
       );
-      desiredStates.set(candidatePath, desiredState);
-      currentStates.set(candidatePath, await this.readWorkspaceFile(candidatePath));
-    }
 
-    const changedPaths = [...candidatePaths].filter((candidatePath) =>
-      !this.areEqualBytes(desiredStates.get(candidatePath) ?? null, currentStates.get(candidatePath) ?? null),
-    );
+      const latestSnapshotId = snapshots.at(-1)?.snapshot_id;
+      const fromSnapshotId = latestSnapshotId ?? snapshotId;
+      let preRestoreSnapshotId: string | undefined;
 
-    const latestSnapshotId = snapshots.at(-1)?.snapshot_id;
-    const fromSnapshotId = latestSnapshotId ?? snapshotId;
-    let preRestoreSnapshotId: string | undefined;
+      try {
+        preRestoreSnapshotId = await this.createPreRestoreSnapshot(
+          snapshotId,
+          changedPaths,
+          currentStates,
+        );
+        const applyResult = await this.applyWorkspaceState(changedPaths, desiredStates);
+        if (applyResult.failedPaths.length > 0) {
+          const failureSummary = this.buildApplyFailureSummary(applyResult);
+          const historyRow = await this.restoreHistoryRepository.create({
+            restore_history_id: `restore_${Date.now()}`,
+            from_snapshot_id: fromSnapshotId,
+            target_snapshot_id: snapshotId,
+            pre_restore_snapshot_id: preRestoreSnapshotId ?? null,
+            status: applyResult.appliedPaths.length > 0 ? 'partial' : 'failed',
+            failure_reason: failureSummary,
+          });
+          throw new Error(`Restore finished with partial failure: ${historyRow.failure_reason}`);
+        }
 
-    try {
-      preRestoreSnapshotId = await this.createPreRestoreSnapshot(snapshotId, changedPaths, desiredStates);
-      await this.applyWorkspaceState(changedPaths, desiredStates);
+        const historyRow = await this.restoreHistoryRepository.create({
+          restore_history_id: `restore_${Date.now()}`,
+          from_snapshot_id: fromSnapshotId,
+          target_snapshot_id: snapshotId,
+          pre_restore_snapshot_id: preRestoreSnapshotId ?? null,
+          status: 'success',
+        });
 
-      const historyRow = await this.restoreHistoryRepository.create({
-        restore_history_id: `restore_${Date.now()}`,
-        from_snapshot_id: fromSnapshotId,
-        target_snapshot_id: snapshotId,
-        pre_restore_snapshot_id: preRestoreSnapshotId ?? null,
-        status: 'success',
-      });
+        return {
+          snapshotId,
+          preRestoreSnapshotId,
+          changedPaths,
+          restoreHistory: this.toRestoreHistory(historyRow),
+        };
+      } catch (error) {
+        const failureReason = error instanceof Error ? error.message : String(error);
+        if (failureReason.startsWith('Restore finished with partial failure:')) {
+          throw error;
+        }
 
-      return {
-        snapshotId,
-        preRestoreSnapshotId,
-        changedPaths,
-        restoreHistory: this.toRestoreHistory(historyRow),
-      };
-    } catch (error) {
-      const failureReason = error instanceof Error ? error.message : String(error);
-      const historyRow = await this.restoreHistoryRepository.create({
-        restore_history_id: `restore_${Date.now()}`,
-        from_snapshot_id: fromSnapshotId,
-        target_snapshot_id: snapshotId,
-        pre_restore_snapshot_id: preRestoreSnapshotId ?? null,
-        status: 'failed',
-        failure_reason: failureReason,
-      });
+        const historyRow = await this.restoreHistoryRepository.create({
+          restore_history_id: `restore_${Date.now()}`,
+          from_snapshot_id: fromSnapshotId,
+          target_snapshot_id: snapshotId,
+          pre_restore_snapshot_id: preRestoreSnapshotId ?? null,
+          status: 'failed',
+          failure_reason: failureReason,
+        });
 
-      throw new Error(
-        `Restore failed: ${historyRow.failure_reason ?? failureReason}`,
-      );
-    }
+        throw new Error(`Restore failed: ${historyRow.failure_reason ?? failureReason}`);
+      }
     } finally {
       this.isRestoring = false;
+      this.snapshotService.endRestoreOperation();
     }
   }
 
   private async createPreRestoreSnapshot(
     targetSnapshotId: string,
     changedPaths: string[],
-    desiredStates: Map<string, Uint8Array | null>,
+    currentStates: Map<string, Uint8Array | null>,
   ): Promise<string | undefined> {
-    const baselines = new Map<string, string>();
+    const baselines = new Map<string, Uint8Array>();
     for (const changedPath of changedPaths) {
-      const desiredState = desiredStates.get(changedPath) ?? null;
-      if (desiredState === null) {
+      const currentState = currentStates.get(changedPath) ?? null;
+      if (currentState === null) {
         continue;
       }
-      baselines.set(changedPath, Buffer.from(desiredState).toString('utf8'));
+      baselines.set(changedPath, currentState);
     }
 
     const preRestoreSnapshotId = await this.snapshotService.createSnapshot('pre_restore', {
@@ -175,12 +203,15 @@ export class RestoreService {
     manifests: Map<string, SnapshotManifest>,
     targetIndex: number,
   ): Promise<Uint8Array | null> {
+    let wasTouchedByAnySnapshot = false;
+
     for (let index = targetIndex; index >= 0; index -= 1) {
       const manifest = await this.getManifest(snapshots[index].snapshot_id, manifests);
       const touchedFile = this.findTouchedFile(manifest, filePath);
       if (!touchedFile) {
         continue;
       }
+      wasTouchedByAnySnapshot = true;
 
       const state = await this.readSnapshotState(
         snapshots[index].snapshot_id,
@@ -199,6 +230,7 @@ export class RestoreService {
       if (!touchedFile) {
         continue;
       }
+      wasTouchedByAnySnapshot = true;
 
       const state = await this.readSnapshotState(
         snapshots[index].snapshot_id,
@@ -209,6 +241,13 @@ export class RestoreService {
       if (state !== undefined) {
         return state;
       }
+    }
+
+    if (wasTouchedByAnySnapshot) {
+      throw new Error(
+        `Full backup state is missing for "${filePath}". ` +
+        'Restore aborted to avoid reconstructing an unreliable state from patch hunks only.',
+      );
     }
 
     return this.readWorkspaceFile(filePath);
@@ -240,7 +279,7 @@ export class RestoreService {
       if (backup !== undefined) {
         return backup;
       }
-      return this.reconstructFromPatch(changedFile, 'after');
+      return undefined;
     }
 
     if (isRenamedFrom) {
@@ -272,43 +311,11 @@ export class RestoreService {
       return null;
     }
 
-    const backup = await this.storage.readFullSnapshotFile(
-      snapshotId,
-      'before',
-      normalizedPath,
-    );
+    const backup = await this.storage.readFullSnapshotFile(snapshotId, 'before', normalizedPath);
     if (backup !== undefined) {
       return backup;
     }
-    return this.reconstructFromPatch(changedFile, 'before');
-  }
-
-  /**
-   * 패치 데이터를 기반으로 파일 상태를 재구성한다.
-   * 
-   * [중요] 이 메서드는 스냅샷 생성 시 Full Backup이 누락된 경우에만 작동하는 Fallback 로직이다.
-   * 현재 SnapshotService는 모든 변경 파일의 Full State를 저장하므로, 주로 레거시 데이터나
-   * 특수한 상황에서의 복원을 위한 용도로 사용된다.
-   */
-  private reconstructFromPatch(
-    changedFile: SnapshotFile,
-    stage: 'before' | 'after',
-  ): Uint8Array | null | undefined {
-    if (!changedFile.hunks || changedFile.hunks.length === 0) {
-      return undefined;
-    }
-
-    if (stage === 'after' && changedFile.status !== 'added') {
-      return undefined;
-    }
-    if (stage === 'before' && changedFile.status !== 'deleted') {
-      return undefined;
-    }
-
-    const text = changedFile.hunks
-      .map((hunk) => (stage === 'after' ? hunk.afterText : hunk.beforeText))
-      .join('\n');
-    return Buffer.from(text, 'utf8');
+    return undefined;
   }
 
   private findTouchedFile(
@@ -342,32 +349,63 @@ export class RestoreService {
   private async applyWorkspaceState(
     changedPaths: string[],
     desiredStates: Map<string, Uint8Array | null>,
-  ): Promise<void> {
+  ): Promise<ApplyWorkspaceStateResult> {
+    const appliedPaths: string[] = [];
+    const failedPaths: Array<{ path: string; reason: string }> = [];
+
     for (const changedPath of changedPaths) {
-      const desiredState = desiredStates.get(changedPath) ?? null;
-      const absolutePath = path.resolve(this.workspaceRoot, changedPath);
-      this.assertInsideWorkspace(absolutePath);
+      try {
+        const desiredState = desiredStates.get(changedPath) ?? null;
+        const absolutePath = path.resolve(this.workspaceRoot, changedPath);
+        this.assertInsideWorkspace(absolutePath);
 
-      if (desiredState === null) {
-        await fs.rm(absolutePath, { force: true });
-        await this.removeEmptyParentDirectories(path.dirname(absolutePath));
-        continue;
+        if (desiredState === null) {
+          await fs.rm(absolutePath, { force: true });
+          await this.removeEmptyParentDirectories(path.dirname(absolutePath));
+        } else {
+          await fs.mkdir(path.dirname(absolutePath), { recursive: true });
+          await fs.writeFile(absolutePath, Buffer.from(desiredState));
+        }
+
+        appliedPaths.push(changedPath);
+      } catch (error) {
+        const reason = error instanceof Error ? error.message : String(error);
+        failedPaths.push({ path: changedPath, reason });
       }
-
-      await fs.mkdir(path.dirname(absolutePath), { recursive: true });
-      await fs.writeFile(absolutePath, Buffer.from(desiredState));
     }
+
+    return { appliedPaths, failedPaths };
   }
 
-  /**
-   * 워크스페이스 내의 모든 파일 경로를 수집한다.
-   * VS Code의 내장 인덱서를 활용하는 findFiles를 사용하여 대규모 프로젝트에서도 빠르게 동작하며
-   * .gitignore 설정 등을 존중한다.
-   */
+  private buildApplyFailureSummary(result: ApplyWorkspaceStateResult): string {
+    const maxDetails = 5;
+    const details = result.failedPaths
+      .slice(0, maxDetails)
+      .map((entry) => `${entry.path}: ${entry.reason}`)
+      .join(' | ');
+    const extraCount = Math.max(0, result.failedPaths.length - maxDetails);
+    const suffix = extraCount > 0 ? ` | ...and ${extraCount} more failures` : '';
+    return (
+      `Applied ${result.appliedPaths.length} path(s), ` +
+      `failed ${result.failedPaths.length} path(s)` +
+      (details ? ` | ${details}${suffix}` : '')
+    );
+  }
+
   private async collectWorkspacePaths(): Promise<Set<string>> {
+    const workspaceFolder = vscode.workspace.workspaceFolders?.find(
+      (folder) => path.resolve(folder.uri.fsPath) === this.workspaceRoot,
+    );
+    if (!workspaceFolder) {
+      throw new Error(`Workspace folder not found for restore root: ${this.workspaceRoot}`);
+    }
+
     const exclude = '{**/.git/**,**/node_modules/**,**/dist/**,**/build/**,**/.vscode/gitcat/**}';
-    const files = await vscode.workspace.findFiles('**/*', exclude);
-    
+    const files = await vscode.workspace.findFiles(
+      new vscode.RelativePattern(workspaceFolder, '**/*'),
+      exclude,
+    );
+
     const result = new Set<string>();
     for (const file of files) {
       result.add(this.normalizeRelativePath(file.fsPath));

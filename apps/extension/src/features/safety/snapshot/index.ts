@@ -1,5 +1,5 @@
 export * from './ISnapshotService';
-export * from './MockSnapshotService';
+export * from './FallbackSnapshotService';
 export * from './SnapshotDiffService';
 export * from './SnapshotLocalStore';
 export * from './SnapshotIdGenerator';
