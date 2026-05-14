@@ -145,7 +145,13 @@ async function initializeRecommendationBackfill(
     const recommendationModule = await import('./features/recommendation');
     const { MergeAiService, AiClient } = await import('@gitcat/ai-pipeline');
     
+    const config = vscode.workspace.getConfiguration('gitcat.ai');
+    const mode = config.get<string>('mode') as any;
+    const localModelPath = config.get<string>('localModelPath');
+
     const aiClient = new AiClient({
+      mode,
+      localModelPath,
       apiKeyProvider: async () => aiSecretService.getApiKey(),
     });
     const recommendationAiService = new MergeAiService(aiClient);
