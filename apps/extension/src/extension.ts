@@ -159,11 +159,57 @@ export async function activate(context: vscode.ExtensionContext) {
     try {
       const snapshotDb = await GitCatDatabase.create(rootPath);
       const snapshotDbInstance = snapshotDb.getInstance();
+
+      // [Task 45] AI 클라이언트 구성:
+      // 기존 GitCat 익스텐션의 AI 설정값(모드, 로컬 모델 경로, API 키)을 그대로 가져와
+      // 스냅샷 요약 기능에도 동일한 모델/설정이 적용되도록 합니다.
+      const { AiClient } = await import('@gitcat/ai-pipeline');
+      const aiConfig = vscode.workspace.getConfiguration('gitcat.ai');
+      const snapshotAiClient = new AiClient({
+        mode: aiConfig.get<string>('mode') as any,          // 로컬 모델 또는 원격 API 모드
+        localModelPath: aiConfig.get<string>('localModelPath'), // 로컬 GGUF 모델 경로 (Task 44에서 설정)
+        apiKeyProvider: async () => aiSecretService.getApiKey(), // GMS API 키 제공
+      });
+
       snapshotService = new SnapshotService(
         new SqliteSnapshotRepository(snapshotDbInstance),
         new SqliteSnapshotFileRepository(snapshotDbInstance),
         new SqliteWorkSessionRepository(snapshotDbInstance),
-        { workspaceRoot: rootPath },
+        {
+          workspaceRoot: rootPath,
+          // [Task 45] AI 클라이언트를 주입하면 스냅샷 생성 직후 백그라운드에서 자동 요약이 실행됩니다.
+          aiClient: snapshotAiClient,
+          // 스냅샷 생성 직후 즉시 브로드캐스트하여 UI가 늦게 뜨는 현상을 방지합니다.
+          onSnapshotCreated: (row) => {
+            messageRouter.broadcast({
+              type: 'SNAPSHOT_CREATED',
+              payload: {
+                snapshot: {
+                  snapshotId: row.snapshot_id,
+                  type: row.type as any,
+                  createdAt: row.created_at,
+                  summary: undefined, // 처음 생성 시에는 요약이 없음
+                },
+              },
+            });
+          },
+          // [Task 45] AI 요약이 완료되면 이 콜백이 호출됩니다.
+          // messageRouter.broadcast를 통해 연결된 모든 웹뷰에 SNAPSHOT_UPDATED 이벤트를 전송하여
+          // 스냅샷 목록의 이름이 실시간으로 갱신되도록 합니다.
+          onSnapshotUpdated: (row) => {
+            messageRouter.broadcast({
+              type: 'SNAPSHOT_UPDATED',
+              payload: {
+                snapshot: {
+                  snapshotId: row.snapshot_id,
+                  type: row.type as any,
+                  createdAt: row.created_at,
+                  summary: row.summary ?? undefined, // AI가 생성한 요약 제목 ([AI]/[Human] 태그 포함)
+                },
+              },
+            });
+          },
+        },
       );
       messageRouter.setSnapshotService(snapshotService);
       messageRouter.setSnapshotQueryService(
@@ -179,6 +225,7 @@ export async function activate(context: vscode.ExtensionContext) {
       vscode.window.showWarningMessage('GitCat Safety Layer 초기화에 실패했습니다. 스냅샷 기능이 제한됩니다.');
     }
   }
+
 
   const sessionCoordinator = new SafetySessionCoordinator(snapshotService);
   CommandRegistry.registerAll(context, webviewProvider, gitService);

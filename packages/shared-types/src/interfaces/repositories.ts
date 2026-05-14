@@ -140,6 +140,14 @@ export interface SnapshotRepository {
   listRecent(limit?: number): Promise<SnapshotRow[]>;
   listByWorkspace(worktreeInstanceId: string, limit?: number): Promise<SnapshotRow[]>;
   listAutoDeletionCandidates(worktreeInstanceId: string, keepRecent?: number, limit?: number): Promise<SnapshotRow[]>;
+  /**
+   * AI가 생성한 요약 제목을 해당 스냅샷의 summary 콸럼에 업데이트합니다.
+   * 스냅샷 생성 직후 백그라운드 AI 태스크가 완료되면 호출됩니다.
+   *
+   * @param snapshotId 업데이트할 스냅샷의 고유 ID
+   * @param summary AI가 생성한 한 줄 요약 제목 (예: "[Human] README 오타 수정")
+   */
+  updateSummary(snapshotId: string, summary: string): Promise<void>;
   deleteById(snapshotId: string): Promise<void>;
 }
 
