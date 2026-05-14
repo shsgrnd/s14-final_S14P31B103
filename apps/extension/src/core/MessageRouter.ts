@@ -17,6 +17,7 @@ import type { PrRecommendationHandler } from '../features/recommendation/PrRecom
 import type { AiApiKeyMessageHandler } from '../features/recommendation/AiApiKeyMessageHandler';
 import type { PullRequestMessageHandler } from '../features/pull-request/PullRequestMessageHandler';
 import type { PrSettingsMessageHandler } from '../features/settings/PrSettingsMessageHandler';
+import type { SnapshotQueryService } from '../features/safety/snapshot/SnapshotQueryService';
 import {
   InboundMessage,
   InboundMessageSchema,
@@ -37,6 +38,7 @@ export class MessageRouter {
   /** PR 환경설정 (기본 target 브랜치 저장/조회) */
   private prSettingsHandler: PrSettingsMessageHandler | null;
   private readonly aiApiKeyMessageHandler: AiApiKeyMessageHandler | null;
+  private snapshotQueryService: SnapshotQueryService | null = null;
   private readonly webviews = new Set<vscode.Webview>();
 
   constructor(
@@ -60,6 +62,10 @@ export class MessageRouter {
 
   public setPrSettingsHandler(handler: PrSettingsMessageHandler): void {
     this.prSettingsHandler = handler;
+  }
+
+  public setSnapshotQueryService(service: SnapshotQueryService): void {
+    this.snapshotQueryService = service;
   }
 
   public configureRecommendationHandlers(handlers: {
@@ -148,7 +154,7 @@ export class MessageRouter {
       switch (message.type) {
         // ─── 스냅샷 관련 (3단계 구현) ─────────────────────────────────────
         case 'GET_SNAPSHOT_LIST':
-          webview.postMessage({ type: 'SNAPSHOT_LIST', payload: { snapshots: [] } });
+          await this.handleGetSnapshotList(message, webview);
           break;
 
         case 'CREATE_SNAPSHOT':
@@ -172,11 +178,15 @@ export class MessageRouter {
           break;
 
         case 'GET_SNAPSHOT_FILES':
-          this.sendNotImplemented(webview, 'GET_SNAPSHOT_FILES', '스냅샷 파일 목록 (3단계 구현 예정)');
+          await this.handleGetSnapshotFiles(message, webview);
           break;
 
-        case 'SET_CHECKPOINT':
-          this.sendNotImplemented(webview, 'SET_CHECKPOINT', '체크포인트 설정 (3단계 구현 예정)');
+        case 'GET_SNAPSHOT_DETAIL':
+          await this.handleGetSnapshotDetail(message, webview);
+          break;
+
+        case 'GET_SNAPSHOT_FILE_DIFF':
+          await this.handleGetSnapshotFileDiff(message, webview);
           break;
 
         // ─── 추천 관련 (2단계 구현) ──────────────────────────────────────
@@ -262,6 +272,54 @@ export class MessageRouter {
 
   private async handleOpenFileDiff(payload: { filePath: string; snapshotId?: string }) {
     vscode.window.showInformationMessage(`GitCat: 파일 비교 요청 — ${payload.filePath}`);
+  }
+
+  private async handleGetSnapshotList(message: InboundMessage, webview: vscode.Webview): Promise<void> {
+    const service = this.requireSnapshotQueryService();
+    const payload = message.payload as { limit?: number; offset?: number };
+    const result = await service.listSnapshots(payload);
+
+    await webview.postMessage({
+      type: 'SNAPSHOT_LIST',
+      payload: result,
+      requestId: message.requestId,
+    } as OutboundMessage);
+  }
+
+  private async handleGetSnapshotFiles(message: InboundMessage, webview: vscode.Webview): Promise<void> {
+    const service = this.requireSnapshotQueryService();
+    const payload = message.payload as { snapshotId: string };
+    const detail = await service.getSnapshotDetail(payload.snapshotId);
+
+    await webview.postMessage({
+      type: 'SNAPSHOT_DETAIL',
+      payload: { detail },
+      requestId: message.requestId,
+    } as OutboundMessage);
+  }
+
+  private async handleGetSnapshotDetail(message: InboundMessage, webview: vscode.Webview): Promise<void> {
+    const service = this.requireSnapshotQueryService();
+    const payload = message.payload as { snapshotId: string };
+    const detail = await service.getSnapshotDetail(payload.snapshotId);
+
+    await webview.postMessage({
+      type: 'SNAPSHOT_DETAIL',
+      payload: { detail },
+      requestId: message.requestId,
+    } as OutboundMessage);
+  }
+
+  private async handleGetSnapshotFileDiff(message: InboundMessage, webview: vscode.Webview): Promise<void> {
+    const service = this.requireSnapshotQueryService();
+    const payload = message.payload as { snapshotId: string; filePath: string };
+    const result = await service.getSnapshotFileDiff(payload.snapshotId, payload.filePath);
+
+    await webview.postMessage({
+      type: 'SNAPSHOT_FILE_DIFF',
+      payload: result,
+      requestId: message.requestId,
+    } as OutboundMessage);
   }
 
   private async handleGetWorkspaceTree(webview: vscode.Webview): Promise<void> {
@@ -388,5 +446,13 @@ export class MessageRouter {
       type: 'ERROR',
       payload: { code, message }
     } as OutboundMessage);
+  }
+
+  private requireSnapshotQueryService(): SnapshotQueryService {
+    if (!this.snapshotQueryService) {
+      throw new Error('SnapshotQueryService is not initialized.');
+    }
+
+    return this.snapshotQueryService;
   }
 }

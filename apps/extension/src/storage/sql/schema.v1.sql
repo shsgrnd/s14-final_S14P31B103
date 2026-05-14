@@ -104,7 +104,6 @@ CREATE TABLE IF NOT EXISTS snapshots (
   reason TEXT,
   summary TEXT,
   local_path TEXT,
-  is_checkpoint INTEGER NOT NULL DEFAULT 0,
   label TEXT,
   created_at TEXT NOT NULL,
   FOREIGN KEY (session_id) REFERENCES work_sessions(session_id),

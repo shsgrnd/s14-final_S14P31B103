@@ -32,6 +32,26 @@ export const SnapshotMetaSchema = z.object({
   createdAt: z.string(),
   summary: z.string().optional(),
   reason: z.string().optional(),
+  sessionId: z.string().optional(),
+  previousSnapshotId: z.string().optional(),
+  changedFileCount: z.number().int().optional(),
+  warningCount: z.number().int().optional(),
+  warningSummary: z.array(z.string()).optional(),
+  localPath: z.string().optional(),
+  files: z.array(z.object({
+    path: z.string(),
+    status: ChangedFileStatusEnum,
+    added: z.number().int().optional(),
+    removed: z.number().int().optional(),
+    additions: z.number().int().optional(),
+    deletions: z.number().int().optional(),
+    hunkCount: z.number().int().optional(),
+    isBinary: z.boolean().optional(),
+    isLargeFile: z.boolean().optional(),
+    importance: z.enum(['low', 'medium', 'high']).optional(),
+    renamedFrom: z.string().optional(),
+    renamedTo: z.string().optional(),
+  })).optional(),
 });
 
 export const SafetyWarningSchema = z.object({
@@ -86,6 +106,9 @@ export const SnapshotDetailSchema = z.object({
   meta: SnapshotMetaSchema,
   manifest: SnapshotManifestSchema,
   diffText: z.string().optional(),
+  files: z.array(SnapshotFileSchema).optional(),
+  hunks: z.array(SnapshotHunkSchema).optional(),
+  warningSummary: z.array(z.string()).optional(),
 });
 
 // ==========================================
