@@ -1,3 +1,4 @@
+import * as fs from 'fs/promises';
 import * as path from 'path';
 import type {
   SnapshotRepository,
@@ -14,7 +15,7 @@ import {
 import type { AiClient } from '@gitcat/ai-pipeline';
 import { ISnapshotService, SnapshotCreationType, CreateSnapshotOptions } from './ISnapshotService';
 import { SnapshotDiffService } from './SnapshotDiffService';
-import { SnapshotLocalStore } from './SnapshotLocalStore';
+import { SnapshotFullStateEntry, SnapshotLocalStore } from './SnapshotLocalStore';
 import { SnapshotIdGenerator } from './SnapshotIdGenerator';
 import { SnapshotAutoCleanupService } from './SnapshotAutoCleanupService';
 
@@ -119,6 +120,7 @@ export class SnapshotService implements ISnapshotService {
   /** AI 요약 완료 후 웹뷰에 SNAPSHOT_UPDATED 이벤트를 전송하기 위한 콜백 */
   private readonly onSnapshotUpdated?: (row: SnapshotRow) => void;
   private readonly keepRecentPreRestoreCount: number;
+  private restoreOperationDepth = 0;
 
   constructor(
     private readonly snapshotRepository: SnapshotRepository,
@@ -165,8 +167,15 @@ export class SnapshotService implements ISnapshotService {
     type: SnapshotCreationType,
     options: CreateSnapshotOptions = {},
   ): Promise<string | undefined> {
+    if (this.restoreOperationDepth > 0 && type !== 'pre_restore') {
+      console.log(`[SnapshotService] restore lock active, skipped snapshot type=${type}`);
+      return undefined;
+    }
+
     const snapshotId = SnapshotIdGenerator.generate(type);
     const createdAt = new Date().toISOString();
+    const primaryBaselines = options.baselines ?? options.userBaselines;
+    const primaryChangedFiles = options.changedFiles ?? options.userChangedFiles;
 
     console.log(`[SnapshotService] 스냅샷 생성 시작: type=${type}, id=${snapshotId}`);
 
@@ -174,7 +183,7 @@ export class SnapshotService implements ISnapshotService {
     // baselines(AI 세션 시작 시점) → 현재 파일 상태 diff
     let diffResult;
     try {
-      diffResult = await this.buildDiff(options.baselines, options.changedFiles);
+      diffResult = await this.buildDiff(primaryBaselines, primaryChangedFiles);
     } catch (diffError) {
       console.error('[SnapshotService] diff 생성 실패:', diffError);
       return undefined;
@@ -183,13 +192,13 @@ export class SnapshotService implements ISnapshotService {
     const { patchText, hunks, changedFiles, warnings } = diffResult;
 
     // --- 저장 조건 체크 ---
-    if (type === 'savepoint') {
+    if (!options.force && type === 'savepoint') {
       // 세이브포인트: 변경 파일이 0개면 저장하지 않음 (줄 수 제한 없음)
       if (changedFiles.length === 0) {
         console.log('[SnapshotService] 변경된 파일 없음 → 세이브포인트 생략');
         return undefined;
       }
-    } else {
+    } else if (!options.force) {
       // 자동 스냅샷: 변경 줄 수가 최소 기준 미만이면 생략
       const totalChangedLines = this.countChangedLines(patchText);
       if (totalChangedLines < SNAPSHOT_MIN_CHANGED_LINES) {
@@ -215,9 +224,13 @@ export class SnapshotService implements ISnapshotService {
     }
 
     // --- Manifest 구성 ---
+    const previousSnapshot = await this.snapshotRepository.findLatestByWorktreeInstance(this.worktreeInstanceId);
+    const previousSnapshotId = previousSnapshot?.snapshot_id ?? undefined;
+
     const manifest: SnapshotManifest = {
       snapshotId,
       type,
+      previousSnapshotId,
       createdAt,
       reason: options.reason,
       summary: options.summary,
@@ -235,6 +248,7 @@ export class SnapshotService implements ISnapshotService {
       hunks,
       aiPatchText: isAiResult ? patchText : undefined,
       userPatchText,
+      includeFullFileBackupDir: true,
     });
 
     if (!storeResult.ok) {
@@ -246,6 +260,7 @@ export class SnapshotService implements ISnapshotService {
     }
 
     const snapshotDir = storeResult.snapshotDir;
+    await this.saveFullSnapshotState(snapshotId, primaryBaselines, changedFiles);
 
     // --- 세션 준비 (DB session_id 확보) ---
     const sessionId = await this.ensureSession(options.sessionId, type, createdAt);
@@ -257,6 +272,7 @@ export class SnapshotService implements ISnapshotService {
         snapshot_id: snapshotId,
         session_id: sessionId,
         type,
+        previous_snapshot_id: previousSnapshotId ?? null,
         reason: options.reason ?? null,
         summary: options.summary ?? null,
         local_path: path.relative(this.workspaceRoot, snapshotDir).replace(/\\/g, '/'),
@@ -307,6 +323,18 @@ export class SnapshotService implements ISnapshotService {
     return snapshotRow.snapshot_id;
   }
 
+  beginRestoreOperation(): void {
+    this.restoreOperationDepth += 1;
+  }
+
+  endRestoreOperation(): void {
+    this.restoreOperationDepth = Math.max(0, this.restoreOperationDepth - 1);
+  }
+
+  isRestoreOperationActive(): boolean {
+    return this.restoreOperationDepth > 0;
+  }
+
   // ─────────────────────────────────────────────────────────────────────────
   // Private Helpers
   // ─────────────────────────────────────────────────────────────────────────
@@ -318,10 +346,10 @@ export class SnapshotService implements ISnapshotService {
    * @param changedFilePaths 변경된 파일 경로 목록
    */
   private async buildDiff(
-    baselines: Map<string, string> | undefined,
+    baselines: Map<string, Uint8Array> | undefined,
     changedFilePaths: string[] | undefined,
   ) {
-    const resolvedBaselines = baselines ?? new Map<string, string>();
+    const resolvedBaselines = baselines ?? new Map<string, Uint8Array>();
     const resolvedChanged = changedFilePaths ?? [];
 
     if (resolvedBaselines.size === 0 && resolvedChanged.length === 0) {
@@ -444,6 +472,51 @@ export class SnapshotService implements ISnapshotService {
    *
    * @param snapshotId 롤백할 스냅샷 ID
    */
+  private async saveFullSnapshotState(
+    snapshotId: string,
+    baselines: Map<string, Uint8Array> | undefined,
+    changedFiles: SnapshotFile[],
+  ): Promise<void> {
+    if (changedFiles.length === 0) {
+      return;
+    }
+
+    const beforeEntries: SnapshotFullStateEntry[] = [];
+    const afterEntries: SnapshotFullStateEntry[] = [];
+    const normalizedBaselines = new Map<string, Uint8Array>();
+    for (const [filePath, content] of baselines ?? new Map<string, Uint8Array>()) {
+      normalizedBaselines.set(this.normalizeWorkspacePath(filePath), content);
+    }
+
+    for (const file of changedFiles) {
+      const targetPath = this.normalizeWorkspacePath(file.filePath);
+      const currentContent = await this.readWorkspaceFileContent(targetPath);
+
+      if (file.status === 'renamed' && file.renamedFrom) {
+        const beforePath = this.normalizeWorkspacePath(file.renamedFrom);
+        beforeEntries.push({
+          filePath: beforePath,
+          content: normalizedBaselines.get(beforePath) ?? null,
+        });
+      } else {
+        beforeEntries.push({
+          filePath: targetPath,
+          content: normalizedBaselines.get(targetPath) ?? null,
+        });
+      }
+
+      afterEntries.push({
+        filePath: targetPath,
+        content: currentContent,
+      });
+    }
+
+    await this.localStore.saveFullSnapshotState(snapshotId, {
+      before: beforeEntries,
+      after: afterEntries,
+    });
+  }
+
   private async rollbackLocalFile(snapshotId: string): Promise<void> {
     try {
       await this.localStore.deleteSnapshot(snapshotId);
@@ -562,5 +635,22 @@ export class SnapshotService implements ISnapshotService {
           (line.startsWith('+') && !line.startsWith('+++')) ||
           (line.startsWith('-') && !line.startsWith('---')),
       ).length;
+  }
+
+  private normalizeWorkspacePath(filePath: string): string {
+    return this.localStore.toWorkspaceRelativePath(filePath);
+  }
+
+  private async readWorkspaceFileContent(filePath: string): Promise<Uint8Array | null> {
+    const absolutePath = path.resolve(this.workspaceRoot, filePath);
+    try {
+      return await fs.readFile(absolutePath);
+    } catch (error) {
+      const nodeError = error as NodeJS.ErrnoException;
+      if (nodeError?.code === 'ENOENT') {
+        return null;
+      }
+      throw error;
+    }
   }
 }
