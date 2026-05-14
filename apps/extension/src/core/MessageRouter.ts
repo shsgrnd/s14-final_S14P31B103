@@ -70,6 +70,8 @@ export class MessageRouter {
 
   public setMergeConflictHandler(handler: MergeConflictMessageHandler): void {
     this.mergeConflictHandler = handler;
+  }
+
   public setSnapshotQueryService(service: SnapshotQueryService): void {
     this.snapshotQueryService = service;
   }
