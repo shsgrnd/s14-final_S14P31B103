@@ -101,7 +101,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--save-total-limit", type=int, default=2)
     parser.add_argument("--warmup-ratio", type=float, default=0.03)
     parser.add_argument("--weight-decay", type=float, default=0.0)
-    parser.add_argument("--beta", type=float, default=0.1)
+    parser.add_argument("--beta", type=float, default=0.4)
     parser.add_argument("--lora-r", type=int, default=16)
     parser.add_argument("--lora-alpha", type=int, default=32)
     parser.add_argument("--lora-dropout", type=float, default=0.05)
