@@ -66,6 +66,9 @@ body {
   --vscode-charts-blue: #6d9fe0 !important;
   --vscode-charts-green: #6ec8a3 !important;
   --vscode-charts-purple: #9f7ad6 !important;
+  /* Webview에서 미주입 시 스크롤 썸이 투명해져 보이지 않는 문제 방지 */
+  --vscode-scrollbarSlider-background: rgba(255, 255, 255, 0.22) !important;
+  --vscode-scrollbarSlider-hoverBackground: rgba(255, 255, 255, 0.36) !important;
 }
 
 body {
@@ -88,11 +91,20 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--vscode-scrollbarSlider-background);
+  background: var(--vscode-scrollbarSlider-background, rgba(255, 255, 255, 0.25));
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--vscode-scrollbarSlider-hoverBackground);
+  background: var(--vscode-scrollbarSlider-hoverBackground, rgba(255, 255, 255, 0.38));
+}
+
+/* 알림 기록: 높이 고정 그리드 안에서만 스크롤 (바깥은 overflow, 안은 콘텐츠 높이) */
+.gitcat-notification-log-scroll {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
+  scrollbar-color: var(--vscode-scrollbarSlider-background, rgba(255, 255, 255, 0.28)) transparent;
 }
 
 /* Animations */
@@ -103,6 +115,36 @@ body {
 
 .animate-fade-in {
   animation: fadeIn 0.2s ease-out forwards;
+}
+
+/**
+ * 아이콘 버튼 공통 hover/press 애니메이션.
+ * - 푸터(SidebarLayout.footer)·BranchCleanup 헤더의 설정/돌아가기 등 공용.
+ * - hover: 배경 강조 + 살짝 떠오르는 듯한 미세 transform
+ * - active(누름): 80ms 안에 축소되며 눌리는 피드백
+ */
+.gitcat-icon-press {
+  transition:
+    background-color 0.18s ease,
+    color 0.18s ease,
+    transform 0.08s ease;
+  will-change: transform, background-color;
+}
+.gitcat-icon-press:hover {
+  background-color: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground)) !important;
+  color: var(--vscode-foreground);
+  transform: translateY(-1px);
+}
+.gitcat-icon-press:active {
+  background-color: var(--vscode-toolbar-activeBackground, var(--vscode-list-activeSelectionBackground)) !important;
+  transform: scale(0.92);
+  transition:
+    background-color 0.06s ease,
+    transform 0.06s ease;
+}
+.gitcat-icon-press:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
 }
 
 /* Sidebar Section Header Style */

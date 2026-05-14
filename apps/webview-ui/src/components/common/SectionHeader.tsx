@@ -20,6 +20,8 @@ export const SectionHeader: React.FC<SectionHeaderProps> = ({ label, expanded, b
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       padding: '5px 8px', cursor: 'pointer', userSelect: 'none',
       borderBottom: '1px solid var(--vscode-panel-border)',
+      // flex 컨테이너 내에서 헤더가 줄어들지 않도록 고정
+      flexShrink: 0,
     }}
     onMouseOver={e => (e.currentTarget.style.background = 'var(--vscode-list-hoverBackground)')}
     onMouseOut={e => (e.currentTarget.style.background = 'transparent')}
