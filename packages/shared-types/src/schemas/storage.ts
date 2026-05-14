@@ -109,8 +109,6 @@ export const SnapshotRowSchema = z.object({
   reason: z.string().nullable(),
   summary: z.string().nullable(),
   local_path: z.string().nullable(),
-  is_checkpoint: z.number().int(),
-  label: z.string().nullable(),
   created_at: z.string(),
 });
 

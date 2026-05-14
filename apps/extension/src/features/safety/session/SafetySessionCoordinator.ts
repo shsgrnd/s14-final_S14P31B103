@@ -5,12 +5,20 @@ import { ISnapshotService } from '../snapshot/ISnapshotService';
 
 export class SafetySessionCoordinator {
     private currentSession: SessionMeta | null = null;
-    private baselines = new Map<string, string>(); // filePath -> initial text
-    private currentTextCache = new Map<string, string>(); // filePath -> latest text
-    private changedFiles = new Set<string>(); // filePaths
-    private dirtyFiles = new Set<string>(); // filePaths currently with unsaved changes
+    private baselines = new Map<string, string>(); // AI 세션 내 filePath → 변경 전 원본
+    private currentTextCache = new Map<string, string>(); // filePath → 최신 텍스트
+    private changedFiles = new Set<string>(); // AI 세션 내 변경 파일 경로
+    private dirtyFiles = new Set<string>(); // 현재 저장되지 않은 변경이 있는 파일 경로
     private aiChangeDetector = new AiChangeDetector();
-    
+
+    /**
+     * AI 세션 사이 사용자가 변경한 파일 추적
+     * - 이전 AI 세션 종료 후 사용자가 처음 편집할 때 디스크 내용을 baseline으로 캡처
+     * - AI 세션 시작 시 user_patch.diff 생성에 사용 후 초기화
+     */
+    private interSessionUserBaselines = new Map<string, string>();
+    private interSessionUserChangedFiles = new Set<string>();
+
     // Sliding Window
     private sessionTimer: NodeJS.Timeout | null = null;
     private readonly SESSION_TIMEOUT_MS = 45 * 1000; // 기본 45초
@@ -54,11 +62,23 @@ export class SafetySessionCoordinator {
             await this.endSession();
         }
 
-        // AI 작업 시작 전 더티(Dirty) 상태 체크
-        if (type === 'ai' && this.dirtyFiles.size > 0) {
+        // AI 세션 시작 전: 세션 간 사용자 변경분이 있으면 auto_dirty_before_ai 스냅샷 생성
+        if (type === 'ai' && this.interSessionUserChangedFiles.size > 0) {
+            await this.snapshotService.createSnapshot('auto_dirty_before_ai', {
+                reason: 'AI 작업 시작 전 사용자 변경분 저장 (user_patch.diff)',
+                changedFiles: Array.from(this.interSessionUserChangedFiles),
+                // user_patch.diff 생성용: AI 세션 간 사용자가 편집하기 직전 상태
+                userBaselines: new Map(this.interSessionUserBaselines),
+                userChangedFiles: Array.from(this.interSessionUserChangedFiles),
+            });
+            // 전달 후 초기화
+            this.interSessionUserBaselines.clear();
+            this.interSessionUserChangedFiles.clear();
+        } else if (type === 'ai' && this.dirtyFiles.size > 0) {
+            // 이전 AI 세션 추적 없이도 dirty 파일이 있으면 저장 (초기 실행 케이스)
             await this.snapshotService.createSnapshot('auto_dirty_before_ai', {
                 reason: 'AI 작업 시작 전 더티 상태 스냅샷 자동 생성',
-                changedFiles: Array.from(this.dirtyFiles)
+                changedFiles: Array.from(this.dirtyFiles),
             });
         }
 
@@ -103,14 +123,28 @@ export class SafetySessionCoordinator {
         
         console.log(`Ended session: ${endedSession.sessionId}${reason ? ` (Reason: ${reason})` : ''}`);
 
-        // 세션 종료 후 결과 스냅샷 생성 요청
+        // 세션 종료 후 결과 스냅샷 생성
         const snapshotType = endedSession.type === 'ai' ? 'ai_result' : 'manual_edit_result';
         await this.snapshotService.createSnapshot(snapshotType, {
             sessionId: endedSession.sessionId,
             reason: reason || '세션 종료 (유휴 상태 도달)',
             changedFiles: Array.from(this.changedFiles),
-            baselines: new Map(this.baselines)
+            baselines: new Map(this.baselines),
         });
+
+        // AI 세션이 끝났으면 현재 시점을 interSession baseline으로 캡처
+        // 이후 사용자가 편집 시 이 상태 대비 user_patch.diff를 생성한다
+        if (endedSession.type === 'ai') {
+            // changedFiles를 interSession baseline에 미리 등록
+            // (현재 디스크 상태 = AI 작업 결과물 → 다음 user diff의 "before" 기준)
+            for (const [filePath, _] of this.baselines) {
+                if (!this.interSessionUserBaselines.has(filePath)) {
+                    // AI 세션 시작 시점 baseline을 interSession에도 기록
+                    // 실제 AI 결과물은 나중에 onDidSaveTextDocument 등에서 갱신됨
+                    this.interSessionUserBaselines.set(filePath, this.currentTextCache.get(filePath) ?? '');
+                }
+            }
+        }
 
         return endedSession;
     }
@@ -133,6 +167,9 @@ export class SafetySessionCoordinator {
      */
     public async handleDocumentChange(event: vscode.TextDocumentChangeEvent) {
         const doc = event.document;
+        // [DEBUG] 함수 진입 확인 - 이 로그가 안 보이면 이벤트 연결 자체가 안 된 것
+        console.log(`[DEBUG] handleDocumentChange called: scheme=${doc.uri.scheme}, changes=${event.contentChanges.length}`);
+
         if (doc.uri.scheme !== 'file') {
             return;
         }
@@ -150,10 +187,23 @@ export class SafetySessionCoordinator {
                 await this.startAiSession();
             }
         } else {
-            // 변경이 일어났는데 세션이 없다면 수동 세션으로 간주하여 자동 시작
             if (!this.currentSession) {
-                await this.startManualSession();
+                // interSession baseline 캡처 (세션 시작 전 콜스액 상태 기록)
+                this.interSessionUserChangedFiles.add(fsPath);
+                if (!this.interSessionUserBaselines.has(fsPath)) {
+                    try {
+                        const fileData = await vscode.workspace.fs.readFile(doc.uri);
+                        this.interSessionUserBaselines.set(fsPath, Buffer.from(fileData).toString('utf8'));
+                    } catch {
+                        this.interSessionUserBaselines.set(fsPath, '');
+                    }
+                }
+                // readFile 대기 중 다른 이벤트가 먼저 세션을 시작했을 수 있으므로 재확인
+                if (!this.currentSession) {
+                    await this.startManualSession();
+                }
             }
+            // manual 세션 중 or AI 세션 중: 아래 changedFiles에 추가됨
         }
 
         this.changedFiles.add(fsPath);
@@ -166,18 +216,15 @@ export class SafetySessionCoordinator {
         }
 
         // Baseline 저장 (해당 세션 내에서 파일별로 최초 1회만)
-        if (!this.baselines.has(fsPath)) {
+        if (this.currentSession && !this.baselines.has(fsPath)) {
             try {
-                // 아직 저장되지 않은 변경 내역이 있더라도 디스크에 있는 파일 내용은 변경 전 원본 상태를 가짐
                 const fileData = await vscode.workspace.fs.readFile(doc.uri);
                 this.baselines.set(fsPath, Buffer.from(fileData).toString('utf8'));
-            } catch (e) {
-                // 새로 생성된 파일이거나 읽기 실패 시 빈 문자열 처리
+            } catch {
                 this.baselines.set(fsPath, '');
             }
         }
 
-        // 파일 변경이 감지될 때마다 타이머를 리셋하여 세션을 연장함 (Sliding Window)
         this.resetSessionTimer();
     }
 
