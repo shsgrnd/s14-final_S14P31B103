@@ -43,6 +43,7 @@ export interface CreateRecommendationHistoryInput {
  * 병합안 수락/수정/거절 시점에 메시지 핸들러/서비스가 이 타입으로 저장 요청합니다.
  */
 export interface CreateProposalFeedbackInput {
+  feedback_id?: string;
   proposal_id: string;
   project_id: string;
   merge_proposal_id?: string | null;
@@ -52,6 +53,7 @@ export interface CreateProposalFeedbackInput {
   final_explanation?: string | null;
   quality_tag?: ProposalFeedbackRow['quality_tag'];
   feedback_note?: string | null;
+  decided_at?: string;
 }
 
 /**
@@ -221,6 +223,7 @@ export interface ConflictCandidateRepository {
  */
 export interface MergeProposalRepository {
   insertMany(proposals: Array<Omit<MergeProposalRow, 'created_at'> & { created_at?: string }>): Promise<void>;
+  findById(proposalId: string): Promise<MergeProposalRow | null>;
   listByAnalysis(analysisId: string): Promise<MergeProposalRow[]>;
   updateStatus(proposalId: string, status: MergeProposalRow['status']): Promise<void>;
 }

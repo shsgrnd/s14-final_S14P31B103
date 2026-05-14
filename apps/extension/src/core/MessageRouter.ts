@@ -18,6 +18,7 @@ import type { AiApiKeyMessageHandler } from '../features/recommendation/AiApiKey
 import type { PullRequestMessageHandler } from '../features/pull-request/PullRequestMessageHandler';
 import type { PrSettingsMessageHandler } from '../features/settings/PrSettingsMessageHandler';
 import type { MergeConflictMessageHandler } from '../features/merge-analysis/MergeConflictMessageHandler';
+import type { MergeProposalMessageHandler } from '../features/merge-analysis/MergeProposalMessageHandler';
 import type { SnapshotQueryService } from '../features/safety/snapshot/SnapshotQueryService';
 import type { ISnapshotService } from '../features/safety/snapshot/ISnapshotService';
 import {
@@ -41,6 +42,8 @@ export class MessageRouter {
   private prSettingsHandler: PrSettingsMessageHandler | null;
   /** 병합 충돌 분석 메시지 핸들러 */
   private mergeConflictHandler: MergeConflictMessageHandler | null;
+  /** AI 병합 제안/피드백 메시지 핸들러 */
+  private mergeProposalHandler: MergeProposalMessageHandler | null;
   private readonly aiApiKeyMessageHandler: AiApiKeyMessageHandler | null;
   private snapshotQueryService: SnapshotQueryService | null = null;
   private snapshotService: ISnapshotService | null = null;
@@ -63,6 +66,7 @@ export class MessageRouter {
     this.pullRequestHandler = pullRequestHandler ?? null;
     this.prSettingsHandler = prSettingsHandler ?? null;
     this.mergeConflictHandler = null;
+    this.mergeProposalHandler = null;
     this.aiApiKeyMessageHandler = aiApiKeyMessageHandler ?? null;
   }
 
@@ -72,6 +76,10 @@ export class MessageRouter {
 
   public setMergeConflictHandler(handler: MergeConflictMessageHandler): void {
     this.mergeConflictHandler = handler;
+  }
+
+  public setMergeProposalHandler(handler: MergeProposalMessageHandler): void {
+    this.mergeProposalHandler = handler;
   }
 
   public setSnapshotQueryService(service: SnapshotQueryService): void {
@@ -161,6 +169,11 @@ export class MessageRouter {
       // 병합 충돌 분석 핸들러 위임
       if (this.mergeConflictHandler) {
         const handled = await this.mergeConflictHandler.handle(message.type, message.payload, webview);
+        if (handled) return;
+      }
+      // AI 병합 제안/피드백 핸들러 위임
+      if (this.mergeProposalHandler) {
+        const handled = await this.mergeProposalHandler.handle(message.type, message.payload, webview);
         if (handled) return;
       }
       // AI API Key 핸들러 위임

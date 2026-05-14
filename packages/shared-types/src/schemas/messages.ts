@@ -9,6 +9,7 @@ import {
 import {
   AcceptMergeRequestSchema,
   AnalyzeConflictRequestSchema,
+  GetAiDraftRequestSchema,
   MergeCompleteViewSchema,
   MergeConflictCandidateViewSchema,
   MergeProposalViewSchema,
@@ -127,7 +128,7 @@ export const InboundPayloadSchemaMap = {
   EXECUTE_PULL: z.object({}).strict(),
   OPEN_DIFF_EDITOR: z.object({ filePath: z.string() }),
   SET_CONFIG: z.object({ config: z.any() }),
-  GET_AI_DRAFT: z.object({ filePath: z.string() }),
+  GET_AI_DRAFT: GetAiDraftRequestSchema,
   EXECUTE_COMMIT: z.object({ message: z.string() }),
   GIT_ADD_ALL: z.object({}).strict(),
   GIT_PUSH: z.object({}).strict(),

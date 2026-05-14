@@ -24,6 +24,7 @@ export const AIDraftPanel: React.FC = () => {
     sendMessage('ACCEPT_MERGE', {
       proposalId: currentAIDraft.proposalId,
       candidateId: currentAIDraft.candidateId,
+      analysisId: currentAIDraft.analysisId,
       filePath: currentAIDraft.filePath,
       proposedContent: currentAIDraft.proposedContent,
       finalExplanation: currentAIDraft.explanation,
@@ -36,6 +37,7 @@ export const AIDraftPanel: React.FC = () => {
     sendMessage('REJECT_MERGE', {
       proposalId: currentAIDraft.proposalId,
       candidateId: currentAIDraft.candidateId,
+      analysisId: currentAIDraft.analysisId,
       filePath: currentAIDraft.filePath,
     });
     setAIDraft(null);
