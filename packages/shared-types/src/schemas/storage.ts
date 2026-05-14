@@ -12,6 +12,7 @@ import {
   SessionTypeEnum,
   SessionStatusEnum,
   SnapshotTypeEnum,
+  RestoreStatusEnum,
   ChangedFileStatusEnum,
 } from '../enums/safety';
 
@@ -142,8 +143,11 @@ export const ChangedFileRowSchema = z.object({
 
 export const RestoreHistoryRowSchema = z.object({
   restore_history_id: z.string(),
+  from_snapshot_id: z.string(),
   target_snapshot_id: z.string(),
   pre_restore_snapshot_id: z.string().nullable(),
+  status: RestoreStatusEnum,
+  failure_reason: z.string().nullable(),
   restored_at: z.string(),
 });
 

@@ -143,9 +143,13 @@ CREATE TABLE IF NOT EXISTS changed_files (
 
 CREATE TABLE IF NOT EXISTS restore_histories (
   restore_history_id TEXT PRIMARY KEY,
+  from_snapshot_id TEXT NOT NULL,
   target_snapshot_id TEXT NOT NULL,
   pre_restore_snapshot_id TEXT,
+  status TEXT NOT NULL DEFAULT 'success',
+  failure_reason TEXT,
   restored_at TEXT NOT NULL,
+  FOREIGN KEY (from_snapshot_id) REFERENCES snapshots(snapshot_id),
   FOREIGN KEY (target_snapshot_id) REFERENCES snapshots(snapshot_id),
   FOREIGN KEY (pre_restore_snapshot_id) REFERENCES snapshots(snapshot_id)
 );

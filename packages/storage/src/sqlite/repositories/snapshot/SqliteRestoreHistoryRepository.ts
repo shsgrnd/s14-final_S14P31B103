@@ -13,16 +13,22 @@ export class SqliteRestoreHistoryRepository implements RestoreHistoryRepository 
     const stmt = this.db.prepare(`
       INSERT INTO restore_histories (
         restore_history_id,
+        from_snapshot_id,
         target_snapshot_id,
         pre_restore_snapshot_id,
+        status,
+        failure_reason,
         restored_at
-      ) VALUES (?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
       input.restore_history_id,
+      input.from_snapshot_id,
       input.target_snapshot_id,
       input.pre_restore_snapshot_id ?? null,
+      input.status ?? 'success',
+      input.failure_reason ?? null,
       restoredAt,
     );
 

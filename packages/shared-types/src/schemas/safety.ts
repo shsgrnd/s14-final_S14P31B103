@@ -117,8 +117,10 @@ export const SnapshotDetailSchema = z.object({
 
 export const RestoreHistorySchema = z.object({
   restoreId: z.string(),
-  targetSnapshotId: z.string(),
+  fromSnapshotId: z.string(),
+  toSnapshotId: z.string(),
   preRestoreSnapshotId: z.string().optional(),
   status: RestoreStatusEnum,
   restoredAt: z.string(),
+  failureReason: z.string().optional(),
 });

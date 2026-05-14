@@ -1,5 +1,6 @@
 import { IStorageService } from '../core/interfaces/IStorageService';
 import {
+    SnapshotFullStateEntry,
     SnapshotLocalArtifact,
     SnapshotLocalArtifactReadResult,
     SnapshotLocalStore,
@@ -36,6 +37,25 @@ export class LocalStorageImpl implements IStorageService {
 
     async deleteSnapshot(snapshotId: string): Promise<void> {
         return this.snapshotStore.deleteSnapshot(snapshotId);
+    }
+
+    async saveFullSnapshotState(
+        snapshotId: string,
+        state: { before?: SnapshotFullStateEntry[]; after?: SnapshotFullStateEntry[] },
+    ): Promise<void> {
+        return this.snapshotStore.saveFullSnapshotState(snapshotId, state);
+    }
+
+    async readFullSnapshotFile(
+        snapshotId: string,
+        stage: 'before' | 'after',
+        filePath: string,
+    ): Promise<Uint8Array | null | undefined> {
+        return this.snapshotStore.readFullSnapshotFile(snapshotId, stage, filePath);
+    }
+
+    toWorkspaceRelativePath(filePath: string): string {
+        return this.snapshotStore.toWorkspaceRelativePath(filePath);
     }
 
     async saveSnapshotFiles(snapshotId: string, files: any[]): Promise<void> {

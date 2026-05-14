@@ -21,6 +21,8 @@ import type { MergeConflictMessageHandler } from '../features/merge-analysis/Mer
 import type { MergeProposalMessageHandler } from '../features/merge-analysis/MergeProposalMessageHandler';
 import type { SnapshotQueryService } from '../features/safety/snapshot/SnapshotQueryService';
 import type { ISnapshotService } from '../features/safety/snapshot/ISnapshotService';
+import type { RestoreHistoryQueryService } from '../features/safety/snapshot/RestoreHistoryQueryService';
+import type { RestoreService } from '../features/safety/snapshot/RestoreService';
 import {
   InboundMessage,
   InboundMessageSchema,
@@ -47,6 +49,8 @@ export class MessageRouter {
   private readonly aiApiKeyMessageHandler: AiApiKeyMessageHandler | null;
   private snapshotQueryService: SnapshotQueryService | null = null;
   private snapshotService: ISnapshotService | null = null;
+  private restoreService: RestoreService | null = null;
+  private restoreHistoryQueryService: RestoreHistoryQueryService | null = null;
   private readonly webviews = new Set<vscode.Webview>();
 
   constructor(
@@ -88,6 +92,14 @@ export class MessageRouter {
 
   public setSnapshotService(service: ISnapshotService): void {
     this.snapshotService = service;
+  }
+
+  public setRestoreService(service: RestoreService): void {
+    this.restoreService = service;
+  }
+
+  public setRestoreHistoryQueryService(service: RestoreHistoryQueryService): void {
+    this.restoreHistoryQueryService = service;
   }
 
   public configureRecommendationHandlers(handlers: {
@@ -198,7 +210,7 @@ export class MessageRouter {
           break;
 
         case 'RESTORE_SNAPSHOT':
-          this.sendNotImplemented(webview, 'RESTORE_SNAPSHOT', '스냅샷 원복 (3단계 구현 예정)');
+          await this.handleRestoreSnapshot(message, webview);
           break;
 
         case 'RENAME_SNAPSHOT':
@@ -219,6 +231,10 @@ export class MessageRouter {
 
         case 'GET_SNAPSHOT_FILE_DIFF':
           await this.handleGetSnapshotFileDiff(message, webview);
+          break;
+
+        case 'GET_RESTORE_HISTORY':
+          await this.handleGetRestoreHistory(message, webview);
           break;
 
         // ─── 추천 관련 (2단계 구현) ──────────────────────────────────────
@@ -372,6 +388,48 @@ export class MessageRouter {
     } as OutboundMessage);
   }
 
+  private async handleRestoreSnapshot(message: InboundMessage, webview: vscode.Webview): Promise<void> {
+    const service = this.requireRestoreService();
+    const snapshotQueryService = this.requireSnapshotQueryService();
+    const restoreHistoryService = this.requireRestoreHistoryQueryService();
+    const payload = message.payload as { snapshotId: string };
+    const result = await service.restoreToSnapshot(payload.snapshotId);
+
+    await webview.postMessage({
+      type: 'RESTORE_DONE',
+      payload: { snapshotId: result.snapshotId },
+      requestId: message.requestId,
+    } as OutboundMessage);
+
+    const [snapshots, histories] = await Promise.all([
+      snapshotQueryService.listSnapshots(),
+      restoreHistoryService.listHistory(),
+    ]);
+
+    await webview.postMessage({
+      type: 'SNAPSHOT_LIST',
+      payload: snapshots,
+      requestId: message.requestId,
+    } as OutboundMessage);
+
+    await webview.postMessage({
+      type: 'RESTORE_HISTORY_LIST',
+      payload: { histories },
+      requestId: message.requestId,
+    } as OutboundMessage);
+  }
+
+  private async handleGetRestoreHistory(message: InboundMessage, webview: vscode.Webview): Promise<void> {
+    const service = this.requireRestoreHistoryQueryService();
+    const histories = await service.listHistory();
+
+    await webview.postMessage({
+      type: 'RESTORE_HISTORY_LIST',
+      payload: { histories },
+      requestId: message.requestId,
+    } as OutboundMessage);
+  }
+
   private async handleGetWorkspaceTree(webview: vscode.Webview): Promise<void> {
     const folder = vscode.workspace.workspaceFolders?.[0];
     if (!folder) {
@@ -512,5 +570,21 @@ export class MessageRouter {
     }
 
     return this.snapshotService;
+  }
+
+  private requireRestoreService(): RestoreService {
+    if (!this.restoreService) {
+      throw new Error('RestoreService is not initialized.');
+    }
+
+    return this.restoreService;
+  }
+
+  private requireRestoreHistoryQueryService(): RestoreHistoryQueryService {
+    if (!this.restoreHistoryQueryService) {
+      throw new Error('RestoreHistoryQueryService is not initialized.');
+    }
+
+    return this.restoreHistoryQueryService;
   }
 }
