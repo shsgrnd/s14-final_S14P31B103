@@ -1,6 +1,7 @@
 export * from './client';
 export * from './prompt/merge-conflict';
 export * from './prompt/recommendation';
+export * from './prompt/snapshot';
 export * from './input/ports/GitClient';
 export * from './input/infrastructure/SimpleGitAdapter';
 export * from './merge-proposal/MergeAiService';

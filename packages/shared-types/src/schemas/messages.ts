@@ -9,6 +9,7 @@ import {
 import {
   AcceptMergeRequestSchema,
   AnalyzeConflictRequestSchema,
+  GetAiDraftRequestSchema,
   MergeCompleteViewSchema,
   MergeConflictCandidateViewSchema,
   MergeProposalViewSchema,
@@ -127,7 +128,7 @@ export const InboundPayloadSchemaMap = {
   EXECUTE_PULL: z.object({}).strict(),
   OPEN_DIFF_EDITOR: z.object({ filePath: z.string() }),
   SET_CONFIG: z.object({ config: z.any() }),
-  GET_AI_DRAFT: z.object({ filePath: z.string() }),
+  GET_AI_DRAFT: GetAiDraftRequestSchema,
   EXECUTE_COMMIT: z.object({ message: z.string() }),
   GIT_ADD_ALL: z.object({}).strict(),
   GIT_PUSH: z.object({}).strict(),
@@ -194,6 +195,11 @@ export const OutboundPayloadSchemaMap = {
     hasMore: z.boolean().optional(),
   }),
   SNAPSHOT_CREATED: z.object({ snapshot: SnapshotMetaSchema }),
+  /**
+   * 백그라운드 AI 요약 작업이 완료된 후 익스텐션이 웹뷰에 전송하는 이벤트입니다.
+   * 웹뷰는 이 메시지를 수신하면 해당 스냅샷 항목의 제목(summary)을 새로 렌더링해야 합니다.
+   */
+  SNAPSHOT_UPDATED: z.object({ snapshot: SnapshotMetaSchema }),
   SNAPSHOT_DETAIL: z.object({ detail: SnapshotDetailSchema }),
   SNAPSHOT_FILE_DIFF: z.object({
     snapshotId: z.string(),
