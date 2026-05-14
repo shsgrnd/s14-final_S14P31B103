@@ -1,6 +1,13 @@
 import * as vscode from 'vscode';
 import { createHash } from 'crypto';
-import { GitCatDatabase, SqliteRecommendationHistoryRepository, SqliteSnapshotRepository, SqliteSnapshotFileRepository, SqliteWorkSessionRepository, SQLiteDatabase } from '@gitcat/storage';
+import {
+  GitCatDatabase,
+  SqliteRecommendationHistoryRepository,
+  SqliteSnapshotRepository,
+  SqliteSnapshotFileRepository,
+  SqliteWorkSessionRepository,
+  type SQLiteDatabase,
+} from '@gitcat/storage';
 import { GitCliClient } from '@gitcat/git-client-cli';
 import { CommandRegistry } from './commands';
 import { EventRegistry } from './events';
@@ -30,6 +37,8 @@ import {
   MergeConflictAnalysisService,
   MergeConflictMessageHandler,
   MergeInputAssembler,
+  MergeProposalMessageHandler,
+  MergeProposalService,
 } from './features/merge-analysis';
 
 export async function activate(context: vscode.ExtensionContext) {
@@ -119,7 +128,7 @@ export async function activate(context: vscode.ExtensionContext) {
   }
 
   if (rootPath && projectId && gitService && dbInstance) {
-    initializeMergeConflictAnalysis(gitService, dbInstance, messageRouter);
+    initializeMergeConflictAnalysis(gitService, dbInstance, messageRouter, rootPath);
   }
 
   if (gitService) {
@@ -239,6 +248,7 @@ function initializeMergeConflictAnalysis(
   gitService: GitService,
   dbInstance: SQLiteDatabase,
   messageRouter: MessageRouter,
+  workspaceRoot: string,
 ): void {
   const repositories = createMergeRepositories(dbInstance);
   const assembler = new MergeInputAssembler(gitService);
@@ -248,8 +258,14 @@ function initializeMergeConflictAnalysis(
     repositories,
     artifactStore,
   );
+  const proposalService = new MergeProposalService(
+    repositories,
+    artifactStore,
+    workspaceRoot,
+  );
 
   messageRouter.setMergeConflictHandler(new MergeConflictMessageHandler(analysisService));
+  messageRouter.setMergeProposalHandler(new MergeProposalMessageHandler(proposalService));
   console.log('GitCat merge conflict analysis layer initialized');
 }
 
@@ -270,11 +286,12 @@ async function initializeRecommendationBackfill(
     const mode = config.get<string>('mode') as any;
     const localModelPath = config.get<string>('localModelPath');
 
-    const aiClient = new AiClient({
+    const aiClientOptions = {
       mode,
       localModelPath,
       apiKeyProvider: async () => aiSecretService.getApiKey(),
-    });
+    };
+    const aiClient = new AiClient(aiClientOptions);
     const recommendationAiService = new MergeAiService(aiClient);
     if (setClearAiCache) {
       setClearAiCache(() => recommendationAiService.clearCache());

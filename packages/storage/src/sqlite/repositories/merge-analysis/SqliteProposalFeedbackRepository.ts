@@ -24,8 +24,8 @@ export class SqliteProposalFeedbackRepository implements ProposalFeedbackReposit
     // 고유한 피드백 ID(feedback_id)를 생성합니다. 형식: fb_YYYYMMDD_001
     const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
     const randomSuffix = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
-    const feedbackId = `fb_${today}_${randomSuffix}`;
-    const decidedAt = new Date().toISOString();
+    const feedbackId = input.feedback_id ?? `fb_${today}_${randomSuffix}`;
+    const decidedAt = input.decided_at ?? new Date().toISOString();
 
     const row: ProposalFeedbackRow = {
       feedback_id: feedbackId,
@@ -98,4 +98,3 @@ export class SqliteProposalFeedbackRepository implements ProposalFeedbackReposit
     return stmt.all(proposalId) as ProposalFeedbackRow[];
   }
 }
-
