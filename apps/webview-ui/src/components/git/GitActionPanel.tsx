@@ -2,7 +2,8 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { GitBranch, Plus, ArrowUp, GitMerge, Check, Sparkles, ChevronDown, ChevronUp, X, CornerDownRight, Clock, RefreshCw, AlertCircle, RotateCw, ExternalLink, GitPullRequest, Lock } from 'lucide-react';
 import { useGitCatStore, type GitPanelPendingOperation } from '../../store/useGitCatStore';
 import { useVsCodeApi } from '../../hooks/useVsCodeApi';
-import { btn, bigBtn, inlineBtn } from '../../shared/styles';
+import { btn, bigBtn, inlineBtn, vscodeSidebarViewTitleForeground, webviewBodyForeground, webviewDescriptionForeground } from '../../shared/styles';
+import { useSidebarSectionNotificationMode } from '../../app/SidebarSectionNotificationContext';
 import { SectionNotificationBanner } from '../common/SectionNotificationBanner';
 
 function toastCompletesPending(message: string, ok: boolean, pending: GitPanelPendingOperation | null): boolean {
@@ -61,6 +62,7 @@ export const GitActionPanel: React.FC = () => {
     clearCommitRecommendationError,
   } = useGitCatStore();
   const dismissGitNotification = useCallback(() => clearSectionNotification('git'), [clearSectionNotification]);
+  const { showSectionBannersInline } = useSidebarSectionNotificationMode();
   const { sendMessage } = useVsCodeApi();
   const [showNewBranch, setShowNewBranch] = useState(false);
   const [newBranchName, setNewBranchName] = useState('');
@@ -347,7 +349,10 @@ export const GitActionPanel: React.FC = () => {
   const isCheckoutPending = !!checkoutingBranch;
 
   return (
-    <div className="animate-fade-in" style={{ padding: '8px 4px' }}>
+    <div
+      className="animate-fade-in"
+      style={{ padding: '8px 4px', color: webviewBodyForeground }}
+    >
       {/* ── Branch Selector Accordion Header ── */}
       <div>
         <div
@@ -358,16 +363,26 @@ export const GitActionPanel: React.FC = () => {
             padding: '7px 8px 7px 10px',
             borderRadius: isBranchListOpen ? '4px 4px 0 0' : '4px',
             border: '1px solid var(--vscode-panel-border)',
-            background: 'var(--vscode-input-background)', cursor: 'pointer', transition: 'all 0.2s'
+            background: 'var(--vscode-input-background)',
+            color: 'var(--vscode-input-foreground)',
+            cursor: 'pointer', transition: 'all 0.2s'
           }}
           onMouseOver={e => e.currentTarget.style.borderColor = 'var(--vscode-focusBorder)'}
           onMouseOut={e => e.currentTarget.style.borderColor = 'var(--vscode-panel-border)'}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', overflow: 'hidden' }}>
-            <GitBranch size={15} style={{ color: isGitConnected ? 'var(--vscode-charts-blue)' : 'var(--vscode-descriptionForeground)', flexShrink: 0 }} />
+            <GitBranch
+              size={15}
+              style={{
+                color: isGitConnected ? 'var(--vscode-charts-blue)' : 'var(--vscode-input-foreground)',
+                opacity: isGitConnected ? 1 : 0.72,
+                flexShrink: 0,
+              }}
+            />
             <span style={{
               fontSize: '13px', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-              color: isGitConnected ? 'inherit' : 'var(--vscode-descriptionForeground)'
+              color: 'var(--vscode-input-foreground)',
+              opacity: isGitConnected ? 1 : 0.72,
             }}>
               {isGitConnected ? currentBranch : '저장소가 연결되지 않음'}
             </span>
@@ -396,13 +411,18 @@ export const GitActionPanel: React.FC = () => {
               <RefreshCw
                 size={13}
                 style={{
-                  color: isRefreshActive ? 'var(--vscode-button-foreground)' : 'var(--vscode-descriptionForeground)',
+                  color: isRefreshActive ? 'var(--vscode-button-foreground)' : 'var(--vscode-input-foreground)',
+                  opacity: isRefreshActive ? 1 : 0.82,
                   animation: isRefreshActive ? 'gitcat-refresh-spin 0.7s ease-in-out' : 'none',
                   transition: 'color 0.18s ease'
                 }}
               />
             </button >
-            {isBranchListOpen ? <ChevronUp size={14} style={{ color: 'var(--vscode-descriptionForeground)' }} /> : <ChevronDown size={14} style={{ color: 'var(--vscode-descriptionForeground)' }} />}
+            {isBranchListOpen ? (
+              <ChevronUp size={14} style={{ color: 'var(--vscode-input-foreground)', opacity: 0.88 }} />
+            ) : (
+              <ChevronDown size={14} style={{ color: 'var(--vscode-input-foreground)', opacity: 0.88 }} />
+            )}
           </div >
         </div >
 
@@ -457,6 +477,7 @@ export const GitActionPanel: React.FC = () => {
           borderRadius: '0 0 4px 4px',
           overflowY: 'auto',
           background: 'var(--vscode-editor-background)',
+          color: 'var(--vscode-editor-foreground)',
           maxHeight: isBranchListOpen ? '320px' : '0px',
           opacity: isBranchListOpen ? 1 : 0,
           transform: isBranchListOpen ? 'translateY(0)' : 'translateY(-6px)',
@@ -468,7 +489,7 @@ export const GitActionPanel: React.FC = () => {
             <div style={{
               padding: '10px 12px',
               fontSize: '12px',
-              color: 'var(--vscode-descriptionForeground)',
+              color: 'var(--vscode-editor-foreground)',
               opacity: 0.65,
               textAlign: 'left',
             }}>
@@ -490,19 +511,40 @@ export const GitActionPanel: React.FC = () => {
                   cursor: 'pointer',
                   borderBottom: b === selectableBranches[selectableBranches.length - 1] ? 'none' : '1px solid var(--vscode-panel-border)',
                   background: isActive ? 'var(--vscode-list-activeSelectionBackground)' : 'transparent',
-                  color: isActive ? 'var(--vscode-list-activeSelectionForeground)' : 'inherit'
+                  color: isActive ? 'var(--vscode-list-activeSelectionForeground)' : 'var(--vscode-editor-foreground)',
                 }}
                 onMouseOver={e => { if (!isActive) e.currentTarget.style.background = 'var(--vscode-list-hoverBackground)' }}
                 onMouseOut={e => { if (!isActive) e.currentTarget.style.background = 'transparent' }}
               >
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <GitBranch size={12} style={{ color: 'var(--vscode-descriptionForeground)' }} />
+                  <GitBranch
+                    size={12}
+                    style={{
+                      color: isActive
+                        ? 'var(--vscode-list-activeSelectionForeground)'
+                        : 'var(--vscode-descriptionForeground)',
+                      opacity: isActive ? 0.9 : 1,
+                      flexShrink: 0,
+                    }}
+                  />
                   <span style={{ fontSize: '12px' }}>{b.name}</span>
                   {checkoutingBranch === b.name && (
-                    <span style={{ fontSize: '10px', color: 'var(--vscode-descriptionForeground)', marginLeft: '2px' }}>전환 중...</span>
+                    <span style={{
+                      fontSize: '10px',
+                      color: isActive ? 'var(--vscode-list-activeSelectionForeground)' : 'var(--vscode-descriptionForeground)',
+                      marginLeft: '2px',
+                      opacity: isActive ? 0.92 : 1,
+                    }}>전환 중...</span>
                   )}
                 </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '3px', fontSize: '10px', color: 'var(--vscode-descriptionForeground)' }}>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '3px',
+                  fontSize: '10px',
+                  color: isActive ? 'var(--vscode-list-activeSelectionForeground)' : 'var(--vscode-descriptionForeground)',
+                  opacity: isActive ? 0.88 : 1,
+                }}>
                   <Clock size={10} /> {b.lastActivity?.split(' +')[0]}
                 </div>
               </div>
@@ -514,7 +556,8 @@ export const GitActionPanel: React.FC = () => {
               fontSize: '10px',
               fontWeight: 600,
               letterSpacing: '0.3px',
-              color: 'var(--vscode-descriptionForeground)',
+              color: 'var(--vscode-editor-foreground)',
+              opacity: 0.75,
               marginBottom: '6px',
               textTransform: 'uppercase',
             }}>
@@ -523,7 +566,7 @@ export const GitActionPanel: React.FC = () => {
             {displayWorktrees.length === 0 ? (
               <div style={{
                 fontSize: '11px',
-                color: 'var(--vscode-descriptionForeground)',
+                color: 'var(--vscode-editor-foreground)',
                 opacity: 0.72,
                 padding: '2px 0',
               }}>
@@ -540,12 +583,22 @@ export const GitActionPanel: React.FC = () => {
                     padding: '6px 8px',
                     marginBottom: '6px',
                     background: isCurrent ? 'var(--vscode-list-activeSelectionBackground)' : 'var(--vscode-editor-background)',
+                    color: isCurrent ? 'var(--vscode-list-activeSelectionForeground)' : 'var(--vscode-editor-foreground)',
                   }}
                   title={wt.path}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
-                      <GitBranch size={11} style={{ color: 'var(--vscode-descriptionForeground)', flexShrink: 0 }} />
+                      <GitBranch
+                        size={11}
+                        style={{
+                          color: isCurrent
+                            ? 'var(--vscode-list-activeSelectionForeground)'
+                            : 'var(--vscode-descriptionForeground)',
+                          opacity: isCurrent ? 0.92 : 1,
+                          flexShrink: 0,
+                        }}
+                      />
                       <span style={{
                         fontSize: '11px',
                         fontWeight: 600,
@@ -563,7 +616,8 @@ export const GitActionPanel: React.FC = () => {
                           border: '1px solid var(--vscode-focusBorder)',
                           borderRadius: '999px',
                           padding: '1px 6px',
-                          color: 'var(--vscode-focusBorder)',
+                          color: 'var(--vscode-list-activeSelectionForeground)',
+                          opacity: 0.95,
                         }}>
                           current
                         </span>
@@ -574,11 +628,11 @@ export const GitActionPanel: React.FC = () => {
                   <div style={{
                     marginTop: '4px',
                     fontSize: '10px',
-                    color: 'var(--vscode-descriptionForeground)',
+                    color: isCurrent ? 'var(--vscode-list-activeSelectionForeground)' : 'var(--vscode-descriptionForeground)',
                     whiteSpace: 'nowrap',
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
-                    opacity: 0.85,
+                    opacity: isCurrent ? 0.82 : 0.9,
                   }}>
                     {compactPath(wt.path)}
                   </div>
@@ -687,7 +741,7 @@ export const GitActionPanel: React.FC = () => {
                         borderRadius: '6px',
                         border: '1px solid var(--vscode-focusBorder)',
                         background: 'var(--vscode-editor-background)',
-                        color: 'var(--vscode-foreground)',
+                        color: 'var(--vscode-editor-foreground)',
                         cursor: 'pointer',
                         textAlign: 'left',
                         whiteSpace: 'nowrap',
@@ -831,7 +885,7 @@ export const GitActionPanel: React.FC = () => {
                             borderRadius: '4px',
                             border: '1px solid var(--vscode-focusBorder)',
                             background: 'var(--vscode-editor-background)',
-                            color: 'var(--vscode-foreground)',
+                            color: 'var(--vscode-editor-foreground)',
                             cursor: 'pointer',
                           }}
                         >
@@ -1048,11 +1102,11 @@ export const GitActionPanel: React.FC = () => {
             borderRadius: '6px', border: '1px dashed var(--vscode-panel-border)',
             textAlign: 'center', background: 'rgba(255,255,255,0.02)'
           }}>
-            <AlertCircle size={24} style={{ color: 'var(--vscode-descriptionForeground)', marginBottom: '10px', opacity: 0.5 }} />
-            <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '6px', color: 'var(--vscode-foreground)' }}>
+            <AlertCircle size={24} style={{ color: webviewDescriptionForeground, marginBottom: '10px', opacity: 0.55 }} />
+            <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '6px', color: webviewBodyForeground }}>
               Git 저장소를 찾을 수 없습니다
             </div>
-            <div style={{ fontSize: '11px', color: 'var(--vscode-descriptionForeground)', lineHeight: '1.5' }}>
+            <div style={{ fontSize: '11px', color: webviewDescriptionForeground, lineHeight: '1.5', opacity: 0.92 }}>
               .git 폴더가 포함된 프로젝트 폴더를<br />
               [File] &gt; [Open Folder...]로 열어주세요.
             </div>
@@ -1063,10 +1117,10 @@ export const GitActionPanel: React.FC = () => {
       {/* ── Merge 브랜치 선택 폼 ── */}
       {
         showMergeForm && (
-          <div style={{ margin: '8px' }}>
+          <div style={{ margin: '8px', color: webviewBodyForeground }}>
             <div style={{
               fontSize: '12px', marginBottom: '10px', fontWeight: 600,
-              color: 'var(--vscode-foreground)',
+              color: vscodeSidebarViewTitleForeground,
               display: 'flex', alignItems: 'center', gap: '6px',
             }}>
               <GitMerge size={14} style={{ color: 'var(--vscode-charts-blue)' }} />
@@ -1075,7 +1129,7 @@ export const GitActionPanel: React.FC = () => {
 
             {/* 병합할 브랜치 (source: FROM) */}
             <div style={{ marginBottom: '8px' }}>
-              <label style={{ fontSize: '11px', color: 'var(--vscode-descriptionForeground)', display: 'block', marginBottom: '4px' }}>
+              <label style={{ fontSize: '11px', color: 'var(--vscode-sideBar-foreground)', opacity: 0.92, display: 'block', marginBottom: '4px' }}>
                 병합할 브랜치 (이 브랜치를 가져옵니다)
               </label>
               <select
@@ -1102,7 +1156,7 @@ export const GitActionPanel: React.FC = () => {
 
             {/* 기준 브랜치 (target: INTO) */}
             <div style={{ marginBottom: '10px' }}>
-              <label style={{ fontSize: '11px', color: 'var(--vscode-descriptionForeground)', display: 'block', marginBottom: '4px' }}>
+              <label style={{ fontSize: '11px', color: 'var(--vscode-sideBar-foreground)', opacity: 0.92, display: 'block', marginBottom: '4px' }}>
                 기준 브랜치 (여기에 합쳐집니다)
               </label>
               <select
@@ -1133,13 +1187,13 @@ export const GitActionPanel: React.FC = () => {
                 background: 'var(--vscode-editor-background)',
                 border: '1px solid var(--vscode-panel-border)',
                 borderRadius: '3px', fontSize: '11px',
-                color: 'var(--vscode-descriptionForeground)',
+                color: 'var(--vscode-editor-foreground)',
                 display: 'flex', alignItems: 'center', gap: '6px',
               }}>
-                <GitBranch size={11} />
+                <GitBranch size={11} style={{ color: 'var(--vscode-editor-foreground)', opacity: 0.75, flexShrink: 0 }} />
                 <span style={{ fontWeight: 600, color: 'var(--vscode-charts-blue)' }}>{mergeSource}</span>
-                <span>→</span>
-                <GitBranch size={11} />
+                <span style={{ opacity: 0.85 }}>→</span>
+                <GitBranch size={11} style={{ color: 'var(--vscode-editor-foreground)', opacity: 0.75, flexShrink: 0 }} />
                 <span style={{ fontWeight: 600, color: 'var(--vscode-charts-green)' }}>{mergeTarget}</span>
               </div>
             )}
@@ -1173,10 +1227,12 @@ export const GitActionPanel: React.FC = () => {
         )
       }
 
-      <SectionNotificationBanner
-        notification={sectionNotifications.git}
-        onDismiss={dismissGitNotification}
-      />
+      {showSectionBannersInline && (
+        <SectionNotificationBanner
+          notification={sectionNotifications.git}
+          onDismiss={dismissGitNotification}
+        />
+      )}
 
       {/* ── AI Prompt Webview Panel ── */}
       {
@@ -1184,6 +1240,7 @@ export const GitActionPanel: React.FC = () => {
           <div style={{
             margin: '12px 8px 8px 8px', padding: '12px',
             background: 'var(--vscode-editor-background)',
+            color: 'var(--vscode-editor-foreground)',
             border: '1px solid var(--vscode-charts-purple)',
             boxShadow: '0 0 10px rgba(197, 134, 192, 0.1)',
             borderRadius: '4px',
@@ -1229,7 +1286,7 @@ export const GitActionPanel: React.FC = () => {
                   fontWeight: 500,
                   padding: '6px 12px',
                   background: 'var(--vscode-charts-purple)',
-                  color: '#fff',
+                  color: 'var(--vscode-button-foreground)',
                   border: 'none',
                   borderRadius: '3px',
                   cursor: isRecommendationLoading ? 'not-allowed' : 'pointer',
@@ -1284,14 +1341,15 @@ export const GitActionPanel: React.FC = () => {
             borderRadius: '4px',
             border: `1px solid var(--vscode-inputValidation-errorBorder)`,
             background: 'var(--vscode-inputValidation-errorBackground)',
+            color: 'var(--vscode-errorForeground)',
           }}>
             <AlertCircle size={14} style={{ color: 'var(--vscode-errorForeground)', flexShrink: 0, marginTop: '1px' }} />
             <div style={{ flex: 1 }}>
-              <div style={{ fontWeight: 600, marginBottom: mergeResult.conflictedFiles?.length ? '6px' : 0 }}>
+              <div style={{ fontWeight: 600, marginBottom: mergeResult.conflictedFiles?.length ? '6px' : 0, color: 'var(--vscode-errorForeground)' }}>
                 병합 충돌이 발생했습니다.
               </div>
               {mergeResult.conflictedFiles && mergeResult.conflictedFiles.length > 0 && (
-                <div style={{ fontSize: '12px', color: 'var(--vscode-descriptionForeground)' }}>
+                <div style={{ fontSize: '12px', color: 'var(--vscode-errorForeground)', opacity: 0.92 }}>
                   <div style={{ marginBottom: '5px' }}>충돌 파일 목록:</div>
                   {mergeResult.conflictedFiles.map((file) => (
                     <div
@@ -1304,7 +1362,7 @@ export const GitActionPanel: React.FC = () => {
                       }}
                       onMouseOut={e => {
                         e.currentTarget.style.background = 'var(--vscode-editor-background)';
-                        e.currentTarget.style.color = 'inherit';
+                        e.currentTarget.style.color = 'var(--vscode-editor-foreground)';
                         e.currentTarget.style.textDecoration = 'none';
                       }}
                       style={{
@@ -1317,6 +1375,7 @@ export const GitActionPanel: React.FC = () => {
                         marginBottom: '3px',
                         fontFamily: 'monospace',
                         fontSize: '12px',
+                        color: 'var(--vscode-editor-foreground)',
                         cursor: 'pointer',
                         transition: 'background 0.15s ease',
                       }}
@@ -1331,7 +1390,7 @@ export const GitActionPanel: React.FC = () => {
             </div>
             <button
               onClick={clearMergeResult}
-              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0', color: 'inherit', opacity: 0.7, flexShrink: 0 }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0', color: 'var(--vscode-errorForeground)', opacity: 0.7, flexShrink: 0 }}
             >
               <X size={12} />
             </button>

@@ -4,6 +4,8 @@ import { useGitCatStore } from '../../store/useGitCatStore';
 import { useVsCodeApi } from '../../hooks/useVsCodeApi';
 import { BranchCleanupSettings, BranchCleanupCandidate } from '@gitcat/shared-types';
 import { SectionNotificationBanner } from '../common/SectionNotificationBanner';
+import { useSidebarSectionNotificationMode } from '../../app/SidebarSectionNotificationContext';
+import { vscodeSidebarViewTitleForeground, webviewBodyForeground, webviewDescriptionForeground } from '../../shared/styles';
 
 type BranchStatus = 'active' | 'merged' | 'stale' | 'protected';
 
@@ -66,14 +68,18 @@ export const BranchCleanupPanel: React.FC = () => {
     cleanupExecuteResult,
     sectionNotifications,
     clearSectionNotification,
+    setBranchCleanupInSettingsMode,
   } = useGitCatStore();
   const { sendMessage } = useVsCodeApi();
   const dismissCleanupNotification = useCallback(() => clearSectionNotification('branchCleanup'), [clearSectionNotification]);
+  const { showSectionBannersInline } = useSidebarSectionNotificationMode();
 
   const isGitConnected = currentBranch !== '';
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [warningMsg, setWarningMsg] = useState<string | null>(null);
   const [isSettingMode, setIsSettingMode] = useState(false);
+  const showCleanupSectionBanner = showSectionBannersInline || isSettingMode;
+
   const [newProtectedBranch, setNewProtectedBranch] = useState('');
   const [showConfirmModal, setShowConfirmModal] = useState(false); // 삭제 확인 모달 상태
   /**
@@ -86,6 +92,11 @@ export const BranchCleanupPanel: React.FC = () => {
   const justSavedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // “추천 자동 선택”은 최초 1회만(사용자 조작 후에는 절대 강제 선택하지 않음)
   const autoSelectArmedRef = useRef(true);
+
+  useEffect(() => {
+    setBranchCleanupInSettingsMode(isSettingMode);
+    return () => setBranchCleanupInSettingsMode(false);
+  }, [isSettingMode, setBranchCleanupInSettingsMode]);
 
   const normalizedCurrentBranch = normalizeBranchName(currentBranch);
 
@@ -300,7 +311,7 @@ export const BranchCleanupPanel: React.FC = () => {
 
 
   return (
-    <div className="animate-fade-in" style={{ padding: '0 0 12px 0', height: '100%', display: 'flex', flexDirection: 'column' }}>
+    <div className="animate-fade-in" style={{ padding: '0 0 12px 0', height: '100%', display: 'flex', flexDirection: 'column', color: webviewBodyForeground }}>
       {/*
         내부 헤더는 외곽 SectionHeader("Branch Cleanup")와 톤을 맞춘 슬림 툴바.
         - List 모드: 좌측에 GitBranch 아이콘 + 라벨, 우측에 설정 아이콘
@@ -324,7 +335,7 @@ export const BranchCleanupPanel: React.FC = () => {
                 background: 'none', border: 'none', cursor: 'pointer',
                 width: '26px', height: '26px', borderRadius: '4px',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: 'var(--vscode-foreground)',
+                color: vscodeSidebarViewTitleForeground,
                 flexShrink: 0,
               }}
               aria-label="브랜치 정리 목록으로 돌아가기"
@@ -333,14 +344,14 @@ export const BranchCleanupPanel: React.FC = () => {
               <ArrowLeft size={16} />
             </button>
           ) : (
-            <GitBranch size={14} style={{ color: 'var(--vscode-descriptionForeground)', flexShrink: 0 }} />
+            <GitBranch size={14} style={{ color: vscodeSidebarViewTitleForeground, opacity: 0.88, flexShrink: 0 }} />
           )}
           <span style={{
             fontSize: '11px',
             fontWeight: 700,
             letterSpacing: '0.04em',
             textTransform: 'uppercase',
-            color: 'var(--vscode-foreground)',
+            color: vscodeSidebarViewTitleForeground,
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             minWidth: 0,
           }}>
@@ -355,7 +366,8 @@ export const BranchCleanupPanel: React.FC = () => {
               background: 'none', border: 'none', cursor: 'pointer',
               width: '26px', height: '26px', borderRadius: '4px',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: 'var(--vscode-descriptionForeground)',
+              color: vscodeSidebarViewTitleForeground,
+              opacity: 0.9,
               flexShrink: 0,
             }}
             title="자동 정리 환경 설정"
@@ -367,16 +379,18 @@ export const BranchCleanupPanel: React.FC = () => {
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 0' }}>
-        <SectionNotificationBanner
-          notification={sectionNotifications.branchCleanup}
-          onDismiss={dismissCleanupNotification}
-        />
+        {showCleanupSectionBanner && (
+          <SectionNotificationBanner
+            notification={sectionNotifications.branchCleanup}
+            onDismiss={dismissCleanupNotification}
+          />
+        )}
         {!isGitConnected ? (
           <div style={{ padding: '40px 20px', textAlign: 'center' }}>
-            <div style={{ marginBottom: '12px', color: 'var(--vscode-descriptionForeground)', opacity: 0.5 }}>
+            <div style={{ marginBottom: '12px', color: webviewDescriptionForeground, opacity: 0.55 }}>
               <ShieldCheck size={32} strokeWidth={1} style={{ margin: '0 auto' }} />
             </div>
-            <div style={{ fontSize: '12px', color: 'var(--vscode-descriptionForeground)', lineHeight: '1.6' }}>
+            <div style={{ fontSize: '12px', color: webviewBodyForeground, opacity: 0.92, lineHeight: '1.6' }}>
               Git 저장소 정보가 없습니다.<br/>워크스페이스를 확인해주세요.
             </div>
           </div>
@@ -388,7 +402,8 @@ export const BranchCleanupPanel: React.FC = () => {
                   <div style={{
                     padding: '18px 12px',
                     fontSize: '12px',
-                    color: 'var(--vscode-descriptionForeground)',
+                    color: webviewBodyForeground,
+                    opacity: 0.92,
                     border: '1px solid var(--vscode-panel-border)',
                     borderRadius: '6px',
                     textAlign: 'center',
@@ -403,7 +418,7 @@ export const BranchCleanupPanel: React.FC = () => {
                           borderRadius: '4px',
                           border: '1px solid var(--vscode-panel-border)',
                           background: 'var(--vscode-input-background)',
-                          color: 'var(--vscode-foreground)',
+                          color: 'var(--vscode-input-foreground)',
                           cursor: 'pointer',
                         }}
                       >
@@ -420,13 +435,13 @@ export const BranchCleanupPanel: React.FC = () => {
                         background: 'var(--vscode-sideBarSectionHeader-background)',
                       }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <Sliders size={12} style={{ color: 'var(--vscode-descriptionForeground)' }} />
+                          <Sliders size={12} style={{ color: vscodeSidebarViewTitleForeground, opacity: 0.9 }} />
                           <span style={{
                             fontSize: '11px',
                             fontWeight: 700,
                             letterSpacing: '0.04em',
                             textTransform: 'uppercase',
-                            color: 'var(--vscode-foreground)',
+                            color: vscodeSidebarViewTitleForeground,
                           }}>정리 기준</span>
                         </div>
                       </div>
@@ -435,6 +450,7 @@ export const BranchCleanupPanel: React.FC = () => {
                         <label style={{
                           display: 'flex', alignItems: 'center', gap: '8px',
                           fontSize: '12px', cursor: 'pointer', minWidth: 0,
+                          color: webviewBodyForeground,
                         }}>
                           <input
                             type="checkbox"
@@ -445,6 +461,7 @@ export const BranchCleanupPanel: React.FC = () => {
                           <span style={{
                             flex: 1, minWidth: 0,
                             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                            color: webviewBodyForeground,
                           }}>
                             자동 정리 기능 사용
                           </span>
@@ -453,7 +470,8 @@ export const BranchCleanupPanel: React.FC = () => {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', minWidth: 0 }}>
                           <span style={{
                             fontSize: '12px',
-                            color: 'var(--vscode-descriptionForeground)',
+                            color: webviewBodyForeground,
+                            opacity: 0.88,
                             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                           }} title="미활동 기준">미활동 기준</span>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
@@ -483,7 +501,7 @@ export const BranchCleanupPanel: React.FC = () => {
                                 <option value="week">주</option>
                                 <option value="month">개월</option>
                               </select>
-                              <div style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', opacity: 0.6 }}>
+                              <div style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', opacity: 0.65, color: 'var(--vscode-input-foreground)' }}>
                                 <ChevronRight size={12} style={{ transform: 'rotate(90deg)' }} />
                               </div>
                             </div>
@@ -493,6 +511,7 @@ export const BranchCleanupPanel: React.FC = () => {
                         <label style={{
                           display: 'flex', alignItems: 'center', gap: '8px',
                           fontSize: '12px', cursor: 'pointer', minWidth: 0,
+                          color: webviewBodyForeground,
                         }}>
                           <input
                             type="checkbox"
@@ -504,6 +523,7 @@ export const BranchCleanupPanel: React.FC = () => {
                             style={{
                               flex: 1, minWidth: 0,
                               overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                              color: webviewBodyForeground,
                             }}
                             title="병합된 브랜치만 정리 대상에 포함"
                           >
@@ -520,13 +540,13 @@ export const BranchCleanupPanel: React.FC = () => {
                         background: 'var(--vscode-sideBarSectionHeader-background)',
                       }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <ShieldCheck size={12} style={{ color: 'var(--vscode-descriptionForeground)' }} />
+                          <ShieldCheck size={12} style={{ color: vscodeSidebarViewTitleForeground, opacity: 0.9 }} />
                           <span style={{
                             fontSize: '11px',
                             fontWeight: 700,
                             letterSpacing: '0.04em',
                             textTransform: 'uppercase',
-                            color: 'var(--vscode-foreground)',
+                            color: vscodeSidebarViewTitleForeground,
                           }}>보호 브랜치</span>
                         </div>
                       </div>
@@ -545,7 +565,8 @@ export const BranchCleanupPanel: React.FC = () => {
                                   background: 'var(--vscode-editor-background)',
                                   fontSize: '11px',
                                   maxWidth: '100%', minWidth: 0,
-                                  color: isSystem ? 'var(--vscode-descriptionForeground)' : 'var(--vscode-foreground)',
+                                  color: 'var(--vscode-editor-foreground)',
+                                  opacity: isSystem ? 0.76 : 1,
                                 }}
                                 title={name}
                               >
@@ -562,7 +583,7 @@ export const BranchCleanupPanel: React.FC = () => {
                                     aria-label={`${name} 보호 해제`}
                                     style={{
                                       background: 'none', border: 'none', padding: 0, cursor: 'pointer',
-                                      display: 'flex', color: 'var(--vscode-descriptionForeground)',
+                                      display: 'flex', color: 'var(--vscode-editor-foreground)', opacity: 0.85,
                                       flexShrink: 0,
                                     }}
                                   >
@@ -618,7 +639,8 @@ export const BranchCleanupPanel: React.FC = () => {
                           borderRadius: '4px',
                           border: '1px solid var(--vscode-panel-border)',
                           background: 'var(--vscode-input-background)',
-                          color: 'var(--vscode-descriptionForeground)',
+                          color: webviewBodyForeground,
+                          opacity: 0.9,
                           cursor: 'pointer',
                           flexShrink: 0,
                           whiteSpace: 'nowrap',
@@ -696,7 +718,7 @@ export const BranchCleanupPanel: React.FC = () => {
                     fontWeight: 700,
                     letterSpacing: '0.04em',
                     textTransform: 'uppercase',
-                    color: 'var(--vscode-foreground)',
+                    color: vscodeSidebarViewTitleForeground,
                   }}>
                     선택 가능 브랜치 ({selectedManualCount}/{manualSelectableBranches.length})
                   </span>
@@ -736,10 +758,10 @@ export const BranchCleanupPanel: React.FC = () => {
                         </div>
                         
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: '13px', fontWeight: isChecked ? 600 : 400, color: 'var(--vscode-foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <div style={{ fontSize: '13px', fontWeight: isChecked ? 600 : 400, color: vscodeSidebarViewTitleForeground, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {branch.name}
                           </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: 'var(--vscode-descriptionForeground)', marginTop: '3px', opacity: 0.7 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: webviewBodyForeground, marginTop: '3px', opacity: 0.78 }}>
                             <Clock size={10} />
                             {branch.lastActivity}
                           </div>
@@ -834,7 +856,7 @@ export const BranchCleanupPanel: React.FC = () => {
                 <AlertTriangle size={18} />
                 <span style={{ fontWeight: 700, fontSize: '14px' }}>브랜치 삭제 확인</span>
               </div>
-              <p style={{ fontSize: '12px', color: 'var(--vscode-descriptionForeground)', margin: 0 }}>
+              <p style={{ fontSize: '12px', color: webviewBodyForeground, opacity: 0.88, margin: 0 }}>
                 다음 {selected.size}개의 브랜치를 영구적으로 삭제할까요?
               </p>
             </div>
@@ -853,7 +875,7 @@ export const BranchCleanupPanel: React.FC = () => {
                 onClick={() => setShowConfirmModal(false)}
                 style={{
                   flex: 1, padding: '8px', borderRadius: '6px', border: '1px solid var(--vscode-panel-border)',
-                  background: 'transparent', color: 'var(--vscode-foreground)', cursor: 'pointer', fontSize: '12px'
+                  background: 'transparent', color: webviewBodyForeground, cursor: 'pointer', fontSize: '12px'
                 }}
               >
                 취소

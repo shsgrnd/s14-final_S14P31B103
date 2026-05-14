@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ChevronDown, ChevronUp, GitBranch, GitPullRequest, ShieldCheck, X } from 'lucide-react';
 import { useGitCatStore } from '../../store/useGitCatStore';
 import { useDefaultPrBaseBranch } from '../../hooks/useDefaultPrBaseBranch';
+import { vscodeSidebarViewTitleForeground, webviewBodyForeground, webviewDescriptionForeground } from '../../shared/styles';
 
 export interface PrSettingsSidebarProps {
   open: boolean;
@@ -95,7 +96,7 @@ export const PrSettingsSidebar: React.FC<PrSettingsSidebarProps> = ({ open, onCl
           width: '100%',
           maxWidth: '100%',
           background: 'var(--vscode-sideBar-background)',
-          color: 'var(--vscode-sideBar-foreground)',
+          color: webviewBodyForeground,
           borderLeft: '1px solid var(--vscode-panel-border)',
           boxShadow: '-6px 0 20px rgba(0,0,0,0.32)',
           transform: open ? 'translateX(0)' : 'translateX(100%)',
@@ -118,7 +119,7 @@ export const PrSettingsSidebar: React.FC<PrSettingsSidebarProps> = ({ open, onCl
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
             <GitPullRequest size={15} style={{ color: 'var(--vscode-charts-blue)', flexShrink: 0 }} />
-            <span style={{ fontSize: 13, fontWeight: 700 }}>환경설정</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: vscodeSidebarViewTitleForeground }}>환경설정</span>
           </div>
           <button
             type="button"
@@ -131,7 +132,8 @@ export const PrSettingsSidebar: React.FC<PrSettingsSidebarProps> = ({ open, onCl
               padding: 4,
               borderRadius: 4,
               cursor: 'pointer',
-              color: 'var(--vscode-descriptionForeground)',
+              color: vscodeSidebarViewTitleForeground,
+              opacity: 0.88,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -151,6 +153,7 @@ export const PrSettingsSidebar: React.FC<PrSettingsSidebarProps> = ({ open, onCl
                 fontSize: 12,
                 fontWeight: 700,
                 marginBottom: 4,
+                color: vscodeSidebarViewTitleForeground,
               }}
             >
               <GitPullRequest size={13} style={{ color: 'var(--vscode-charts-blue)' }} />
@@ -161,7 +164,8 @@ export const PrSettingsSidebar: React.FC<PrSettingsSidebarProps> = ({ open, onCl
                 margin: '0 0 10px 0',
                 fontSize: 11,
                 lineHeight: 1.55,
-                color: 'var(--vscode-descriptionForeground)',
+                color: webviewDescriptionForeground,
+                opacity: 0.92,
               }}
             >
               Create Pull Request 패널을 열 때 자동으로 채워질 base 브랜치를 지정합니다.
@@ -186,6 +190,7 @@ export const PrSettingsSidebar: React.FC<PrSettingsSidebarProps> = ({ open, onCl
                 borderRadius: isBranchListOpen ? '4px 4px 0 0' : '4px',
                 border: '1px solid var(--vscode-panel-border)',
                 background: 'var(--vscode-input-background)',
+                color: 'var(--vscode-input-foreground)',
                 cursor: 'pointer',
                 transition: 'all 0.2s',
               }}
@@ -203,18 +208,19 @@ export const PrSettingsSidebar: React.FC<PrSettingsSidebarProps> = ({ open, onCl
                     whiteSpace: 'nowrap',
                     color: defaultBranch
                       ? defaultBranchStillExists
-                        ? 'inherit'
+                        ? 'var(--vscode-input-foreground)'
                         : 'var(--vscode-editorWarning-foreground)'
-                      : 'var(--vscode-descriptionForeground)',
+                      : 'var(--vscode-input-foreground)',
+                    opacity: defaultBranch ? 1 : 0.82,
                   }}
                 >
                   {defaultBranch ?? '지정되지 않음 (자동 추론 사용)'}
                 </span>
               </div>
               {isBranchListOpen ? (
-                <ChevronUp size={14} style={{ color: 'var(--vscode-descriptionForeground)' }} />
+                <ChevronUp size={14} style={{ color: 'var(--vscode-input-foreground)', opacity: 0.88 }} />
               ) : (
-                <ChevronDown size={14} style={{ color: 'var(--vscode-descriptionForeground)' }} />
+                <ChevronDown size={14} style={{ color: 'var(--vscode-input-foreground)', opacity: 0.88 }} />
               )}
             </div>
 
@@ -225,6 +231,7 @@ export const PrSettingsSidebar: React.FC<PrSettingsSidebarProps> = ({ open, onCl
                 borderRadius: '0 0 4px 4px',
                 overflowY: 'auto',
                 background: 'var(--vscode-editor-background)',
+                color: 'var(--vscode-editor-foreground)',
                 maxHeight: isBranchListOpen ? 320 : 0,
                 opacity: isBranchListOpen ? 1 : 0,
                 transform: isBranchListOpen ? 'translateY(0)' : 'translateY(-6px)',
@@ -236,8 +243,8 @@ export const PrSettingsSidebar: React.FC<PrSettingsSidebarProps> = ({ open, onCl
                   style={{
                     padding: '10px 12px',
                     fontSize: 12,
-                    color: 'var(--vscode-descriptionForeground)',
-                    opacity: 0.65,
+                    color: 'var(--vscode-editor-foreground)',
+                    opacity: 0.72,
                   }}
                 >
                   현재 선택 가능한 다른 로컬 브랜치가 없습니다.
@@ -263,7 +270,7 @@ export const PrSettingsSidebar: React.FC<PrSettingsSidebarProps> = ({ open, onCl
                         background: isActive
                           ? 'var(--vscode-list-activeSelectionBackground)'
                           : 'transparent',
-                        color: isActive ? 'var(--vscode-list-activeSelectionForeground)' : 'inherit',
+                        color: isActive ? 'var(--vscode-list-activeSelectionForeground)' : 'var(--vscode-editor-foreground)',
                       }}
                       onMouseOver={(e) => {
                         if (!isActive) e.currentTarget.style.background = 'var(--vscode-list-hoverBackground)';
@@ -273,7 +280,7 @@ export const PrSettingsSidebar: React.FC<PrSettingsSidebarProps> = ({ open, onCl
                       }}
                     >
                       <div style={{ display: 'flex', alignItems: 'center', gap: 6, overflow: 'hidden' }}>
-                        <GitBranch size={12} style={{ color: 'var(--vscode-descriptionForeground)' }} />
+                        <GitBranch size={12} style={{ color: 'var(--vscode-editor-foreground)', opacity: 0.75 }} />
                         <span
                           style={{
                             fontSize: 12,
@@ -314,7 +321,8 @@ export const PrSettingsSidebar: React.FC<PrSettingsSidebarProps> = ({ open, onCl
                 aria-live="polite"
                 style={{
                   fontSize: 11,
-                  color: 'var(--vscode-descriptionForeground)',
+                  color: webviewDescriptionForeground,
+                  opacity: 0.92,
                   flex: 1,
                   minWidth: 0,
                   overflow: 'hidden',
