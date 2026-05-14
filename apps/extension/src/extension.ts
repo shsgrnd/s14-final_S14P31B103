@@ -24,6 +24,13 @@ import { PullRequestService } from './features/pull-request/PullRequestService';
 import { PullRequestMessageHandler } from './features/pull-request/PullRequestMessageHandler';
 import { PrSettingsService } from './features/settings/PrSettingsService';
 import { PrSettingsMessageHandler } from './features/settings/PrSettingsMessageHandler';
+import {
+  createMergeRepositories,
+  MergeAnalysisArtifactStore,
+  MergeConflictAnalysisService,
+  MergeConflictMessageHandler,
+  MergeInputAssembler,
+} from './features/merge-analysis';
 
 export async function activate(context: vscode.ExtensionContext) {
   console.log('GitCat Extension is now active!');
@@ -99,6 +106,22 @@ export async function activate(context: vscode.ExtensionContext) {
   const prSettingsHandler = new PrSettingsMessageHandler(prSettingsService, messageRouter);
   messageRouter.setPrSettingsHandler(prSettingsHandler);
 
+  let dbInstance: SQLiteDatabase | undefined;
+  if (rootPath && projectId) {
+    try {
+      const database = await GitCatDatabase.create(rootPath);
+      dbInstance = database.getInstance();
+      console.log('GitCat Database initialized successfully at:', GitCatDatabase.getDatabasePath(rootPath));
+    } catch (error) {
+      console.error('Failed to initialize GitCat database:', error);
+      vscode.window.showWarningMessage('GitCat 로컬 데이터베이스를 초기화하지 못했습니다.');
+    }
+  }
+
+  if (rootPath && projectId && gitService && dbInstance) {
+    initializeMergeConflictAnalysis(gitService, dbInstance, messageRouter);
+  }
+
   if (gitService) {
     const gitStatusRefreshController = new GitStatusRefreshController(gitService, messageRouter);
     gitStatusRefreshController.start();
@@ -159,9 +182,28 @@ export async function activate(context: vscode.ExtensionContext) {
       projectId,
       gitService,
       messageRouter,
+      dbInstance,
       (clearFn) => { clearAiCache = clearFn; },
     );
   }
+}
+
+function initializeMergeConflictAnalysis(
+  gitService: GitService,
+  dbInstance: SQLiteDatabase,
+  messageRouter: MessageRouter,
+): void {
+  const repositories = createMergeRepositories(dbInstance);
+  const assembler = new MergeInputAssembler(gitService);
+  const artifactStore = new MergeAnalysisArtifactStore();
+  const analysisService = new MergeConflictAnalysisService(
+    assembler,
+    repositories,
+    artifactStore,
+  );
+
+  messageRouter.setMergeConflictHandler(new MergeConflictMessageHandler(analysisService));
+  console.log('GitCat merge conflict analysis layer initialized');
 }
 
 async function initializeRecommendationBackfill(
@@ -170,6 +212,7 @@ async function initializeRecommendationBackfill(
   projectId: string,
   gitService: GitService,
   messageRouter: MessageRouter,
+  dbInstance?: SQLiteDatabase,
   setClearAiCache?: (fn: () => void) => void,
 ): Promise<void> {
   try {
@@ -199,9 +242,10 @@ async function initializeRecommendationBackfill(
       commitRecommendationHandler: new recommendationModule.CommitRecommendationMessageHandler(commitRecommendationService),
     });
 
-    const dbPath = GitCatDatabase.getDatabasePath(rootPath);
-    const database = await GitCatDatabase.create(rootPath);
-    const dbInstance = database.getInstance();
+    if (!dbInstance) {
+      return;
+    }
+
     const historyRepository = new SqliteRecommendationHistoryRepository(dbInstance);
     const { RecommendationHistoryQueryService } = await import('./features/recommendation/RecommendationHistoryQueryService');
     const { PrRecommendationService } = await import('./features/recommendation/PrRecommendationService');
@@ -232,7 +276,6 @@ async function initializeRecommendationBackfill(
       prRecommendationHandler: new PrRecommendationHandler(prRecommendationService),
     });
 
-    console.log('GitCat Database initialized successfully at:', dbPath);
     console.log('GitCat recommendation history layer initialized');
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

@@ -17,6 +17,7 @@ import type { PrRecommendationHandler } from '../features/recommendation/PrRecom
 import type { AiApiKeyMessageHandler } from '../features/recommendation/AiApiKeyMessageHandler';
 import type { PullRequestMessageHandler } from '../features/pull-request/PullRequestMessageHandler';
 import type { PrSettingsMessageHandler } from '../features/settings/PrSettingsMessageHandler';
+import type { MergeConflictMessageHandler } from '../features/merge-analysis/MergeConflictMessageHandler';
 import type { SnapshotQueryService } from '../features/safety/snapshot/SnapshotQueryService';
 import type { ISnapshotService } from '../features/safety/snapshot/ISnapshotService';
 import {
@@ -34,10 +35,12 @@ export class MessageRouter {
   private branchRecommendationHandler: BranchRecommendationMessageHandler | null;
   private commitRecommendationHandler: CommitRecommendationMessageHandler | null;
   private prRecommendationHandler: PrRecommendationHandler | null;
-  /** GitHub PR 생성 핵들러 (CREATE_PR, OPEN_PR_PANEL) */
+  /** GitHub PR 생성 핸들러 (CREATE_PR, OPEN_PR_PANEL) */
   private readonly pullRequestHandler: PullRequestMessageHandler | null;
   /** PR 환경설정 (기본 target 브랜치 저장/조회) */
   private prSettingsHandler: PrSettingsMessageHandler | null;
+  /** 병합 충돌 분석 메시지 핸들러 */
+  private mergeConflictHandler: MergeConflictMessageHandler | null;
   private readonly aiApiKeyMessageHandler: AiApiKeyMessageHandler | null;
   private snapshotQueryService: SnapshotQueryService | null = null;
   private snapshotService: ISnapshotService | null = null;
@@ -59,11 +62,16 @@ export class MessageRouter {
     this.prRecommendationHandler = prRecommendationHandler ?? null;
     this.pullRequestHandler = pullRequestHandler ?? null;
     this.prSettingsHandler = prSettingsHandler ?? null;
+    this.mergeConflictHandler = null;
     this.aiApiKeyMessageHandler = aiApiKeyMessageHandler ?? null;
   }
 
   public setPrSettingsHandler(handler: PrSettingsMessageHandler): void {
     this.prSettingsHandler = handler;
+  }
+
+  public setMergeConflictHandler(handler: MergeConflictMessageHandler): void {
+    this.mergeConflictHandler = handler;
   }
 
   public setSnapshotQueryService(service: SnapshotQueryService): void {
@@ -150,6 +158,11 @@ export class MessageRouter {
         const handled = await this.prSettingsHandler.handle(message.type, message.payload, webview);
         if (handled) return;
       }
+      // 병합 충돌 분석 핸들러 위임
+      if (this.mergeConflictHandler) {
+        const handled = await this.mergeConflictHandler.handle(message.type, message.payload, webview);
+        if (handled) return;
+      }
       // AI API Key 핸들러 위임
       if (this.aiApiKeyMessageHandler) {
         const handled = await this.aiApiKeyMessageHandler.handle(message.type, message.payload, webview);
@@ -213,9 +226,6 @@ export class MessageRouter {
           break;
 
         // ─── 병합 분석 관련 (4단계 구현) ─────────────────────────────────
-        case 'ANALYZE_CONFLICT':
-          this.sendNotImplemented(webview, 'ANALYZE_CONFLICT', '충돌 분석 (4단계 구현 예정)');
-          break;
 
         case 'ACCEPT_MERGE':
           this.sendNotImplemented(webview, 'ACCEPT_MERGE', '병합안 수락 (4단계 구현 예정)');
