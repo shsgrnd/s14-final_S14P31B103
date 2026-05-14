@@ -7,6 +7,7 @@ import { EventRegistry } from './events';
 import { SafetySessionCoordinator } from './features/safety/session/SafetySessionCoordinator';
 import { MockSnapshotService } from './features/safety/snapshot/MockSnapshotService';
 import { SnapshotService } from './features/safety/snapshot/SnapshotService';
+import { SnapshotQueryService } from './features/safety/snapshot/SnapshotQueryService';
 import { ISnapshotService } from './features/safety/snapshot/ISnapshotService';
 import { WebviewProvider } from './webview/WebviewProvider';
 import { SidebarProvider } from './webview/SidebarProvider';
@@ -130,6 +131,13 @@ export async function activate(context: vscode.ExtensionContext) {
         new SqliteSnapshotFileRepository(snapshotDbInstance),
         new SqliteWorkSessionRepository(snapshotDbInstance),
         { workspaceRoot: rootPath },
+      );
+      messageRouter.setSnapshotQueryService(
+        new SnapshotQueryService(
+          new SqliteSnapshotRepository(snapshotDbInstance),
+          new SqliteSnapshotFileRepository(snapshotDbInstance),
+          rootPath,
+        ),
       );
       console.log('GitCat Safety Layer (SnapshotService) initialized at:', rootPath);
     } catch (snapshotInitError) {

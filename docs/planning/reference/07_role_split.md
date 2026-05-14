@@ -18,7 +18,7 @@
 - Git 제어 로직
 - SQLite 저장소
 - 로컬 파일 저장소
-- Session / Snapshot / Restore / Checkpoint
+- Session / Snapshot / Restore / Savepoint
 - MergeAnalysis / ConflictCandidate / MergeProposal 저장 흐름
 - ProposalFeedback / RecommendationHistory 저장 흐름
 - 메시지 라우팅

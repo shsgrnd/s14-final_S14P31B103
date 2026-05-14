@@ -5,3 +5,4 @@ export * from './SnapshotLocalStore';
 export * from './SnapshotIdGenerator';
 export * from './SnapshotAutoCleanupService';
 export * from './SnapshotService';
+export * from './SnapshotQueryService';
