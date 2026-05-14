@@ -15,4 +15,8 @@ export class MockSnapshotService implements ISnapshotService {
         }
         return snapshotId;
     }
+
+    public async deleteSnapshot(snapshotId: string): Promise<void> {
+        console.log(`[MockSnapshotService] 스냅샷 삭제 요청됨: ${snapshotId}`);
+    }
 }

@@ -77,6 +77,8 @@ export interface SnapshotServiceOptions {
    * aiClient와 함께 제공해야 SNAPSHOT_UPDATED 이벤트가 전송된다.
    */
   onSnapshotUpdated?: (row: SnapshotRow) => void;
+
+  keepRecentPreRestoreCount?: number;
 }
 
 /**
@@ -107,6 +109,7 @@ export class SnapshotService implements ISnapshotService {
   private readonly aiClient?: AiClient;
   /** AI 요약 완료 후 웹뷰에 SNAPSHOT_UPDATED 이벤트를 전송하기 위한 콜백 */
   private readonly onSnapshotUpdated?: (row: SnapshotRow) => void;
+  private readonly keepRecentPreRestoreCount: number;
 
   constructor(
     private readonly snapshotRepository: SnapshotRepository,
@@ -120,12 +123,25 @@ export class SnapshotService implements ISnapshotService {
     this.keepRecentCount = options.keepRecentCount ?? SNAPSHOT_KEEP_RECENT_COUNT;
     this.aiClient = options.aiClient;
     this.onSnapshotUpdated = options.onSnapshotUpdated;
+    this.keepRecentPreRestoreCount =
+      options.keepRecentPreRestoreCount ??
+      SnapshotAutoCleanupService.DEFAULT_KEEP_RECENT_PRE_RESTORE;
 
     this.worktreeInstanceId =
       options.worktreeInstanceId ??
       SnapshotIdGenerator.generateWorktreeInstanceId(this.workspaceRoot);
 
     this.cleanupService = new SnapshotAutoCleanupService(snapshotRepository, this.localStore);
+  }
+
+  async deleteSnapshot(snapshotId: string): Promise<void> {
+    const existing = await this.snapshotRepository.findById(snapshotId);
+    if (!existing) {
+      throw new Error(`Snapshot not found: ${snapshotId}`);
+    }
+
+    await this.cleanupService.deleteSnapshot(snapshotId);
+    console.log(`[SnapshotService] 스냅샷 삭제 완료: ${snapshotId}`);
   }
 
   /**
@@ -429,7 +445,10 @@ export class SnapshotService implements ISnapshotService {
   private scheduleCleanup(): void {
     setImmediate(async () => {
       try {
-        await this.cleanupService.cleanup(this.worktreeInstanceId, this.keepRecentCount);
+        await this.cleanupService.cleanup(this.worktreeInstanceId, {
+          keepRecent: this.keepRecentCount,
+          keepRecentPreRestore: this.keepRecentPreRestoreCount,
+        });
       } catch (cleanupError) {
         console.error('[SnapshotService] 자동 삭제 중 오류 발생:', cleanupError);
       }

@@ -58,6 +58,12 @@ export interface SnapshotLocalArtifactReadResult {
   hunks: SnapshotHunk[];
 }
 
+export interface SnapshotTrashHandle {
+  snapshotId: string;
+  originalDir: string;
+  trashedDir: string;
+}
+
 /**
  * .vscode/gitcat/snapshots/{snapshotId} 하위의 스냅샷 산출물을 관리한다.
  *
@@ -183,6 +189,40 @@ export class SnapshotLocalStore {
     await fs.rm(this.getSnapshotDir(snapshotId), { recursive: true, force: true });
   }
 
+  async moveSnapshotToTrash(snapshotId: string): Promise<SnapshotTrashHandle | null> {
+    const originalDir = this.getSnapshotDir(snapshotId);
+    const trashedDir = this.getTemporaryTrashDir(snapshotId);
+
+    try {
+      await fs.access(originalDir);
+    } catch (error) {
+      const nodeError = error as NodeJS.ErrnoException;
+      if (nodeError?.code === 'ENOENT') {
+        return null;
+      }
+      throw error;
+    }
+
+    await fs.rename(originalDir, trashedDir);
+    return {
+      snapshotId,
+      originalDir,
+      trashedDir,
+    };
+  }
+
+  async restoreSnapshotFromTrash(handle: SnapshotTrashHandle): Promise<void> {
+    this.assertMatchingSnapshotId(handle.snapshotId, path.basename(handle.originalDir));
+    this.assertInsideDirectory(this.snapshotsRoot, handle.originalDir, 'snapshot directory');
+    this.assertInsideDirectory(this.snapshotsRoot, handle.trashedDir, 'trashed snapshot directory');
+    await fs.rename(handle.trashedDir, handle.originalDir);
+  }
+
+  async deleteTrashedSnapshot(handle: SnapshotTrashHandle): Promise<void> {
+    this.assertInsideDirectory(this.snapshotsRoot, handle.trashedDir, 'trashed snapshot directory');
+    await fs.rm(handle.trashedDir, { recursive: true, force: true });
+  }
+
   async ensureAuxiliaryDirs(snapshotId: string): Promise<{ fullDir: string; blobsDir: string }> {
     const snapshotDir = this.getSnapshotDir(snapshotId);
     const fullDir = path.join(snapshotDir, 'full');
@@ -261,6 +301,15 @@ export class SnapshotLocalStore {
       .slice(2, 8)}`;
     const tempDir = path.resolve(this.snapshotsRoot, tempDirName);
     this.assertInsideDirectory(this.snapshotsRoot, tempDir, 'temporary snapshot directory');
+    return tempDir;
+  }
+
+  private getTemporaryTrashDir(snapshotId: string): string {
+    const tempDirName = `${this.assertValidSnapshotId(snapshotId)}${TEMP_DIR_INFIX}trash_${Date.now()}_${Math.random()
+      .toString(36)
+      .slice(2, 8)}`;
+    const tempDir = path.resolve(this.snapshotsRoot, tempDirName);
+    this.assertInsideDirectory(this.snapshotsRoot, tempDir, 'temporary trash directory');
     return tempDir;
   }
 
