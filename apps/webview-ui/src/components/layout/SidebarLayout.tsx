@@ -88,24 +88,26 @@ export const SidebarLayout: React.FC = () => {
       setSectionBalloonOpen(false);
       return;
     }
+    /** 기록 모달이 열려 있는 동안에는 말풍선을 다시 켜지 않음(스냅샷만 동기화) */
+    if (notificationCenterOpen) {
+      prevSectionNotifSnapshot.current = sectionNotifSnapshot;
+      return;
+    }
     if (sectionNotifSnapshot !== prevSectionNotifSnapshot.current) {
       setSectionBalloonOpen(true);
     }
     prevSectionNotifSnapshot.current = sectionNotifSnapshot;
-  }, [aggregateSectionAlertsToFooter, sectionNotifSnapshot, sectionNotifCount]);
+  }, [aggregateSectionAlertsToFooter, sectionNotifSnapshot, sectionNotifCount, notificationCenterOpen]);
 
   useEffect(() => {
     if (notificationCenterOpen) setSectionBalloonOpen(false);
   }, [notificationCenterOpen]);
 
+  /** 푸터 알림: 항상 오류/알림 기록 모달을 연다(섹션 말풍선만 토글하지 않음). 모달이 말풍선을 덮는다 */
   const handleFooterAlertClick = useCallback(() => {
-    if (aggregateSectionAlertsToFooter && sectionNotifCount > 0) {
-      setSectionBalloonOpen((v) => !v);
-      return;
-    }
     setSectionBalloonOpen(false);
     openNotificationCenter();
-  }, [aggregateSectionAlertsToFooter, sectionNotifCount, openNotificationCenter]);
+  }, [openNotificationCenter]);
 
   const [expanded, setExpanded] = useState({
     filetree: true,
@@ -369,17 +371,15 @@ export const SidebarLayout: React.FC = () => {
           flexShrink: 0,
         }}
       >
-        <FooterSectionNotificationBalloon open={sectionBalloonOpen} />
+        <FooterSectionNotificationBalloon
+          paintVisible={sectionBalloonOpen && !notificationCenterOpen}
+        />
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 'auto' }}>
           <button
             type="button"
             className="gitcat-icon-press"
             style={{ ...footerIconBtn, position: 'relative' }}
-            title={
-              aggregateSectionAlertsToFooter && sectionNotifCount > 0
-                ? '섹션 알림 말풍선 열기/닫기'
-                : '오류/알림 기록'
-            }
+            title="오류/알림 기록 보기"
             aria-label="오류/알림 기록 보기"
             onClick={handleFooterAlertClick}
           >
@@ -447,7 +447,7 @@ export const SidebarLayout: React.FC = () => {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            zIndex: 10,
+            zIndex: 100,
             padding: '16px',
           }}
           onClick={() => setNotificationCenterOpen(false)}
