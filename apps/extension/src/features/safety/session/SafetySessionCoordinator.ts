@@ -114,6 +114,7 @@ export class SafetySessionCoordinator {
             reason: reason || '세션 종료',
             changedFiles: Array.from(this.changedFiles),
             baselines: new Map(this.baselines),
+            currentContents: this.buildCurrentContentsSnapshot(),
         });
 
         if (endedSession.type === 'ai') {
@@ -229,6 +230,18 @@ export class SafetySessionCoordinator {
         const fsPath = doc.uri.fsPath;
         this.dirtyFiles.delete(fsPath);
 
+    }
+
+    private buildCurrentContentsSnapshot(): Map<string, Uint8Array | null> {
+        const currentContents = new Map<string, Uint8Array | null>();
+        for (const filePath of this.changedFiles) {
+            const currentText = this.currentTextCache.get(filePath);
+            if (currentText === undefined) {
+                continue;
+            }
+            currentContents.set(filePath, Buffer.from(currentText, 'utf8'));
+        }
+        return currentContents;
     }
 
     private isIgnoredPath(fsPath: string): boolean {

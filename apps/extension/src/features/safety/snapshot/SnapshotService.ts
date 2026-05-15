@@ -14,7 +14,7 @@ import {
 } from '@gitcat/ai-pipeline';
 import type { AiClient } from '@gitcat/ai-pipeline';
 import { ISnapshotService, SnapshotCreationType, CreateSnapshotOptions } from './ISnapshotService';
-import { SnapshotDiffService } from './SnapshotDiffService';
+import { SnapshotDiffService, SnapshotFileInput } from './SnapshotDiffService';
 import { SnapshotFullStateEntry, SnapshotLocalStore } from './SnapshotLocalStore';
 import { SnapshotIdGenerator } from './SnapshotIdGenerator';
 import { SnapshotAutoCleanupService } from './SnapshotAutoCleanupService';
@@ -187,7 +187,7 @@ export class SnapshotService implements ISnapshotService {
     // baselines(AI 세션 시작 시점) → 현재 파일 상태 diff
     let diffResult;
     try {
-      diffResult = await this.buildDiff(primaryBaselines, primaryChangedFiles);
+      diffResult = await this.buildDiff(primaryBaselines, primaryChangedFiles, options.currentContents);
     } catch (diffError) {
       console.error('[SnapshotService] diff 생성 실패:', diffError);
       return undefined;
@@ -223,7 +223,11 @@ export class SnapshotService implements ISnapshotService {
     let userPatchText: string | undefined;
     if (options.userBaselines && options.userBaselines.size > 0) {
       try {
-        const userDiff = await this.buildDiff(options.userBaselines, options.userChangedFiles ?? []);
+        const userDiff = await this.buildDiff(
+          options.userBaselines,
+          options.userChangedFiles ?? [],
+          options.userCurrentContents,
+        );
         userPatchText = userDiff.patchText;
       } catch (userDiffError) {
         // user diff 실패는 경고만 남기고 계속 진행
@@ -269,7 +273,7 @@ export class SnapshotService implements ISnapshotService {
     }
 
     const snapshotDir = storeResult.snapshotDir;
-    await this.saveFullSnapshotState(snapshotId, primaryBaselines, changedFiles);
+    await this.saveFullSnapshotState(snapshotId, primaryBaselines, changedFiles, options.currentContents);
 
     // --- 세션 준비 (DB session_id 확보) ---
     const sessionId = await this.ensureSession(options.sessionId, type, createdAt);
@@ -358,6 +362,7 @@ export class SnapshotService implements ISnapshotService {
   private async buildDiff(
     baselines: Map<string, Uint8Array> | undefined,
     changedFilePaths: string[] | undefined,
+    currentContents: Map<string, Uint8Array | null> | undefined,
   ) {
     const resolvedBaselines = baselines ?? new Map<string, Uint8Array>();
     const resolvedChanged = changedFilePaths ?? [];
@@ -373,10 +378,35 @@ export class SnapshotService implements ISnapshotService {
       };
     }
 
-    return this.diffService.buildFromWorkspace({
-      workspaceRoot: this.workspaceRoot,
-      baselines: resolvedBaselines,
-      changedFiles: resolvedChanged,
+    const baselineFiles: SnapshotFileInput[] = [];
+    for (const [filePath, content] of resolvedBaselines.entries()) {
+      baselineFiles.push({ filePath, content });
+    }
+
+    const currentFiles: SnapshotFileInput[] = [];
+    for (const filePath of resolvedChanged) {
+      const normalizedPath = this.normalizeWorkspacePath(filePath);
+      if (currentContents?.has(filePath)) {
+        const content = currentContents.get(filePath) ?? null;
+        currentFiles.push({ filePath: normalizedPath, content });
+        continue;
+      }
+      if (currentContents?.has(normalizedPath)) {
+        const content = currentContents.get(normalizedPath) ?? null;
+        currentFiles.push({ filePath: normalizedPath, content });
+        continue;
+      }
+
+      const diskContent = await this.readWorkspaceFileContent(normalizedPath);
+      currentFiles.push({ filePath: normalizedPath, content: diskContent });
+    }
+
+    return this.diffService.buildSnapshotDiff({
+      baselineFiles,
+      currentFiles,
+      options: {
+        workspaceRoot: this.workspaceRoot,
+      },
     });
   }
 
@@ -485,6 +515,7 @@ export class SnapshotService implements ISnapshotService {
     snapshotId: string,
     baselines: Map<string, Uint8Array> | undefined,
     changedFiles: SnapshotFile[],
+    currentContents: Map<string, Uint8Array | null> | undefined,
   ): Promise<void> {
     if (changedFiles.length === 0) {
       return;
@@ -499,7 +530,9 @@ export class SnapshotService implements ISnapshotService {
 
     for (const file of changedFiles) {
       const targetPath = this.normalizeWorkspacePath(file.filePath);
-      const currentContent = await this.readWorkspaceFileContent(targetPath);
+      const currentContent = currentContents?.get(targetPath)
+        ?? currentContents?.get(file.filePath)
+        ?? await this.readWorkspaceFileContent(targetPath);
 
       if (file.status === 'renamed' && file.renamedFrom) {
         const beforePath = this.normalizeWorkspacePath(file.renamedFrom);

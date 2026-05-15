@@ -145,7 +145,7 @@ export class MessageRouter {
     }
 
     const message = parseResult.data as InboundMessage;
-    console.log(`[GitCat] Processing message: ${message.type}`, message.payload);
+    // console.log(`[GitCat] Processing message: ${message.type}`, message.payload);
 
     try {
       // Git 핸들러에 우선 위임
