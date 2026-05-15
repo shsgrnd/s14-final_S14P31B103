@@ -1,15 +1,17 @@
 import React, { useCallback } from 'react';
-import { FileText, Rewind, ChevronRight, BrainCircuit, ShieldCheck, User, Merge, Plus, Edit2, Trash2, Star, History, Check } from 'lucide-react';
+import { FileText, Rewind, ChevronRight, BrainCircuit, ShieldCheck, User, Merge, Plus, Edit2, Trash2, History, Check, Bookmark } from 'lucide-react';
 import { useGitCatStore } from '../../store/useGitCatStore';
 import { useVsCodeApi } from '../../hooks/useVsCodeApi';
 import { SnapshotMeta } from '@gitcat/shared-types';
 import { iconBtn } from '../../shared/styles';
 import { SectionNotificationBanner } from '../common/SectionNotificationBanner';
+import { useSidebarSectionNotificationMode } from '../../app/SidebarSectionNotificationContext';
 
 export const SnapshotTimeline: React.FC = () => {
   const { snapshots, expandedSnapshotId, setExpandedSnapshotId, sectionNotifications, clearSectionNotification } = useGitCatStore();
   const { sendMessage } = useVsCodeApi();
   const dismissSnapshotsNotification = useCallback(() => clearSectionNotification('snapshots'), [clearSectionNotification]);
+  const { showSectionBannersInline } = useSidebarSectionNotificationMode();
   const [statusMsg, setStatusMsg] = React.useState<{ text: string; ok: boolean } | null>(null);
 
   const showStatus = (text: string, ok: boolean) => {
@@ -31,9 +33,10 @@ export const SnapshotTimeline: React.FC = () => {
         return <BrainCircuit size={14} style={{ color: 'var(--vscode-charts-purple)', flexShrink: 0 }} />;
       case 'auto_dirty_before_ai':
         return <Merge size={14} style={{ color: 'var(--vscode-charts-blue)', flexShrink: 0 }} />;
-      case 'manual_checkpoint':
       case 'manual_edit_result':
         return <User size={14} style={{ color: 'var(--vscode-charts-green)', flexShrink: 0 }} />;
+      case 'savepoint':
+        return <Bookmark size={14} style={{ color: 'var(--vscode-charts-yellow)', flexShrink: 0 }} />;
       case 'pre_restore':
         return <ShieldCheck size={14} style={{ color: 'var(--vscode-charts-red)', flexShrink: 0 }} />;
       default: return <FileText size={14} style={{ flexShrink: 0 }} />;
@@ -61,10 +64,12 @@ export const SnapshotTimeline: React.FC = () => {
 
   return (
     <div className="animate-fade-in" style={{ padding: '4px 0' }}>
-      <SectionNotificationBanner
-        notification={sectionNotifications.snapshots}
-        onDismiss={dismissSnapshotsNotification}
-      />
+      {showSectionBannersInline && (
+        <SectionNotificationBanner
+          notification={sectionNotifications.snapshots}
+          onDismiss={dismissSnapshotsNotification}
+        />
+      )}
       {/* ── Header row with count badge + create button ── */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -169,13 +174,6 @@ export const SnapshotTimeline: React.FC = () => {
                 {/* Action buttons */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0, marginTop: '2px' }}
                   onClick={e => e.stopPropagation()}>
-                  <button
-                    onClick={() => sendMessage('TOGGLE_SNAPSHOT_STAR', { snapshotId: snapshot.snapshotId })}
-                    title="즐겨찾기"
-                    style={{ ...iconBtn, color: snapshot.isCheckpoint ? 'var(--vscode-charts-yellow)' : undefined }}
-                  >
-                    <Star size={13} style={{ fill: snapshot.isCheckpoint ? 'var(--vscode-charts-yellow)' : 'none' }} />
-                  </button>
                   <button onClick={() => handleRename(snapshot.snapshotId, title)} title="이름 변경" style={iconBtn}>
                     <Edit2 size={12} />
                   </button>

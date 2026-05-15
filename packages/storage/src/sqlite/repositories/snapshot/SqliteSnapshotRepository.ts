@@ -10,7 +10,6 @@ export class SqliteSnapshotRepository implements SnapshotRepository {
 
   async create(input: CreateSnapshotInput): Promise<SnapshotRow> {
     const createdAt = input.created_at ?? new Date().toISOString();
-    const isCheckpoint = input.is_checkpoint ? 1 : 0;
     const stmt = this.db.prepare(`
       INSERT INTO snapshots (
         snapshot_id,
@@ -20,10 +19,8 @@ export class SqliteSnapshotRepository implements SnapshotRepository {
         reason,
         summary,
         local_path,
-        is_checkpoint,
-        label,
         created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
@@ -34,8 +31,6 @@ export class SqliteSnapshotRepository implements SnapshotRepository {
       input.reason ?? null,
       input.summary ?? null,
       input.local_path ?? null,
-      isCheckpoint,
-      input.label ?? null,
       createdAt,
     );
 
@@ -101,27 +96,10 @@ export class SqliteSnapshotRepository implements SnapshotRepository {
     return this.mapRows(stmt.all(worktreeInstanceId, limit));
   }
 
-  async markCheckpoint(snapshotId: string, label?: string | null): Promise<SnapshotRow | null> {
-    const stmt = this.db.prepare(`
-      UPDATE snapshots
-      SET is_checkpoint = 1,
-          label = COALESCE(?, label)
-      WHERE snapshot_id = ?
-    `);
-    stmt.run(label ?? null, snapshotId);
-    return this.findById(snapshotId);
-  }
-
-  async unmarkCheckpoint(snapshotId: string): Promise<SnapshotRow | null> {
-    const stmt = this.db.prepare(`
-      UPDATE snapshots
-      SET is_checkpoint = 0
-      WHERE snapshot_id = ?
-    `);
-    stmt.run(snapshotId);
-    return this.findById(snapshotId);
-  }
-
+  /**
+   * 자동 삭제 후보를 조회한다.
+   * 최근 keepRecent개를 초과하는 오래된 스냅샷을 오래된 순으로 반환한다.
+   */
   async listAutoDeletionCandidates(
     worktreeInstanceId: string,
     keepRecent = 30,
@@ -136,7 +114,6 @@ export class SqliteSnapshotRepository implements SnapshotRepository {
         FROM snapshots s
         JOIN work_sessions ws ON ws.session_id = s.session_id
         WHERE ws.worktree_instance_id = ?
-          AND s.is_checkpoint = 0
       )
       WHERE recency_rank > ?
       ORDER BY created_at ASC
@@ -146,10 +123,36 @@ export class SqliteSnapshotRepository implements SnapshotRepository {
     return this.mapRows(stmt.all(worktreeInstanceId, keepRecent, limit));
   }
 
+  /**
+   * AI가 생성한 요약 제목을 snapshots 테이블의 summary 컬럼에 업데이트합니다.
+   *
+   * 스냅샷은 처음 생성될 때 summary가 비어 있는 상태로 저장되고,
+   * 백그라운드 AI 요약 작업이 완료된 후 이 메서드를 통해 내용이 채워집니다.
+   *
+   * @param snapshotId 요약을 업데이트할 스냅샷의 고유 ID
+   * @param summary AI가 생성한 한 줄 요약 제목 (예: "[Human] README 오타 수정")
+   */
+  async updateSummary(snapshotId: string, summary: string): Promise<void> {
+    const stmt = this.db.prepare('UPDATE snapshots SET summary = ? WHERE snapshot_id = ?');
+    stmt.run(summary, snapshotId);
+  }
+
   async deleteById(snapshotId: string): Promise<void> {
+    const detachPreviousSnapshotLinks = this.db.prepare(`
+      UPDATE snapshots
+      SET previous_snapshot_id = NULL
+      WHERE previous_snapshot_id = ?
+    `);
+    const deleteRestoreHistories = this.db.prepare(`
+      DELETE FROM restore_histories
+      WHERE target_snapshot_id = ?
+         OR pre_restore_snapshot_id = ?
+    `);
     const deleteSnapshotFiles = this.db.prepare('DELETE FROM snapshot_files WHERE snapshot_id = ?');
     const deleteSnapshot = this.db.prepare('DELETE FROM snapshots WHERE snapshot_id = ?');
     const deleteInTransaction = this.db.transaction((id: string) => {
+      detachPreviousSnapshotLinks.run(id);
+      deleteRestoreHistories.run(id, id);
       deleteSnapshotFiles.run(id);
       deleteSnapshot.run(id);
     });
@@ -174,8 +177,6 @@ export class SqliteSnapshotRepository implements SnapshotRepository {
       reason: (row.reason as string | null | undefined) ?? null,
       summary: (row.summary as string | null | undefined) ?? null,
       local_path: (row.local_path as string | null | undefined) ?? null,
-      is_checkpoint: Number(row.is_checkpoint ?? 0),
-      label: (row.label as string | null | undefined) ?? null,
       created_at: row.created_at as string,
     };
   }

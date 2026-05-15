@@ -18,8 +18,8 @@ export const SnapshotTypeEnum = z.enum([
   'ai_pre_action',
   'auto_dirty_before_ai',
   'ai_result',
-  'manual_checkpoint',
   'manual_edit_result',
+  'savepoint',        // 사용자가 수동으로 저장하는 세이브포인트 (UI 버튼 연결 예정)
   'pre_restore',
 ]);
 export type SnapshotType = z.infer<typeof SnapshotTypeEnum>;

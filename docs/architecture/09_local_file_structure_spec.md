@@ -1,16 +1,16 @@
-# 09.  로컬 파일 구조 정의서
+﻿# 09.  濡쒖뺄 ?뚯씪 援ъ“ ?뺤쓽??
 
-# 로컬 파일 구조 정의서
+# 濡쒖뺄 ?뚯씪 援ъ“ ?뺤쓽??
 
-## 문서 개요
+## 臾몄꽌 媛쒖슂
 
-본 문서는 GitCat MVP에서 로컬 파일 시스템에 저장되는 데이터의 디렉터리 구조와 파일 규약을 정의한다.
+蹂?臾몄꽌??GitCat MVP?먯꽌 濡쒖뺄 ?뚯씪 ?쒖뒪?쒖뿉 ??λ릺???곗씠?곗쓽 ?붾젆?곕━ 援ъ“? ?뚯씪 洹쒖빟???뺤쓽?쒕떎.
 
-GitCat은 실제 스냅샷 파일 본문, 병합 초안 결과, 임시 작업 파일을 워크스페이스 내부 `.vscode/gitcat/` 하위에 저장한다.
+GitCat? ?ㅼ젣 ?ㅻ깄???뚯씪 蹂몃Ц, 蹂묓빀 珥덉븞 寃곌낵, ?꾩떆 ?묒뾽 ?뚯씪???뚰겕?ㅽ럹?댁뒪 ?대? `.vscode/gitcat/` ?섏쐞????ν븳??
 
 ---
 
-## 최상위 디렉터리 구조
+## 理쒖긽???붾젆?곕━ 援ъ“
 
 ```
 .vscode/
@@ -20,21 +20,21 @@ GitCat은 실제 스냅샷 파일 본문, 병합 초안 결과, 임시 작업 �
     temp/
 ```
 
-| 디렉터리 | 설명 |
+| ?붾젆?곕━ | ?ㅻ챸 |
 | --- | --- |
-| `.vscode/gitcat/snapshots/` | 스냅샷별 원본 파일 복사본 및 메타데이터 저장 |
-| `.vscode/gitcat/merge-sessions/` | 병합 세션 결과, 충돌 분석 요약, 병합 초안 저장 |
-| `.vscode/gitcat/temp/` | 임시 비교/전처리/분석용 파일 저장 |
+| `.vscode/gitcat/snapshots/` | ?ㅻ깄?룸퀎 ?먮낯 ?뚯씪 蹂듭궗蹂?諛?硫뷀??곗씠?????|
+| `.vscode/gitcat/merge-sessions/` | 蹂묓빀 ?몄뀡 寃곌낵, 異⑸룎 遺꾩꽍 ?붿빟, 蹂묓빀 珥덉븞 ???|
+| `.vscode/gitcat/temp/` | ?꾩떆 鍮꾧탳/?꾩쿂由?遺꾩꽍???뚯씪 ???|
 
 ---
 
-## 1. snapshots 디렉터리
+## 1. snapshots ?붾젆?곕━
 
-### 역할
+### ??븷
 
-AI 작업 세션 또는 수동 편집 세션 종료 시 확정된 스냅샷 파일을 저장한다.
+AI ?묒뾽 ?몄뀡 ?먮뒗 ?섎룞 ?몄쭛 ?몄뀡 醫낅즺 ???뺤젙???ㅻ깄???뚯씪????ν븳??
 
-### 구조
+### 援ъ“
 
 ```
 .vscode/gitcat/snapshots/
@@ -46,33 +46,33 @@ AI 작업 세션 또는 수동 편집 세션 종료 시 확정된 스냅샷 파�
       src__components__Login.tsx
 ```
 
-### 구성 요소
+### 援ъ꽦 ?붿냼
 
 ### 1) `{snapshotId}/`
 
-- 하나의 스냅샷을 나타내는 디렉터리
-- 디렉터리명은 `snapshotId` 사용
+- ?섎굹???ㅻ깄?룹쓣 ?섑??대뒗 ?붾젆?곕━
+- ?붾젆?곕━紐낆? `snapshotId` ?ъ슜
 
 ### 2) `metadata.json`
 
-- 스냅샷 메타데이터 파일
-- 생성 시각, reason, 브랜치명, 세션 연결 정보, 체크포인트 여부 저장
+- ?ㅻ깄??硫뷀??곗씠???뚯씪
+- ?앹꽦 ?쒓컖, reason, 釉뚮옖移섎챸, ?몄뀡 ?곌껐 ?뺣낫, 泥댄겕?ъ씤???щ? ???
 
 ### 3) `summary.json`
 
-- 스냅샷 요약 정보 파일
-- 변경 파일 목록, 변경 수, 간단한 설명, UI 표시용 요약 정보 저장
+- ?ㅻ깄???붿빟 ?뺣낫 ?뚯씪
+- 蹂寃??뚯씪 紐⑸줉, 蹂寃??? 媛꾨떒???ㅻ챸, UI ?쒖떆???붿빟 ?뺣낫 ???
 
 ### 4) `originals/`
 
-- 해당 스냅샷 시점의 실제 파일 복사본 저장
-- 원복 시 실제 복원 대상이 되는 파일들
+- ?대떦 ?ㅻ깄???쒖젏???ㅼ젣 ?뚯씪 蹂듭궗蹂????
+- ?먮났 ???ㅼ젣 蹂듭썝 ??곸씠 ?섎뒗 ?뚯씪??
 
 ---
 
-## metadata.json 정의
+## metadata.json ?뺤쓽
 
-### 예시
+### ?덉떆
 
 ```json
 {
@@ -81,28 +81,26 @@ AI 작업 세션 또는 수동 편집 세션 종료 시 확정된 스냅샷 파�
   "createdAt": 1714000000000,
   "reason": "ai_work",
   "branchName": "feature/login",
-  "isCheckpoint": false,
   "label": null
 }
 ```
 
-### 필드 설명
+### ?꾨뱶 ?ㅻ챸
 
-| 필드명 | 타입 | 설명 |
+| ?꾨뱶紐?| ???| ?ㅻ챸 |
 | --- | --- | --- |
-| snapshotId | string | 스냅샷 고유 식별자 |
-| sessionId | string | null | 연결된 세션 ID |
-| createdAt | number | 생성 시각 (Unix ms) |
-| reason | string | 생성 이유 (`ai_work`, `manual`, `pre_restore`, `pre_merge`) |
-| branchName | string | 생성 시점 활성 브랜치명 |
-| isCheckpoint | boolean | 체크포인트 여부 |
-| label | string | null | 사용자 지정 이름 |
+| snapshotId | string | ?ㅻ깄??怨좎쑀 ?앸퀎??|
+| sessionId | string | null | ?곌껐???몄뀡 ID |
+| createdAt | number | ?앹꽦 ?쒓컖 (Unix ms) |
+| reason | string | ?앹꽦 ?댁쑀 (`ai_work`, `manual`, `pre_restore`, `pre_merge`) |
+| branchName | string | ?앹꽦 ?쒖젏 ?쒖꽦 釉뚮옖移섎챸 |
+| label | string | null | ?ъ슜??吏???대쫫 |
 
 ---
 
-## summary.json 정의
+## summary.json ?뺤쓽
 
-### 예시
+### ?덉떆
 
 ```json
 {
@@ -112,46 +110,46 @@ AI 작업 세션 또는 수동 편집 세션 종료 시 확정된 스냅샷 파�
     "src/auth/login.ts",
     "src/components/Login.tsx"
   ],
-  "description": "AI 작업 세션 종료 후 통합 스냅샷",
+  "description": "AI ?묒뾽 ?몄뀡 醫낅즺 ???듯빀 ?ㅻ깄??,
   "sessionType": "ai_work"
 }
 ```
 
-### 필드 설명
+### ?꾨뱶 ?ㅻ챸
 
-| 필드명 | 타입 | 설명 |
+| ?꾨뱶紐?| ???| ?ㅻ챸 |
 | --- | --- | --- |
-| fileCount | number | 포함된 파일 수 |
-| files | string[] | 원본 파일 경로 목록 |
-| description | string | UI 표시용 요약 설명 |
-| sessionType | string | 세션 유형 (`ai_work`, `manual`) |
+| fileCount | number | ?ы븿???뚯씪 ??|
+| files | string[] | ?먮낯 ?뚯씪 寃쎈줈 紐⑸줉 |
+| description | string | UI ?쒖떆???붿빟 ?ㅻ챸 |
+| sessionType | string | ?몄뀡 ?좏삎 (`ai_work`, `manual`) |
 
 ---
 
-## originals 파일명 규칙
+## originals ?뚯씪紐?洹쒖튃
 
-실제 원본 파일은 디렉터리 구분자를 `__`로 치환한 파일명으로 저장한다.
+?ㅼ젣 ?먮낯 ?뚯씪? ?붾젆?곕━ 援щ텇?먮? `__`濡?移섑솚???뚯씪紐낆쑝濡???ν븳??
 
-### 예시
+### ?덉떆
 
-- `src/auth/user.ts` → `src__auth__user.ts`
-- `src/components/Login.tsx` → `src__components__Login.tsx`
+- `src/auth/user.ts` ??`src__auth__user.ts`
+- `src/components/Login.tsx` ??`src__components__Login.tsx`
 
-### 목적
+### 紐⑹쟻
 
-- 하나의 디렉터리에 평탄화 저장 가능
-- 파일 시스템에서 안전하게 저장 가능
-- 원복 시 summary/files 정보와 매핑 가능
+- ?섎굹???붾젆?곕━???됲깂?????媛??
+- ?뚯씪 ?쒖뒪?쒖뿉???덉쟾?섍쾶 ???媛??
+- ?먮났 ??summary/files ?뺣낫? 留ㅽ븨 媛??
 
 ---
 
-## 2. merge-sessions 디렉터리
+## 2. merge-sessions ?붾젆?곕━
 
-### 역할
+### ??븷
 
-병합 분석 및 AI 병합 초안 관련 파일을 저장한다.
+蹂묓빀 遺꾩꽍 諛?AI 蹂묓빀 珥덉븞 愿???뚯씪????ν븳??
 
-### 구조
+### 援ъ“
 
 ```
 .vscode/gitcat/merge-sessions/
@@ -161,54 +159,54 @@ AI 작업 세션 또는 수동 편집 세션 종료 시 확정된 스냅샷 파�
     summary.json
 ```
 
-### 구성 요소
+### 援ъ꽦 ?붿냼
 
 ### 1) `analysis.json`
 
-- 병합 분석 결과 저장
-- source/target 브랜치, 분석 시각, 충돌 후보 요약 포함
+- 蹂묓빀 遺꾩꽍 寃곌낵 ???
+- source/target 釉뚮옖移? 遺꾩꽍 ?쒓컖, 異⑸룎 ?꾨낫 ?붿빟 ?ы븿
 
 ### 2) `proposals.json`
 
-- AI 병합 초안 결과 저장
-- 파일별 제안 코드, 설명, confidence 포함
+- AI 蹂묓빀 珥덉븞 寃곌낵 ???
+- ?뚯씪蹂??쒖븞 肄붾뱶, ?ㅻ챸, confidence ?ы븿
 
 ### 3) `summary.json`
 
-- UI 표시용 병합 세션 요약 정보 저장
+- UI ?쒖떆??蹂묓빀 ?몄뀡 ?붿빟 ?뺣낫 ???
 
 ---
 
-## analysis.json 정의
+## analysis.json ?뺤쓽
 
-| 필드명 | 타입 | 설명 |
+| ?꾨뱶紐?| ???| ?ㅻ챸 |
 | --- | --- | --- |
-| mergeSessionId | string | 병합 세션 ID |
-| sourceBranch | string | 병합 대상 브랜치 |
-| targetBranch | string | 기준 브랜치 |
-| analyzedAt | number | 분석 시각 |
-| candidateCount | number | 충돌 후보 수 |
+| mergeSessionId | string | 蹂묓빀 ?몄뀡 ID |
+| sourceBranch | string | 蹂묓빀 ???釉뚮옖移?|
+| targetBranch | string | 湲곗? 釉뚮옖移?|
+| analyzedAt | number | 遺꾩꽍 ?쒓컖 |
+| candidateCount | number | 異⑸룎 ?꾨낫 ??|
 
 ---
 
-## proposals.json 정의
+## proposals.json ?뺤쓽
 
-| 필드명 | 타입 | 설명 |
+| ?꾨뱶紐?| ???| ?ㅻ챸 |
 | --- | --- | --- |
-| filePath | string | 대상 파일 경로 |
-| proposedCode | string | AI 제안 코드 |
-| explanation | string | AI 설명 |
-| confidence | string | 신뢰도 |
+| filePath | string | ????뚯씪 寃쎈줈 |
+| proposedCode | string | AI ?쒖븞 肄붾뱶 |
+| explanation | string | AI ?ㅻ챸 |
+| confidence | string | ?좊ː??|
 
 ---
 
-## 3. temp 디렉터리
+## 3. temp ?붾젆?곕━
 
-### 역할
+### ??븷
 
-일시적인 비교/전처리/분석 중간 산출물을 저장한다.
+?쇱떆?곸씤 鍮꾧탳/?꾩쿂由?遺꾩꽍 以묎컙 ?곗텧臾쇱쓣 ??ν븳??
 
-### 구조
+### 援ъ“
 
 ```
 .vscode/gitcat/temp/
@@ -217,95 +215,96 @@ AI 작업 세션 또는 수동 편집 세션 종료 시 확정된 스냅샷 파�
   prompt/
 ```
 
-### 원칙
+### ?먯튃
 
-- 영속 보관 대상 아님
-- 세션 종료 또는 작업 완료 시 정리 가능
-- 장애 발생 시에도 핵심 복원 데이터로 사용하지 않음
-
----
-
-## 생성 규칙
-
-### 스냅샷 생성 시
-
-- `snapshots/{snapshotId}/` 생성
-- `metadata.json` 작성
-- `summary.json` 작성
-- `originals/` 하위에 원본 파일 복사본 저장
-
-### 병합 분석 시
-
-- `merge-sessions/{mergeSessionId}/analysis.json` 저장
-- 필요 시 `proposals.json` 저장
-
-### 임시 작업 시
-
-- `temp/` 하위에 임시 파일 저장
-- 작업 종료 후 삭제 가능
+- ?곸냽 蹂닿? ????꾨떂
+- ?몄뀡 醫낅즺 ?먮뒗 ?묒뾽 ?꾨즺 ???뺣━ 媛??
+- ?μ븷 諛쒖깮 ?쒖뿉???듭떖 蹂듭썝 ?곗씠?곕줈 ?ъ슜?섏? ?딆쓬
 
 ---
 
-## 조회 규칙
+## ?앹꽦 洹쒖튃
 
-### 스냅샷 목록 조회
+### ?ㅻ깄???앹꽦 ??
 
-- 목록 자체는 SQLite 메타데이터 기준으로 조회
-- 사용자가 특정 스냅샷 클릭 시 해당 디렉터리의 `metadata.json`, `summary.json` 읽기
+- `snapshots/{snapshotId}/` ?앹꽦
+- `metadata.json` ?묒꽦
+- `summary.json` ?묒꽦
+- `originals/` ?섏쐞???먮낯 ?뚯씪 蹂듭궗蹂????
 
-### 원복 시
+### 蹂묓빀 遺꾩꽍 ??
 
-- SQLite에서 파일 목록 조회
-- `originals/` 하위 파일 복사본 읽기
-- 워크스페이스 원본 위치에 복원
+- `merge-sessions/{mergeSessionId}/analysis.json` ???
+- ?꾩슂 ??`proposals.json` ???
 
-### 병합 초안 조회
+### ?꾩떆 ?묒뾽 ??
 
-- SQLite 메타데이터 또는 병합 세션 ID 기반으로 디렉터리 찾기
-- `analysis.json`, `proposals.json` 로드
-
----
-
-## 삭제/정리 규칙
-
-### 일반 스냅샷
-
-- 보관 개수 초과 시 오래된 순으로 삭제 가능
-- 단, 체크포인트는 자동 삭제 대상에서 제외
-
-### 체크포인트 스냅샷
-
-- 사용자 명시적 해제 또는 삭제 요청이 있을 때만 삭제
-
-### 임시 파일
-
-- 작업 종료 후 정리 가능
-- 장기 보관 대상 아님
+- `temp/` ?섏쐞???꾩떆 ?뚯씪 ???
+- ?묒뾽 醫낅즺 ????젣 媛??
 
 ---
 
-## Git 추적 규칙
+## 議고쉶 洹쒖튃
 
-`.vscode/gitcat/` 하위 파일은 Git 추적 대상에서 제외한다.
+### ?ㅻ깄??紐⑸줉 議고쉶
 
-### 예시
+- 紐⑸줉 ?먯껜??SQLite 硫뷀??곗씠??湲곗??쇰줈 議고쉶
+- ?ъ슜?먭? ?뱀젙 ?ㅻ깄???대┃ ???대떦 ?붾젆?곕━??`metadata.json`, `summary.json` ?쎄린
+
+### ?먮났 ??
+
+- SQLite?먯꽌 ?뚯씪 紐⑸줉 議고쉶
+- `originals/` ?섏쐞 ?뚯씪 蹂듭궗蹂??쎄린
+- ?뚰겕?ㅽ럹?댁뒪 ?먮낯 ?꾩튂??蹂듭썝
+
+### 蹂묓빀 珥덉븞 議고쉶
+
+- SQLite 硫뷀??곗씠???먮뒗 蹂묓빀 ?몄뀡 ID 湲곕컲?쇰줈 ?붾젆?곕━ 李얘린
+- `analysis.json`, `proposals.json` 濡쒕뱶
+
+---
+
+## ??젣/?뺣━ 洹쒖튃
+
+### ?쇰컲 ?ㅻ깄??
+
+- 蹂닿? 媛쒖닔 珥덇낵 ???ㅻ옒???쒖쑝濡???젣 媛??
+- ?? 泥댄겕?ъ씤?몃뒗 ?먮룞 ??젣 ??곸뿉???쒖쇅
+
+### 泥댄겕?ъ씤???ㅻ깄??
+
+- ?ъ슜??紐낆떆???댁젣 ?먮뒗 ??젣 ?붿껌???덉쓣 ?뚮쭔 ??젣
+
+### ?꾩떆 ?뚯씪
+
+- ?묒뾽 醫낅즺 ???뺣━ 媛??
+- ?κ린 蹂닿? ????꾨떂
+
+---
+
+## Git 異붿쟻 洹쒖튃
+
+`.vscode/gitcat/` ?섏쐞 ?뚯씪? Git 異붿쟻 ??곸뿉???쒖쇅?쒕떎.
+
+### ?덉떆
 
 ```
 .vscode/gitcat/
 ```
 
-### 이유
+### ?댁쑀
 
-- 스냅샷 파일은 로컬 복원용 데이터임
-- 실제 프로젝트 소스와 별개임
-- 팀원 간 공유 대상이 아님
+- ?ㅻ깄???뚯씪? 濡쒖뺄 蹂듭썝???곗씠?곗엫
+- ?ㅼ젣 ?꾨줈?앺듃 ?뚯뒪? 蹂꾧컻??
+- ???媛?怨듭쑀 ??곸씠 ?꾨떂
 
 ---
 
-## 결론
+## 寃곕줎
 
-로컬 파일 시스템은 GitCat에서 실제 복원 가능한 파일 본문을 저장하는 핵심 저장소다.
+濡쒖뺄 ?뚯씪 ?쒖뒪?쒖? GitCat?먯꽌 ?ㅼ젣 蹂듭썝 媛?ν븳 ?뚯씪 蹂몃Ц????ν븯???듭떖 ??μ냼??
 
-스냅샷은 `snapshots/`, 병합 분석 결과는 `merge-sessions/`, 임시 중간 산출물은 `temp/`에 저장하며, 각 파일은 메타데이터와 실제 원본을 분리해 관리한다.
+?ㅻ깄?룹? `snapshots/`, 蹂묓빀 遺꾩꽍 寃곌낵??`merge-sessions/`, ?꾩떆 以묎컙 ?곗텧臾쇱? `temp/`????ν븯硫? 媛??뚯씪? 硫뷀??곗씠?곗? ?ㅼ젣 ?먮낯??遺꾨━??愿由ы븳??
 
-원하면 다음엔 이어서 **SQLite 기준 ERD에 들어갈 엔티티 텍스트 정의**도 같은 방식으로 적어줄게.
+?먰븯硫??ㅼ쓬???댁뼱??**SQLite 湲곗? ERD???ㅼ뼱媛??뷀떚???띿뒪???뺤쓽**??媛숈? 諛⑹떇?쇰줈 ?곸뼱以꾧쾶.
+

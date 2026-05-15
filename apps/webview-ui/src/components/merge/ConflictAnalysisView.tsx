@@ -17,6 +17,12 @@ export const ConflictAnalysisView: React.FC = () => {
     sendMessage('OPEN_FILE_DIFF', { 
       filePath: conflict.filePath
     });
+    sendMessage('GET_AI_DRAFT', {
+      analysisId: conflict.analysisId,
+      candidateId: conflict.candidateId,
+      filePath: conflict.filePath,
+      featureType: 'merge_patch_draft',
+    });
   };
 
   return (

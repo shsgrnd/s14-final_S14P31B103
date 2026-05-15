@@ -43,6 +43,7 @@ export interface CreateRecommendationHistoryInput {
  * 병합안 수락/수정/거절 시점에 메시지 핸들러/서비스가 이 타입으로 저장 요청합니다.
  */
 export interface CreateProposalFeedbackInput {
+  feedback_id?: string;
   proposal_id: string;
   project_id: string;
   merge_proposal_id?: string | null;
@@ -52,6 +53,7 @@ export interface CreateProposalFeedbackInput {
   final_explanation?: string | null;
   quality_tag?: ProposalFeedbackRow['quality_tag'];
   feedback_note?: string | null;
+  decided_at?: string;
 }
 
 /**
@@ -127,8 +129,6 @@ export interface CreateSnapshotInput {
   reason?: string | null;
   summary?: string | null;
   local_path?: string | null;
-  is_checkpoint?: number | boolean;
-  label?: string | null;
   created_at?: string;
 }
 
@@ -139,9 +139,15 @@ export interface SnapshotRepository {
   findLatestByWorktreeInstance(worktreeInstanceId: string): Promise<SnapshotRow | null>;
   listRecent(limit?: number): Promise<SnapshotRow[]>;
   listByWorkspace(worktreeInstanceId: string, limit?: number): Promise<SnapshotRow[]>;
-  markCheckpoint(snapshotId: string, label?: string | null): Promise<SnapshotRow | null>;
-  unmarkCheckpoint(snapshotId: string): Promise<SnapshotRow | null>;
   listAutoDeletionCandidates(worktreeInstanceId: string, keepRecent?: number, limit?: number): Promise<SnapshotRow[]>;
+  /**
+   * AI가 생성한 요약 제목을 해당 스냅샷의 summary 콸럼에 업데이트합니다.
+   * 스냅샷 생성 직후 백그라운드 AI 태스크가 완료되면 호출됩니다.
+   *
+   * @param snapshotId 업데이트할 스냅샷의 고유 ID
+   * @param summary AI가 생성한 한 줄 요약 제목 (예: "[Human] README 오타 수정")
+   */
+  updateSummary(snapshotId: string, summary: string): Promise<void>;
   deleteById(snapshotId: string): Promise<void>;
 }
 
@@ -186,8 +192,11 @@ export interface ChangedFileRepository {
 
 export interface CreateRestoreHistoryInput {
   restore_history_id: string;
+  from_snapshot_id: string;
   target_snapshot_id: string;
   pre_restore_snapshot_id?: string | null;
+  status?: 'success' | 'failed' | 'partial';
+  failure_reason?: string | null;
   restored_at?: string;
 }
 
@@ -225,6 +234,7 @@ export interface ConflictCandidateRepository {
  */
 export interface MergeProposalRepository {
   insertMany(proposals: Array<Omit<MergeProposalRow, 'created_at'> & { created_at?: string }>): Promise<void>;
+  findById(proposalId: string): Promise<MergeProposalRow | null>;
   listByAnalysis(analysisId: string): Promise<MergeProposalRow[]>;
   updateStatus(proposalId: string, status: MergeProposalRow['status']): Promise<void>;
 }

@@ -5,13 +5,30 @@ import type { SnapshotHunk, SnapshotManifest } from '@gitcat/shared-types';
 const SNAPSHOT_ID_PATTERN = /^[A-Za-z0-9._-]+$/;
 const SNAPSHOT_DIR = path.join('.vscode', 'gitcat', 'snapshots');
 const EXCLUDED_PATH_SEGMENTS = new Set(['.git', 'node_modules', 'dist', 'build']);
-const EXCLUDED_FILE_NAMES = new Set(['manifest.json', 'patch.diff', 'hunks.json']);
+/**
+ * 스냅샷 디렉터리 내 저장 가능한 아티팩트 파일명 허용 목록
+ * - patch.diff     : AI+사용자 통합 diff (주 diff)
+ * - ai_patch.diff  : AI가 변경한 diff만 분리
+ * - user_patch.diff: 사용자가 변경한 diff만 분리
+ */
+const ALLOWED_ARTIFACT_FILES = new Set([
+  'manifest.json',
+  'patch.diff',
+  'hunks.json',
+  'ai_patch.diff',
+  'user_patch.diff',
+]);
 const TEMP_DIR_INFIX = '__tmp__';
 
 export interface SnapshotLocalArtifact {
   manifest: SnapshotManifest;
+  /** 통합 patch (AI + 사용자 합산, 또는 해당 타입의 주 변경) */
   patchText: string;
   hunks: SnapshotHunk[];
+  /** AI가 변경한 diff. ai_result 타입에서 설정 */
+  aiPatchText?: string;
+  /** 사용자가 변경한 diff. auto_dirty_before_ai/ai_result 타입에서 설정 */
+  userPatchText?: string;
   includeFullFileBackupDir?: boolean;
   includeCodeBlobStoreDir?: boolean;
 }
@@ -39,6 +56,27 @@ export interface SnapshotLocalArtifactReadResult {
   manifest: SnapshotManifest;
   patchText: string;
   hunks: SnapshotHunk[];
+}
+
+export interface SnapshotTrashHandle {
+  snapshotId: string;
+  originalDir: string;
+  trashedDir: string;
+}
+
+export interface SnapshotFullStateEntry {
+  filePath: string;
+  content: string | Uint8Array | null;
+}
+
+interface SnapshotFullStateIndexEntry {
+  exists: boolean;
+  storedPath?: string;
+}
+
+interface SnapshotFullStateIndex {
+  before: Record<string, SnapshotFullStateIndexEntry>;
+  after: Record<string, SnapshotFullStateIndexEntry>;
 }
 
 /**
@@ -95,6 +133,17 @@ export class SnapshotLocalStore {
       await fs.writeFile(manifestPath, `${JSON.stringify(artifact.manifest, null, 2)}\n`, 'utf8');
       await fs.writeFile(patchPath, artifact.patchText, 'utf8');
       await fs.writeFile(hunksPath, `${JSON.stringify(artifact.hunks, null, 2)}\n`, 'utf8');
+
+      // 선택적 diff 파일: 존재하는 경우에만 저장
+      if (artifact.aiPatchText !== undefined) {
+        const aiPatchPath = this.resolveArtifactPath(tempSnapshotDir, 'ai_patch.diff');
+        await fs.writeFile(aiPatchPath, artifact.aiPatchText, 'utf8');
+      }
+      if (artifact.userPatchText !== undefined) {
+        const userPatchPath = this.resolveArtifactPath(tempSnapshotDir, 'user_patch.diff');
+        await fs.writeFile(userPatchPath, artifact.userPatchText, 'utf8');
+      }
+
       await fs.rename(tempSnapshotDir, snapshotDir);
 
       return {
@@ -155,6 +204,40 @@ export class SnapshotLocalStore {
     await fs.rm(this.getSnapshotDir(snapshotId), { recursive: true, force: true });
   }
 
+  async moveSnapshotToTrash(snapshotId: string): Promise<SnapshotTrashHandle | null> {
+    const originalDir = this.getSnapshotDir(snapshotId);
+    const trashedDir = this.getTemporaryTrashDir(snapshotId);
+
+    try {
+      await fs.access(originalDir);
+    } catch (error) {
+      const nodeError = error as NodeJS.ErrnoException;
+      if (nodeError?.code === 'ENOENT') {
+        return null;
+      }
+      throw error;
+    }
+
+    await fs.rename(originalDir, trashedDir);
+    return {
+      snapshotId,
+      originalDir,
+      trashedDir,
+    };
+  }
+
+  async restoreSnapshotFromTrash(handle: SnapshotTrashHandle): Promise<void> {
+    this.assertMatchingSnapshotId(handle.snapshotId, path.basename(handle.originalDir));
+    this.assertInsideDirectory(this.snapshotsRoot, handle.originalDir, 'snapshot directory');
+    this.assertInsideDirectory(this.snapshotsRoot, handle.trashedDir, 'trashed snapshot directory');
+    await fs.rename(handle.trashedDir, handle.originalDir);
+  }
+
+  async deleteTrashedSnapshot(handle: SnapshotTrashHandle): Promise<void> {
+    this.assertInsideDirectory(this.snapshotsRoot, handle.trashedDir, 'trashed snapshot directory');
+    await fs.rm(handle.trashedDir, { recursive: true, force: true });
+  }
+
   async ensureAuxiliaryDirs(snapshotId: string): Promise<{ fullDir: string; blobsDir: string }> {
     const snapshotDir = this.getSnapshotDir(snapshotId);
     const fullDir = path.join(snapshotDir, 'full');
@@ -167,6 +250,85 @@ export class SnapshotLocalStore {
     await fs.mkdir(blobsDir, { recursive: true });
 
     return { fullDir, blobsDir };
+  }
+
+  async saveFullSnapshotState(
+    snapshotId: string,
+    state: {
+      before?: SnapshotFullStateEntry[];
+      after?: SnapshotFullStateEntry[];
+    },
+  ): Promise<void> {
+    const { fullDir } = await this.ensureAuxiliaryDirs(snapshotId);
+    const stages: Array<'before' | 'after'> = ['before', 'after'];
+    const index: SnapshotFullStateIndex = { before: {}, after: {} };
+
+    for (const stage of stages) {
+      const entries = state[stage] ?? [];
+      for (const entry of entries) {
+        const relativePath = this.toWorkspaceRelativePath(entry.filePath);
+        if (entry.content === null) {
+          index[stage][relativePath] = { exists: false };
+          continue;
+        }
+
+        const stageDir = path.join(fullDir, stage);
+        const destinationPath = path.join(stageDir, ...relativePath.split('/'));
+        this.assertInsideDirectory(stageDir, destinationPath, `${stage} full snapshot file`);
+        await fs.mkdir(path.dirname(destinationPath), { recursive: true });
+
+        const bytes = typeof entry.content === 'string'
+          ? Buffer.from(entry.content, 'utf8')
+          : Buffer.from(entry.content);
+        await fs.writeFile(destinationPath, bytes);
+
+        index[stage][relativePath] = {
+          exists: true,
+          storedPath: path.relative(fullDir, destinationPath).replace(/\\/g, '/'),
+        };
+      }
+    }
+
+    const indexPath = path.join(fullDir, 'index.json');
+    this.assertInsideDirectory(fullDir, indexPath, 'full snapshot index');
+    await fs.writeFile(indexPath, `${JSON.stringify(index, null, 2)}\n`, 'utf8');
+  }
+
+  async readFullSnapshotFile(
+    snapshotId: string,
+    stage: 'before' | 'after',
+    filePath: string,
+  ): Promise<Uint8Array | null | undefined> {
+    const fullDir = path.join(this.getSnapshotDir(snapshotId), 'full');
+    const indexPath = path.join(fullDir, 'index.json');
+    this.assertInsideDirectory(fullDir, indexPath, 'full snapshot index');
+
+    let index: SnapshotFullStateIndex;
+    try {
+      index = JSON.parse(await fs.readFile(indexPath, 'utf8')) as SnapshotFullStateIndex;
+    } catch (error) {
+      const nodeError = error as NodeJS.ErrnoException;
+      if (nodeError?.code === 'ENOENT') {
+        return undefined;
+      }
+      throw error;
+    }
+
+    const relativePath = this.toWorkspaceRelativePath(filePath);
+    const entry = index[stage]?.[relativePath];
+    if (!entry) {
+      return undefined;
+    }
+    if (!entry.exists) {
+      return null;
+    }
+    if (!entry.storedPath) {
+      return undefined;
+    }
+
+    const absolutePath = path.resolve(fullDir, entry.storedPath);
+    this.assertInsideDirectory(fullDir, absolutePath, `${stage} full snapshot file`);
+    return fs.readFile(absolutePath);
   }
 
   toWorkspaceRelativePath(filePath: string): string {
@@ -195,7 +357,7 @@ export class SnapshotLocalStore {
   }
 
   private resolveArtifactPath(snapshotDir: string, fileName: string): string {
-    if (!EXCLUDED_FILE_NAMES.has(fileName)) {
+    if (!ALLOWED_ARTIFACT_FILES.has(fileName)) {
       throw new Error(`Unsupported snapshot artifact file: ${fileName}`);
     }
 
@@ -233,6 +395,15 @@ export class SnapshotLocalStore {
       .slice(2, 8)}`;
     const tempDir = path.resolve(this.snapshotsRoot, tempDirName);
     this.assertInsideDirectory(this.snapshotsRoot, tempDir, 'temporary snapshot directory');
+    return tempDir;
+  }
+
+  private getTemporaryTrashDir(snapshotId: string): string {
+    const tempDirName = `${this.assertValidSnapshotId(snapshotId)}${TEMP_DIR_INFIX}trash_${Date.now()}_${Math.random()
+      .toString(36)
+      .slice(2, 8)}`;
+    const tempDir = path.resolve(this.snapshotsRoot, tempDirName);
+    this.assertInsideDirectory(this.snapshotsRoot, tempDir, 'temporary trash directory');
     return tempDir;
   }
 

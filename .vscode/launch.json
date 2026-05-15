@@ -6,11 +6,11 @@
       "type": "extensionHost",
       "request": "launch",
       "args": [
-        "--extensionDevelopmentPath=c:/Users/SSAFY/Desktop/s14-final_S14P31B103/apps/extension",
-        "c:/Users/SSAFY/Desktop/s14-final_S14P31B103"
+        "--extensionDevelopmentPath=${workspaceFolder}/apps/extension",
+        "${workspaceFolder}"
       ],
       "outFiles": [
-        "c:/Users/SSAFY/Desktop/s14-final_S14P31B103/apps/extension/dist/**/*.js"
+        "${workspaceFolder}/apps/extension/dist/**/*.js"
       ],
       "preLaunchTask": "pnpm compile"
     }

@@ -4,6 +4,7 @@ import { useGitCatStore } from '../../store/useGitCatStore';
 import { useVsCodeApi } from '../../hooks/useVsCodeApi';
 import { btn, bigBtn } from '../../shared/styles';
 import { SectionNotificationBanner } from '../common/SectionNotificationBanner';
+import { useSidebarSectionNotificationMode } from '../../app/SidebarSectionNotificationContext';
 
 /**
  * Git Stash 관리 패널
@@ -19,6 +20,7 @@ export const StashPanel: React.FC = () => {
   const { stashes, currentBranch, sectionNotifications, clearSectionNotification } = useGitCatStore();
   const { sendMessage } = useVsCodeApi();
   const dismissStashNotification = useCallback(() => clearSectionNotification('stash'), [clearSectionNotification]);
+  const { showSectionBannersInline } = useSidebarSectionNotificationMode();
 
   const isGitConnected = currentBranch !== '';
 
@@ -61,10 +63,12 @@ export const StashPanel: React.FC = () => {
 
   return (
     <div className="animate-fade-in" style={{ padding: '8px 4px' }}>
-      <SectionNotificationBanner
-        notification={sectionNotifications.stash}
-        onDismiss={dismissStashNotification}
-      />
+      {showSectionBannersInline && (
+        <SectionNotificationBanner
+          notification={sectionNotifications.stash}
+          onDismiss={dismissStashNotification}
+        />
+      )}
 
       {/* ── Stash Save 버튼 / 폼 ── */}
       {!showSaveForm ? (
