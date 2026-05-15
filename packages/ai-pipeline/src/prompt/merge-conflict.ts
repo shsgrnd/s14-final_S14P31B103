@@ -1,32 +1,10 @@
 import { ConflictCandidate, MergeProposalInput } from '@gitcat/shared-types';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 
 /**
  * 병합 계열 feature가 공통으로 참고하는 컨텍스트를 문자열로 정리합니다.
  * LLM이 구조화된 입력을 잃지 않도록 "프로젝트/브랜치/파일/충돌 후보" 순서로 고정합니다.
- */
-function buildSharedMergeContext(payload: MergeProposalInput): string {
-  const conflictCandidates = payload.conflict_candidates
-    .map((candidate, index) => formatConflictCandidate(candidate, index))
-    .join('\n\n');
-
-  return [
-    `Context:`,
-    `- Feature: ${payload.feature_type}`,
-    `- Current: ${payload.current_branch}`,
-    `- Target: ${payload.target_branch}`,
-    `- Workspace: ${payload.workspace_summary ?? 'N/A'}`,
-    `- Risk: ${payload.risk_summary ?? 'N/A'}`,
-    `- Diff: ${payload.working_tree_diff_ref}`,
-    '',
-    'Conflict Candidates:',
-    conflictCandidates,
-  ].join('\n');
-}
-
-/**
- * 충돌 후보 하나를 읽기 쉬운 블록으로 풀어줍니다.
- * source / target / base 코드를 모두 노출해 두면, 어떤 변경이 실제로 충돌하는지
- * 팀원이 프롬프트를 검토할 때도 맥락을 따라가기 쉽습니다.
  */
 function formatConflictCandidate(candidate: ConflictCandidate, index: number): string {
   const location = `${candidate.file_path}:${candidate.line_start}-${candidate.line_end}`;
@@ -112,12 +90,46 @@ export function getMergeMediationSystemPrompt(): string {
 }
 
 /**
+ * 병합 계열 feature가 공통으로 참고하는 컨텍스트를 문자열로 정리합니다.
+ * LLM이 구조화된 입력을 잃지 않도록 "프로젝트/브랜치/파일/충돌 후보" 순서로 고정합니다.
+ */
+async function buildSharedMergeContext(payload: MergeProposalInput, workspaceRoot?: string): Promise<string> {
+  const conflictCandidates = payload.conflict_candidates
+    .map((candidate, index) => formatConflictCandidate(candidate, index))
+    .join('\n\n');
+
+  let diffContent = payload.working_tree_diff_ref;
+  if (workspaceRoot && payload.working_tree_diff_ref) {
+    try {
+      const fullPath = path.resolve(workspaceRoot, payload.working_tree_diff_ref);
+      const fileContent = await fs.readFile(fullPath, 'utf8');
+      diffContent = `\n${fileContent}`;
+    } catch {
+      // Fallback: keep the ref string if file cannot be read
+    }
+  }
+
+  return [
+    `Context:`,
+    `- Feature: ${payload.feature_type}`,
+    `- Current: ${payload.current_branch}`,
+    `- Target: ${payload.target_branch}`,
+    `- Workspace: ${payload.workspace_summary ?? 'N/A'}`,
+    `- Risk: ${payload.risk_summary ?? 'N/A'}`,
+    `- Diff: ${diffContent}`,
+    '',
+    'Conflict Candidates:',
+    conflictCandidates,
+  ].join('\n');
+}
+
+/**
  * conflict_explanation용 user prompt를 생성합니다.
  * 같은 merge context를 쓰더라도 "원인 설명"에 집중하도록 마지막 지시문만 분리합니다.
  */
-export function buildConflictUserPrompt(payload: MergeProposalInput): string {
+export async function buildConflictUserPrompt(payload: MergeProposalInput, workspaceRoot?: string): Promise<string> {
   return [
-    buildSharedMergeContext(payload),
+    await buildSharedMergeContext(payload, workspaceRoot),
     '',
     'Task:',
     '- Explain the root cause of the conflict or integration risk.',
@@ -131,9 +143,9 @@ export function buildConflictUserPrompt(payload: MergeProposalInput): string {
  * 실제 patch 본문은 아직 외부 artifact ref로 관리하므로, LLM에게는 "어떤 파일에 어떤 방향으로"
  * 초안을 만들어야 하는지만 명확히 전달합니다.
  */
-export function buildMergePatchDraftUserPrompt(payload: MergeProposalInput): string {
+export async function buildMergePatchDraftUserPrompt(payload: MergeProposalInput, workspaceRoot?: string): Promise<string> {
   return [
-    buildSharedMergeContext(payload),
+    await buildSharedMergeContext(payload, workspaceRoot),
     '',
     'Task:',
     '- Propose a safe merge draft integrating source and target changes.',
@@ -147,9 +159,9 @@ export function buildMergePatchDraftUserPrompt(payload: MergeProposalInput): str
  * 팀원이 나중에 다른 mediation 전략을 추가하더라도, 공통 컨텍스트는 유지하고
  * 마지막 작업 지시문만 바꾸면 되도록 구조를 맞춰 둡니다.
  */
-export function buildMergeMediationUserPrompt(payload: MergeProposalInput): string {
+export async function buildMergeMediationUserPrompt(payload: MergeProposalInput, workspaceRoot?: string): Promise<string> {
   return [
-    buildSharedMergeContext(payload),
+    await buildSharedMergeContext(payload, workspaceRoot),
     '',
     'Task:',
     '- Compare realistic resolution options for this merge situation.',

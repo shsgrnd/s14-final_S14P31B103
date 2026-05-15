@@ -71,7 +71,7 @@ export class MergeAiService {
     }
 
     // 3. 최적화된 페이로드로 프롬프트 구성
-    const prompt = this.constructPrompt(optimizedPayload);
+    const prompt = await this.constructPrompt(optimizedPayload, options.workspaceRoot);
 
     // 4. AI 클라이언트 호출 (Mock 또는 실재)
     const rawResponse = await this.client.generateResponse(optimizedPayload.feature_type, prompt);
@@ -101,7 +101,10 @@ export class MergeAiService {
   /**
    * 특정 기능 유형에 따라 프롬프트 구성
    */
-  private constructPrompt(payload: MergeProposalInput | RecommendationInput): PromptPayload {
+  private async constructPrompt(
+    payload: MergeProposalInput | RecommendationInput,
+    workspaceRoot?: string,
+  ): Promise<PromptPayload> {
     const recommendationVariant: RecommendationPromptVariant = this.client.isLiveLocalMode()
       ? 'local-fast'
       : 'default';
@@ -110,17 +113,17 @@ export class MergeAiService {
       case 'merge_patch_draft':
         return {
           systemPrompt: getMergePatchDraftSystemPrompt(),
-          userPrompt: buildMergePatchDraftUserPrompt(payload as MergeProposalInput),
+          userPrompt: await buildMergePatchDraftUserPrompt(payload as MergeProposalInput, workspaceRoot),
         };
       case 'conflict_explanation':
         return {
           systemPrompt: getConflictExplanationSystemPrompt(),
-          userPrompt: buildConflictUserPrompt(payload as MergeProposalInput),
+          userPrompt: await buildConflictUserPrompt(payload as MergeProposalInput, workspaceRoot),
         };
       case 'merge_mediation':
         return {
           systemPrompt: getMergeMediationSystemPrompt(),
-          userPrompt: buildMergeMediationUserPrompt(payload as MergeProposalInput),
+          userPrompt: await buildMergeMediationUserPrompt(payload as MergeProposalInput, workspaceRoot),
         };
       case 'recommendation': {
         const recommendationPayload = payload as RecommendationInput;
