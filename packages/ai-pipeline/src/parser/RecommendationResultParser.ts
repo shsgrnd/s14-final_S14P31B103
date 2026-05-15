@@ -19,6 +19,47 @@ import {
  *  5. RecommendationResultSchema로 최종 Zod 검증 후 반환
  */
 export class RecommendationResultParser {
+  private static readonly DEBUG_PREVIEW_LENGTH = 120;
+
+  private isDebugLoggingEnabled(): boolean {
+    return process.env.GITCAT_AI_DEBUG === '1';
+  }
+
+  private buildFailureMessage(code: 'JSON_PARSE_FAILED' | 'RECOMMENDATION_REQUIRED_FIELDS_MISSING'): string {
+    switch (code) {
+      case 'JSON_PARSE_FAILED':
+        return 'JSON_PARSE_FAILED';
+      case 'RECOMMENDATION_REQUIRED_FIELDS_MISSING':
+        return 'RECOMMENDATION_REQUIRED_FIELDS_MISSING';
+    }
+  }
+
+  private logParseFailure(input: {
+    code: 'JSON_PARSE_FAILED' | 'RECOMMENDATION_REQUIRED_FIELDS_MISSING';
+    sessionId: string;
+    recommendationType: RecommendationType;
+    rawText: string;
+  }): void {
+    // 운영 로그에서는 원문 일부를 남기지 않고, 어떤 종류의 실패가 났는지만 식별 가능하게 남깁니다.
+    // 원문 preview는 디버그 모드에서만 제한 길이로 출력해 민감 문자열 노출면을 줄입니다.
+    const baseMessage =
+      `[RecommendationResultParser] code=${input.code} ` +
+      `recommendation_type=${input.recommendationType} ` +
+      `session_id=${input.sessionId || 'empty'} ` +
+      `response_length=${input.rawText.length}`;
+
+    if (!this.isDebugLoggingEnabled()) {
+      console.warn(baseMessage);
+      return;
+    }
+
+    const preview = input.rawText
+      .replace(/\s+/g, ' ')
+      .slice(0, RecommendationResultParser.DEBUG_PREVIEW_LENGTH);
+
+    console.warn(`${baseMessage} preview=${JSON.stringify(preview)}`);
+  }
+
   /**
    * LLM 원시 응답 문자열에서 마크다운 코드블록을 제거하고 순수 JSON 문자열을 반환합니다.
    */
@@ -121,8 +162,13 @@ export class RecommendationResultParser {
     try {
       rawJson = JSON.parse(cleanText);
     } catch (e) {
-      const reason = `JSON 파싱 실패 — LLM이 JSON 형식이 아닌 응답을 반환했습니다. 원본 앞 200자: ${rawText.substring(0, 200)}`;
-      console.warn(`[RecommendationResultParser] ${reason}`);
+      const reason = this.buildFailureMessage('JSON_PARSE_FAILED');
+      this.logParseFailure({
+        code: 'JSON_PARSE_FAILED',
+        sessionId,
+        recommendationType,
+        rawText,
+      });
       return this.buildFallback(sessionId, recommendationType, reason);
     }
 
@@ -132,8 +178,13 @@ export class RecommendationResultParser {
     try {
       minimalData = MinimalRecommendationResponseSchema.parse(rawJson) as Record<string, unknown>;
     } catch (e) {
-      const reason = `필수 필드 검증 실패 — title, primary_text, alternative_texts 중 하나 이상이 누락되었습니다.`;
-      console.warn(`[RecommendationResultParser] ${reason}`);
+      const reason = this.buildFailureMessage('RECOMMENDATION_REQUIRED_FIELDS_MISSING');
+      this.logParseFailure({
+        code: 'RECOMMENDATION_REQUIRED_FIELDS_MISSING',
+        sessionId,
+        recommendationType,
+        rawText,
+      });
       return this.buildFallback(sessionId, recommendationType, reason);
     }
 

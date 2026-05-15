@@ -1,13 +1,87 @@
 import { RecommendationInput } from '@gitcat/shared-types';
 
 export type RecommendationPromptVariant = 'default' | 'local-fast';
+const LOCAL_FAST_COMMIT_MAX_CHANGED_FILES = 6;
+const LOCAL_FAST_PR_MAX_CHANGED_FILES = 5;
+const LOCAL_FAST_COMMIT_MAX_DIFF_SUMMARY_LENGTH = 1000;
+const LOCAL_FAST_PR_MAX_DIFF_SUMMARY_LENGTH = 900;
+const LOCAL_FAST_BRANCH_NAME_MAX_BRANCH_CONTEXT_LENGTH = 300;
+const LOCAL_FAST_COMMIT_MAX_BRANCH_CONTEXT_LENGTH = 350;
+const LOCAL_FAST_PR_MAX_BRANCH_CONTEXT_LENGTH = 300;
+const LOCAL_FAST_MAX_TEMPLATE_LENGTH = 800;
+const LOCAL_FAST_BRANCH_NAME_MAX_TOKENS = 96;
+const LOCAL_FAST_COMMIT_MESSAGE_MAX_TOKENS = 112;
+const LOCAL_FAST_PR_DESCRIPTION_MAX_TOKENS = 384;
+
+function truncateText(text: string | undefined, maxLength: number): string {
+  if (!text) {
+    return 'Not provided';
+  }
+
+  if (text.length <= maxLength) {
+    return text;
+  }
+
+  return `${text.slice(0, maxLength)}\n\n... [TRUNCATED FOR LOCAL-FAST] ...`;
+}
+
+function buildLocalFastRecommendationContext(payload: RecommendationInput): string {
+  // local-fast는 remote 경로보다 "짧고 핵심적인 맥락" 전달이 우선입니다.
+  // 추천 품질에 직접 기여하지 않는 메타 필드는 빼고, 변경 의도/요약/제약만 남깁니다.
+  const lines = [
+    `Recommendation Type: ${payload.recommendation_type}`,
+    `Current Branch: ${payload.current_branch}`,
+    `Work Intent: ${payload.work_intent}`,
+  ];
+
+  if (payload.recommendation_type === 'branch_name') {
+    lines.push(`Branch Context: ${truncateText(payload.branch_context, LOCAL_FAST_BRANCH_NAME_MAX_BRANCH_CONTEXT_LENGTH)}`);
+    lines.push(`Naming Constraints: ${payload.naming_constraints?.join(' | ') ?? 'Not provided'}`);
+  }
+
+  if (payload.recommendation_type === 'commit_message') {
+    lines.push(`Change Summary: ${payload.change_summary}`);
+    // commit 추천은 PR보다 짧은 산출물이 목표이므로, 입력도 더 공격적으로 줄여
+    // "핵심 변경 한두 줄"만 빠르게 잡아낼 수 있게 합니다.
+    lines.push(`Changed Files: ${payload.changed_files.slice(0, LOCAL_FAST_COMMIT_MAX_CHANGED_FILES).join(', ')}`);
+    lines.push(`Diff Summary: ${truncateText(payload.diff_summary, LOCAL_FAST_COMMIT_MAX_DIFF_SUMMARY_LENGTH)}`);
+    lines.push(`Branch Context: ${truncateText(payload.branch_context, LOCAL_FAST_COMMIT_MAX_BRANCH_CONTEXT_LENGTH)}`);
+    lines.push(`Message Constraints: ${payload.message_constraints?.join(' | ') ?? 'Not provided'}`);
+  }
+
+  if (payload.recommendation_type === 'pr_description') {
+    lines.push(`Change Summary: ${payload.change_summary}`);
+    // PR 설명은 출력이 길 수밖에 없어서, 입력 쪽은 commit보다 더 강하게 줄여
+    // "출력에 쓸 토큰 예산"을 최대한 남겨 두는 방향으로 조정합니다.
+    lines.push(`Changed Files: ${payload.changed_files.slice(0, LOCAL_FAST_PR_MAX_CHANGED_FILES).join(', ')}`);
+    lines.push(`Diff Summary: ${truncateText(payload.diff_summary, LOCAL_FAST_PR_MAX_DIFF_SUMMARY_LENGTH)}`);
+    lines.push(`Branch Context: ${truncateText(payload.branch_context, LOCAL_FAST_PR_MAX_BRANCH_CONTEXT_LENGTH)}`);
+    lines.push(`Template Provided: ${payload.template ? 'Yes' : 'No'}`);
+
+    const cleanedTemplate = payload.template
+      ? stripHtmlComments(payload.template)
+      : 'Not provided';
+    lines.push(`Template Markdown:\n${truncateText(cleanedTemplate, LOCAL_FAST_MAX_TEMPLATE_LENGTH)}`);
+  }
+
+  return lines.join('\n');
+}
 
 /**
  * recommendation 계열 기능이 공통으로 참고하는 컨텍스트를 문자열로 정리합니다.
  * 추천 결과는 "무엇이 바뀌었는지"와 "왜 그런 추천이 필요한지"가 핵심이라,
  * 변경 요약과 제약 조건을 빠짐없이 노출하는 쪽이 추후 리뷰에도 유리합니다.
  */
-function buildRecommendationContext(payload: RecommendationInput): string {
+function buildRecommendationContext(
+  payload: RecommendationInput,
+  variant: RecommendationPromptVariant = 'default',
+): string {
+  if (variant === 'local-fast') {
+    // 로컬 모델은 remote보다 토큰 비용에 민감하므로,
+    // 실제 추천 품질에 필요한 핵심 맥락만 다시 압축해서 전달합니다.
+    return buildLocalFastRecommendationContext(payload);
+  }
+
   const lines = [
     `Project ID: ${payload.project_id}`,
     `Session ID: ${payload.session_id ?? 'null'}`,
@@ -74,17 +148,21 @@ function stripHtmlComments(text: string): string {
  */
 export function getRecommendationSystemPrompt(
   variant: RecommendationPromptVariant = 'default',
+  recommendationType?: RecommendationInput['recommendation_type'],
 ): string {
   if (variant === 'local-fast') {
+    const recommendationShapeInstruction = recommendationType === 'pr_description'
+      ? 'For pr_description, primary_text must contain exactly one complete PR draft and alternative_texts must be an empty array.'
+      : 'For branch_name and commit_message, return exactly 3 total candidates: primary_text plus exactly 2 items in alternative_texts.';
+
     return [
       'You are an expert developer assistant for repository naming and commit recommendations.',
-      'Return exactly one valid JSON object.',
+      'Return exactly one valid JSON object only.',
       'Do not include markdown code blocks, analysis, or extra prose.',
-      'The JSON must match the recommendation parsed_ai_result contract.',
-      'Required JSON fields: title, summary, recommendation_type, primary_text, alternative_texts.',
-      'Optional JSON fields: generation_basis_summary, explanation, confidence_score.',
-      'Keep summary short and concrete.',
-      'alternative_texts must contain practical alternatives with at most 2 items.',
+      'Return only these required fields: title, summary, recommendation_type, primary_text, alternative_texts.',
+      'Do not add optional fields unless they are absolutely necessary.',
+      'Keep summary very short and concrete.',
+      recommendationShapeInstruction,
       'If the request includes a PR template, primary_text must follow that template structure closely.',
     ].join('\n');
   }
@@ -102,6 +180,38 @@ export function getRecommendationSystemPrompt(
   ].join('\\n');
 }
 
+export function getRecommendationLocalGenerationOptions(
+  payload: RecommendationInput,
+  variant: RecommendationPromptVariant = 'default',
+): {
+  maxTokens?: number;
+  trimWhitespaceSuffix?: boolean;
+} | undefined {
+  if (variant !== 'local-fast') {
+    return undefined;
+  }
+
+  // remote 경로 평가는 유지하고 싶어서, 응답 길이 제한은 local-fast에만 적용합니다.
+  // 추천 종류별 산출물 길이가 다르므로 maxTokens도 타입별로 분리합니다.
+  switch (payload.recommendation_type) {
+    case 'branch_name':
+      return {
+        maxTokens: LOCAL_FAST_BRANCH_NAME_MAX_TOKENS,
+        trimWhitespaceSuffix: true,
+      };
+    case 'commit_message':
+      return {
+        maxTokens: LOCAL_FAST_COMMIT_MESSAGE_MAX_TOKENS,
+        trimWhitespaceSuffix: true,
+      };
+    case 'pr_description':
+      return {
+        maxTokens: LOCAL_FAST_PR_DESCRIPTION_MAX_TOKENS,
+        trimWhitespaceSuffix: true,
+      };
+  }
+}
+
 /**
  * recommendation용 user prompt를 생성합니다.
  * naming/message 제약이 비어 있어도 "Not provided"로 고정해 두면
@@ -111,7 +221,7 @@ export function buildRecommendationUserPrompt(
   payload: RecommendationInput,
   variant: RecommendationPromptVariant = 'default',
 ): string {
-  const context = buildRecommendationContext(payload);
+  const context = buildRecommendationContext(payload, variant);
   const instructions: string[] = [];
 
   switch (payload.recommendation_type) {
@@ -122,7 +232,9 @@ export function buildRecommendationUserPrompt(
           '- Analyze the work intent and branch context.',
           '- Apply naming_constraints first when provided.',
           '- Generate practical and clear branch names.',
-          '- Keep alternative_texts meaningfully distinct and limited.'
+          '- Return exactly 3 total candidates: primary_text plus exactly 2 alternatives.',
+          '- Each candidate must be a short branch slug only, with no explanation text.',
+          '- Keep alternative_texts meaningfully distinct.'
         );
       } else {
         instructions.push(
@@ -143,8 +255,10 @@ export function buildRecommendationUserPrompt(
           'Task:',
           '- Use work_intent, change_summary, diff_summary, and branch_context to identify the main code change.',
           '- Ignore minor formatting-only edits unless they are the main change.',
+          '- Return exactly 3 total candidates: primary_text plus exactly 2 alternatives.',
+          '- Every candidate must be a one-line subject only with no body text.',
           '- primary_text should be the best commit message candidate.',
-          '- Keep alternative_texts practical and limited.'
+          '- Keep alternative_texts practical and distinct.'
         );
       } else {
         instructions.push(
@@ -167,7 +281,9 @@ export function buildRecommendationUserPrompt(
           '- Identify the PR purpose from change_summary, work_intent, diff_summary, and branch_context.',
           '- If template is provided, preserve its section headings and order as closely as possible.',
           '- Write concrete markdown content reviewers can scan quickly.',
-          '- primary_text must be the full PR description markdown.'
+          '- primary_text must be the full PR description markdown.',
+          '- Return exactly 1 PR draft in primary_text and keep alternative_texts empty.',
+          '- Keep each section concise with short bullets or short sentences only.'
         );
       } else {
         instructions.push(

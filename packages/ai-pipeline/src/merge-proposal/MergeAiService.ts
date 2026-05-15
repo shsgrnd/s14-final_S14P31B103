@@ -19,6 +19,7 @@ import {
 } from '../prompt/merge-conflict';
 import {
   buildRecommendationUserPrompt,
+  getRecommendationLocalGenerationOptions,
   getRecommendationSystemPrompt,
   RecommendationPromptVariant,
 } from '../prompt/recommendation';
@@ -121,14 +122,23 @@ export class MergeAiService {
           systemPrompt: getMergeMediationSystemPrompt(),
           userPrompt: buildMergeMediationUserPrompt(payload as MergeProposalInput),
         };
-      case 'recommendation':
+      case 'recommendation': {
+        const recommendationPayload = payload as RecommendationInput;
         return {
-          systemPrompt: getRecommendationSystemPrompt(recommendationVariant),
+          systemPrompt: getRecommendationSystemPrompt(
+            recommendationVariant,
+            recommendationPayload.recommendation_type,
+          ),
           userPrompt: buildRecommendationUserPrompt(
-            payload as RecommendationInput,
+            recommendationPayload,
+            recommendationVariant,
+          ),
+          localGenerationOptions: getRecommendationLocalGenerationOptions(
+            recommendationPayload,
             recommendationVariant,
           ),
         };
+      }
       default: {
         // 새 feature_type이 추가되면 여기서 바로 드러나도록 방어합니다.
         const _exhaustiveCheck: never = payload;
