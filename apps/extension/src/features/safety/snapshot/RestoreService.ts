@@ -4,6 +4,7 @@ import * as path from 'path';
 import type {
   RestoreHistory,
   RestoreHistoryRepository,
+  SafetyWarning,
   SnapshotFile,
   SnapshotManifest,
   SnapshotRepository,
@@ -29,6 +30,15 @@ export interface RestoreSnapshotResult {
 interface ApplyWorkspaceStateResult {
   appliedPaths: string[];
   failedPaths: Array<{ path: string; reason: string }>;
+}
+
+interface RestorePlanPreview {
+  snapshotId: string;
+  changedPaths: string[];
+  desiredStates: Map<string, Uint8Array | null>;
+  currentStates: Map<string, Uint8Array | null>;
+  beforeWarnings: SafetyWarning[];
+  afterWarnings: SafetyWarning[];
 }
 
 export class RestoreService {
@@ -57,60 +67,21 @@ export class RestoreService {
     this.isRestoring = true;
 
     try {
+      const plan = await this.buildRestorePlan(snapshotId);
       const snapshots = await this.listSnapshotsOldestFirst();
-      const targetIndex = snapshots.findIndex((row) => row.snapshot_id === snapshotId);
-      if (targetIndex < 0) {
-        throw new Error(`Snapshot not found: ${snapshotId}`);
-      }
-
-      const manifests = new Map<string, SnapshotManifest>();
-      const candidatePaths = await this.collectCandidatePaths(snapshots, manifests);
-      const desiredStates = new Map<string, Uint8Array | null>();
-      const currentStates = new Map<string, Uint8Array | null>();
-
-      for (const candidatePath of candidatePaths) {
-        const desiredState = await this.resolveTargetState(
-          candidatePath,
-          snapshots,
-          manifests,
-          targetIndex,
-        );
-        desiredStates.set(candidatePath, desiredState);
-        currentStates.set(candidatePath, await this.readCurrentFileState(candidatePath));
-      }
-
-      const changedPaths = [...candidatePaths].filter((candidatePath) =>
-        !this.areEqualBytes(
-          desiredStates.get(candidatePath) ?? null,
-          currentStates.get(candidatePath) ?? null,
-        ),
-      );
-
       const latestSnapshotId = snapshots.at(-1)?.snapshot_id;
       const fromSnapshotId = latestSnapshotId ?? snapshotId;
       let preRestoreSnapshotId: string | undefined;
-      const beforeWarnings = this.safetyCheckService.analyzeRestorePlan({
-        phase: 'before_restore',
-        fileStates: changedPaths.map((changedPath) => ({
-          filePath: changedPath,
-          content: currentStates.get(changedPath) ?? null,
-        })),
-      });
-      const afterWarnings = this.safetyCheckService.analyzeRestorePlan({
-        phase: 'after_restore',
-        fileStates: changedPaths.map((changedPath) => ({
-          filePath: changedPath,
-          content: desiredStates.get(changedPath) ?? null,
-        })),
-      });
+      const beforeWarnings = plan.beforeWarnings;
+      const afterWarnings = plan.afterWarnings;
 
       try {
         preRestoreSnapshotId = await this.createPreRestoreSnapshot(
           snapshotId,
-          changedPaths,
-          currentStates,
+          plan.changedPaths,
+          plan.currentStates,
         );
-        const applyResult = await this.applyWorkspaceState(changedPaths, desiredStates);
+        const applyResult = await this.applyWorkspaceState(plan.changedPaths, plan.desiredStates);
         if (applyResult.failedPaths.length > 0) {
           const failureSummary = this.buildApplyFailureSummary(applyResult);
           const historyRow = await this.restoreHistoryRepository.create({
@@ -139,7 +110,7 @@ export class RestoreService {
         return {
           snapshotId,
           preRestoreSnapshotId,
-          changedPaths,
+          changedPaths: plan.changedPaths,
           beforeWarnings,
           afterWarnings,
           restoreHistory: this.toRestoreHistory(historyRow),
@@ -167,6 +138,74 @@ export class RestoreService {
       this.isRestoring = false;
       this.snapshotService.endRestoreOperation();
     }
+  }
+
+  async previewRestoreWarnings(snapshotId: string): Promise<{
+    snapshotId: string;
+    changedPathsCount: number;
+    beforeWarnings: SafetyWarning[];
+  }> {
+    const plan = await this.buildRestorePlan(snapshotId);
+    return {
+      snapshotId,
+      changedPathsCount: plan.changedPaths.length,
+      beforeWarnings: plan.beforeWarnings,
+    };
+  }
+
+  private async buildRestorePlan(snapshotId: string): Promise<RestorePlanPreview> {
+    const snapshots = await this.listSnapshotsOldestFirst();
+    const targetIndex = snapshots.findIndex((row) => row.snapshot_id === snapshotId);
+    if (targetIndex < 0) {
+      throw new Error(`Snapshot not found: ${snapshotId}`);
+    }
+
+    const manifests = new Map<string, SnapshotManifest>();
+    const candidatePaths = await this.collectCandidatePaths(snapshots, manifests);
+    const desiredStates = new Map<string, Uint8Array | null>();
+    const currentStates = new Map<string, Uint8Array | null>();
+
+    for (const candidatePath of candidatePaths) {
+      const desiredState = await this.resolveTargetState(
+        candidatePath,
+        snapshots,
+        manifests,
+        targetIndex,
+      );
+      desiredStates.set(candidatePath, desiredState);
+      currentStates.set(candidatePath, await this.readCurrentFileState(candidatePath));
+    }
+
+    const changedPaths = [...candidatePaths].filter((candidatePath) =>
+      !this.areEqualBytes(
+        desiredStates.get(candidatePath) ?? null,
+        currentStates.get(candidatePath) ?? null,
+      ),
+    );
+
+    const beforeWarnings = this.safetyCheckService.analyzeRestorePlan({
+      phase: 'before_restore',
+      fileStates: changedPaths.map((changedPath) => ({
+        filePath: changedPath,
+        content: currentStates.get(changedPath) ?? null,
+      })),
+    });
+    const afterWarnings = this.safetyCheckService.analyzeRestorePlan({
+      phase: 'after_restore',
+      fileStates: changedPaths.map((changedPath) => ({
+        filePath: changedPath,
+        content: desiredStates.get(changedPath) ?? null,
+      })),
+    });
+
+    return {
+      snapshotId,
+      changedPaths,
+      desiredStates,
+      currentStates,
+      beforeWarnings,
+      afterWarnings,
+    };
   }
 
   private async createPreRestoreSnapshot(

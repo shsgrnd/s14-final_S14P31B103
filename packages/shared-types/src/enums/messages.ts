@@ -8,6 +8,7 @@ import { z } from 'zod';
  */
 export const InboundMessageTypeEnum = z.enum([
   'RESTORE_SNAPSHOT',
+  'CONFIRM_RESTORE_SNAPSHOT',
   'ANALYZE_CONFLICT',
   'ACCEPT_MERGE',
   'REJECT_MERGE',
@@ -101,6 +102,7 @@ export const OutboundMessageTypeEnum = z.enum([
   'SNAPSHOT_FILE_DIFF',
   'RESTORE_HISTORY_LIST',
   'RESTORE_DONE',
+  'RESTORE_CONFIRM_REQUIRED',
   'CONFLICT_RESULT',
   'MERGE_PROPOSAL',
   'MERGE_COMPLETE',

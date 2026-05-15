@@ -19,6 +19,8 @@ export const SnapshotTimeline: React.FC = () => {
     snapshotFileDiff,
     clearSnapshotFileDiff,
     restoreHistories,
+    restoreConfirmDialog,
+    clearRestoreConfirmDialog,
   } = useGitCatStore();
   const { sendMessage } = useVsCodeApi();
   const dismissSnapshotsNotification = useCallback(() => clearSectionNotification('snapshots'), [clearSectionNotification]);
@@ -52,6 +54,21 @@ export const SnapshotTimeline: React.FC = () => {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [snapshotFileDiff, restoreHistoryOpen, clearSnapshotFileDiff]);
+
+  useEffect(() => {
+    if (!restoreConfirmDialog) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      clearRestoreConfirmDialog();
+      sendMessage('CONFIRM_RESTORE_SNAPSHOT', {
+        snapshotId: restoreConfirmDialog.snapshotId,
+        confirmed: false,
+      });
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [restoreConfirmDialog, clearRestoreConfirmDialog, sendMessage]);
 
   const getStatusLabel = (status: string) => {
     const u = status.toUpperCase();
@@ -96,6 +113,24 @@ export const SnapshotTimeline: React.FC = () => {
 
   const handleRestore = (snapshot: SnapshotMeta) => {
     sendMessage('RESTORE_SNAPSHOT', { snapshotId: snapshot.snapshotId });
+  };
+
+  const handleConfirmRestore = () => {
+    if (!restoreConfirmDialog) return;
+    sendMessage('CONFIRM_RESTORE_SNAPSHOT', {
+      snapshotId: restoreConfirmDialog.snapshotId,
+      confirmed: true,
+    });
+    clearRestoreConfirmDialog();
+  };
+
+  const handleCancelRestore = () => {
+    if (!restoreConfirmDialog) return;
+    sendMessage('CONFIRM_RESTORE_SNAPSHOT', {
+      snapshotId: restoreConfirmDialog.snapshotId,
+      confirmed: false,
+    });
+    clearRestoreConfirmDialog();
   };
 
   const openRestoreHistory = () => {
@@ -527,6 +562,99 @@ export const SnapshotTimeline: React.FC = () => {
         document.body,
         )
         : null}
+
+      {restoreConfirmDialog
+        ? createPortal(
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="스냅샷 복원 확인"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 60_000,
+            background: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+          }}
+          onClick={handleCancelRestore}
+        >
+          <div
+            style={{
+              width: '100%',
+              maxWidth: '520px',
+              background: 'var(--vscode-editor-background)',
+              color: 'var(--vscode-editor-foreground)',
+              border: '1px solid var(--vscode-panel-border)',
+              borderRadius: '8px',
+              boxShadow: '0 12px 36px rgba(0, 0, 0, 0.4)',
+              padding: '16px',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ fontSize: '14px', fontWeight: 700, marginBottom: '10px' }}>
+              대량 삭제 위험 경고
+            </div>
+            <div style={{ fontSize: '12px', color: 'var(--vscode-descriptionForeground)', lineHeight: 1.5 }}>
+              복원 시 {restoreConfirmDialog.changedPathsCount}개 경로가 변경됩니다. 아래 경고를 확인한 뒤 진행해 주세요.
+            </div>
+            <div
+              style={{
+                marginTop: '10px',
+                maxHeight: '180px',
+                overflowY: 'auto',
+                border: '1px solid var(--vscode-panel-border)',
+                borderRadius: '6px',
+                padding: '8px',
+                background: 'var(--vscode-editorWidget-background)',
+                fontSize: '12px',
+                lineHeight: 1.5,
+              }}
+            >
+              {restoreConfirmDialog.warningMessages.map((warning, idx) => (
+                <div key={`${idx}-${warning}`} style={{ marginBottom: idx === restoreConfirmDialog.warningMessages.length - 1 ? 0 : '6px' }}>
+                  - {warning}
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '14px' }}>
+              <button
+                type="button"
+                onClick={handleCancelRestore}
+                style={{
+                  border: '1px solid var(--vscode-panel-border)',
+                  background: 'transparent',
+                  color: 'var(--vscode-foreground)',
+                  borderRadius: '4px',
+                  padding: '6px 12px',
+                  cursor: 'pointer',
+                }}
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmRestore}
+                style={{
+                  border: 'none',
+                  background: 'var(--vscode-button-background)',
+                  color: 'var(--vscode-button-foreground)',
+                  borderRadius: '4px',
+                  padding: '6px 12px',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                }}
+              >
+                확인하고 복원
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+        )
+        : null}
     </div>
   );
 };
@@ -752,5 +880,4 @@ function formatRelativeTime(timestamp: number): string {
     return '';
   }
 }
-
 
