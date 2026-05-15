@@ -65,7 +65,7 @@ export function getMergePatchDraftSystemPrompt(): string {
       summary: "string",
       explanation: "string (short reasoning)",
       confidence_score: 0.9,
-      diff_patch: "string (unified diff)",
+      merged_code: "string (the final resolved code snippet to replace the conflict block)",
       validation_summary: "string (short)",
       applied_files: ["string"]
     }, null, 2)
@@ -149,7 +149,7 @@ export async function buildMergePatchDraftUserPrompt(payload: MergeProposalInput
     '',
     'Task:',
     '- Propose a safe merge draft integrating source and target changes.',
-    '- Use diff_patch (unified diff) for the primary resolution.',
+    '- Return the EXACT resolved code snippet in the `merged_code` field to replace the conflict block.',
     '- Keep all explanations and summaries extremely concise.',
   ].join('\n');
 }
