@@ -220,7 +220,7 @@ export async function activate(context: vscode.ExtensionContext) {
                   snapshotId: row.snapshot_id,
                   type: row.type as any,
                   createdAt: row.created_at,
-                  summary: row.summary ?? undefined, // AI가 생성한 요약 제목 ([AI]/[Human] 태그 포함)
+                  summary: row.summary ?? undefined, // AI가 생성한 요약 제목 본문
                 },
               },
             });
