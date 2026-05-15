@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { FileText, Rewind, ChevronRight, Crosshair, Sparkles, Layers, PencilLine, Plus, Edit2, Trash2, History, Bookmark, Archive, X } from 'lucide-react';
 import { useGitCatStore } from '../../store/useGitCatStore';
@@ -333,7 +333,7 @@ export const SnapshotTimeline: React.FC = () => {
               margin: '0 auto',
               width: '100%',
               maxWidth: '720px',
-              maxHeight: 'min(90vh, calc(100vh - 48px))',
+              height: 'min(90vh, calc(100vh - 48px))',
               minHeight: 0,
               display: 'flex',
               flexDirection: 'column',
@@ -371,17 +371,17 @@ export const SnapshotTimeline: React.FC = () => {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  width: '28px',
-                  height: '28px',
-                  border: 'none',
-                  background: 'var(--vscode-toolbar-hoverBackground)',
-                  color: 'var(--vscode-foreground)',
+                  width: '32px',
+                  height: '32px',
+                  border: '1px solid var(--vscode-contrastBorder, var(--vscode-panel-border))',
+                  background: 'var(--vscode-editorWidget-background, var(--vscode-toolbar-hoverBackground))',
+                  color: 'var(--vscode-editor-foreground)',
                   borderRadius: '4px',
                   cursor: 'pointer',
                   flexShrink: 0,
                 }}
               >
-                <X size={14} />
+                <X size={18} strokeWidth={2.4} />
               </button>
             </div>
             <div
@@ -395,7 +395,7 @@ export const SnapshotTimeline: React.FC = () => {
               <pre
                 style={{
                   margin: 0,
-                  padding: '12px',
+                  padding: '8px 10px',
                   fontSize: '11px',
                   lineHeight: 1.45,
                   fontFamily: 'var(--vscode-editor-font-family, monospace)',
@@ -431,7 +431,7 @@ export const SnapshotTimeline: React.FC = () => {
               margin: '0 auto',
               width: '100%',
               maxWidth: '520px',
-              maxHeight: 'min(90vh, calc(100vh - 48px))',
+              height: 'min(90vh, calc(100vh - 48px))',
               minHeight: 0,
               display: 'flex',
               flexDirection: 'column',
@@ -467,17 +467,17 @@ export const SnapshotTimeline: React.FC = () => {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  width: '28px',
-                  height: '28px',
-                  border: 'none',
-                  background: 'var(--vscode-toolbar-hoverBackground)',
-                  color: 'var(--vscode-foreground)',
+                  width: '32px',
+                  height: '32px',
+                  border: '1px solid var(--vscode-contrastBorder, var(--vscode-panel-border))',
+                  background: 'var(--vscode-editorWidget-background, var(--vscode-toolbar-hoverBackground))',
+                  color: 'var(--vscode-editor-foreground)',
                   borderRadius: '4px',
                   cursor: 'pointer',
                   flexShrink: 0,
                 }}
               >
-                <X size={14} />
+                <X size={18} strokeWidth={2.4} />
               </button>
             </div>
             <div
@@ -547,6 +547,12 @@ function asRestoreHistoryView(h: RestoreHistory): RestoreHistoryRowView {
 }
 
 type DiffLineKind = 'add' | 'del' | 'meta' | 'ctx';
+type DiffDisplayLine = {
+  kind: Exclude<DiffLineKind, 'meta'>;
+  text: string;
+  oldLine: number | null;
+  newLine: number | null;
+};
 
 function classifyDiffLine(raw: string): DiffLineKind {
   const line = raw.trimEnd();
@@ -590,30 +596,145 @@ function diffLineColors(kind: DiffLineKind): { color: string; backgroundColor?: 
   }
 }
 
+function parseHunkHeader(line: string): { oldStart: number; newStart: number } | null {
+  const m = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(line.trim());
+  if (!m) return null;
+  return {
+    oldStart: Number(m[1]),
+    newStart: Number(m[2]),
+  };
+}
+
+function buildDiffDisplayLines(text: string): DiffDisplayLine[] {
+  const lines = text.split('\n');
+  const result: DiffDisplayLine[] = [];
+  let oldLine = 0;
+  let newLine = 0;
+  let inHunk = false;
+
+  for (const rawLine of lines) {
+    const kind = classifyDiffLine(rawLine);
+    if (kind === 'meta') {
+      const parsed = parseHunkHeader(rawLine);
+      if (parsed) {
+        oldLine = parsed.oldStart;
+        newLine = parsed.newStart;
+        inHunk = true;
+      }
+      continue;
+    }
+    if (!inHunk) {
+      continue;
+    }
+
+    if (rawLine.startsWith('+')) {
+      result.push({
+        kind: 'add',
+        text: rawLine,
+        oldLine: null,
+        newLine,
+      });
+      newLine += 1;
+      continue;
+    }
+
+    if (rawLine.startsWith('-')) {
+      result.push({
+        kind: 'del',
+        text: rawLine,
+        oldLine,
+        newLine: null,
+      });
+      oldLine += 1;
+      continue;
+    }
+
+    result.push({
+      kind: 'ctx',
+      text: rawLine,
+      oldLine,
+      newLine,
+    });
+    oldLine += 1;
+    newLine += 1;
+  }
+
+  return result;
+}
+
 function renderColoredDiffText(text: string | undefined): React.ReactNode {
   if (text == null || text.trim() === '') {
     return <span style={{ color: 'var(--vscode-descriptionForeground)' }}>(diff 없음)</span>;
   }
-  const lines = text.split('\n');
-  return lines.map((line, i) => {
-    const kind = classifyDiffLine(line);
+  const displayLines = buildDiffDisplayLines(text);
+  const changedIndexes = displayLines
+    .map((line, index) => (line.kind === 'add' || line.kind === 'del' ? index : -1))
+    .filter((index) => index >= 0);
+
+  if (changedIndexes.length === 0) {
+    return <span style={{ color: 'var(--vscode-descriptionForeground)' }}>(변경된 +/- 라인이 없습니다)</span>;
+  }
+
+  const CONTEXT_LINES = 2;
+  const include = new Set<number>();
+  for (const idx of changedIndexes) {
+    const start = Math.max(0, idx - CONTEXT_LINES);
+    const end = Math.min(displayLines.length - 1, idx + CONTEXT_LINES);
+    for (let i = start; i <= end; i += 1) {
+      include.add(i);
+    }
+  }
+
+  const selected = Array.from(include).sort((a, b) => a - b);
+  const rendered: React.ReactNode[] = [];
+  let prev = -1;
+  for (const idx of selected) {
+    if (prev >= 0 && idx - prev > 1) {
+      rendered.push(
+        <span
+          key={`gap-${idx}`}
+          style={{
+            display: 'block',
+            color: 'var(--vscode-descriptionForeground)',
+            opacity: 0.7,
+            padding: '0 6px',
+          }}
+        >
+          ...
+        </span>,
+      );
+    }
+
+    const line = displayLines[idx];
+    const kind = line.kind;
     const { color, backgroundColor } = diffLineColors(kind);
-    return (
+    rendered.push(
       <span
-        key={i}
+        key={idx}
         style={{
-          display: 'block',
+          display: 'grid',
+          gridTemplateColumns: '30px 1fr',
+          columnGap: '6px',
+          alignItems: 'baseline',
           color,
           backgroundColor,
-          whiteSpace: 'pre-wrap',
-          wordBreak: 'break-word',
+          whiteSpace: 'pre',
           minHeight: '1.45em',
+          padding: '0 2px',
         }}
       >
-        {line.length === 0 ? '\u00a0' : line}
+        <span style={{ color: 'var(--vscode-descriptionForeground)', textAlign: 'right', userSelect: 'none' }}>
+          {line.newLine ?? ''}
+        </span>
+        <span style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+          {line.text.length === 0 ? '\u00a0' : line.text}
+        </span>
       </span>
     );
-  });
+    prev = idx;
+  }
+
+  return rendered;
 }
 
 function formatRelativeTime(timestamp: number): string {
