@@ -1,3 +1,4 @@
+import * as fs from 'fs/promises';
 import * as path from 'path';
 import type {
   SnapshotRepository,
@@ -5,12 +6,29 @@ import type {
   WorkSessionRepository,
   SnapshotManifest,
   SnapshotFile,
+  SnapshotRow,
 } from '@gitcat/shared-types';
+import {
+  getSnapshotSummarySystemPrompt,
+  buildSnapshotSummaryUserPrompt,
+} from '@gitcat/ai-pipeline';
+import type { AiClient } from '@gitcat/ai-pipeline';
 import { ISnapshotService, SnapshotCreationType, CreateSnapshotOptions } from './ISnapshotService';
 import { SnapshotDiffService } from './SnapshotDiffService';
-import { SnapshotLocalStore } from './SnapshotLocalStore';
+import { SnapshotFullStateEntry, SnapshotLocalStore } from './SnapshotLocalStore';
 import { SnapshotIdGenerator } from './SnapshotIdGenerator';
 import { SnapshotAutoCleanupService } from './SnapshotAutoCleanupService';
+
+/**
+ * 스냅샷 타입 중 AI가 수행한 작업으로 분류되는 타입 목록입니다.
+ *
+ * 이 목록에 포함된 타입으로 생성된 스냅샷은 AI 요약 제목 앞에 [AI] 태그가 붙습니다.
+ * 그 외의 타입(savepoint, auto_dirty_before_ai 등)은 [Human] 태그가 붙습니다.
+ */
+const AI_SNAPSHOT_TYPES: ReadonlySet<SnapshotCreationType> = new Set([
+  'ai_result',       // AI가 코드 변경 작업을 완료한 뒤 찍히는 스냅샷
+  'ai_pre_action',   // AI가 작업을 시작하기 직전 찍히는 스냅샷
+]);
 
 /**
  * 스냅샷 자동 삭제 정책: 최근 N개 초과 시 오래된 스냅샷을 삭제한다.
@@ -48,6 +66,26 @@ export interface SnapshotServiceOptions {
    * 개수를 바꾸려면 SNAPSHOT_KEEP_RECENT_COUNT 상수를 수정하거나 이 값을 직접 전달한다.
    */
   keepRecentCount?: number;
+
+  /**
+   * AI 요약 기능을 위한 AiClient 인스턴스.
+   * 제공되지 않으면 스냅샷 이름 자동 생성이 비활성화된다.
+   */
+  aiClient?: AiClient;
+
+  /**
+   * 스냅샷이 생성된 직후 UI에 즉시 알리기 위한 브로드캐스트 콜백.
+   * AI 요약 전에 호출되어 '생성 중...' 또는 빈 제목 상태로 목록에 먼저 추가되도록 합니다.
+   */
+  onSnapshotCreated?: (row: SnapshotRow) => void;
+
+  /**
+   * AI 요약 완료 후 UI에 알리기 위한 브로드캐스트 콜백.
+   * aiClient와 함께 제공해야 SNAPSHOT_UPDATED 이벤트가 전송된다.
+   */
+  onSnapshotUpdated?: (row: SnapshotRow) => void;
+
+  keepRecentPreRestoreCount?: number;
 }
 
 /**
@@ -63,6 +101,9 @@ export interface SnapshotServiceOptions {
  * 4. SnapshotRepository를 통한 DB 메타데이터 저장
  * 5. 실패 시 Local ↔ DB 불일치 방지 (rollback 시도)
  * 6. 생성 후 자동 삭제 정책 적용 (최근 N개 유지)
+ * 7. [Task 45] 스냅샷 생성 직후 백그라운드에서 AI 요약 제목 자동 생성
+ *    - aiClient가 주입된 경우에만 동작하며, 실패해도 스냅샷 생성 결과에 영향 없음
+ *    - 스냅샷 타입에 따라 [AI] 또는 [Human] 접두사를 붙여 DB에 저장
  */
 export class SnapshotService implements ISnapshotService {
   private readonly localStore: SnapshotLocalStore;
@@ -71,6 +112,14 @@ export class SnapshotService implements ISnapshotService {
   private readonly workspaceRoot: string;
   private readonly worktreeInstanceId: string;
   private readonly keepRecentCount: number;
+  /** AI 요약 호출에 사용되는 AiClient 인스턴스. 제공되지 않으면 AI 요약 기능이 비활성화됨 */
+  private readonly aiClient?: AiClient;
+  /** 스냅샷 생성 직후 웹뷰에 이벤트를 전송하기 위한 콜백 */
+  private readonly onSnapshotCreated?: (row: SnapshotRow) => void;
+  /** AI 요약 완료 후 웹뷰에 SNAPSHOT_UPDATED 이벤트를 전송하기 위한 콜백 */
+  private readonly onSnapshotUpdated?: (row: SnapshotRow) => void;
+  private readonly keepRecentPreRestoreCount: number;
+  private restoreOperationDepth = 0;
 
   constructor(
     private readonly snapshotRepository: SnapshotRepository,
@@ -82,12 +131,28 @@ export class SnapshotService implements ISnapshotService {
     this.localStore = new SnapshotLocalStore(this.workspaceRoot);
     this.diffService = new SnapshotDiffService();
     this.keepRecentCount = options.keepRecentCount ?? SNAPSHOT_KEEP_RECENT_COUNT;
+    this.aiClient = options.aiClient;
+    this.onSnapshotCreated = options.onSnapshotCreated;
+    this.onSnapshotUpdated = options.onSnapshotUpdated;
+    this.keepRecentPreRestoreCount =
+      options.keepRecentPreRestoreCount ??
+      SnapshotAutoCleanupService.DEFAULT_KEEP_RECENT_PRE_RESTORE;
 
     this.worktreeInstanceId =
       options.worktreeInstanceId ??
       SnapshotIdGenerator.generateWorktreeInstanceId(this.workspaceRoot);
 
     this.cleanupService = new SnapshotAutoCleanupService(snapshotRepository, this.localStore);
+  }
+
+  async deleteSnapshot(snapshotId: string): Promise<void> {
+    const existing = await this.snapshotRepository.findById(snapshotId);
+    if (!existing) {
+      throw new Error(`Snapshot not found: ${snapshotId}`);
+    }
+
+    await this.cleanupService.deleteSnapshot(snapshotId);
+    console.log(`[SnapshotService] 스냅샷 삭제 완료: ${snapshotId}`);
   }
 
   /**
@@ -101,8 +166,15 @@ export class SnapshotService implements ISnapshotService {
     type: SnapshotCreationType,
     options: CreateSnapshotOptions = {},
   ): Promise<string | undefined> {
+    if (this.restoreOperationDepth > 0 && type !== 'pre_restore') {
+      console.log(`[SnapshotService] restore lock active, skipped snapshot type=${type}`);
+      return undefined;
+    }
+
     const snapshotId = SnapshotIdGenerator.generate(type);
     const createdAt = new Date().toISOString();
+    const primaryBaselines = options.baselines ?? options.userBaselines;
+    const primaryChangedFiles = options.changedFiles ?? options.userChangedFiles;
 
     console.log(`[SnapshotService] 스냅샷 생성 시작: type=${type}, id=${snapshotId}`);
 
@@ -110,7 +182,7 @@ export class SnapshotService implements ISnapshotService {
     // baselines(AI 세션 시작 시점) → 현재 파일 상태 diff
     let diffResult;
     try {
-      diffResult = await this.buildDiff(options.baselines, options.changedFiles);
+      diffResult = await this.buildDiff(primaryBaselines, primaryChangedFiles);
     } catch (diffError) {
       console.error('[SnapshotService] diff 생성 실패:', diffError);
       return undefined;
@@ -119,13 +191,13 @@ export class SnapshotService implements ISnapshotService {
     const { patchText, hunks, changedFiles, warnings } = diffResult;
 
     // --- 저장 조건 체크 ---
-    if (type === 'savepoint') {
+    if (!options.force && type === 'savepoint') {
       // 세이브포인트: 변경 파일이 0개면 저장하지 않음 (줄 수 제한 없음)
       if (changedFiles.length === 0) {
         console.log('[SnapshotService] 변경된 파일 없음 → 세이브포인트 생략');
         return undefined;
       }
-    } else {
+    } else if (!options.force) {
       // 자동 스냅샷: 변경 줄 수가 최소 기준 미만이면 생략
       const totalChangedLines = this.countChangedLines(patchText);
       if (totalChangedLines < SNAPSHOT_MIN_CHANGED_LINES) {
@@ -151,9 +223,13 @@ export class SnapshotService implements ISnapshotService {
     }
 
     // --- Manifest 구성 ---
+    const previousSnapshot = await this.snapshotRepository.findLatestByWorktreeInstance(this.worktreeInstanceId);
+    const previousSnapshotId = previousSnapshot?.snapshot_id ?? undefined;
+
     const manifest: SnapshotManifest = {
       snapshotId,
       type,
+      previousSnapshotId,
       createdAt,
       reason: options.reason,
       summary: options.summary,
@@ -171,6 +247,7 @@ export class SnapshotService implements ISnapshotService {
       hunks,
       aiPatchText: isAiResult ? patchText : undefined,
       userPatchText,
+      includeFullFileBackupDir: true,
     });
 
     if (!storeResult.ok) {
@@ -182,6 +259,7 @@ export class SnapshotService implements ISnapshotService {
     }
 
     const snapshotDir = storeResult.snapshotDir;
+    await this.saveFullSnapshotState(snapshotId, primaryBaselines, changedFiles);
 
     // --- 세션 준비 (DB session_id 확보) ---
     const sessionId = await this.ensureSession(options.sessionId, type, createdAt);
@@ -193,6 +271,7 @@ export class SnapshotService implements ISnapshotService {
         snapshot_id: snapshotId,
         session_id: sessionId,
         type,
+        previous_snapshot_id: previousSnapshotId ?? null,
         reason: options.reason ?? null,
         summary: options.summary ?? null,
         local_path: path.relative(this.workspaceRoot, snapshotDir).replace(/\\/g, '/'),
@@ -209,6 +288,15 @@ export class SnapshotService implements ISnapshotService {
 
     // --- snapshot_files DB 저장 ---
     await this.saveSnapshotFiles(snapshotId, changedFiles, createdAt);
+
+    // --- 즉시 UI 업데이트 콜백 호출 ---
+    if (this.onSnapshotCreated && snapshotRow) {
+      try {
+        this.onSnapshotCreated(snapshotRow);
+      } catch (err) {
+        console.error('[SnapshotService] onSnapshotCreated 콜백 중 오류:', err);
+      }
+    }
 
     // --- Safety warning 로그 ---
     if (warnings.length > 0) {
@@ -228,7 +316,22 @@ export class SnapshotService implements ISnapshotService {
     // --- 자동 삭제 정책 적용 (비동기, 실패 허용) ---
     this.scheduleCleanup();
 
+    // --- AI 요약 제목 생성 (비동기, 실패 허용) ---
+    this.scheduleAiSummary(snapshotRow.snapshot_id, type, patchText);
+
     return snapshotRow.snapshot_id;
+  }
+
+  beginRestoreOperation(): void {
+    this.restoreOperationDepth += 1;
+  }
+
+  endRestoreOperation(): void {
+    this.restoreOperationDepth = Math.max(0, this.restoreOperationDepth - 1);
+  }
+
+  isRestoreOperationActive(): boolean {
+    return this.restoreOperationDepth > 0;
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -242,10 +345,10 @@ export class SnapshotService implements ISnapshotService {
    * @param changedFilePaths 변경된 파일 경로 목록
    */
   private async buildDiff(
-    baselines: Map<string, string> | undefined,
+    baselines: Map<string, Uint8Array> | undefined,
     changedFilePaths: string[] | undefined,
   ) {
-    const resolvedBaselines = baselines ?? new Map<string, string>();
+    const resolvedBaselines = baselines ?? new Map<string, Uint8Array>();
     const resolvedChanged = changedFilePaths ?? [];
 
     if (resolvedBaselines.size === 0 && resolvedChanged.length === 0) {
@@ -368,6 +471,51 @@ export class SnapshotService implements ISnapshotService {
    *
    * @param snapshotId 롤백할 스냅샷 ID
    */
+  private async saveFullSnapshotState(
+    snapshotId: string,
+    baselines: Map<string, Uint8Array> | undefined,
+    changedFiles: SnapshotFile[],
+  ): Promise<void> {
+    if (changedFiles.length === 0) {
+      return;
+    }
+
+    const beforeEntries: SnapshotFullStateEntry[] = [];
+    const afterEntries: SnapshotFullStateEntry[] = [];
+    const normalizedBaselines = new Map<string, Uint8Array>();
+    for (const [filePath, content] of baselines ?? new Map<string, Uint8Array>()) {
+      normalizedBaselines.set(this.normalizeWorkspacePath(filePath), content);
+    }
+
+    for (const file of changedFiles) {
+      const targetPath = this.normalizeWorkspacePath(file.filePath);
+      const currentContent = await this.readWorkspaceFileContent(targetPath);
+
+      if (file.status === 'renamed' && file.renamedFrom) {
+        const beforePath = this.normalizeWorkspacePath(file.renamedFrom);
+        beforeEntries.push({
+          filePath: beforePath,
+          content: normalizedBaselines.get(beforePath) ?? null,
+        });
+      } else {
+        beforeEntries.push({
+          filePath: targetPath,
+          content: normalizedBaselines.get(targetPath) ?? null,
+        });
+      }
+
+      afterEntries.push({
+        filePath: targetPath,
+        content: currentContent,
+      });
+    }
+
+    await this.localStore.saveFullSnapshotState(snapshotId, {
+      before: beforeEntries,
+      after: afterEntries,
+    });
+  }
+
   private async rollbackLocalFile(snapshotId: string): Promise<void> {
     try {
       await this.localStore.deleteSnapshot(snapshotId);
@@ -388,9 +536,71 @@ export class SnapshotService implements ISnapshotService {
   private scheduleCleanup(): void {
     setImmediate(async () => {
       try {
-        await this.cleanupService.cleanup(this.worktreeInstanceId, this.keepRecentCount);
+        await this.cleanupService.cleanup(this.worktreeInstanceId, {
+          keepRecent: this.keepRecentCount,
+          keepRecentPreRestore: this.keepRecentPreRestoreCount,
+        });
       } catch (cleanupError) {
         console.error('[SnapshotService] 자동 삭제 중 오류 발생:', cleanupError);
+      }
+    });
+  }
+
+  /**
+   * AI를 이용해 스냅샷 요약 제목을 비동기 생성하고 DB에 업데이트한다.
+   * - aiClient가 없으면 조용히 건너뜀 (하위 호환)
+   * - [AI] / [Human] 접두사를 type에 따라 자동으로 붙임
+   * - 실패해도 스냅샷 생성 결과에 영향 없음
+   */
+  private scheduleAiSummary(
+    snapshotId: string,
+    type: SnapshotCreationType,
+    patchText: string,
+  ): void {
+    if (!this.aiClient || !patchText) {
+      return;
+    }
+
+    // 클로저 내부에서 undefined 가능성을 없애기 위해 로컬 변수에 고정
+    const aiClient = this.aiClient;
+
+    setImmediate(async () => {
+      try {
+        // [Task 45] 스냅샷 타입에 따른 세분화된 태그 결정
+        let tag = '[User]';
+        if (type === 'ai_result') {
+          tag = '[AI]';
+        } else if (type === 'ai_pre_action') {
+          tag = '[AI Base]';
+        } else if (type === 'savepoint') {
+          tag = '[Save]';
+        } else if (type === 'auto_dirty_before_ai') {
+          tag = '[Pre-AI]';
+        }
+
+        // diff가 너무 길면 앞부분만 잘라서 전달 (토큰 절약)
+        const trimmedDiff = patchText.length > 4000 ? patchText.slice(0, 4000) + '\n...(truncated)' : patchText;
+
+        const rawSummary = await aiClient.generateResponse('recommendation', {
+          systemPrompt: getSnapshotSummarySystemPrompt(),
+          userPrompt: buildSnapshotSummaryUserPrompt(trimmedDiff),
+        });
+
+        // AI 응답에서 앞뒤 공백/줄바꿈 제거 후 태그 붙이기
+        const summary = `${tag} ${rawSummary.trim().split('\n')[0]}`;
+
+        await this.snapshotRepository.updateSummary(snapshotId, summary);
+        console.log(`[SnapshotService] AI 요약 저장 완료: id=${snapshotId}, summary=${summary}`);
+
+        // UI 업데이트 콜백 호출
+        if (this.onSnapshotUpdated) {
+          const updatedRow = await this.snapshotRepository.findById(snapshotId);
+          if (updatedRow) {
+            this.onSnapshotUpdated(updatedRow);
+          }
+        }
+      } catch (aiError) {
+        console.warn(`[SnapshotService] AI 요약 생성 실패 (snapshotId=${snapshotId}):`, aiError);
       }
     });
   }
@@ -411,5 +621,22 @@ export class SnapshotService implements ISnapshotService {
           (line.startsWith('+') && !line.startsWith('+++')) ||
           (line.startsWith('-') && !line.startsWith('---')),
       ).length;
+  }
+
+  private normalizeWorkspacePath(filePath: string): string {
+    return this.localStore.toWorkspaceRelativePath(filePath);
+  }
+
+  private async readWorkspaceFileContent(filePath: string): Promise<Uint8Array | null> {
+    const absolutePath = path.resolve(this.workspaceRoot, filePath);
+    try {
+      return await fs.readFile(absolutePath);
+    } catch (error) {
+      const nodeError = error as NodeJS.ErrnoException;
+      if (nodeError?.code === 'ENOENT') {
+        return null;
+      }
+      throw error;
+    }
   }
 }

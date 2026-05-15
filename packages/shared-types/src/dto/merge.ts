@@ -25,6 +25,7 @@ export type AnalyzeConflictRequest = z.infer<typeof AnalyzeConflictRequestSchema
 export const AcceptMergeRequestSchema = z.object({
   proposalId: z.string().min(1),
   candidateId: z.string().min(1),
+  analysisId: z.string().min(1),
   filePath: z.string().min(1),
   proposedContent: z.string(),
   finalExplanation: z.string().optional(),
@@ -35,10 +36,24 @@ export type AcceptMergeRequest = z.infer<typeof AcceptMergeRequestSchema>;
 export const RejectMergeRequestSchema = z.object({
   proposalId: z.string().min(1),
   candidateId: z.string().min(1),
+  analysisId: z.string().min(1),
   filePath: z.string().min(1).optional(),
   feedbackNote: z.string().optional(),
 }).strict();
 export type RejectMergeRequest = z.infer<typeof RejectMergeRequestSchema>;
+
+/** AI 병합 제안 생성/조회 요청 payload DTO */
+export const GetAiDraftRequestSchema = z.object({
+  analysisId: z.string().min(1),
+  candidateId: z.string().min(1),
+  filePath: z.string().min(1),
+  featureType: FeatureTypeEnum.extract([
+    'merge_patch_draft',
+    'merge_mediation',
+    'conflict_explanation',
+  ]).optional(),
+}).strict();
+export type GetAiDraftRequest = z.infer<typeof GetAiDraftRequestSchema>;
 
 /** CONFLICT_RESULT 응답에서 Webview가 소비하는 충돌 후보 projection DTO */
 export const MergeConflictCandidateViewSchema = z.object({
@@ -62,7 +77,7 @@ export type MergeConflictCandidateView = z.infer<typeof MergeConflictCandidateVi
 export const MergeProposalViewSchema = z.object({
   proposalId: z.string(),
   candidateId: z.string(),
-  analysisId: z.string().optional(),
+  analysisId: z.string(),
   filePath: z.string(),
   featureType: FeatureTypeEnum.extract([
     'merge_patch_draft',

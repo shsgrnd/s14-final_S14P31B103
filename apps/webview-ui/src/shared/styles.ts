@@ -12,6 +12,24 @@
 
 import React from 'react';
 
+/**
+ * 네이티브 사이드바 **뷰 제목**(GITCAT 한 줄)과 같은 색 계열.
+ * `sideBarSectionHeader.foreground`는 OUTLINE 등 접힌 섹션 라벨용이라 어두운 경우가 많아 폴백에 넣지 않음.
+ */
+export const vscodeSidebarViewTitleForeground =
+  'var(--vscode-sideBarTitle-foreground, var(--vscode-titleBar-activeForeground, var(--vscode-tab-activeForeground, var(--vscode-activityBar-foreground, var(--vscode-sideBar-foreground, var(--vscode-editor-foreground))))))';
+
+/**
+ * 사이드바 웹뷰 본문. 일부 테마에서 `sideBar.foreground`만 비정상적으로 어두운 경우가 있어
+ * workbench `foreground` → `editor.foreground` 순으로 폴백한다.
+ */
+export const webviewBodyForeground =
+  'var(--vscode-foreground, var(--vscode-editor-foreground, var(--vscode-sideBar-foreground)))';
+
+/** 보조 설명문 */
+export const webviewDescriptionForeground =
+  'var(--vscode-descriptionForeground, var(--vscode-foreground))';
+
 // ─────────────────────────────────────────────
 // 버튼 스타일
 // ─────────────────────────────────────────────
@@ -95,14 +113,14 @@ export const iconBtn: React.CSSProperties = {
   transition: 'all 0.2s',
 };
 
-/** 푸터/헤더용 투명 아이콘 버튼 — App.tsx 푸터 유저/설정 버튼 등 */
+/** 푸터/헤더용 투명 아이콘 버튼 — 사이드바 하단(뷰 제목 GITCAT과 동일 토큰 계열) */
 export const footerIconBtn: React.CSSProperties = {
   background: 'none',
   border: 'none',
   cursor: 'pointer',
   padding: '4px',
   borderRadius: '3px',
-  color: 'var(--vscode-descriptionForeground)',
+  color: vscodeSidebarViewTitleForeground,
   display: 'flex',
   alignItems: 'center',
 };

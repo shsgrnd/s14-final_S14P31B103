@@ -1,12 +1,23 @@
 import * as vscode from 'vscode';
 import { createHash } from 'crypto';
-import { GitCatDatabase, SqliteRecommendationHistoryRepository, SqliteSnapshotRepository, SqliteSnapshotFileRepository, SqliteWorkSessionRepository } from '@gitcat/storage';
+import {
+  GitCatDatabase,
+  SqliteRecommendationHistoryRepository,
+  SqliteSnapshotRepository,
+  SqliteSnapshotFileRepository,
+  SqliteWorkSessionRepository,
+  SqliteRestoreHistoryRepository,
+  type SQLiteDatabase,
+} from '@gitcat/storage';
 import { GitCliClient } from '@gitcat/git-client-cli';
 import { CommandRegistry } from './commands';
 import { EventRegistry } from './events';
 import { SafetySessionCoordinator } from './features/safety/session/SafetySessionCoordinator';
-import { MockSnapshotService } from './features/safety/snapshot/MockSnapshotService';
+import { FallbackSnapshotService } from './features/safety/snapshot/FallbackSnapshotService';
 import { SnapshotService } from './features/safety/snapshot/SnapshotService';
+import { SnapshotQueryService } from './features/safety/snapshot/SnapshotQueryService';
+import { RestoreHistoryQueryService } from './features/safety/snapshot/RestoreHistoryQueryService';
+import { RestoreService } from './features/safety/snapshot/RestoreService';
 import { ISnapshotService } from './features/safety/snapshot/ISnapshotService';
 import { WebviewProvider } from './webview/WebviewProvider';
 import { SidebarProvider } from './webview/SidebarProvider';
@@ -23,6 +34,15 @@ import { PullRequestService } from './features/pull-request/PullRequestService';
 import { PullRequestMessageHandler } from './features/pull-request/PullRequestMessageHandler';
 import { PrSettingsService } from './features/settings/PrSettingsService';
 import { PrSettingsMessageHandler } from './features/settings/PrSettingsMessageHandler';
+import {
+  createMergeRepositories,
+  MergeAnalysisArtifactStore,
+  MergeConflictAnalysisService,
+  MergeConflictMessageHandler,
+  MergeInputAssembler,
+  MergeProposalMessageHandler,
+  MergeProposalService,
+} from './features/merge-analysis';
 
 export async function activate(context: vscode.ExtensionContext) {
   console.log('GitCat Extension is now active!');
@@ -79,7 +99,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 
   const aiSecretService = new AiSecretService(context.secrets);
-  let clearAiCache = () => {};
+  let clearAiCache = () => { };
   const aiApiKeyMessageHandler = new AiApiKeyMessageHandler(aiSecretService, () => clearAiCache());
 
   const messageRouter = new MessageRouter(
@@ -97,6 +117,22 @@ export async function activate(context: vscode.ExtensionContext) {
   const prSettingsService = new PrSettingsService(context.workspaceState);
   const prSettingsHandler = new PrSettingsMessageHandler(prSettingsService, messageRouter);
   messageRouter.setPrSettingsHandler(prSettingsHandler);
+
+  let dbInstance: SQLiteDatabase | undefined;
+  if (rootPath && projectId) {
+    try {
+      const database = await GitCatDatabase.create(rootPath);
+      dbInstance = database.getInstance();
+      console.log('GitCat Database initialized successfully at:', GitCatDatabase.getDatabasePath(rootPath));
+    } catch (error) {
+      console.error('Failed to initialize GitCat database:', error);
+      vscode.window.showWarningMessage('GitCat 로컬 데이터베이스를 초기화하지 못했습니다.');
+    }
+  }
+
+  if (rootPath && projectId && gitService && dbInstance) {
+    initializeMergeConflictAnalysis(gitService, dbInstance, messageRouter, rootPath);
+  }
 
   if (gitService) {
     const gitStatusRefreshController = new GitStatusRefreshController(gitService, messageRouter);
@@ -119,24 +155,95 @@ export async function activate(context: vscode.ExtensionContext) {
   );
 
   // ――― Safety Layer (Snapshot Service) 초기화 ――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――
-  // DB 초기화 성공 시 실제 SnapshotService, 실패 시 MockSnapshotService로 폴백
-  let snapshotService: ISnapshotService = new MockSnapshotService();
+  // DB 초기화 성공 시 실제 SnapshotService, 실패 시 FallbackSnapshotService로 폴백
+  let snapshotService: ISnapshotService = new FallbackSnapshotService();
+  messageRouter.setSnapshotService(snapshotService);
   if (rootPath) {
     try {
       const snapshotDb = await GitCatDatabase.create(rootPath);
       const snapshotDbInstance = snapshotDb.getInstance();
+
+      // [Task 45] AI 클라이언트 구성:
+      // 기존 GitCat 익스텐션의 AI 설정값(모드, 로컬 모델 경로, API 키)을 그대로 가져와
+      // 스냅샷 요약 기능에도 동일한 모델/설정이 적용되도록 합니다.
+      const { AiClient } = await import('@gitcat/ai-pipeline');
+      const aiConfig = vscode.workspace.getConfiguration('gitcat.ai');
+      const snapshotAiClient = new AiClient({
+        mode: aiConfig.get<string>('mode') as any,          // 로컬 모델 또는 원격 API 모드
+        localModelPath: aiConfig.get<string>('localModelPath'), // 로컬 GGUF 모델 경로 (Task 44에서 설정)
+        apiKeyProvider: async () => aiSecretService.getApiKey(), // GMS API 키 제공
+      });
+
       snapshotService = new SnapshotService(
         new SqliteSnapshotRepository(snapshotDbInstance),
         new SqliteSnapshotFileRepository(snapshotDbInstance),
         new SqliteWorkSessionRepository(snapshotDbInstance),
-        { workspaceRoot: rootPath },
+        {
+          workspaceRoot: rootPath,
+          // [Task 45] AI 클라이언트를 주입하면 스냅샷 생성 직후 백그라운드에서 자동 요약이 실행됩니다.
+          aiClient: snapshotAiClient,
+          // 스냅샷 생성 직후 즉시 브로드캐스트하여 UI가 늦게 뜨는 현상을 방지합니다.
+          onSnapshotCreated: (row) => {
+            messageRouter.broadcast({
+              type: 'SNAPSHOT_CREATED',
+              payload: {
+                snapshot: {
+                  snapshotId: row.snapshot_id,
+                  type: row.type as any,
+                  createdAt: row.created_at,
+                  summary: undefined, // 처음 생성 시에는 요약이 없음
+                },
+              },
+            });
+          },
+          // [Task 45] AI 요약이 완료되면 이 콜백이 호출됩니다.
+          // messageRouter.broadcast를 통해 연결된 모든 웹뷰에 SNAPSHOT_UPDATED 이벤트를 전송하여
+          // 스냅샷 목록의 이름이 실시간으로 갱신되도록 합니다.
+          onSnapshotUpdated: (row) => {
+            messageRouter.broadcast({
+              type: 'SNAPSHOT_UPDATED',
+              payload: {
+                snapshot: {
+                  snapshotId: row.snapshot_id,
+                  type: row.type as any,
+                  createdAt: row.created_at,
+                  summary: row.summary ?? undefined, // AI가 생성한 요약 제목 ([AI]/[Human] 태그 포함)
+                },
+              },
+            });
+          },
+        },
+      );
+      const restoreHistoryRepository = new SqliteRestoreHistoryRepository(snapshotDbInstance);
+      messageRouter.setSnapshotService(snapshotService);
+      messageRouter.setSnapshotQueryService(
+        new SnapshotQueryService(
+          new SqliteSnapshotRepository(snapshotDbInstance),
+          new SqliteSnapshotFileRepository(snapshotDbInstance),
+          rootPath,
+        ),
+      );
+      messageRouter.setRestoreService(
+        new RestoreService(
+          new SqliteSnapshotRepository(snapshotDbInstance),
+          restoreHistoryRepository,
+          snapshotService,
+          rootPath,
+        ),
+      );
+      messageRouter.setRestoreHistoryQueryService(
+        new RestoreHistoryQueryService(
+          restoreHistoryRepository,
+          rootPath,
+        ),
       );
       console.log('GitCat Safety Layer (SnapshotService) initialized at:', rootPath);
     } catch (snapshotInitError) {
-      console.error('GitCat Safety Layer 초기화 실패, MockSnapshotService로 폴백합니다:', snapshotInitError);
+      console.error('GitCat Safety Layer 초기화 실패, FallbackSnapshotService로 폴백합니다:', snapshotInitError);
       vscode.window.showWarningMessage('GitCat Safety Layer 초기화에 실패했습니다. 스냅샷 기능이 제한됩니다.');
     }
   }
+
 
   const sessionCoordinator = new SafetySessionCoordinator(snapshotService);
   CommandRegistry.registerAll(context, webviewProvider, gitService);
@@ -149,9 +256,35 @@ export async function activate(context: vscode.ExtensionContext) {
       projectId,
       gitService,
       messageRouter,
+      dbInstance,
       (clearFn) => { clearAiCache = clearFn; },
     );
   }
+}
+
+function initializeMergeConflictAnalysis(
+  gitService: GitService,
+  dbInstance: SQLiteDatabase,
+  messageRouter: MessageRouter,
+  workspaceRoot: string,
+): void {
+  const repositories = createMergeRepositories(dbInstance);
+  const assembler = new MergeInputAssembler(gitService);
+  const artifactStore = new MergeAnalysisArtifactStore();
+  const analysisService = new MergeConflictAnalysisService(
+    assembler,
+    repositories,
+    artifactStore,
+  );
+  const proposalService = new MergeProposalService(
+    repositories,
+    artifactStore,
+    workspaceRoot,
+  );
+
+  messageRouter.setMergeConflictHandler(new MergeConflictMessageHandler(analysisService));
+  messageRouter.setMergeProposalHandler(new MergeProposalMessageHandler(proposalService));
+  console.log('GitCat merge conflict analysis layer initialized');
 }
 
 async function initializeRecommendationBackfill(
@@ -160,15 +293,23 @@ async function initializeRecommendationBackfill(
   projectId: string,
   gitService: GitService,
   messageRouter: MessageRouter,
+  dbInstance?: SQLiteDatabase,
   setClearAiCache?: (fn: () => void) => void,
 ): Promise<void> {
   try {
     const recommendationModule = await import('./features/recommendation');
     const { MergeAiService, AiClient } = await import('@gitcat/ai-pipeline');
-    
-    const aiClient = new AiClient({
+
+    const config = vscode.workspace.getConfiguration('gitcat.ai');
+    const mode = config.get<string>('mode') as any;
+    const localModelPath = config.get<string>('localModelPath');
+
+    const aiClientOptions = {
+      mode,
+      localModelPath,
       apiKeyProvider: async () => aiSecretService.getApiKey(),
-    });
+    };
+    const aiClient = new AiClient(aiClientOptions);
     const recommendationAiService = new MergeAiService(aiClient);
     if (setClearAiCache) {
       setClearAiCache(() => recommendationAiService.clearCache());
@@ -189,9 +330,10 @@ async function initializeRecommendationBackfill(
       commitRecommendationHandler: new recommendationModule.CommitRecommendationMessageHandler(commitRecommendationService),
     });
 
-    const dbPath = GitCatDatabase.getDatabasePath(rootPath);
-    const database = await GitCatDatabase.create(rootPath);
-    const dbInstance = database.getInstance();
+    if (!dbInstance) {
+      return;
+    }
+
     const historyRepository = new SqliteRecommendationHistoryRepository(dbInstance);
     const { RecommendationHistoryQueryService } = await import('./features/recommendation/RecommendationHistoryQueryService');
     const { PrRecommendationService } = await import('./features/recommendation/PrRecommendationService');
@@ -222,7 +364,6 @@ async function initializeRecommendationBackfill(
       prRecommendationHandler: new PrRecommendationHandler(prRecommendationService),
     });
 
-    console.log('GitCat Database initialized successfully at:', dbPath);
     console.log('GitCat recommendation history layer initialized');
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);

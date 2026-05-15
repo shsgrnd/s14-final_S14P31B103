@@ -4,6 +4,7 @@ import {
   resolveGmsOpenAiBaseUrl,
 } from '../client';
 import { loadRootEnv } from '../config/load-root-env';
+import { GitCatLlamaClient } from './LlamaClient';
 
 export interface PromptPayload {
   systemPrompt: string;
@@ -11,36 +12,66 @@ export interface PromptPayload {
 }
 
 export interface AiClientOptions {
-  mode?: 'mock' | 'live';
+  mode?: 'mock' | 'live' | 'live-remote' | 'live-local';
   apiKey?: string;
   apiKeyProvider?: () => Promise<string | undefined>;
   model?: string;
   temperature?: number;
   timeoutMs?: number;
   baseURL?: string;
+  localModelPath?: string;
 }
 
 export class AiClient {
-  private readonly mode: 'mock' | 'live';
+  private readonly mode: 'mock' | 'live-remote' | 'live-local';
   private readonly options: AiClientOptions;
   private liveClient?: GitCatAIClient;
+  private llamaClient?: GitCatLlamaClient;
 
   constructor(options: AiClientOptions = {}) {
     loadRootEnv();
     this.options = options;
-    this.mode = options.mode ?? (process.env.GITCAT_AI_MODE === 'live' ? 'live' : 'mock');
+    
+    // 사용자가 명시한 mode 설정이 있다면 우선 적용하고, 없다면 .env 값에 따라 초기화합니다.
+    if (options.mode) {
+      if (options.mode === 'live') {
+        this.mode = 'live-remote'; // 하위 호환성을 위해 'live'는 'live-remote'로 매핑
+      } else {
+        this.mode = options.mode as 'mock' | 'live-remote' | 'live-local';
+      }
+    } else {
+      this.mode = process.env.GITCAT_AI_MODE === 'live' ? 'live-remote' : 'mock';
+    }
   }
 
   /**
-   * mock 모드에서는 빠른 개발용 canned response를 반환하고,
-   * live 모드에서는 실제 OpenAI 호출을 수행합니다.
+   * mock 모드에서는 빠른 개발용 하드코딩 응답을 반환하고,
+   * live-remote 모드에서는 외부 GMS(OpenAI 호환) API 호출을 수행하며,
+   * live-local 모드에서는 로컬 오픈소스(Llama) 모델 추론을 수행합니다.
    */
   async generateResponse(featureType: FeatureType, payload: PromptPayload): Promise<string> {
-    if (this.mode === 'live') {
+    // 1. 로컬 모델 모드일 경우 LlamaClient 라우팅
+    if (this.mode === 'live-local' && this.options.localModelPath) {
+      return this.generateLlamaResponse(payload);
+    }
+    
+    // 2. 원격 모델 모드일 경우 기존 외부 API 라우팅
+    if (this.mode === 'live-remote' || (this.mode as any) === 'live') {
       return this.generateLiveResponse(payload);
     }
 
+    // 3. 그 외의 경우 Mock 응답 반환
     return this.generateMockResponse(featureType, payload);
+  }
+
+  private async generateLlamaResponse(payload: PromptPayload): Promise<string> {
+    if (!this.llamaClient) {
+      if (!this.options.localModelPath) {
+        throw new Error('localModelPath가 설정되지 않았습니다. 로컬 모델을 사용할 수 없습니다.');
+      }
+      this.llamaClient = new GitCatLlamaClient({ modelPath: this.options.localModelPath });
+    }
+    return this.llamaClient.callModel(payload);
   }
 
   private async generateLiveResponse(payload: PromptPayload): Promise<string> {
@@ -75,6 +106,7 @@ export class AiClient {
    */
   public clearLiveClientCache(): void {
     this.liveClient = undefined;
+    this.llamaClient = undefined;
   }
 
   private generateMockResponse(featureType: FeatureType, promptPayload?: PromptPayload): string {
@@ -118,13 +150,18 @@ export class AiClient {
         });
       case 'recommendation': {
         let recType = 'commit_message';
-        if (promptPayload?.userPrompt.includes('Recommendation Type: branch_name')) {
+        // 스냅샷 요약 AI 프롬프트인 경우
+        if (promptPayload?.userPrompt.includes('Please summarize the following code changes into a single-line title.')) {
+          recType = 'snapshot_summary';
+        } else if (promptPayload?.userPrompt.includes('Recommendation Type: branch_name')) {
           recType = 'branch_name';
         } else if (promptPayload?.userPrompt.includes('Recommendation Type: pr_description')) {
           recType = 'pr_description';
         }
 
-        if (recType === 'branch_name') {
+        if (recType === 'snapshot_summary') {
+          return "Mock 모드 작동 중 (AI 요약이 아닌 테스트 문자열입니다)";
+        } else if (recType === 'branch_name') {
           return "```json\n" + JSON.stringify({
             title: "Branch Name Recommendations",
             summary: "Generated branch names based on intent.",

@@ -98,3 +98,7 @@ packages/ai-pipeline/trainer/rag/chroma_db/
 # VSIX 패키징 결과물 및 빌드 산출물
 apps/extension/.artifacts/
 
+# 모델 Export 과정 중 생성되는 무거운 파일/폴더들
+packages/ai-pipeline/scripts/model-export/llama.cpp/
+packages/ai-pipeline/scripts/model-export/merged_hf_model/
+packages/ai-pipeline/scripts/model-export/*.gguf

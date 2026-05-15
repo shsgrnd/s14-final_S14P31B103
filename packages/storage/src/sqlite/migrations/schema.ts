@@ -23,7 +23,7 @@
  * 스키마 변경(DDL 수정) 시 이 값을 올링하면 기존 DB를 자동으로 DROP 후 재생성한다.
  * MVP에서는 데이터 보존보다 완전한 스키마 동기화를 우선한다.
  */
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 
 export const SCHEMAS = [
   // 스키마 버전 관리 테이블 (가장 먼저 생성)
@@ -152,9 +152,13 @@ export const SCHEMAS = [
   );`,
   `CREATE TABLE IF NOT EXISTS restore_histories (
     restore_history_id TEXT PRIMARY KEY,
+    from_snapshot_id TEXT NOT NULL,
     target_snapshot_id TEXT NOT NULL,
     pre_restore_snapshot_id TEXT,
+    status TEXT NOT NULL DEFAULT 'success',
+    failure_reason TEXT,
     restored_at TEXT NOT NULL,
+    FOREIGN KEY (from_snapshot_id) REFERENCES snapshots(snapshot_id),
     FOREIGN KEY (target_snapshot_id) REFERENCES snapshots(snapshot_id),
     FOREIGN KEY (pre_restore_snapshot_id) REFERENCES snapshots(snapshot_id)
   );`,

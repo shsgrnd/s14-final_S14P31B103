@@ -62,7 +62,7 @@ export interface BuildSnapshotDiffParams {
 
 export interface WorkspaceDiffParams {
   workspaceRoot: string;
-  baselines: Map<string, string>;
+  baselines: Map<string, Uint8Array>;
   changedFiles: Iterable<string>;
   ignoreWhitespace?: boolean;
   contextLines?: number;
