@@ -37,6 +37,7 @@ export class SnapshotAutoCleanupService {
     const candidates = this.selectDeletionCandidates(rows, resolvedPolicy);
 
     if (candidates.length === 0) {
+      await this.localStore.cleanupOrphanSnapshotDirs(rows.map((row) => row.snapshot_id));
       return;
     }
 
@@ -45,6 +46,12 @@ export class SnapshotAutoCleanupService {
     for (const candidate of candidates) {
       await this.deleteSnapshot(candidate.snapshot_id);
     }
+
+    const deletedIds = new Set(candidates.map((candidate) => candidate.snapshot_id));
+    const remainingIds = rows
+      .map((row) => row.snapshot_id)
+      .filter((snapshotId) => !deletedIds.has(snapshotId));
+    await this.localStore.cleanupOrphanSnapshotDirs(remainingIds);
   }
 
   async deleteSnapshot(snapshotId: string): Promise<void> {
