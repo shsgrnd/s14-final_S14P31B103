@@ -26,6 +26,11 @@ import { serializeSafetyWarnings } from './SafetyWarningSerialization';
  * 이 값을 수정하면 보관 개수 정책이 즉시 반영된다.
  */
 export const SNAPSHOT_KEEP_RECENT_COUNT = 10;
+/**
+ * pre_restore 스냅샷 별도 보관 개수.
+ * 기본 정책상 일반 스냅샷 보관 수와 별도로 유지된다.
+ */
+export const SNAPSHOT_KEEP_RECENT_PRE_RESTORE_COUNT = 3;
 
 /**
  * 스냅샷 생성 최소 변경 줄 수
@@ -130,7 +135,7 @@ export class SnapshotService implements ISnapshotService {
     this.onSnapshotUpdated = options.onSnapshotUpdated;
     this.keepRecentPreRestoreCount =
       options.keepRecentPreRestoreCount ??
-      SnapshotAutoCleanupService.DEFAULT_KEEP_RECENT_PRE_RESTORE;
+      SNAPSHOT_KEEP_RECENT_PRE_RESTORE_COUNT;
 
     this.worktreeInstanceId =
       options.worktreeInstanceId ??
