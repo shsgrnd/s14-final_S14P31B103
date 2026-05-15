@@ -30,7 +30,7 @@ export class AiPipelineMergeProposalProvider implements MergeProposalProvider {
   constructor(
     private readonly aiEngine: MergeAiEngine,
     private readonly workspaceRoot: string,
-  ) {}
+  ) { }
 
   async generate(input: MergeProposalProviderInput): Promise<GeneratedMergeProposal[]> {
     const parsedResult = await this.aiEngine.processMergeRequest(input.aiInput, {
