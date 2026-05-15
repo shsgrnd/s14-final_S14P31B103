@@ -132,11 +132,12 @@ export async function activate(context: vscode.ExtensionContext) {
   }
 
   if (rootPath && projectId && gitService && dbInstance) {
-    initializeMergeConflictAnalysis(
+    await initializeMergeConflictAnalysis(
       gitService,
       dbInstance,
       messageRouter,
       rootPath,
+      aiSecretService,
       gitMessageHandler,
       pullRequestHandler,
       prSettingsService,
@@ -271,15 +272,27 @@ export async function activate(context: vscode.ExtensionContext) {
   }
 }
 
-function initializeMergeConflictAnalysis(
+async function initializeMergeConflictAnalysis(
   gitService: GitService,
   dbInstance: SQLiteDatabase,
   messageRouter: MessageRouter,
   workspaceRoot: string,
+  aiSecretService: AiSecretService,
   gitMessageHandler?: GitMessageHandler,
   pullRequestHandler?: PullRequestMessageHandler,
   prSettingsService?: PrSettingsService,
-): void {
+): Promise<void> {
+  const { AiClient, MergeAiService } = await import('@gitcat/ai-pipeline');
+  const aiConfig = vscode.workspace.getConfiguration('gitcat.ai');
+  const mergeAiClient = new AiClient({
+    mode: aiConfig.get<string>('mode') as any,
+    localModelPath: aiConfig.get<string>('localModelPath'),
+    apiKeyProvider: async () => aiSecretService.getApiKey(),
+  });
+  const mergeAiService = new MergeAiService(mergeAiClient);
+  const { AiPipelineMergeProposalProvider } = await import('./features/merge-analysis');
+  const aiProvider = new AiPipelineMergeProposalProvider(mergeAiService, workspaceRoot);
+
   const repositories = createMergeRepositories(dbInstance);
   const assembler = new MergeInputAssembler(gitService);
   const artifactStore = new MergeAnalysisArtifactStore();
@@ -293,6 +306,7 @@ function initializeMergeConflictAnalysis(
     artifactStore,
     workspaceRoot,
     gitService,
+    aiProvider,
   );
   const guardService = new MergeConflictGuardService(
     gitService,
