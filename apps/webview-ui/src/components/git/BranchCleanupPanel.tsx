@@ -493,7 +493,8 @@ export const BranchCleanupPanel: React.FC = () => {
                                 onChange={(e) => updateDraft({ olderThanUnit: e.target.value as BranchCleanupSettings['olderThanUnit'] })}
                                 style={{
                                   width: '100%', padding: '6px 26px 6px 8px', fontSize: '12px',
-                                  background: 'var(--vscode-input-background)', color: 'var(--vscode-input-foreground)',
+                                  background: 'var(--vscode-dropdown-background, var(--vscode-input-background))',
+                                  color: 'var(--vscode-dropdown-foreground, var(--vscode-input-foreground))',
                                   border: '1px solid var(--vscode-panel-border)', borderRadius: '4px', outline: 'none',
                                   appearance: 'none', cursor: 'pointer'
                                 }}
@@ -501,7 +502,7 @@ export const BranchCleanupPanel: React.FC = () => {
                                 <option value="week">주</option>
                                 <option value="month">개월</option>
                               </select>
-                              <div style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', opacity: 0.65, color: 'var(--vscode-input-foreground)' }}>
+                              <div style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', opacity: 0.65, color: 'var(--vscode-dropdown-foreground, var(--vscode-input-foreground))' }}>
                                 <ChevronRight size={12} style={{ transform: 'rotate(90deg)' }} />
                               </div>
                             </div>
