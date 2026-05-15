@@ -38,6 +38,7 @@ import {
   createMergeRepositories,
   MergeAnalysisArtifactStore,
   MergeConflictAnalysisService,
+  MergeConflictGuardService,
   MergeConflictMessageHandler,
   MergeInputAssembler,
   MergeProposalMessageHandler,
@@ -131,7 +132,15 @@ export async function activate(context: vscode.ExtensionContext) {
   }
 
   if (rootPath && projectId && gitService && dbInstance) {
-    initializeMergeConflictAnalysis(gitService, dbInstance, messageRouter, rootPath);
+    initializeMergeConflictAnalysis(
+      gitService,
+      dbInstance,
+      messageRouter,
+      rootPath,
+      gitMessageHandler,
+      pullRequestHandler,
+      prSettingsService,
+    );
   }
 
   if (gitService) {
@@ -267,6 +276,9 @@ function initializeMergeConflictAnalysis(
   dbInstance: SQLiteDatabase,
   messageRouter: MessageRouter,
   workspaceRoot: string,
+  gitMessageHandler?: GitMessageHandler,
+  pullRequestHandler?: PullRequestMessageHandler,
+  prSettingsService?: PrSettingsService,
 ): void {
   const repositories = createMergeRepositories(dbInstance);
   const assembler = new MergeInputAssembler(gitService);
@@ -280,10 +292,18 @@ function initializeMergeConflictAnalysis(
     repositories,
     artifactStore,
     workspaceRoot,
+    gitService,
+  );
+  const guardService = new MergeConflictGuardService(
+    gitService,
+    analysisService,
+    () => prSettingsService?.getDefaultBaseBranch() ?? null,
   );
 
   messageRouter.setMergeConflictHandler(new MergeConflictMessageHandler(analysisService));
   messageRouter.setMergeProposalHandler(new MergeProposalMessageHandler(proposalService));
+  gitMessageHandler?.setMergeConflictGuardService(guardService);
+  pullRequestHandler?.setMergeConflictGuardService(guardService);
   console.log('GitCat merge conflict analysis layer initialized');
 }
 

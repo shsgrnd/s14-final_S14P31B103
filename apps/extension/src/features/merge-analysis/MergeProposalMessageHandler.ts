@@ -10,8 +10,8 @@ import { MergeProposalService } from './MergeProposalService';
 /**
  * AI 병합 제안과 사용자 피드백 메시지를 처리합니다.
  *
- * 실제 merge 실행은 GitMessageHandler 흐름에 남기고, 이 핸들러는 제안 저장/응답과
- * Accept/Reject 피드백 저장까지만 담당합니다.
+ * 실제 merge 실행 명령은 기존 GitMessageHandler 흐름을 재사용하고,
+ * 이 핸들러는 제안 조회, 수락/거절 피드백 저장, 수락 결과 상태 전달까지만 담당합니다.
  */
 export class MergeProposalMessageHandler {
   constructor(private readonly service: MergeProposalService) {}
@@ -55,10 +55,23 @@ export class MergeProposalMessageHandler {
       webview.postMessage({
         type: 'NOTIFICATION',
         payload: {
-          type: 'info',
-          message: `병합 제안이 수락되었습니다. feedbackId=${result.feedbackId}`,
+          type: result.merge?.status === 'conflicted' ? 'warning' : 'info',
+          message: `병합 제안을 수락했습니다. feedbackId=${result.feedbackId}`,
         },
       });
+
+      if (result.merge) {
+        webview.postMessage({
+          type: 'MERGE_COMPLETE',
+          payload: { merge: result.merge },
+        });
+      }
+      if (result.gitStatus) {
+        webview.postMessage({
+          type: 'GIT_STATUS_UPDATED',
+          payload: { status: result.gitStatus },
+        });
+      }
     } catch (error) {
       this.postError(webview, error);
     }
@@ -72,7 +85,7 @@ export class MergeProposalMessageHandler {
         type: 'NOTIFICATION',
         payload: {
           type: 'info',
-          message: `병합 제안이 거절되었습니다. feedbackId=${result.feedbackId}`,
+          message: `병합 제안을 거절했습니다. feedbackId=${result.feedbackId}`,
         },
       });
     } catch (error) {

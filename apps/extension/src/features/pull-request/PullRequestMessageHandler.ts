@@ -44,13 +44,20 @@ import type { PullRequestService } from './PullRequestService';
 import { GitHubApiError } from '../../integrations/github/interfaces';
 import type { ErrorCode } from '@gitcat/shared-types';
 import { InboundPayloadSchemaMap } from '@gitcat/shared-types';
+import type { MergeConflictGuardService } from '../merge-analysis/MergeConflictGuardService';
 
 export class PullRequestMessageHandler {
+  private mergeConflictGuardService: MergeConflictGuardService | null = null;
+
   constructor(
     private readonly pullRequestService: PullRequestService,
     private readonly openPullRequestPanel?: () => void,
     private readonly closePullRequestPanel?: () => void,
   ) {}
+
+  public setMergeConflictGuardService(service: MergeConflictGuardService): void {
+    this.mergeConflictGuardService = service;
+  }
 
   /**
    * 수신한 메시지 type을 확인해 처리 가능하면 true를 반환한다.
@@ -151,6 +158,15 @@ export class PullRequestMessageHandler {
     try {
       // Zod 스키마로 payload 검증 (headBranch, reviewers 등 포함)
       const validated = InboundPayloadSchemaMap.CREATE_PR.parse(payload);
+
+      const blocked = await this.guardCreatePrMergeConflict(
+        validated.headBranch,
+        validated.base,
+        webview,
+      );
+      if (blocked) {
+        return;
+      }
 
       const result = await this.pullRequestService.createPullRequest({
         // owner/repo는 PullRequestService가 Git remote에서 자동 추출
@@ -273,6 +289,42 @@ export class PullRequestMessageHandler {
   }
 
   // ─── 공통 Helpers ────────────────────────────────────────────────────────────
+
+  private async guardCreatePrMergeConflict(
+    headBranch: string,
+    baseBranch: string,
+    webview: vscode.Webview,
+  ): Promise<boolean> {
+    if (!this.mergeConflictGuardService) {
+      return false;
+    }
+
+    const result = await this.mergeConflictGuardService.guard({
+      sourceBranch: headBranch,
+      targetBranch: baseBranch,
+    });
+    if (result.skipped) {
+      return false;
+    }
+    if (!result.hasConflicts) {
+      return false;
+    }
+
+    const message = `PR target 브랜치(${result.targetBranch})와 병합 충돌 가능성이 있습니다. 추천 확인 후 다시 PR을 생성해 주세요.`;
+    webview.postMessage({
+      type: 'CONFLICT_RESULT',
+      payload: {
+        analysisId: result.analysis.analysisId,
+        artifactPath: result.analysis.artifactPath,
+        candidates: result.analysis.candidates,
+      },
+    });
+    webview.postMessage({
+      type: 'NOTIFICATION',
+      payload: { type: 'warning', message },
+    });
+    return true;
+  }
 
   private sendLoading(webview: vscode.Webview, target: string, loading: boolean): void {
     webview.postMessage({ type: 'LOADING', payload: { target, loading } });
