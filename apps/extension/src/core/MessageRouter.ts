@@ -23,6 +23,7 @@ import type { SnapshotQueryService } from '../features/safety/snapshot/SnapshotQ
 import type { ISnapshotService } from '../features/safety/snapshot/ISnapshotService';
 import type { RestoreHistoryQueryService } from '../features/safety/snapshot/RestoreHistoryQueryService';
 import type { RestoreService } from '../features/safety/snapshot/RestoreService';
+import type { SafetySessionCoordinator } from '../features/safety/session/SafetySessionCoordinator';
 import {
   InboundMessage,
   InboundMessageSchema,
@@ -51,6 +52,7 @@ export class MessageRouter {
   private snapshotService: ISnapshotService | null = null;
   private restoreService: RestoreService | null = null;
   private restoreHistoryQueryService: RestoreHistoryQueryService | null = null;
+  private safetySessionCoordinator: SafetySessionCoordinator | null = null;
   private readonly webviews = new Set<vscode.Webview>();
 
   constructor(
@@ -100,6 +102,10 @@ export class MessageRouter {
 
   public setRestoreHistoryQueryService(service: RestoreHistoryQueryService): void {
     this.restoreHistoryQueryService = service;
+  }
+
+  public setSafetySessionCoordinator(coordinator: SafetySessionCoordinator): void {
+    this.safetySessionCoordinator = coordinator;
   }
 
   public configureRecommendationHandlers(handlers: {
@@ -202,7 +208,7 @@ export class MessageRouter {
           break;
 
         case 'CREATE_SNAPSHOT':
-          this.sendNotImplemented(webview, 'CREATE_SNAPSHOT', '스냅샷 생성 (3단계 구현 예정)');
+          await this.handleCreateSnapshot(message, webview);
           break;
 
         case 'DELETE_SNAPSHOT':
@@ -353,6 +359,36 @@ export class MessageRouter {
     await webview.postMessage({
       type: 'NOTIFICATION',
       payload: { type: 'info', message: 'Snapshot deleted.' },
+      requestId: message.requestId,
+    } as OutboundMessage);
+
+    const result = await queryService.listSnapshots();
+    await webview.postMessage({
+      type: 'SNAPSHOT_LIST',
+      payload: result,
+      requestId: message.requestId,
+    } as OutboundMessage);
+  }
+
+  private async handleCreateSnapshot(message: InboundMessage, webview: vscode.Webview): Promise<void> {
+    const snapshotService = this.requireSnapshotService();
+    const queryService = this.requireSnapshotQueryService();
+    const payload = (message.payload as { title?: string }) ?? {};
+    const title = payload.title?.trim();
+
+    const snapshotId = this.safetySessionCoordinator
+      ? await this.safetySessionCoordinator.createManualSnapshot(title)
+      : await snapshotService.createSnapshot('savepoint', {
+        reason: title || '수동 스냅샷',
+        force: true,
+      });
+
+    await webview.postMessage({
+      type: 'NOTIFICATION',
+      payload: {
+        type: 'info',
+        message: snapshotId ? 'Manual snapshot created.' : 'Manual snapshot skipped.',
+      },
       requestId: message.requestId,
     } as OutboundMessage);
 

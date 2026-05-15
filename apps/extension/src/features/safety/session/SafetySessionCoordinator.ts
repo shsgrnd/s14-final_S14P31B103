@@ -132,6 +132,34 @@ export class SafetySessionCoordinator {
         return endedSession;
     }
 
+    public async createManualSnapshot(title?: string): Promise<string | undefined> {
+        if (this.snapshotService.isRestoreOperationActive()) {
+            return undefined;
+        }
+
+        // Manual snapshot should take priority over pending auto-timeout snapshot.
+        if (this.sessionTimer) {
+            clearTimeout(this.sessionTimer);
+            this.sessionTimer = null;
+        }
+
+        const snapshotId = await this.snapshotService.createSnapshot('savepoint', {
+            reason: title?.trim() || '수동 스냅샷',
+            force: true,
+            changedFiles: Array.from(this.changedFiles),
+            baselines: new Map(this.baselines),
+            currentContents: this.buildCurrentContentsSnapshot(),
+        });
+
+        // Prevent immediate duplicate auto snapshot from the same change set.
+        this.currentSession = null;
+        this.baselines.clear();
+        this.currentTextCache.clear();
+        this.changedFiles.clear();
+
+        return snapshotId;
+    }
+
     private resetSessionTimer() {
         if (this.sessionTimer) {
             clearTimeout(this.sessionTimer);
