@@ -1,3 +1,4 @@
+// @ts-ignore
 import type { LlamaModel, LlamaContext, LlamaChatSession } from 'node-llama-cpp';
 import type { PromptPayload } from './AiClient';
 

@@ -100,7 +100,10 @@ export class MergeAiService {
   /**
    * 특정 기능 유형에 따라 프롬프트 구성
    */
-  private constructPrompt(payload: MergeProposalInput | RecommendationInput): PromptPayload {
+  private async constructPrompt(
+    payload: MergeProposalInput | RecommendationInput,
+    workspaceRoot?: string,
+  ): Promise<PromptPayload> {
     const recommendationVariant: RecommendationPromptVariant = this.client.isLiveLocalMode()
       ? 'local-fast'
       : 'default';
