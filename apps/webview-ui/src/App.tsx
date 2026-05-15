@@ -7,8 +7,6 @@ import { MainPanelLayout } from './components/layout/MainPanelLayout';
 import { PrPanelLayout } from './components/layout/PrPanelLayout';
 import { LoadingFallback } from './components/common/LoadingFallback';
 
-const AUTO_STATUS_REFRESH_INTERVAL_MS = 20_000;
-
 // GITCAT_LOGO_URI는 LoadingFallback에서 사용하므로 여기서 타입 선언 유지
 declare global {
   interface Window {
@@ -72,14 +70,6 @@ function App() {
       cancelAnimationFrame(innerRaf);
     };
   }, [isGitConnected]);
-
-  useEffect(() => {
-    const refreshTimer = window.setInterval(() => {
-      sendMessage('REFRESH_STATUS', { fetchRemote: true });
-    }, AUTO_STATUS_REFRESH_INTERVAL_MS);
-
-    return () => window.clearInterval(refreshTimer);
-  }, []);
 
   // ── 로딩 스플래시 타이머 ──
   useEffect(() => {

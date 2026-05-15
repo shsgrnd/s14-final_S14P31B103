@@ -65,11 +65,6 @@ const StatusSummaryPopup: React.FC<StatusSummaryPopupProps> = ({ onClose, trigge
     return () => document.removeEventListener('mousedown', handleMouseDown);
   }, [onClose, triggerRef]);
 
-  // 마운트 시 상태 요약 요청
-  useEffect(() => {
-    sendMessage('GET_GIT_STATUS_SUMMARY', {});
-  }, [sendMessage]);
-
   const stats = statusSummary
     ? [
       { key: 'untracked', count: statusSummary.untrackedCount, files: statusSummary.untracked },
@@ -314,7 +309,7 @@ const TreeNode: React.FC<{
 // ── 메인 패널 ─────────────────────────────────────────────────────────────────
 
 export const FileTreePanel: React.FC = () => {
-  const { statusSummary, isRefreshingStatus, lastStatusRefreshAt } = useGitCatStore();
+  const { statusSummary, isRefreshingStatus } = useGitCatStore();
   const { sendMessage } = useVsCodeApi();
 
   // 기본 탭: All
@@ -350,10 +345,10 @@ export const FileTreePanel: React.FC = () => {
     loadTree();
   }, [loadTree]);
 
-  // 초기 마운트 및 Git 상태 갱신 시 상태 요약 자동 가져오기
+  // Files 패널 최초 진입 시에만 요약 요청 (Git 갱신마다 보내지 않음 — 익스텐션 로그·부하 감소)
   useEffect(() => {
     sendMessage('GET_GIT_STATUS_SUMMARY', {});
-  }, [sendMessage, lastStatusRefreshAt]);
+  }, [sendMessage]);
 
   // WORKSPACE_TREE 메시지 수신
   useEffect(() => {

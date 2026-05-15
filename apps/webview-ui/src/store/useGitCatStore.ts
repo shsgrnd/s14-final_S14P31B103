@@ -12,6 +12,9 @@ import {
   OutboundPayload,
   MergeConflictCandidateView,
   MergeProposalView,
+  type RestoreHistory,
+  type SnapshotDetail,
+  type SnapshotFile,
 } from '@gitcat/shared-types';
 import { translateUserFacingGitMessage, type UiMessageTone } from '../shared/gitMessageKo';
 
@@ -81,6 +84,35 @@ function mapGitSectionBannerType(
  * 각각 읽을 때, case-insensitive FS(Windows 등)에서는 같은 파일이 두 번 온다.
  * 표시·선택은 경로 기준(슬래시 통일 + 소문자)으로 한 번만 남긴다.
  */
+type SnapshotMetaFileRow = NonNullable<SnapshotMeta['files']>[number];
+
+/** SNAPSHOT_DETAIL 등에서 오는 SnapshotFile[]을 타임라인이 쓰는 메타 files 행으로 맞춘다. */
+function mapSnapshotFilesToMetaRows(files: SnapshotFile[]): SnapshotMetaFileRow[] {
+  return files.map((f) => ({
+    path: f.filePath.replace(/\\/g, '/'),
+    status: f.status,
+    added: f.additions,
+    removed: f.deletions,
+    additions: f.additions,
+    deletions: f.deletions,
+    hunkCount: f.hunkCount,
+    isBinary: f.isBinary,
+    isLargeFile: f.isLargeFile,
+    importance: f.importance,
+    renamedFrom: f.renamedFrom,
+    renamedTo: f.renamedTo,
+  }));
+}
+
+function mergeSnapshotPatch(existing: SnapshotMeta, patch: Partial<SnapshotMeta>): SnapshotMeta {
+  return {
+    ...existing,
+    ...patch,
+    snapshotId: existing.snapshotId,
+    files: patch.files ?? existing.files,
+  };
+}
+
 function dedupePrTemplatesForDisplay(
   templates: OutboundPayload<'PR_TEMPLATES'>['templates'],
 ): OutboundPayload<'PR_TEMPLATES'>['templates'] {
@@ -195,6 +227,11 @@ interface GitCatState {
   /** 브랜치 정리 패널이「자동 정리 구성」설정 화면일 때 true — 섹션 알림을 패널 안에 유지 */
   branchCleanupInSettingsMode: boolean;
 
+  /** 복원 이력 (GET_RESTORE_HISTORY / RESTORE_SNAPSHOT 이후 응답) */
+  restoreHistories: RestoreHistory[];
+  /** 스냅샷 단일 파일 diff 패널 (GET_SNAPSHOT_FILE_DIFF 응답) */
+  snapshotFileDiff: OutboundPayload<'SNAPSHOT_FILE_DIFF'> | null;
+
   // Actions
   setSnapshots: (snapshots: SnapshotMeta[]) => void;
   setConflicts: (conflicts: MergeConflictCandidateView[]) => void;
@@ -224,6 +261,7 @@ interface GitCatState {
   clearCommitRecommendationError: () => void;
   clearPrRecommendationError: () => void;
   setBranchCleanupInSettingsMode: (open: boolean) => void;
+  clearSnapshotFileDiff: () => void;
 
   handleMessage: (event: MessageEvent<OutboundMessage>) => void;
 }
@@ -323,6 +361,8 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
   lastCreatedPr: null,
   prDefaultBaseBranch: undefined,
   branchCleanupInSettingsMode: false,
+  restoreHistories: [],
+  snapshotFileDiff: null,
 
   setSnapshots: (snapshots) => set({ snapshots }),
   setConflicts: (conflicts) => set({ conflicts }),
@@ -385,6 +425,7 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
   clearCommitRecommendationError: () => set({ commitRecommendationError: null }),
   clearPrRecommendationError: () => set({ prRecommendationError: null }),
   setBranchCleanupInSettingsMode: (open) => set({ branchCleanupInSettingsMode: open }),
+  clearSnapshotFileDiff: () => set({ snapshotFileDiff: null }),
 
   toggleSection: (sectionId) => set((state) => ({
     expandedSections: state.expandedSections.includes(sectionId)
@@ -422,7 +463,78 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
 
     switch (type) {
       case 'SNAPSHOT_LIST':
-        set({ snapshots: payload.snapshots });
+        set({ snapshots: payload.snapshots ?? [] });
+        break;
+
+      case 'SNAPSHOT_CREATED': {
+        const snap = payload.snapshot as SnapshotMeta;
+        set((state) => {
+          if (state.snapshots.some((s) => s.snapshotId === snap.snapshotId)) {
+            return {};
+          }
+          return { snapshots: [snap, ...state.snapshots] };
+        });
+        break;
+      }
+
+      case 'SNAPSHOT_UPDATED': {
+        const snap = payload.snapshot as Partial<SnapshotMeta> & { snapshotId: string };
+        set((state) => {
+          const idx = state.snapshots.findIndex((s) => s.snapshotId === snap.snapshotId);
+          if (idx === -1) {
+            return { snapshots: [{ ...snap } as SnapshotMeta, ...state.snapshots] };
+          }
+          const next = [...state.snapshots];
+          next[idx] = mergeSnapshotPatch(next[idx]!, snap);
+          return { snapshots: next };
+        });
+        break;
+      }
+
+      case 'SNAPSHOT_DETAIL': {
+        const detail = payload.detail as SnapshotDetail;
+        const id = detail.meta.snapshotId;
+        set((state) => {
+          const idx = state.snapshots.findIndex((s) => s.snapshotId === id);
+          if (idx === -1) {
+            const files = detail.files?.length ? mapSnapshotFilesToMetaRows(detail.files) : detail.meta.files;
+            const row: SnapshotMeta = { ...detail.meta, files };
+            return { snapshots: [row, ...state.snapshots] };
+          }
+          const next = [...state.snapshots];
+          const existing = next[idx]!;
+          const files = detail.files?.length
+            ? mapSnapshotFilesToMetaRows(detail.files)
+            : (detail.meta.files ?? existing.files);
+          next[idx] = mergeSnapshotPatch(existing, { ...detail.meta, files });
+          return { snapshots: next };
+        });
+        break;
+      }
+
+      case 'SNAPSHOT_FILE_DIFF':
+        set({ snapshotFileDiff: payload });
+        break;
+
+      case 'RESTORE_DONE': {
+        const sid = (payload as OutboundPayload<'RESTORE_DONE'>).snapshotId;
+        set((state) => ({
+          sectionNotifications: {
+            ...state.sectionNotifications,
+            snapshots: {
+              type: 'success',
+              message: translateUserFacingGitMessage(
+                `스냅샷 시점으로 복원했습니다. (대상: ${sid})`,
+                'success',
+              ),
+            },
+          },
+        }));
+        break;
+      }
+
+      case 'RESTORE_HISTORY_LIST':
+        set({ restoreHistories: payload.histories ?? [] });
         break;
       case 'BRANCH_LIST':
         set({ branches: payload.branches });

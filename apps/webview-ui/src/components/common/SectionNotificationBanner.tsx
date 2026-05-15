@@ -94,6 +94,8 @@ export const SectionNotificationBanner: React.FC<SectionNotificationBannerProps>
       <span style={{ flex: 1, lineHeight: 1.4 }}>{notification.message}</span>
       <button
         type="button"
+        title="이 알림 닫기"
+        aria-label="알림 닫기"
         onClick={onDismiss}
         style={{
           background: 'none',
