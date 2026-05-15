@@ -397,7 +397,13 @@ export class MessageRouter {
 
     await webview.postMessage({
       type: 'RESTORE_DONE',
-      payload: { snapshotId: result.snapshotId },
+      payload: {
+        snapshotId: result.snapshotId,
+        preRestoreSnapshotId: result.preRestoreSnapshotId,
+        changedPaths: result.changedPaths,
+        beforeWarnings: result.beforeWarnings,
+        afterWarnings: result.afterWarnings,
+      },
       requestId: message.requestId,
     } as OutboundMessage);
 

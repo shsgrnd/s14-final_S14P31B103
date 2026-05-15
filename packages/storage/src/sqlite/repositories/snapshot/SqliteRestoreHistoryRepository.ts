@@ -18,8 +18,10 @@ export class SqliteRestoreHistoryRepository implements RestoreHistoryRepository 
         pre_restore_snapshot_id,
         status,
         failure_reason,
+        safety_warnings_before_json,
+        safety_warnings_after_json,
         restored_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
@@ -29,6 +31,8 @@ export class SqliteRestoreHistoryRepository implements RestoreHistoryRepository 
       input.pre_restore_snapshot_id ?? null,
       input.status ?? 'success',
       input.failure_reason ?? null,
+      input.safety_warnings_before_json ?? null,
+      input.safety_warnings_after_json ?? null,
       restoredAt,
     );
 

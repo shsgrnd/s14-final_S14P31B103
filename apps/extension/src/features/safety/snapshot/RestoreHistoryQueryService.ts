@@ -3,6 +3,7 @@ import type {
   RestoreHistoryRepository,
 } from '@gitcat/shared-types';
 import { SnapshotIdGenerator } from './SnapshotIdGenerator';
+import { deserializeSafetyWarnings } from './SafetyWarningSerialization';
 
 const DEFAULT_LIMIT = 100;
 
@@ -32,6 +33,8 @@ export class RestoreHistoryQueryService {
       status: row.status,
       restoredAt: row.restored_at,
       failureReason: row.failure_reason ?? undefined,
+      beforeWarnings: deserializeSafetyWarnings(row.safety_warnings_before_json),
+      afterWarnings: deserializeSafetyWarnings(row.safety_warnings_after_json),
     }));
   }
 }

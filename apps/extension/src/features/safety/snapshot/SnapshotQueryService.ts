@@ -8,6 +8,7 @@ import type {
 } from '@gitcat/shared-types';
 import { LocalStorageImpl } from '../../../adapters/LocalStorageImpl';
 import { SnapshotIdGenerator } from './SnapshotIdGenerator';
+import { deserializeSafetyWarnings, getManifestSafetyWarnings } from './SafetyWarningSerialization';
 
 export interface SnapshotListQueryOptions {
   limit?: number;
@@ -74,7 +75,8 @@ export class SnapshotQueryService {
       diffText: artifact.patchText,
       files: artifact.manifest.changedFiles,
       hunks: artifact.hunks,
-      warningSummary: this.toWarningSummary(artifact.manifest.warnings),
+      safetyWarnings: getManifestSafetyWarnings(artifact.manifest),
+      warningSummary: this.toWarningSummary(getManifestSafetyWarnings(artifact.manifest)),
     } as SnapshotDetail;
   }
 
@@ -105,9 +107,11 @@ export class SnapshotQueryService {
     }
 
     const fallbackFiles = await this.snapshotFileRepository.listBySnapshotId(snapshotId);
+    const fallbackWarnings = deserializeSafetyWarnings(row.safety_warnings_json);
 
     try {
       const artifact = await this.storage.readSnapshotArtifact(snapshotId);
+      const warnings = getManifestSafetyWarnings(artifact.manifest) ?? fallbackWarnings;
       return {
         snapshotId: row.snapshot_id,
         sessionId: row.session_id,
@@ -118,8 +122,8 @@ export class SnapshotQueryService {
         reason: row.reason ?? artifact.manifest.reason,
         previousSnapshotId: row.previous_snapshot_id ?? artifact.manifest.previousSnapshotId,
         changedFileCount: artifact.manifest.changedFiles.length,
-        warningCount: artifact.manifest.warnings?.length ?? 0,
-        warningSummary: this.toWarningSummary(artifact.manifest.warnings),
+        warningCount: warnings?.length ?? 0,
+        warningSummary: this.toWarningSummary(warnings),
         localPath: row.local_path ?? undefined,
         files: artifact.manifest.changedFiles.map((file) => ({
           path: file.filePath,
@@ -147,8 +151,8 @@ export class SnapshotQueryService {
         reason: row.reason ?? undefined,
         previousSnapshotId: row.previous_snapshot_id ?? undefined,
         changedFileCount: fallbackFiles.length,
-        warningCount: 0,
-        warningSummary: ['Snapshot artifact is missing or unreadable.'],
+        warningCount: fallbackWarnings?.length ?? 0,
+        warningSummary: this.toWarningSummary(fallbackWarnings) ?? ['Snapshot artifact is missing or unreadable.'],
         localPath: row.local_path ?? undefined,
         files: fallbackFiles.map((file) => ({
           path: file.original_path,

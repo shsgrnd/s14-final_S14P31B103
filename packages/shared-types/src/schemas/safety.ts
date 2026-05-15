@@ -56,10 +56,13 @@ export const SnapshotMetaSchema = z.object({
 
 export const SafetyWarningSchema = z.object({
   warningId: z.string(),
-  type: z.enum(['large_deletion', 'sensitive_file_change', 'untracked_conflict']),
+  type: z.enum(['large_deletion', 'sensitive_file_change', 'untracked_conflict', 'blocked_operation']),
+  code: z.string().optional(),
   message: z.string(),
   filePaths: z.array(z.string()).optional(),
   severity: z.enum(['low', 'medium', 'high', 'critical']),
+  blocking: z.boolean().optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 });
 
 export const SnapshotHunkSchema = z.object({
@@ -99,6 +102,7 @@ export const SnapshotManifestSchema = z.object({
   summary: z.string().optional(),
   reason: z.string().optional(),
   changedFiles: z.array(SnapshotFileSchema),
+  safetyWarnings: z.array(SafetyWarningSchema).optional(),
   warnings: z.array(SafetyWarningSchema).optional(),
 });
 
@@ -108,6 +112,7 @@ export const SnapshotDetailSchema = z.object({
   diffText: z.string().optional(),
   files: z.array(SnapshotFileSchema).optional(),
   hunks: z.array(SnapshotHunkSchema).optional(),
+  safetyWarnings: z.array(SafetyWarningSchema).optional(),
   warningSummary: z.array(z.string()).optional(),
 });
 
@@ -123,4 +128,6 @@ export const RestoreHistorySchema = z.object({
   status: RestoreStatusEnum,
   restoredAt: z.string(),
   failureReason: z.string().optional(),
+  beforeWarnings: z.array(SafetyWarningSchema).optional(),
+  afterWarnings: z.array(SafetyWarningSchema).optional(),
 });
