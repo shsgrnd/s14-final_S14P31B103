@@ -182,9 +182,11 @@ export class SafetySessionCoordinator {
                 if (!this.interSessionUserBaselines.has(fsPath)) {
                     try {
                         const fileData = await vscode.workspace.fs.readFile(doc.uri);
-                        this.interSessionUserBaselines.set(fsPath, Buffer.from(fileData).toString('utf8'));
+                        // 이 맵은 스냅샷 비교 시 원본 바이트(Uint8Array)를 그대로 보관하는 용도이므로,
+                        // 문자열로 변환하지 않고 readFile 결과를 그대로 유지해야 합니다.
+                        this.interSessionUserBaselines.set(fsPath, fileData);
                     } catch {
-                        this.interSessionUserBaselines.set(fsPath, '');
+                        this.interSessionUserBaselines.set(fsPath, new Uint8Array());
                     }
                 }
                 // readFile 대기 중 다른 이벤트가 먼저 세션을 시작했을 수 있으므로 재확인
