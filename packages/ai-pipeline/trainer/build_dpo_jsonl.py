@@ -1,6 +1,7 @@
 import argparse
 import json
 import os
+import re
 from typing import Any, Dict, List, Optional
 
 
@@ -9,6 +10,28 @@ DATA_DIR = os.path.abspath(os.path.join(BASE_DIR, "..", "..", "..", "synthetic_d
 DEFAULT_OUTPUT_FILE = os.path.abspath(
     os.path.join(BASE_DIR, "..", "data", "dpo_training_data.jsonl")
 )
+
+def sanitize_text(text: str) -> str:
+    """
+    학습 데이터셋에서 모델이 환각할 수 있는 메타데이터 헤더를 제거합니다.
+    """
+    if not isinstance(text, str):
+        return text
+    
+    # 제거할 패턴들 (SFT와 동일)
+    patterns = [
+        r"###\s*Created\s*Question:?",
+        r"###\s*Created\s*Answer:?",
+        r"###\s*Instruction:?",
+        r"###\s*Response:?",
+    ]
+    
+    sanitized = text
+    for pattern in patterns:
+        sanitized = re.sub(pattern, "", sanitized, flags=re.IGNORECASE)
+    
+    return sanitized.strip()
+
 
 
 def parse_args() -> argparse.Namespace:
@@ -95,10 +118,19 @@ def build_dpo_jsonl() -> None:
 
             try:
                 with open(prompt_path, "r", encoding="utf-8") as pf:
-                    prompt_text = pf.read().strip()
+                    prompt_text = sanitize_text(pf.read().strip())
 
                 with open(chosen_path, "r", encoding="utf-8") as cf:
                     chosen_data = json.load(cf)
+                
+                # Chosen 데이터 정제
+                for key, value in chosen_data.items():
+                    if isinstance(value, str):
+                        chosen_data[key] = sanitize_text(value)
+                    elif isinstance(value, list):
+                        chosen_data[key] = [
+                            sanitize_text(v) if isinstance(v, str) else v for v in value
+                        ]
 
                 case_relative_path = os.path.relpath(folder, args.dataset_root)
                 case_id = os.path.basename(folder)
@@ -114,6 +146,15 @@ def build_dpo_jsonl() -> None:
 
                 with open(rejected_path, "r", encoding="utf-8") as rf:
                     rejected_data: Dict[str, Any] = json.load(rf)
+                
+                # Rejected 데이터 정제
+                for key, value in rejected_data.items():
+                    if isinstance(value, str):
+                        rejected_data[key] = sanitize_text(value)
+                    elif isinstance(value, list):
+                        rejected_data[key] = [
+                            sanitize_text(v) if isinstance(v, str) else v for v in value
+                        ]
 
                 jsonl_obj = {
                     "case_id": case_id,
@@ -126,6 +167,7 @@ def build_dpo_jsonl() -> None:
                     "rejected": json.dumps(rejected_data, ensure_ascii=False),
                 }
 
+
                 out_f.write(json.dumps(jsonl_obj, ensure_ascii=False) + "\n")
                 success_count += 1
 
@@ -136,12 +178,12 @@ def build_dpo_jsonl() -> None:
                 print(f"❌ 처리 에러: {folder} - {error}")
                 error_count += 1
 
-    print("\n✅ DPO JSONL 빌드 완료!")
-    print(f" - 성공: {success_count} 건")
-    print(f" - skipped (missing rejected): {skipped_count} 건")
-    print(f" - missing rejected files: {missing_rejected_count} 건")
-    print(f" - 실패: {error_count} 건")
-    print(f" - 출력 파일: {os.path.abspath(args.output_file)}")
+    print("\n[SUCCESS] DPO JSONL Build Complete!")
+    print(f" - Success: {success_count} cases")
+    print(f" - skipped (missing rejected): {skipped_count} cases")
+    print(f" - missing rejected files: {missing_rejected_count} cases")
+    print(f" - Failure: {error_count} cases")
+    print(f" - Output File: {os.path.abspath(args.output_file)}")
 
 
 if __name__ == "__main__":

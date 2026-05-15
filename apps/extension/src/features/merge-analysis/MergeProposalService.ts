@@ -1,8 +1,11 @@
 import { createHash } from 'crypto';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 import type {
   AcceptMergeRequest,
   ConflictCandidate,
   GetAiDraftRequest,
+  MergeCompleteView,
   MergeProposalInput,
   MergeProposalRow,
   MergeProposalView,
@@ -14,6 +17,7 @@ import {
   MergeProposalInputSchema,
 } from '@gitcat/shared-types';
 import type { MergeRepositoryBundle } from '../../storage/interfaces';
+import type { GitService, GitStatusResponse } from '../git/GitService';
 import { MergeAnalysisArtifactStore } from './MergeAnalysisArtifactStore';
 
 type MergeProposalFeatureType = Extract<
@@ -110,6 +114,11 @@ export interface MergeFeedbackResult {
   feedbackId: string;
   status: 'accepted' | 'rejected';
   finalCodeRef?: string;
+  appliedFilePath?: string;
+  hasConflictMarkers?: boolean;
+  remainingConflictedFiles?: string[];
+  merge?: MergeCompleteView;
+  gitStatus?: GitStatusResponse;
 }
 
 /**
@@ -164,6 +173,7 @@ export class MergeProposalService {
     >,
     private readonly artifactStore: MergeAnalysisArtifactStore,
     private readonly workspaceRoot: string,
+    private readonly gitService: GitService,
     private readonly provider: MergeProposalProvider = new LocalMergeProposalDraftProvider(),
   ) {}
 
@@ -250,6 +260,10 @@ export class MergeProposalService {
       feedbackId,
       request.proposedContent,
     );
+    const applyResult = await this.applyAcceptedProposal(
+      request.filePath,
+      request.proposedContent,
+    );
 
     await this.repositories.proposalFeedbacks.insert({
       feedback_id: feedbackId,
@@ -269,6 +283,11 @@ export class MergeProposalService {
       feedbackId,
       status: 'accepted',
       finalCodeRef: finalCode.finalCodeRef,
+      appliedFilePath: request.filePath,
+      hasConflictMarkers: applyResult.hasConflictMarkers,
+      remainingConflictedFiles: applyResult.remainingConflictedFiles,
+      merge: applyResult.merge,
+      gitStatus: applyResult.gitStatus,
     };
   }
 
@@ -436,6 +455,114 @@ export class MergeProposalService {
 
   private proposalRef(analysisId: string, candidateId: string): string {
     return `.vscode/gitcat/merge-sessions/${analysisId}/proposals.json#${candidateId}`;
+  }
+
+  private async applyAcceptedProposal(
+    filePath: string,
+    proposedContent: string,
+  ): Promise<{
+    hasConflictMarkers: boolean;
+    remainingConflictedFiles: string[];
+    merge: MergeCompleteView;
+    gitStatus: GitStatusResponse;
+  }> {
+    // 수락된 제안은 실제 워크스페이스 파일에만 반영합니다.
+    // stage/commit/merge continue는 사용자가 기존 Git 버튼으로 명시적으로 실행해야 합니다.
+    const absolutePath = this.resolveWorkspaceFilePath(filePath);
+    await fs.mkdir(path.dirname(absolutePath), { recursive: true });
+    await fs.writeFile(absolutePath, proposedContent, 'utf8');
+
+    const acceptedFileHasMarkers = this.hasConflictMarkers(proposedContent);
+    const status = await this.gitService.getStatus();
+    const remainingConflictedFiles = await this.collectRemainingConflicts(status, filePath);
+    const hasConflictMarkers = acceptedFileHasMarkers || remainingConflictedFiles.length > 0;
+
+    if (hasConflictMarkers) {
+      return {
+        hasConflictMarkers,
+        remainingConflictedFiles,
+        gitStatus: status,
+        merge: {
+          status: 'conflicted',
+          message: '수락된 병합안 반영 후에도 충돌 마커 또는 미해결 충돌 파일이 남아 있습니다.',
+          conflictedFiles: remainingConflictedFiles,
+          completedAt: new Date().toISOString(),
+        },
+      };
+    }
+
+    return {
+      hasConflictMarkers: false,
+      remainingConflictedFiles: [],
+      gitStatus: status,
+      merge: {
+        status: 'completed',
+        message: '수락된 병합안을 워크스페이스 파일에 반영했습니다. stage와 merge continue는 사용자가 직접 실행해야 합니다.',
+        completedAt: new Date().toISOString(),
+      },
+    };
+  }
+
+  private async collectRemainingConflicts(
+    status: GitStatusResponse,
+    acceptedFilePath: string,
+  ): Promise<string[]> {
+    // Git의 unmerged 상태와 파일 본문 marker 스캔을 함께 봐야 실제 미해결 충돌을 판단할 수 있습니다.
+    const gitConflictedFiles = status.conflicted.map((file) => file.path);
+    const scanTargets = this.uniqueFilePaths([
+      acceptedFilePath,
+      ...gitConflictedFiles,
+    ]);
+    const markerFiles = await this.scanConflictMarkers(scanTargets);
+
+    return this.uniqueFilePaths([
+      ...gitConflictedFiles,
+      ...markerFiles,
+    ]);
+  }
+
+  private async scanConflictMarkers(filePaths: string[]): Promise<string[]> {
+    const markerFiles: string[] = [];
+
+    for (const filePath of filePaths) {
+      const absolutePath = this.resolveWorkspaceFilePath(filePath);
+      try {
+        const content = await fs.readFile(absolutePath, 'utf8');
+        if (this.hasConflictMarkers(content)) {
+          markerFiles.push(filePath);
+        }
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+          throw error;
+        }
+      }
+    }
+
+    return markerFiles;
+  }
+
+  private hasConflictMarkers(content: string): boolean {
+    return /^(<<<<<<<|=======|>>>>>>>)\s?.*$/m.test(content);
+  }
+
+  private resolveWorkspaceFilePath(filePath: string): string {
+    const normalizedPath = filePath.replace(/\\/g, '/');
+    if (path.isAbsolute(normalizedPath)) {
+      throw new Error('Merge proposal file path must be relative to the workspace.');
+    }
+
+    const root = path.resolve(this.workspaceRoot);
+    const absolutePath = path.resolve(root, normalizedPath);
+    const isInsideWorkspace = absolutePath === root || absolutePath.startsWith(`${root}${path.sep}`);
+    if (!isInsideWorkspace) {
+      throw new Error('Merge proposal file path must stay inside the workspace.');
+    }
+
+    return absolutePath;
+  }
+
+  private uniqueFilePaths(filePaths: string[]): string[] {
+    return [...new Set(filePaths.filter((filePath) => filePath.length > 0))];
   }
 
   private feedbackId(proposalId: string, status: 'accepted' | 'rejected'): string {

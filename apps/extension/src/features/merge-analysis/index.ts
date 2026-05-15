@@ -5,3 +5,4 @@ export * from './MergeConflictAnalysisService';
 export * from './MergeConflictMessageHandler';
 export * from './MergeProposalService';
 export * from './MergeProposalMessageHandler';
+export * from './MergeConflictGuardService';
