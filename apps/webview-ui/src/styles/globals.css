@@ -40,6 +40,21 @@ body {
   user-select: none;
 }
 
+/**
+ * Native <select> / <option>
+ * 일부 테마(Cursor Dark 등)에서 OS 드롭 목록만 밝은 배경인데 글자색이 input-foreground를 따라
+ * 거의 흰색으로 남아 대비가 사라지는 경우가 있어, menu/dropdown 토큰과 시스템 색을 보조로 씀.
+ * 인라인 style이 있는 닫힌 select 박스는 각 컴포넌트에서 dropdown 토큰을 쓰도록 맞춘다.
+ */
+select {
+  color-scheme: light dark;
+}
+
+select option {
+  background-color: var(--vscode-menu-background, var(--vscode-dropdown-background, var(--vscode-editor-background)));
+  color: var(--vscode-menu-foreground, var(--vscode-dropdown-foreground, var(--vscode-foreground)));
+}
+
 /* Slim Scrollbar for Premium Feel */
 ::-webkit-scrollbar {
   width: 6px;

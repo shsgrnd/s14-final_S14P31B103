@@ -357,6 +357,7 @@ export const GitActionPanel: React.FC = () => {
       <div>
         <div
           onClick={() => setIsBranchListOpen(!isBranchListOpen)}
+          title={isBranchListOpen ? '브랜치·워크트리 목록 접기' : '브랜치·워크트리 목록 펼치기 · 다른 로컬 브랜치로 전환'}
           style={{
             margin: isBranchListOpen ? '0 8px 0 8px' : '0 8px 0 8px',
             display: 'flex', alignItems: 'center', justifyContent: 'space-between',
@@ -402,8 +403,8 @@ export const GitActionPanel: React.FC = () => {
           <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
             <button
               type="button"
-              aria-label="Refresh Git status"
-              title="Refresh Git status"
+              aria-label="Git 상태 새로고침"
+              title="Git 상태 새로고침 (브랜치·스테이징 정보를 다시 불러옵니다)"
               onClick={handleRefreshStatus}
               disabled={isRefreshingStatus || !isGitConnected}
               style={iconBtnStyle(isRefreshActive)}
@@ -464,7 +465,7 @@ export const GitActionPanel: React.FC = () => {
               {isCheckoutPending ? `브랜치 전환 중... (${checkoutingBranch})` : refreshStatusLabel}
             </span>
           </span>
-          <span style={{ color: 'var(--vscode-descriptionForeground)', opacity: 0.82 }}>Auto every 20s</span>
+          <span style={{ color: 'var(--vscode-descriptionForeground)', opacity: 0.82 }}>Manual refresh</span>
         </div>
       </div >
 
@@ -500,6 +501,7 @@ export const GitActionPanel: React.FC = () => {
             return (
               <div
                 key={b.name}
+                title={`이 브랜치로 전환: ${b.name}`}
                 onClick={() => {
                   if (gitPanelBusy) return;
                   sendMessage('CHECKOUT_BRANCH', { name: b.name });
@@ -585,7 +587,7 @@ export const GitActionPanel: React.FC = () => {
                     background: isCurrent ? 'var(--vscode-list-activeSelectionBackground)' : 'var(--vscode-editor-background)',
                     color: isCurrent ? 'var(--vscode-list-activeSelectionForeground)' : 'var(--vscode-editor-foreground)',
                   }}
-                  title={wt.path}
+                  title={`워크트리 경로: ${wt.path}`}
                 >
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
@@ -653,6 +655,8 @@ export const GitActionPanel: React.FC = () => {
             }}>
               <span>Create New Branch</span>
               <button
+                type="button"
+                title="입력·초안을 바탕으로 브랜치 이름을 AI가 추천합니다"
                 onClick={() => {
                   clearBranchRecommendationError();
                   setShowBranchAI(true);
@@ -734,7 +738,7 @@ export const GitActionPanel: React.FC = () => {
                       key={`${index}-${name}`}
                       type="button"
                       onClick={() => applyBranchCandidate(name)}
-                      title={name}
+                      title={`이 이름을 입력란에 넣기: ${name}`}
                       style={{
                         fontSize: '11px',
                         padding: '8px 10px',
@@ -755,6 +759,7 @@ export const GitActionPanel: React.FC = () => {
                 </div>
                 <button
                   type="button"
+                  title="AI 추천 브랜치명 후보 목록을 접습니다"
                   onClick={clearBranchSuggestions}
                   style={{
                     marginTop: '6px',
@@ -778,10 +783,10 @@ export const GitActionPanel: React.FC = () => {
       {
         !showCommitForm && showNewBranch && (
           <div style={{ margin: '4px 8px', display: 'flex', gap: '8px' }}>
-            <button onClick={handleCreateBranch} style={btn('primary')}>
+            <button type="button" title="입력한 이름으로 새 브랜치를 만듭니다" onClick={handleCreateBranch} style={btn('primary')}>
               <Check size={13} /> Create
             </button>
-            <button onClick={closeBranchForm} style={btn('secondary')}>
+            <button type="button" title="새 브랜치 만들기 취소" onClick={closeBranchForm} style={btn('secondary')}>
               <X size={13} /> Cancel
             </button>
           </div>
@@ -799,6 +804,8 @@ export const GitActionPanel: React.FC = () => {
             }}>
               <span>Create Commit message</span>
               <button
+                type="button"
+                title="변경 내용·설명을 바탕으로 커밋 메시지를 AI가 추천합니다"
                 onClick={() => {
                   clearCommitRecommendationError();
                   setShowBranchAI(true);
@@ -904,6 +911,8 @@ export const GitActionPanel: React.FC = () => {
             )}
             <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
               <button
+                type="button"
+                title="스테이징된 변경을 입력한 메시지로 커밋합니다"
                 onClick={handleCommit}
                 disabled={isCommitting || !commitMessage.trim() || gitPanelBusy || stagedCount === 0}
                 style={{
@@ -922,7 +931,7 @@ export const GitActionPanel: React.FC = () => {
                   </>
                 )}
               </button>
-              <button onClick={closeCommitForm} style={btn('secondary')}>
+              <button type="button" title="커밋 입력 취소" onClick={closeCommitForm} style={btn('secondary')}>
                 <X size={13} /> Cancel
               </button>
             </div>
@@ -939,6 +948,8 @@ export const GitActionPanel: React.FC = () => {
 
             {/* New Branch (full-width, primary) */}
             <button
+              type="button"
+              title="새 브랜치 만들기 — 브랜치 이름 입력 후 생성"
               onClick={() => {
                 if (!isGitConnected || gitPanelBusy) return;
                 closeCommitForm();
@@ -958,6 +969,8 @@ export const GitActionPanel: React.FC = () => {
             {/* 2×2 그리드 */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
               <button
+                type="button"
+                title="워킹 트리의 변경 파일을 모두 스테이징합니다 (git add -A)"
                 onClick={handleGitAdd}
                 disabled={!isGitConnected || isStaging || gitPanelBusy}
                 style={{
@@ -977,6 +990,8 @@ export const GitActionPanel: React.FC = () => {
                 )}
               </button>
               <button
+                type="button"
+                title="커밋 메시지를 입력하고 스테이징된 변경을 커밋합니다"
                 onClick={() => {
                   if (!isGitConnected || gitPanelBusy) return;
                   closeBranchForm();
@@ -996,6 +1011,8 @@ export const GitActionPanel: React.FC = () => {
                 Git Commit
               </button>
               <button
+                type="button"
+                title="현재 브랜치를 원격 저장소로 푸시합니다"
                 onClick={handlePush}
                 disabled={!isGitConnected || isPushing || gitPanelBusy}
                 style={{
@@ -1015,6 +1032,8 @@ export const GitActionPanel: React.FC = () => {
                 )}
               </button>
               <button
+                type="button"
+                title="GitCat 내에서 PR 생성하기"
                 onClick={() => {
                   if (!isGitConnected || isOpeningPrPanel || gitPanelBusy) return;
                   closeCommitForm();
@@ -1029,7 +1048,6 @@ export const GitActionPanel: React.FC = () => {
                   opacity: isGitConnected && !isOpeningPrPanel && !gitPanelBusy ? 1 : 0.5,
                   cursor: isGitConnected && !isOpeningPrPanel && !gitPanelBusy ? 'pointer' : 'not-allowed',
                 }}
-                title="GitCat 내에서 PR 생성하기"
               >
                 {isOpeningPrPanel ? (
                   <>
@@ -1046,6 +1064,8 @@ export const GitActionPanel: React.FC = () => {
             {/* Pull / PR 생성 (2열, secondary) */}
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
               <button
+                type="button"
+                title="원격 저장소의 변경을 현재 브랜치로 가져옵니다 (git pull)"
                 onClick={handlePull}
                 disabled={!isGitConnected || isPulling || gitPanelBusy}
                 style={{ ...bigBtn('secondary'), opacity: (isGitConnected && !isPulling && !gitPanelBusy) ? 1 : 0.5, cursor: (isGitConnected && !isPulling && !gitPanelBusy) ? 'pointer' : 'not-allowed' }}
@@ -1054,6 +1074,8 @@ export const GitActionPanel: React.FC = () => {
                 {isPulling ? 'Pulling...' : 'Git Pull'}
               </button>
               <button
+                type="button"
+                title="선택한 소스 브랜치를 기준 브랜치에 병합합니다 (git merge)"
                 onClick={() => {
                   if (!isGitConnected || gitPanelBusy) return;
                   mergePendingCloseRef.current = false;
@@ -1138,8 +1160,8 @@ export const GitActionPanel: React.FC = () => {
                 style={{
                   width: '100%', boxSizing: 'border-box',
                   fontSize: '12px', padding: '6px 8px',
-                  background: 'var(--vscode-input-background)',
-                  color: 'var(--vscode-input-foreground)',
+                  background: 'var(--vscode-dropdown-background, var(--vscode-input-background))',
+                  color: 'var(--vscode-dropdown-foreground, var(--vscode-input-foreground))',
                   border: `1px solid ${mergeSource ? 'var(--vscode-focusBorder)' : 'var(--vscode-panel-border)'}`,
                   borderRadius: '3px', outline: 'none',
                 }}
@@ -1165,8 +1187,8 @@ export const GitActionPanel: React.FC = () => {
                 style={{
                   width: '100%', boxSizing: 'border-box',
                   fontSize: '12px', padding: '6px 8px',
-                  background: 'var(--vscode-input-background)',
-                  color: 'var(--vscode-input-foreground)',
+                  background: 'var(--vscode-dropdown-background, var(--vscode-input-background))',
+                  color: 'var(--vscode-dropdown-foreground, var(--vscode-input-foreground))',
                   border: '1px solid var(--vscode-panel-border)',
                   borderRadius: '3px', outline: 'none',
                 }}
@@ -1201,6 +1223,8 @@ export const GitActionPanel: React.FC = () => {
             {/* 확인/취소 버튼 */}
             <div style={{ display: 'flex', gap: '8px' }}>
               <button
+                type="button"
+                title="선택한 소스 브랜치를 기준 브랜치로 병합 실행"
                 onClick={handleRunMerge}
                 disabled={!mergeSource || !mergeTarget || mergeSource === mergeTarget || isMerging || gitPanelBusy}
                 style={{
@@ -1219,7 +1243,7 @@ export const GitActionPanel: React.FC = () => {
                   </>
                 )}
               </button>
-              <button onClick={closeMergeForm} style={btn('secondary')}>
+              <button type="button" title="머지 취소" onClick={closeMergeForm} style={btn('secondary')}>
                 <X size={13} /> 취소
               </button>
             </div>
@@ -1274,6 +1298,8 @@ export const GitActionPanel: React.FC = () => {
             />
             <div style={{ display: 'flex', gap: '8px', marginTop: '10px' }}>
               <button
+                type="button"
+                title="입력한 내용으로 AI 추천 요청 (Enter와 동일)"
                 onClick={handleAISubmit}
                 disabled={isRecommendationLoading}
                 style={{
@@ -1304,6 +1330,8 @@ export const GitActionPanel: React.FC = () => {
                 )}
               </button>
               <button
+                type="button"
+                title="AI 추천 패널 닫기"
                 onClick={closeAIPrompt}
                 style={{
                   display: 'flex',
@@ -1389,6 +1417,8 @@ export const GitActionPanel: React.FC = () => {
               )}
             </div>
             <button
+              type="button"
+              title="병합 충돌 안내 닫기"
               onClick={clearMergeResult}
               style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0', color: 'var(--vscode-errorForeground)', opacity: 0.7, flexShrink: 0 }}
             >

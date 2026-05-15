@@ -1,8 +1,11 @@
 import { pipeline, env, FeatureExtractionPipeline } from '@xenova/transformers';
 
 /**
- * LocalEmbedder는 외부 API 연결 없이 유저의 PC(VS Code Extension 환경)에서
- * 오프라인으로 텍스트를 벡터로 변환(Embedding)해주는 클래스입니다.
+ * LocalEmbedder는 별도 임베딩 API 서버 없이 유저의 PC(VS Code Extension 환경)에서
+ * 텍스트를 벡터로 변환(Embedding)해주는 클래스입니다.
+ *
+ * 다만 "완전 오프라인 번들"은 아니며, 첫 실행 시에는 Hugging Face 캐시가 없다면
+ * 모델 다운로드가 발생할 수 있습니다. 그 이후에는 로컬 캐시를 재사용합니다.
  *
  * `Xenova/all-MiniLM-L6-v2` 모델은 가볍고(약 22MB) 성능이 좋아 MVP 단계의 로컬 RAG에 적합합니다.
  */
@@ -11,8 +14,8 @@ export class LocalEmbedder {
   private modelName = 'Xenova/all-MiniLM-L6-v2';
 
   constructor() {
-    // VS Code 환경이나 로컬 환경 설정 (선택적)
-    // 외부 원격 모델 다운로드를 허용하도록 기본값 유지
+    // 로컬 캐시 모델은 허용하고, 첫 실행 시 캐시 미존재 상황도 지원하기 위해
+    // transformers 기본 다운로드 경로는 막지 않습니다.
     env.allowLocalModels = true;
   }
 
