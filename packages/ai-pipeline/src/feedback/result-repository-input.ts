@@ -29,7 +29,6 @@ export interface MergeProposalRepositoryInputDraft {
   feature_type: 'merge_patch_draft' | 'conflict_explanation' | 'merge_mediation';
   title: string;
   explanation_summary: string | null;
-  diff_patch_ref: string | null;
   merged_code_ref: string | null;
   confidence_score: number | null;
   validation_required: boolean;
@@ -67,8 +66,6 @@ function buildMergeProposalRepositoryInputDraft(
   // Task 18 helper의 반환값도 merge_proposal 저장 계획으로 안전하게 좁힐 수 있습니다.
   const storagePlan =
     buildParsedResultStoragePlan(result) as MergeProposalStoragePlan;
-  const patchRef =
-    result.feature_type === 'merge_patch_draft' ? result.diff_patch_ref ?? null : null;
   const mergedCodeRef =
     result.feature_type === 'merge_patch_draft' ? result.merged_code_ref ?? null : null;
 
@@ -80,7 +77,6 @@ function buildMergeProposalRepositoryInputDraft(
     feature_type: result.feature_type,
     title: storagePlan.sqlite_metadata.title,
     explanation_summary: storagePlan.sqlite_metadata.explanation_summary,
-    diff_patch_ref: patchRef,
     merged_code_ref: mergedCodeRef,
     confidence_score: storagePlan.sqlite_metadata.confidence_score,
     validation_required: storagePlan.sqlite_metadata.validation_required ?? false,

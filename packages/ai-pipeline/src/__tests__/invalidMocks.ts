@@ -49,6 +49,22 @@ export const invalidResponseMocks = [
       title: "Missing fields"
       // summary, applied_files etc missing
     })
+  },
+  {
+    // 코드블록 외부에 설명 문장이 섞이면 명시적으로 실패해야 함
+    name: "merge_patch_draft - JSON 외 설명 문장 혼입",
+    featureType: "merge_patch_draft",
+    rawResponse: [
+      "병합 결과는 다음과 같습니다.",
+      "```json",
+      JSON.stringify({
+        title: "DTO 병합",
+        summary: "최종 코드 선택",
+        merged_code: "const value = merge();",
+        validation_summary: "run tests",
+      }, null, 2),
+      "```",
+    ].join("\n"),
   }
 ];
 
