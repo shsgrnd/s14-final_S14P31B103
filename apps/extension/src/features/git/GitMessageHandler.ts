@@ -502,12 +502,51 @@ export class GitMessageHandler {
     return true;
   }
 
+  private async guardLocalRunMergeConflict(
+    payload: { source: string; target?: string },
+    webview: vscode.Webview,
+  ): Promise<boolean> {
+    if (!this.mergeConflictGuardService) {
+      return false;
+    }
+
+    const status = await this.gitService.getStatus();
+    const targetBranch = payload.target?.trim() || status.currentBranch;
+    const result = await this.mergeConflictGuardService.guard({
+      sourceBranch: payload.source,
+      targetBranch,
+      targetScope: 'local',
+    });
+
+    if (result.skipped || !result.hasConflicts) {
+      return false;
+    }
+
+    const message = `로컬 브랜치(${result.sourceBranch})를 ${result.targetBranch}에 병합하면 충돌 가능성이 있습니다. 추천 확인 후 다시 merge해 주세요.`;
+    webview.postMessage({
+      type: 'CONFLICT_RESULT',
+      payload: {
+        analysisId: result.analysis.analysisId,
+        artifactPath: result.analysis.artifactPath,
+        candidates: result.analysis.candidates,
+      },
+    });
+    this.sendOperationResult(webview, 'RUN_MERGE', { success: false, message });
+    this.sendNotification(webview, 'warning', message);
+    return true;
+  }
+
   private async handleRunMerge(
     payload: { source: string; target?: string },
     webview: vscode.Webview,
   ): Promise<void> {
     this.sendLoading(webview, 'merge', true);
     try {
+      const blocked = await this.guardLocalRunMergeConflict(payload, webview);
+      if (blocked) {
+        return;
+      }
+
       const result = await this.gitService.runMerge(payload.source);
       this.sendOperationResult(webview, 'RUN_MERGE', {
         success: result.success,
