@@ -14,12 +14,19 @@
 import * as vscode from 'vscode';
 import { GitService } from './GitService';
 import { BranchCleanupService } from './BranchCleanupService';
+import type { MergeConflictGuardService } from '../merge-analysis/MergeConflictGuardService';
 
 export class GitMessageHandler {
+  private mergeConflictGuardService: MergeConflictGuardService | null = null;
+
   constructor(
     private readonly gitService: GitService,
     private readonly branchCleanupService: BranchCleanupService
   ) {}
+
+  public setMergeConflictGuardService(service: MergeConflictGuardService): void {
+    this.mergeConflictGuardService = service;
+  }
 
   /**
    * Git 관련 메시지를 라우팅하고 응답을 전송한다.
@@ -367,6 +374,16 @@ export class GitMessageHandler {
   private async handlePush(webview: vscode.Webview): Promise<void> {
     this.sendLoading(webview, 'push', true);
     try {
+      const shouldPullFirst = await this.blockPushWhenTrackingBranchBehind(webview);
+      if (shouldPullFirst) {
+        return;
+      }
+
+      const blocked = await this.guardPushTargetMergeConflict(webview);
+      if (blocked) {
+        return;
+      }
+
       // Push 전 가드: Push할 커밋이 있는지 확인한다.
       try {
         const branches = await this.gitService.getBranches();
@@ -403,6 +420,11 @@ export class GitMessageHandler {
   private async handlePull(webview: vscode.Webview): Promise<void> {
     this.sendLoading(webview, 'pull', true);
     try {
+      const blocked = await this.guardPullTrackingMergeConflict(webview);
+      if (blocked) {
+        return;
+      }
+
       const result = await this.gitService.pull();
       this.sendOperationResult(webview, 'EXECUTE_PULL', result);
       if (result.success) {
@@ -414,6 +436,70 @@ export class GitMessageHandler {
     } finally {
       this.sendLoading(webview, 'pull', false);
     }
+  }
+
+  private async blockPushWhenTrackingBranchBehind(webview: vscode.Webview): Promise<boolean> {
+    if (!this.mergeConflictGuardService) {
+      return false;
+    }
+
+    const trackingState = await this.mergeConflictGuardService.getCurrentTrackingBranchState();
+    if (!trackingState.hasTrackingBranch || trackingState.behind <= 0) {
+      return false;
+    }
+
+    const message = `원격 브랜치(${trackingState.trackingBranch})에 먼저 받아야 할 변경이 있습니다. pull로 동기화한 뒤 다시 push해 주세요.`;
+    this.sendOperationResult(webview, 'GIT_PUSH', { success: false, message });
+    this.sendNotification(webview, 'warning', message);
+    return true;
+  }
+
+  private async guardPushTargetMergeConflict(webview: vscode.Webview): Promise<boolean> {
+    if (!this.mergeConflictGuardService) {
+      return false;
+    }
+
+    const result = await this.mergeConflictGuardService.guardDefaultTarget();
+    if (result.skipped || !result.hasConflicts) {
+      return false;
+    }
+
+    const message = `원격 target 브랜치(${result.targetBranch})와 병합 충돌 가능성이 있습니다. 추천 확인 후 다시 push해 주세요.`;
+    webview.postMessage({
+      type: 'CONFLICT_RESULT',
+      payload: {
+        analysisId: result.analysis.analysisId,
+        artifactPath: result.analysis.artifactPath,
+        candidates: result.analysis.candidates,
+      },
+    });
+    this.sendOperationResult(webview, 'GIT_PUSH', { success: false, message });
+    this.sendNotification(webview, 'warning', message);
+    return true;
+  }
+
+  private async guardPullTrackingMergeConflict(webview: vscode.Webview): Promise<boolean> {
+    if (!this.mergeConflictGuardService) {
+      return false;
+    }
+
+    const result = await this.mergeConflictGuardService.guardTrackingBranch();
+    if (result.skipped || !result.hasConflicts) {
+      return false;
+    }
+
+    const message = `원격 브랜치(${result.targetBranch})를 pull하면 병합 충돌 가능성이 있습니다. 추천 확인 후 동기화를 진행해 주세요.`;
+    webview.postMessage({
+      type: 'CONFLICT_RESULT',
+      payload: {
+        analysisId: result.analysis.analysisId,
+        artifactPath: result.analysis.artifactPath,
+        candidates: result.analysis.candidates,
+      },
+    });
+    this.sendOperationResult(webview, 'EXECUTE_PULL', { success: false, message });
+    this.sendNotification(webview, 'warning', message);
+    return true;
   }
 
   private async handleRunMerge(
@@ -446,6 +532,19 @@ export class GitMessageHandler {
         await this.handleRefreshStatus(webview);
       } else {
         // 충돌 발생 — 프론트에 상태 전달 (세이프티 레이어는 3단계에서)
+        webview.postMessage({
+          type: 'MERGE_COMPLETE',
+          payload: {
+            merge: {
+              status: 'conflicted',
+              message: result.stderr || 'Merge has unresolved conflicts.',
+              source: payload.source,
+              target: payload.target,
+              conflictedFiles: result.conflictedFiles ?? [],
+              completedAt: new Date().toISOString(),
+            },
+          },
+        });
         this.sendError(
           webview,
           `병합 충돌이 발생했습니다: ${result.conflictedFiles?.join(', ') ?? ''}`,
@@ -463,6 +562,16 @@ export class GitMessageHandler {
       const result = await this.gitService.mergeAbort();
       this.sendOperationResult(webview, 'MERGE_ABORT', result);
       if (result.success) {
+        webview.postMessage({
+          type: 'MERGE_COMPLETE',
+          payload: {
+            merge: {
+              status: 'aborted',
+              message: result.message,
+              completedAt: new Date().toISOString(),
+            },
+          },
+        });
         this.sendNotification(webview, 'info', result.message ?? '병합이 취소되었습니다.');
       } else {
         this.sendError(webview, result.message ?? '병합 취소에 실패했습니다.');
