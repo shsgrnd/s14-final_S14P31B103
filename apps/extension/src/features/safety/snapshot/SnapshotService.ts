@@ -208,7 +208,7 @@ export class SnapshotService implements ISnapshotService {
       }
     } else if (!options.force) {
       // 자동 스냅샷: 변경 줄 수가 최소 기준 미만이면 생략
-      const totalChangedLines = this.countChangedLines(patchText);
+      const totalChangedLines = this.countChangedLines(changedFiles);
       if (totalChangedLines < SNAPSHOT_MIN_CHANGED_LINES) {
         console.log(
           `[SnapshotService] 변경 줄 수 부족 → 스냅샷 생략 ` +
@@ -633,17 +633,12 @@ export class SnapshotService implements ISnapshotService {
    * 유니파이드 diff 형식에서 +/- 로 시작하는 줄을 세되,
    * +++/--- 헤더 줄은 제외한다.
    */
-  private countChangedLines(patchText: string): number {
-    if (!patchText) {
-      return 0;
-    }
-    return patchText
-      .split('\n')
-      .filter(
-        (line) =>
-          (line.startsWith('+') && !line.startsWith('+++')) ||
-          (line.startsWith('-') && !line.startsWith('---')),
-      ).length;
+  private countChangedLines(changedFiles: SnapshotFile[]): number {
+    return changedFiles.reduce((sum, file) => {
+      const additions = file.additions ?? 0;
+      const deletions = file.deletions ?? 0;
+      return sum + additions + deletions;
+    }, 0);
   }
 
   private normalizeWorkspacePath(filePath: string): string {

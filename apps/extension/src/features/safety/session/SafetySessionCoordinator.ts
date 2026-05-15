@@ -182,9 +182,9 @@ export class SafetySessionCoordinator {
                 if (!this.interSessionUserBaselines.has(fsPath)) {
                     try {
                         const fileData = await vscode.workspace.fs.readFile(doc.uri);
-                        this.interSessionUserBaselines.set(fsPath, Buffer.from(fileData).toString('utf8'));
+                        this.interSessionUserBaselines.set(fsPath, fileData);
                     } catch {
-                        this.interSessionUserBaselines.set(fsPath, '');
+                        this.interSessionUserBaselines.set(fsPath, new Uint8Array());
                     }
                 }
                 // readFile 대기 중 다른 이벤트가 먼저 세션을 시작했을 수 있으므로 재확인
@@ -226,6 +226,7 @@ export class SafetySessionCoordinator {
         }
         const fsPath = doc.uri.fsPath;
         this.dirtyFiles.delete(fsPath);
+
     }
 
     private isIgnoredPath(fsPath: string): boolean {

@@ -4,6 +4,7 @@ import type { SnapshotHunk, SnapshotManifest } from '@gitcat/shared-types';
 
 const SNAPSHOT_ID_PATTERN = /^[A-Za-z0-9._-]+$/;
 const SNAPSHOT_DIR = path.join('.vscode', 'gitcat', 'snapshots');
+const LEGACY_SNAPSHOT_DIR = path.join('.vscode', 'gitcat', 'snapshot');
 const EXCLUDED_PATH_SEGMENTS = new Set(['.git', 'node_modules', 'dist', 'build']);
 /**
  * 스냅샷 디렉터리 내 저장 가능한 아티팩트 파일명 허용 목록
@@ -88,6 +89,7 @@ interface SnapshotFullStateIndex {
 export class SnapshotLocalStore {
   private readonly projectRoot: string;
   private readonly snapshotsRoot: string;
+  private readonly legacySnapshotsRoot: string;
 
   constructor(projectRoot: string) {
     if (!projectRoot) {
@@ -96,6 +98,7 @@ export class SnapshotLocalStore {
 
     this.projectRoot = path.resolve(projectRoot);
     this.snapshotsRoot = path.join(this.projectRoot, SNAPSHOT_DIR);
+    this.legacySnapshotsRoot = path.join(this.projectRoot, LEGACY_SNAPSHOT_DIR);
   }
 
   getSnapshotsRoot(): string {
@@ -236,6 +239,16 @@ export class SnapshotLocalStore {
   async deleteTrashedSnapshot(handle: SnapshotTrashHandle): Promise<void> {
     this.assertInsideDirectory(this.snapshotsRoot, handle.trashedDir, 'trashed snapshot directory');
     await fs.rm(handle.trashedDir, { recursive: true, force: true });
+  }
+
+  async cleanupOrphanSnapshotDirs(keepSnapshotIds: Iterable<string>): Promise<void> {
+    const keep = new Set<string>();
+    for (const snapshotId of keepSnapshotIds) {
+      keep.add(this.assertValidSnapshotId(snapshotId));
+    }
+
+    await this.cleanupSnapshotRoot(this.snapshotsRoot, keep);
+    await this.cleanupSnapshotRoot(this.legacySnapshotsRoot, keep);
   }
 
   async ensureAuxiliaryDirs(snapshotId: string): Promise<{ fullDir: string; blobsDir: string }> {
@@ -405,6 +418,40 @@ export class SnapshotLocalStore {
     const tempDir = path.resolve(this.snapshotsRoot, tempDirName);
     this.assertInsideDirectory(this.snapshotsRoot, tempDir, 'temporary trash directory');
     return tempDir;
+  }
+
+  private async cleanupSnapshotRoot(rootDir: string, keep: Set<string>): Promise<void> {
+    let entries;
+    try {
+      entries = await fs.readdir(rootDir, { withFileTypes: true });
+    } catch (error) {
+      const nodeError = error as NodeJS.ErrnoException;
+      if (nodeError?.code === 'ENOENT') {
+        return;
+      }
+      throw error;
+    }
+
+    for (const entry of entries) {
+      if (!entry.isDirectory()) {
+        continue;
+      }
+
+      const dirName = entry.name;
+      if (dirName.includes(TEMP_DIR_INFIX)) {
+        continue;
+      }
+      if (!SNAPSHOT_ID_PATTERN.test(dirName)) {
+        continue;
+      }
+      if (keep.has(dirName)) {
+        continue;
+      }
+
+      const targetDir = path.resolve(rootDir, dirName);
+      this.assertInsideDirectory(rootDir, targetDir, 'orphan snapshot directory');
+      await fs.rm(targetDir, { recursive: true, force: true });
+    }
   }
 
   private async assertSnapshotDoesNotExist(snapshotDir: string, snapshotId: string): Promise<void> {
