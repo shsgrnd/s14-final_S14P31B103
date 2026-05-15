@@ -9,6 +9,10 @@ import { LocalLlamaRuntime, LocalLlamaRequestPriority } from './LocalLlamaRuntim
 export interface PromptPayload {
   systemPrompt: string;
   userPrompt: string;
+  localGenerationOptions?: {
+    maxTokens?: number;
+    trimWhitespaceSuffix?: boolean;
+  };
 }
 
 export interface AiClientOptions {
@@ -24,6 +28,16 @@ export interface AiClientOptions {
 
 export interface AiRequestOptions {
   priority?: LocalLlamaRequestPriority;
+}
+
+function isLocalAiDebugEnabled(): boolean {
+  return process.env.GITCAT_AI_LOCAL_DEBUG === '1';
+}
+
+function formatLocalAiSummary(fields: Record<string, string | number | boolean>): string {
+  return Object.entries(fields)
+    .map(([key, value]) => `${key}=${value}`)
+    .join(' ');
 }
 
 export class AiClient {
@@ -60,7 +74,7 @@ export class AiClient {
   ): Promise<string> {
     // 1. 로컬 모델 모드일 경우 LlamaClient 라우팅
     if (this.mode === 'live-local' && this.options.localModelPath) {
-      return this.generateLlamaResponse(payload, requestOptions);
+      return this.generateLlamaResponse(featureType, payload, requestOptions);
     }
     
     // 2. 원격 모델 모드일 경우 기존 외부 API 라우팅
@@ -77,9 +91,15 @@ export class AiClient {
   }
 
   private async generateLlamaResponse(
+    featureType: FeatureType,
     payload: PromptPayload,
     requestOptions: AiRequestOptions,
   ): Promise<string> {
+    // 로컬 추론 병목을 분리하기 위해 요청 시작 시각을 먼저 고정합니다.
+    // 이후 LocalLlamaRuntime 내부의 queue wait / init / inference 시간과 합쳐
+    // "어디서 느린지"를 한 줄 로그로 바로 확인할 수 있게 합니다.
+    const requestStartedAt = Date.now();
+
     if (!this.options.localModelPath) {
       throw new Error('localModelPath가 설정되지 않았습니다. 로컬 모델을 사용할 수 없습니다.');
     }
@@ -88,7 +108,26 @@ export class AiClient {
       this.localRuntime = LocalLlamaRuntime.getShared(this.options.localModelPath);
     }
 
-    return this.localRuntime.run(payload, requestOptions.priority ?? 'foreground');
+    const response = await this.localRuntime.run(payload, {
+      featureType,
+      priority: requestOptions.priority ?? 'foreground',
+      requestStartedAt,
+    });
+
+    if (isLocalAiDebugEnabled()) {
+      console.log(
+        `[AiClient] ${formatLocalAiSummary({
+          event: 'local-ai-client-finish',
+          feature: featureType,
+          priority: requestOptions.priority ?? 'foreground',
+          total_local_ms: Date.now() - requestStartedAt,
+          system_prompt_chars: payload.systemPrompt.length,
+          user_prompt_chars: payload.userPrompt.length,
+        })}`,
+      );
+    }
+
+    return response;
   }
 
   private async generateLiveResponse(payload: PromptPayload): Promise<string> {
