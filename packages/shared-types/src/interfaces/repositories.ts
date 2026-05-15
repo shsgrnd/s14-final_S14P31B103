@@ -192,8 +192,11 @@ export interface ChangedFileRepository {
 
 export interface CreateRestoreHistoryInput {
   restore_history_id: string;
+  from_snapshot_id: string;
   target_snapshot_id: string;
   pre_restore_snapshot_id?: string | null;
+  status?: 'success' | 'failed' | 'partial';
+  failure_reason?: string | null;
   restored_at?: string;
 }
 

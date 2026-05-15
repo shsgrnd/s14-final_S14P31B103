@@ -10,10 +10,11 @@ export interface CreateSnapshotOptions {
     sessionId?: string;
     reason?: string;
     summary?: string;
+    force?: boolean;
     /** AI 세션 중 변경된 파일 경로 목록 */
     changedFiles?: string[];
     /** AI 세션 시작 시점의 파일 베이스라인 (AI diff 계산용) */
-    baselines?: Map<string, string>;
+    baselines?: Map<string, Uint8Array>;
     /**
      * AI 세션 시작 전 사용자가 변경한 파일 경로 목록
      * - auto_dirty_before_ai, ai_result 타입에서 user_patch.diff 생성에 사용
@@ -23,7 +24,7 @@ export interface CreateSnapshotOptions {
      * 사용자 변경 직전 파일 상태 (user_patch.diff 계산용)
      * - 이전 AI 세션 종료 시점부터 누적된 baseline
      */
-    userBaselines?: Map<string, string>;
+    userBaselines?: Map<string, Uint8Array>;
 }
 
 export interface ISnapshotService {
@@ -34,6 +35,9 @@ export interface ISnapshotService {
      * @returns 생성된 스냅샷 ID
      */
     createSnapshot(type: SnapshotCreationType, options?: CreateSnapshotOptions): Promise<string | undefined>;
+    beginRestoreOperation(): void;
+    endRestoreOperation(): void;
+    isRestoreOperationActive(): boolean;
     /**
      * 특정 스냅샷의 로컬 artifact와 DB metadata를 함께 삭제한다.
      * 삭제 실패 시 가능한 범위에서 롤백하여 불일치를 최소화한다.
