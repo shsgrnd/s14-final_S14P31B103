@@ -4,7 +4,7 @@ import {
   resolveGmsOpenAiBaseUrl,
 } from '../client';
 import { loadRootEnv } from '../config/load-root-env';
-import { GitCatLlamaClient } from './LlamaClient';
+import { LocalLlamaRuntime, LocalLlamaRequestPriority } from './LocalLlamaRuntime';
 
 export interface PromptPayload {
   systemPrompt: string;
@@ -22,11 +22,15 @@ export interface AiClientOptions {
   localModelPath?: string;
 }
 
+export interface AiRequestOptions {
+  priority?: LocalLlamaRequestPriority;
+}
+
 export class AiClient {
   private readonly mode: 'mock' | 'live-remote' | 'live-local';
   private readonly options: AiClientOptions;
   private liveClient?: GitCatAIClient;
-  private llamaClient?: GitCatLlamaClient;
+  private localRuntime?: LocalLlamaRuntime;
 
   constructor(options: AiClientOptions = {}) {
     loadRootEnv();
@@ -49,10 +53,14 @@ export class AiClient {
    * live-remote 모드에서는 외부 GMS(OpenAI 호환) API 호출을 수행하며,
    * live-local 모드에서는 로컬 오픈소스(Llama) 모델 추론을 수행합니다.
    */
-  async generateResponse(featureType: FeatureType, payload: PromptPayload): Promise<string> {
+  async generateResponse(
+    featureType: FeatureType,
+    payload: PromptPayload,
+    requestOptions: AiRequestOptions = {},
+  ): Promise<string> {
     // 1. 로컬 모델 모드일 경우 LlamaClient 라우팅
     if (this.mode === 'live-local' && this.options.localModelPath) {
-      return this.generateLlamaResponse(payload);
+      return this.generateLlamaResponse(payload, requestOptions);
     }
     
     // 2. 원격 모델 모드일 경우 기존 외부 API 라우팅
@@ -64,14 +72,23 @@ export class AiClient {
     return this.generateMockResponse(featureType, payload);
   }
 
-  private async generateLlamaResponse(payload: PromptPayload): Promise<string> {
-    if (!this.llamaClient) {
-      if (!this.options.localModelPath) {
-        throw new Error('localModelPath가 설정되지 않았습니다. 로컬 모델을 사용할 수 없습니다.');
-      }
-      this.llamaClient = new GitCatLlamaClient({ modelPath: this.options.localModelPath });
+  public isLiveLocalMode(): boolean {
+    return this.mode === 'live-local' && Boolean(this.options.localModelPath);
+  }
+
+  private async generateLlamaResponse(
+    payload: PromptPayload,
+    requestOptions: AiRequestOptions,
+  ): Promise<string> {
+    if (!this.options.localModelPath) {
+      throw new Error('localModelPath가 설정되지 않았습니다. 로컬 모델을 사용할 수 없습니다.');
     }
-    return this.llamaClient.callModel(payload);
+
+    if (!this.localRuntime) {
+      this.localRuntime = LocalLlamaRuntime.getShared(this.options.localModelPath);
+    }
+
+    return this.localRuntime.run(payload, requestOptions.priority ?? 'foreground');
   }
 
   private async generateLiveResponse(payload: PromptPayload): Promise<string> {
@@ -106,7 +123,10 @@ export class AiClient {
    */
   public clearLiveClientCache(): void {
     this.liveClient = undefined;
-    this.llamaClient = undefined;
+    if (this.options.localModelPath) {
+      LocalLlamaRuntime.clearShared(this.options.localModelPath);
+    }
+    this.localRuntime = undefined;
   }
 
   private generateMockResponse(featureType: FeatureType, promptPayload?: PromptPayload): string {
