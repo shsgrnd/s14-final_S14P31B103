@@ -1,65 +1,106 @@
-import React, { useCallback } from 'react';
-import { FileText, Rewind, ChevronRight, BrainCircuit, ShieldCheck, User, Merge, Plus, Edit2, Trash2, History, Check, Bookmark } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { createPortal } from 'react-dom';
+import { FileText, Rewind, ChevronRight, Crosshair, Sparkles, Layers, PencilLine, Plus, Edit2, Trash2, History, Bookmark, Archive, X } from 'lucide-react';
 import { useGitCatStore } from '../../store/useGitCatStore';
 import { useVsCodeApi } from '../../hooks/useVsCodeApi';
-import { SnapshotMeta } from '@gitcat/shared-types';
+import { SnapshotMeta, type RestoreHistory } from '@gitcat/shared-types';
 import { iconBtn } from '../../shared/styles';
 import { SectionNotificationBanner } from '../common/SectionNotificationBanner';
 import { useSidebarSectionNotificationMode } from '../../app/SidebarSectionNotificationContext';
+import { snapshotsVisibleInSidebarTimeline } from '../../shared/snapshotTimelineVisibility';
 
 export const SnapshotTimeline: React.FC = () => {
-  const { snapshots, expandedSnapshotId, setExpandedSnapshotId, sectionNotifications, clearSectionNotification } = useGitCatStore();
+  const {
+    snapshots,
+    expandedSnapshotId,
+    setExpandedSnapshotId,
+    sectionNotifications,
+    clearSectionNotification,
+    snapshotFileDiff,
+    clearSnapshotFileDiff,
+    restoreHistories,
+  } = useGitCatStore();
   const { sendMessage } = useVsCodeApi();
   const dismissSnapshotsNotification = useCallback(() => clearSectionNotification('snapshots'), [clearSectionNotification]);
   const { showSectionBannersInline } = useSidebarSectionNotificationMode();
-  const [statusMsg, setStatusMsg] = React.useState<{ text: string; ok: boolean } | null>(null);
+  const [restoreHistoryOpen, setRestoreHistoryOpen] = useState(false);
 
-  const showStatus = (text: string, ok: boolean) => {
-    setStatusMsg({ text, ok });
-    setTimeout(() => setStatusMsg(null), 3000);
-  };
+  const visibleSnapshots = useMemo(() => snapshotsVisibleInSidebarTimeline(snapshots), [snapshots]);
+
+  useEffect(() => {
+    if (!expandedSnapshotId) return;
+    sendMessage('GET_SNAPSHOT_DETAIL', { snapshotId: expandedSnapshotId });
+  }, [expandedSnapshotId, sendMessage]);
+
+  /** 목록에서 숨긴 pre_restore 등으로 펼침 대상이 사라지면 접기 */
+  useEffect(() => {
+    if (!expandedSnapshotId) return;
+    const row = snapshots.find((s) => s.snapshotId === expandedSnapshotId);
+    if (!row || row.type === 'pre_restore') {
+      setExpandedSnapshotId(null);
+    }
+  }, [snapshots, expandedSnapshotId, setExpandedSnapshotId]);
+
+  useEffect(() => {
+    if (!snapshotFileDiff && !restoreHistoryOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      if (snapshotFileDiff) clearSnapshotFileDiff();
+      else setRestoreHistoryOpen(false);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [snapshotFileDiff, restoreHistoryOpen, clearSnapshotFileDiff]);
 
   const getStatusLabel = (status: string) => {
-    if (status === 'MODIFIED') return '수정';
-    if (status === 'ADDED') return '추가';
-    if (status === 'DELETED') return '삭제';
+    const u = status.toUpperCase();
+    if (u === 'MODIFIED') return '수정';
+    if (u === 'ADDED') return '추가';
+    if (u === 'DELETED') return '삭제';
+    if (u === 'RENAMED') return '이름 변경';
     return status;
   };
 
   const getTypeIcon = (type: string) => {
+    const iconColor = (color: string): React.CSSProperties => ({
+      color,
+      flexShrink: 0,
+    });
     switch (type) {
       case 'ai_pre_action':
+        return <Crosshair size={14} style={iconColor('var(--vscode-charts-purple)')} aria-hidden />;
       case 'ai_result':
-        return <BrainCircuit size={14} style={{ color: 'var(--vscode-charts-purple)', flexShrink: 0 }} />;
+        return <Sparkles size={14} style={iconColor('var(--vscode-charts-purple)')} aria-hidden />;
       case 'auto_dirty_before_ai':
-        return <Merge size={14} style={{ color: 'var(--vscode-charts-blue)', flexShrink: 0 }} />;
+        return <Layers size={14} style={iconColor('var(--vscode-charts-blue)')} aria-hidden />;
       case 'manual_edit_result':
-        return <User size={14} style={{ color: 'var(--vscode-charts-green)', flexShrink: 0 }} />;
+        return <PencilLine size={14} style={iconColor('var(--vscode-charts-green)')} aria-hidden />;
       case 'savepoint':
-        return <Bookmark size={14} style={{ color: 'var(--vscode-charts-yellow)', flexShrink: 0 }} />;
+        return <Bookmark size={14} style={iconColor('var(--vscode-charts-yellow)')} aria-hidden />;
       case 'pre_restore':
-        return <ShieldCheck size={14} style={{ color: 'var(--vscode-charts-red)', flexShrink: 0 }} />;
-      default: return <FileText size={14} style={{ flexShrink: 0 }} />;
+        return <Archive size={14} style={iconColor('var(--vscode-charts-orange)')} aria-hidden />;
+      default:
+        return <FileText size={14} style={{ flexShrink: 0, opacity: 0.85 }} aria-hidden />;
     }
   };
 
   const handleRename = (snapshotId: string, currentTitle: string) => {
-    // VS Code Webview에서는 window.prompt가 차단되므로 프론트 자체 상태로 변경하거나 임의 텍스트로 대체합니다.
     const newTitle = currentTitle + ' (수정됨)';
     sendMessage('RENAME_SNAPSHOT', { snapshotId, newTitle });
-    showStatus('이름이 임시로 변경되었습니다.', true);
   };
 
   const handleDelete = (snapshotId: string) => {
-    // window.confirm 차단 우회
     sendMessage('DELETE_SNAPSHOT', { snapshotId });
-    showStatus('스냅샷이 삭제되었습니다.', true);
   };
 
   const handleRestore = (snapshot: SnapshotMeta) => {
-    // window.confirm 차단 우회
     sendMessage('RESTORE_SNAPSHOT', { snapshotId: snapshot.snapshotId });
-    showStatus(`'${snapshot.summary || snapshot.type}' 시점으로 원복 완료! (안전 백업 생성됨)`, true);
+  };
+
+  const openRestoreHistory = () => {
+    sendMessage('GET_RESTORE_HISTORY', {});
+    setRestoreHistoryOpen(true);
   };
 
   return (
@@ -79,8 +120,9 @@ export const SnapshotTimeline: React.FC = () => {
           {/* badge is rendered in App.tsx section header */}
         </span>
         <button
+          type="button"
           onClick={() => sendMessage('CREATE_SNAPSHOT', { title: `수동 스냅샷 (${new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })})` })}
-          title="스냅샷 생성"
+          title="수동 스냅샷 생성 요청 (익스텐션에서 지원할 때 동작)"
           style={{
             background: 'none', border: 'none', cursor: 'pointer', padding: '4px',
             color: 'var(--vscode-foreground)', borderRadius: '3px',
@@ -93,27 +135,16 @@ export const SnapshotTimeline: React.FC = () => {
         </button>
       </div>
 
-      {/* ── Status Message ── */}
-      {statusMsg && (
-        <div style={{
-          margin: '0 10px 8px 10px', fontSize: '11px', display: 'flex', alignItems: 'center', gap: '6px',
-          color: statusMsg.ok ? 'var(--vscode-charts-green)' : 'var(--vscode-errorForeground)',
-        }}>
-          <Check size={12} />
-          {statusMsg.text}
-        </div>
-      )}
-
       {/* ── Snapshot list ── */}
       <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
-        {snapshots.length === 0 && (
+        {visibleSnapshots.length === 0 && (
           <div style={{ padding: '12px', fontSize: '12px', color: 'var(--vscode-descriptionForeground)', fontStyle: 'italic', textAlign: 'center' }}>
             생성된 스냅샷이 없습니다.
           </div>
         )}
-        {snapshots.map((snapshot) => {
+        {visibleSnapshots.map((snapshot) => {
           const isExpanded = expandedSnapshotId === snapshot.snapshotId;
-          const files = (snapshot as any).files;
+          const files = snapshot.files;
           const addedLines = files?.reduce((acc: number, f: any) => acc + (f.added || 0), 0) ?? 0;
           const removedLines = files?.reduce((acc: number, f: any) => acc + (f.removed || 0), 0) ?? 0;
           const fileCount = files?.length ?? 0;
@@ -125,6 +156,7 @@ export const SnapshotTimeline: React.FC = () => {
               <div
                 onClick={() => setExpandedSnapshotId(isExpanded ? null : snapshot.snapshotId)}
                 className="snapshot-row"
+                title={String(title)}
                 style={{
                   display: 'flex', alignItems: 'flex-start', gap: '8px',
                   padding: '8px 10px', cursor: 'pointer',
@@ -174,10 +206,10 @@ export const SnapshotTimeline: React.FC = () => {
                 {/* Action buttons */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '2px', flexShrink: 0, marginTop: '2px' }}
                   onClick={e => e.stopPropagation()}>
-                  <button onClick={() => handleRename(snapshot.snapshotId, title)} title="이름 변경" style={iconBtn}>
+                  <button type="button" onClick={() => handleRename(snapshot.snapshotId, title)} title="스냅샷 표시 이름 변경 요청 (익스텐션 연동 시)" style={iconBtn}>
                     <Edit2 size={12} />
                   </button>
-                  <button onClick={() => handleDelete(snapshot.snapshotId)} title="삭제" style={{ ...iconBtn, color: 'var(--vscode-errorForeground)' }}>
+                  <button type="button" onClick={() => handleDelete(snapshot.snapshotId)} title="이 스냅샷과 로컬 백업을 삭제합니다" style={{ ...iconBtn, color: 'var(--vscode-errorForeground)' }}>
                     <Trash2 size={12} />
                   </button>
                 </div>
@@ -194,7 +226,12 @@ export const SnapshotTimeline: React.FC = () => {
                     files.map((file: any, idx: number) => (
                       <div
                         key={idx}
-                        onClick={() => sendMessage('OPEN_FILE_DIFF', { snapshotId: snapshot.snapshotId, filePath: file.path })}
+                        title={`스냅샷 diff 보기: ${file.path}`}
+                        onClick={() =>
+                          sendMessage('GET_SNAPSHOT_FILE_DIFF', {
+                            snapshotId: snapshot.snapshotId,
+                            filePath: file.path,
+                          })}
                         style={{
                           display: 'flex', alignItems: 'center', gap: '8px',
                           padding: '4px 8px', borderRadius: '4px', cursor: 'pointer', fontSize: '12px',
@@ -209,11 +246,15 @@ export const SnapshotTimeline: React.FC = () => {
                         </span>
                         <span style={{
                           fontSize: '11px', fontWeight: 700, flexShrink: 0,
-                          color: file.status === 'MODIFIED' ? 'var(--vscode-gitDecoration-modifiedResourceForeground)' :
-                            file.status === 'ADDED' ? 'var(--vscode-gitDecoration-addedResourceForeground)' :
-                              'var(--vscode-gitDecoration-deletedResourceForeground)',
+                          color: (() => {
+                            const st = String(file.status).toUpperCase();
+                            if (st === 'MODIFIED') return 'var(--vscode-gitDecoration-modifiedResourceForeground)';
+                            if (st === 'ADDED') return 'var(--vscode-gitDecoration-addedResourceForeground)';
+                            if (st === 'RENAMED') return 'var(--vscode-gitDecoration-modifiedResourceForeground)';
+                            return 'var(--vscode-gitDecoration-deletedResourceForeground)';
+                          })(),
                         }}>
-                          {getStatusLabel(file.status)}
+                          {getStatusLabel(String(file.status))}
                         </span>
                       </div>
                     ))
@@ -225,6 +266,8 @@ export const SnapshotTimeline: React.FC = () => {
 
                   {/* Restore Button */}
                   <button
+                    type="button"
+                    title="이 스냅샷이 기록한 시점으로 워크스페이스 파일을 되돌립니다. 복원 직전 상태는 자동 백업 스냅샷으로 남을 수 있습니다."
                     onClick={() => handleRestore(snapshot)}
                     style={{
                       display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
@@ -248,7 +291,7 @@ export const SnapshotTimeline: React.FC = () => {
       </div>
 
       {/* ── View All History Button ── */}
-      {snapshots.length > 0 && (
+      {visibleSnapshots.length > 0 && (
         <div style={{ padding: '12px 10px 4px 10px' }}>
           <button style={{
             width: '100%', padding: '6px', fontSize: '12px',
@@ -257,6 +300,9 @@ export const SnapshotTimeline: React.FC = () => {
             borderRadius: '4px', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
             transition: 'all 0.2s'
           }}
+            type="button"
+            title="스냅샷 복원 이력을 불러와 목록으로 표시합니다"
+            onClick={openRestoreHistory}
             onMouseOver={e => { e.currentTarget.style.background = 'var(--vscode-list-hoverBackground)'; e.currentTarget.style.color = 'var(--vscode-foreground)' }}
             onMouseOut={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--vscode-descriptionForeground)' }}
           >
@@ -265,9 +311,310 @@ export const SnapshotTimeline: React.FC = () => {
           </button>
         </div>
       )}
+
+      {snapshotFileDiff
+        ? createPortal(
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="스냅샷 파일 diff"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 50_000,
+            background: 'rgba(0, 0, 0, 0.45)',
+            overflowY: 'auto',
+            padding: '24px 16px',
+          }}
+          onClick={clearSnapshotFileDiff}
+        >
+          <div
+            style={{
+              margin: '0 auto',
+              width: '100%',
+              maxWidth: '720px',
+              maxHeight: 'min(90vh, calc(100vh - 48px))',
+              minHeight: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              background: 'var(--vscode-editor-background)',
+              color: 'var(--vscode-editor-foreground)',
+              borderRadius: '6px',
+              border: '1px solid var(--vscode-panel-border)',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.35)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '10px',
+                flexShrink: 0,
+                padding: '10px 12px',
+                borderBottom: '1px solid var(--vscode-panel-border)',
+                fontSize: '12px',
+                fontWeight: 600,
+                background: 'var(--vscode-editor-background)',
+              }}
+            >
+              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
+                Diff — {snapshotFileDiff.filePath}
+              </span>
+              <button
+                type="button"
+                title="닫기 (Esc)"
+                aria-label="닫기"
+                onClick={clearSnapshotFileDiff}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '28px',
+                  height: '28px',
+                  border: 'none',
+                  background: 'var(--vscode-toolbar-hoverBackground)',
+                  color: 'var(--vscode-foreground)',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                }}
+              >
+                <X size={14} />
+              </button>
+            </div>
+            <div
+              style={{
+                flex: '1 1 auto',
+                minHeight: 0,
+                overflow: 'auto',
+                overscrollBehavior: 'contain',
+              }}
+            >
+              <pre
+                style={{
+                  margin: 0,
+                  padding: '12px',
+                  fontSize: '11px',
+                  lineHeight: 1.45,
+                  fontFamily: 'var(--vscode-editor-font-family, monospace)',
+                }}
+              >
+                {renderColoredDiffText(snapshotFileDiff.diffText)}
+              </pre>
+            </div>
+          </div>
+        </div>,
+        document.body,
+        )
+        : null}
+
+      {restoreHistoryOpen
+        ? createPortal(
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="복원 기록"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 50_000,
+            background: 'rgba(0, 0, 0, 0.45)',
+            overflowY: 'auto',
+            padding: '24px 16px',
+          }}
+          onClick={() => setRestoreHistoryOpen(false)}
+        >
+          <div
+            style={{
+              margin: '0 auto',
+              width: '100%',
+              maxWidth: '520px',
+              maxHeight: 'min(90vh, calc(100vh - 48px))',
+              minHeight: 0,
+              display: 'flex',
+              flexDirection: 'column',
+              background: 'var(--vscode-editor-background)',
+              color: 'var(--vscode-editor-foreground)',
+              borderRadius: '6px',
+              border: '1px solid var(--vscode-panel-border)',
+              boxShadow: '0 8px 32px rgba(0,0,0,0.35)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: '10px',
+                flexShrink: 0,
+                padding: '10px 12px',
+                borderBottom: '1px solid var(--vscode-panel-border)',
+                fontSize: '12px',
+                fontWeight: 600,
+                background: 'var(--vscode-editor-background)',
+              }}
+            >
+              <span>복원 기록</span>
+              <button
+                type="button"
+                title="닫기 (Esc)"
+                aria-label="닫기"
+                onClick={() => setRestoreHistoryOpen(false)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '28px',
+                  height: '28px',
+                  border: 'none',
+                  background: 'var(--vscode-toolbar-hoverBackground)',
+                  color: 'var(--vscode-foreground)',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  flexShrink: 0,
+                }}
+              >
+                <X size={14} />
+              </button>
+            </div>
+            <div
+              style={{
+                flex: '1 1 auto',
+                minHeight: 0,
+                overflow: 'auto',
+                overscrollBehavior: 'contain',
+                padding: '8px',
+              }}
+            >
+              {restoreHistories.length === 0 ? (
+                <div style={{ padding: '16px', fontSize: '12px', color: 'var(--vscode-descriptionForeground)', textAlign: 'center' }}>
+                  복원 기록이 없습니다.
+                </div>
+              ) : (
+                restoreHistories.map((h) => {
+                  const v = asRestoreHistoryView(h);
+                  const from = v.fromSnapshotId ?? v.preRestoreSnapshotId ?? '—';
+                  const to = v.toSnapshotId ?? v.targetSnapshotId ?? '—';
+                  return (
+                  <div
+                    key={v.restoreId}
+                    style={{
+                      padding: '10px 8px',
+                      borderBottom: '1px solid var(--vscode-panel-border)',
+                      fontSize: '11px',
+                      lineHeight: 1.5,
+                    }}
+                  >
+                    <div style={{ fontWeight: 600, marginBottom: '4px' }}>
+                      {new Date(v.restoredAt).toLocaleString()} — {v.status}
+                    </div>
+                    <div style={{ color: 'var(--vscode-descriptionForeground)', fontFamily: 'var(--vscode-editor-font-family, monospace)' }}>
+                      {from !== '—' ? `${from.slice(0, 8)}… → ` : ''}{to !== '—' ? `${to.slice(0, 8)}…` : to}
+                    </div>
+                    {v.failureReason && (
+                      <div style={{ color: 'var(--vscode-errorForeground)', marginTop: '4px' }}>{v.failureReason}</div>
+                    )}
+                  </div>
+                  );
+                })
+              )}
+            </div>
+          </div>
+        </div>,
+        document.body,
+        )
+        : null}
     </div>
   );
 };
+
+type RestoreHistoryRowView = {
+  restoreId: string;
+  restoredAt: string;
+  status: string;
+  preRestoreSnapshotId?: string;
+  fromSnapshotId?: string;
+  toSnapshotId?: string;
+  targetSnapshotId?: string;
+  failureReason?: string;
+};
+
+function asRestoreHistoryView(h: RestoreHistory): RestoreHistoryRowView {
+  return h as unknown as RestoreHistoryRowView;
+}
+
+type DiffLineKind = 'add' | 'del' | 'meta' | 'ctx';
+
+function classifyDiffLine(raw: string): DiffLineKind {
+  const line = raw.trimEnd();
+  if (
+    line.startsWith('diff --git') ||
+    line.startsWith('index ') ||
+    line.startsWith('--- ') ||
+    line.startsWith('+++ ') ||
+    line.startsWith('@@') ||
+    line.startsWith('New file mode') ||
+    line.startsWith('Deleted file mode') ||
+    line.startsWith('similarity index') ||
+    line.startsWith('rename from') ||
+    line.startsWith('rename to') ||
+    line.startsWith('Binary files') ||
+    line.startsWith('\\')
+  ) {
+    return 'meta';
+  }
+  if (line.startsWith('+')) return 'add';
+  if (line.startsWith('-')) return 'del';
+  return 'ctx';
+}
+
+function diffLineColors(kind: DiffLineKind): { color: string; backgroundColor?: string } {
+  switch (kind) {
+    case 'add':
+      return {
+        color: 'var(--vscode-gitDecoration-addedResourceForeground)',
+        backgroundColor: 'var(--vscode-diffEditor-insertedTextBackground)',
+      };
+    case 'del':
+      return {
+        color: 'var(--vscode-gitDecoration-deletedResourceForeground)',
+        backgroundColor: 'var(--vscode-diffEditor-removedTextBackground)',
+      };
+    case 'meta':
+      return { color: 'var(--vscode-descriptionForeground)' };
+    default:
+      return { color: 'var(--vscode-editor-foreground)' };
+  }
+}
+
+function renderColoredDiffText(text: string | undefined): React.ReactNode {
+  if (text == null || text.trim() === '') {
+    return <span style={{ color: 'var(--vscode-descriptionForeground)' }}>(diff 없음)</span>;
+  }
+  const lines = text.split('\n');
+  return lines.map((line, i) => {
+    const kind = classifyDiffLine(line);
+    const { color, backgroundColor } = diffLineColors(kind);
+    return (
+      <span
+        key={i}
+        style={{
+          display: 'block',
+          color,
+          backgroundColor,
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-word',
+          minHeight: '1.45em',
+        }}
+      >
+        {line.length === 0 ? '\u00a0' : line}
+      </span>
+    );
+  });
+}
 
 function formatRelativeTime(timestamp: number): string {
   try {
