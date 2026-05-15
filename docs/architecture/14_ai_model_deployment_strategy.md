@@ -21,6 +21,15 @@
 - `docs/architecture/07_storage_architecture.md`
 - `packages/ai-pipeline/trainer/README.md`
 
+### 현재 로컬 추론용 모델 배포 위치
+현재 GitCat의 로컬 추론용 GGUF 배포본은 아래 Hugging Face 저장소에서 제공한다.
+
+- https://huggingface.co/shsgrnd/SSAFY_gitcat-local-llm
+
+권장 다운로드 파일:
+- `gitcat-v2-sft-merged-Q4_K_M.gguf`
+- `gitcat-v2-dpo-merged-Q4_K_M.gguf`
+
 ---
 
 ## 1. 배포 산출물 정의
@@ -39,7 +48,7 @@ LoRA 어댑터는 Base 모델 전체 가중치를 포함하지 않는다. Base �
 
 | 항목 | 설명 |
 | --- | --- |
-| Base 모델 GGUF 파일 | `Qwen2.5-Coder-7B-Instruct-Q4_K_M.gguf` 등 HuggingFace에서 직접 다운로드 |
+| 로컬 추론용 GGUF 파일 | GitCat Hugging Face 저장소(`shsgrnd/SSAFY_gitcat-local-llm`)에서 직접 다운로드 |
 | LoRA 어댑터 파일 | 팀 GitHub Releases에서 다운로드 |
 | 로컬 저장 경로 설정 | Extension 설정에서 모델 파일 경로 지정 |
 
