@@ -76,7 +76,7 @@ export const MinimalMergePatchResponseSchema = z.object({
   summary: z.string(),
   explanation: z.string().optional().default(""),
   confidence_score: z.number().optional().default(0.5),
-  diff_patch: z.string(),
+  merged_code: z.string(),
   validation_summary: z.string().optional().default(""),
 });
 
