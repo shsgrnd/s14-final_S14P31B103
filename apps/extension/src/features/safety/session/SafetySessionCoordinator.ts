@@ -147,6 +147,9 @@ export class SafetySessionCoordinator {
         }
 
         const doc = event.document;
+        // [DEBUG] 함수 진입 확인 - 이 로그가 안 보이면 이벤트 연결 자체가 안 된 것
+        console.log(`[DEBUG] handleDocumentChange called: scheme=${doc.uri.scheme}, changes=${event.contentChanges.length}`);
+
         if (doc.uri.scheme !== 'file') {
             return;
         }
@@ -174,8 +177,22 @@ export class SafetySessionCoordinator {
             }
 
             if (!this.currentSession) {
-                await this.startManualSession();
+                // interSession baseline 캡처 (세션 시작 전 콜스액 상태 기록)
+                this.interSessionUserChangedFiles.add(fsPath);
+                if (!this.interSessionUserBaselines.has(fsPath)) {
+                    try {
+                        const fileData = await vscode.workspace.fs.readFile(doc.uri);
+                        this.interSessionUserBaselines.set(fsPath, Buffer.from(fileData).toString('utf8'));
+                    } catch {
+                        this.interSessionUserBaselines.set(fsPath, '');
+                    }
+                }
+                // readFile 대기 중 다른 이벤트가 먼저 세션을 시작했을 수 있으므로 재확인
+                if (!this.currentSession) {
+                    await this.startManualSession();
+                }
             }
+            // manual 세션 중 or AI 세션 중: 아래 changedFiles에 추가됨
         }
 
         this.changedFiles.add(fsPath);

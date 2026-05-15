@@ -1,5 +1,5 @@
 import type { LlamaModel, LlamaContext, LlamaChatSession } from 'node-llama-cpp';
-import { PromptPayload } from './AiClient';
+import type { PromptPayload } from './AiClient';
 
 export interface LlamaClientOptions {
   modelPath: string; // 로컬에 다운로드된 GGUF 모델 파일의 절대 경로
@@ -48,10 +48,17 @@ export class GitCatLlamaClient {
   }
 
   /**
+   * 공유 런타임이 모델 초기화를 선행할 수 있도록 공개 준비 메서드를 제공합니다.
+   */
+  public async ensureReady(): Promise<void> {
+    await this.initialize();
+  }
+
+  /**
    * 시스템 프롬프트와 유저 프롬프트를 입력받아 로컬 모델에 전달하고, 응답(텍스트)을 반환합니다.
    */
   public async callModel(payload: PromptPayload): Promise<string> {
-    await this.initialize();
+    await this.ensureReady();
 
     if (!this.llamaContext) {
       throw new Error('LlamaContext is not initialized');

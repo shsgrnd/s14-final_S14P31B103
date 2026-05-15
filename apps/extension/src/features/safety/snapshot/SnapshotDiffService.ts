@@ -1,11 +1,10 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { createHash } from 'crypto';
-import type { SafetyWarning, SnapshotFile, SnapshotHunk } from '@gitcat/shared-types';
+import type { SnapshotFile, SnapshotHunk } from '@gitcat/shared-types';
 
 const DEFAULT_CONTEXT_LINES = 3;
 const DEFAULT_LARGE_FILE_THRESHOLD_BYTES = 512 * 1024;
-const DEFAULT_DELETION_WARNING_THRESHOLD = 5;
 const EXCLUDED_PATH_SEGMENTS = new Set(['.git', 'node_modules', 'dist', 'build']);
 
 type DiffOpType = 'equal' | 'add' | 'remove';
@@ -81,7 +80,6 @@ export interface SnapshotDiffResult {
   changedFiles: SnapshotFile[];
   deletedFiles: string[];
   riskyFiles: string[];
-  warnings: SafetyWarning[];
   skippedFiles: SnapshotSkippedFile[];
 }
 
@@ -122,7 +120,6 @@ export class SnapshotDiffService {
         ignoreWhitespace: params.ignoreWhitespace,
         contextLines: params.contextLines,
         largeFileThresholdBytes: params.largeFileThresholdBytes,
-        deletionWarningThreshold: params.deletionWarningThreshold,
       },
     });
   }
@@ -133,8 +130,6 @@ export class SnapshotDiffService {
     const ignoreWhitespace = params.options.ignoreWhitespace ?? false;
     const largeFileThresholdBytes =
       params.options.largeFileThresholdBytes ?? DEFAULT_LARGE_FILE_THRESHOLD_BYTES;
-    const deletionWarningThreshold =
-      params.options.deletionWarningThreshold ?? DEFAULT_DELETION_WARNING_THRESHOLD;
 
     const skippedFiles: SnapshotSkippedFile[] = [];
     const baselineEntries = this.normalizeEntries(
@@ -280,7 +275,6 @@ export class SnapshotDiffService {
     const riskyFiles = changedFiles
       .map((file) => file.filePath)
       .filter((filePath) => this.isRiskyPath(filePath));
-    const warnings = this.buildWarnings(deletedFiles, riskyFiles, deletionWarningThreshold);
 
     return {
       patchText: patchChunks.filter(Boolean).join('\n'),
@@ -288,7 +282,6 @@ export class SnapshotDiffService {
       changedFiles,
       deletedFiles,
       riskyFiles,
-      warnings,
       skippedFiles,
     };
   }
@@ -660,33 +653,4 @@ export class SnapshotDiffService {
     );
   }
 
-  private buildWarnings(
-    deletedFiles: string[],
-    riskyFiles: string[],
-    deletionWarningThreshold: number,
-  ): SafetyWarning[] {
-    const warnings: SafetyWarning[] = [];
-
-    if (deletedFiles.length >= deletionWarningThreshold) {
-      warnings.push({
-        warningId: `warn-large-deletion-${deletedFiles.length}`,
-        type: 'large_deletion',
-        message: `${deletedFiles.length} files are scheduled for deletion in this snapshot diff.`,
-        filePaths: deletedFiles,
-        severity: deletedFiles.length >= deletionWarningThreshold * 2 ? 'high' : 'medium',
-      });
-    }
-
-    if (riskyFiles.length > 0) {
-      warnings.push({
-        warningId: `warn-sensitive-${riskyFiles.length}`,
-        type: 'sensitive_file_change',
-        message: 'Risky configuration or migration files changed in this snapshot diff.',
-        filePaths: riskyFiles,
-        severity: 'high',
-      });
-    }
-
-    return warnings;
-  }
 }
