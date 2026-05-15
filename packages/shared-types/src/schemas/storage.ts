@@ -110,6 +110,7 @@ export const SnapshotRowSchema = z.object({
   reason: z.string().nullable(),
   summary: z.string().nullable(),
   local_path: z.string().nullable(),
+  safety_warnings_json: z.string().nullable(),
   created_at: z.string(),
 });
 
@@ -148,6 +149,8 @@ export const RestoreHistoryRowSchema = z.object({
   pre_restore_snapshot_id: z.string().nullable(),
   status: RestoreStatusEnum,
   failure_reason: z.string().nullable(),
+  safety_warnings_before_json: z.string().nullable(),
+  safety_warnings_after_json: z.string().nullable(),
   restored_at: z.string(),
 });
 

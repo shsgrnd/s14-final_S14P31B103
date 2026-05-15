@@ -4,6 +4,8 @@ export * from './SnapshotDiffService';
 export * from './SnapshotLocalStore';
 export * from './SnapshotIdGenerator';
 export * from './SnapshotAutoCleanupService';
+export * from './SafetyCheckService';
+export * from './SafetyWarningSerialization';
 export * from './SnapshotService';
 export * from './SnapshotQueryService';
 export * from './RestoreService';

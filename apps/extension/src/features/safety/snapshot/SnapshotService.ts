@@ -18,6 +18,8 @@ import { SnapshotDiffService } from './SnapshotDiffService';
 import { SnapshotFullStateEntry, SnapshotLocalStore } from './SnapshotLocalStore';
 import { SnapshotIdGenerator } from './SnapshotIdGenerator';
 import { SnapshotAutoCleanupService } from './SnapshotAutoCleanupService';
+import { SafetyCheckService } from './SafetyCheckService';
+import { serializeSafetyWarnings } from './SafetyWarningSerialization';
 
 /**
  * 스냅샷 타입 중 AI가 수행한 작업으로 분류되는 타입 목록입니다.
@@ -112,6 +114,7 @@ export class SnapshotService implements ISnapshotService {
   private readonly workspaceRoot: string;
   private readonly worktreeInstanceId: string;
   private readonly keepRecentCount: number;
+  private readonly safetyCheckService: SafetyCheckService;
   /** AI 요약 호출에 사용되는 AiClient 인스턴스. 제공되지 않으면 AI 요약 기능이 비활성화됨 */
   private readonly aiClient?: AiClient;
   /** 스냅샷 생성 직후 웹뷰에 이벤트를 전송하기 위한 콜백 */
@@ -131,6 +134,7 @@ export class SnapshotService implements ISnapshotService {
     this.localStore = new SnapshotLocalStore(this.workspaceRoot);
     this.diffService = new SnapshotDiffService();
     this.keepRecentCount = options.keepRecentCount ?? SNAPSHOT_KEEP_RECENT_COUNT;
+    this.safetyCheckService = new SafetyCheckService(this.workspaceRoot);
     this.aiClient = options.aiClient;
     this.onSnapshotCreated = options.onSnapshotCreated;
     this.onSnapshotUpdated = options.onSnapshotUpdated;
@@ -188,7 +192,11 @@ export class SnapshotService implements ISnapshotService {
       return undefined;
     }
 
-    const { patchText, hunks, changedFiles, warnings } = diffResult;
+    const { patchText, hunks, changedFiles, deletedFiles } = diffResult;
+    const safetyWarnings = this.safetyCheckService.analyzeSnapshot({
+      changedFiles,
+      deletedFiles,
+    });
 
     // --- 저장 조건 체크 ---
     if (!options.force && type === 'savepoint') {
@@ -234,7 +242,8 @@ export class SnapshotService implements ISnapshotService {
       reason: options.reason,
       summary: options.summary,
       changedFiles,
-      warnings: warnings.length > 0 ? warnings : undefined,
+      safetyWarnings: safetyWarnings.length > 0 ? safetyWarnings : undefined,
+      warnings: safetyWarnings.length > 0 ? safetyWarnings : undefined,
     };
 
     // --- Local 파일 저장 ---
@@ -275,6 +284,7 @@ export class SnapshotService implements ISnapshotService {
         reason: options.reason ?? null,
         summary: options.summary ?? null,
         local_path: path.relative(this.workspaceRoot, snapshotDir).replace(/\\/g, '/'),
+        safety_warnings_json: serializeSafetyWarnings(safetyWarnings),
         created_at: createdAt,
       });
     } catch (dbError) {
@@ -299,10 +309,10 @@ export class SnapshotService implements ISnapshotService {
     }
 
     // --- Safety warning 로그 ---
-    if (warnings.length > 0) {
+    if (safetyWarnings.length > 0) {
       console.warn(
-        `[SnapshotService] Safety 경고 ${warnings.length}개 포함 (snapshotId=${snapshotId}):`,
-        warnings.map((w) => w.type).join(', '),
+        `[SnapshotService] Safety 경고 ${safetyWarnings.length}개 포함 (snapshotId=${snapshotId}):`,
+        safetyWarnings.map((w) => w.code ?? w.type).join(', '),
       );
     }
 
@@ -356,7 +366,6 @@ export class SnapshotService implements ISnapshotService {
         patchText: '',
         hunks: [],
         changedFiles: [] as SnapshotFile[],
-        warnings: [],
         skippedFiles: [],
         deletedFiles: [],
         riskyFiles: [],

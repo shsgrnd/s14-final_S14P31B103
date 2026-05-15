@@ -19,8 +19,9 @@ export class SqliteSnapshotRepository implements SnapshotRepository {
         reason,
         summary,
         local_path,
+        safety_warnings_json,
         created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
     stmt.run(
@@ -31,6 +32,7 @@ export class SqliteSnapshotRepository implements SnapshotRepository {
       input.reason ?? null,
       input.summary ?? null,
       input.local_path ?? null,
+      input.safety_warnings_json ?? null,
       createdAt,
     );
 
@@ -177,6 +179,7 @@ export class SqliteSnapshotRepository implements SnapshotRepository {
       reason: (row.reason as string | null | undefined) ?? null,
       summary: (row.summary as string | null | undefined) ?? null,
       local_path: (row.local_path as string | null | undefined) ?? null,
+      safety_warnings_json: (row.safety_warnings_json as string | null | undefined) ?? null,
       created_at: row.created_at as string,
     };
   }
