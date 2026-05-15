@@ -129,6 +129,7 @@ export interface CreateSnapshotInput {
   reason?: string | null;
   summary?: string | null;
   local_path?: string | null;
+  safety_warnings_json?: string | null;
   created_at?: string;
 }
 
@@ -197,6 +198,8 @@ export interface CreateRestoreHistoryInput {
   pre_restore_snapshot_id?: string | null;
   status?: 'success' | 'failed' | 'partial';
   failure_reason?: string | null;
+  safety_warnings_before_json?: string | null;
+  safety_warnings_after_json?: string | null;
   restored_at?: string;
 }
 

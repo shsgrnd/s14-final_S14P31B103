@@ -12,6 +12,8 @@ import type {
 import { LocalStorageImpl } from '../../../adapters/LocalStorageImpl';
 import type { ISnapshotService } from './ISnapshotService';
 import { SnapshotIdGenerator } from './SnapshotIdGenerator';
+import { SafetyCheckService } from './SafetyCheckService';
+import { deserializeSafetyWarnings, serializeSafetyWarnings } from './SafetyWarningSerialization';
 
 const MAX_SNAPSHOTS = 1000;
 
@@ -20,6 +22,8 @@ export interface RestoreSnapshotResult {
   preRestoreSnapshotId?: string;
   changedPaths: string[];
   restoreHistory: RestoreHistory;
+  beforeWarnings?: RestoreHistory['beforeWarnings'];
+  afterWarnings?: RestoreHistory['afterWarnings'];
 }
 
 interface ApplyWorkspaceStateResult {
@@ -30,6 +34,7 @@ interface ApplyWorkspaceStateResult {
 export class RestoreService {
   private readonly storage: LocalStorageImpl;
   private readonly workspaceRoot: string;
+  private readonly safetyCheckService: SafetyCheckService;
   private isRestoring = false;
 
   constructor(
@@ -40,6 +45,7 @@ export class RestoreService {
   ) {
     this.workspaceRoot = path.resolve(workspaceRoot);
     this.storage = new LocalStorageImpl(this.workspaceRoot);
+    this.safetyCheckService = new SafetyCheckService(this.workspaceRoot);
   }
 
   async restoreToSnapshot(snapshotId: string): Promise<RestoreSnapshotResult> {
@@ -83,6 +89,20 @@ export class RestoreService {
       const latestSnapshotId = snapshots.at(-1)?.snapshot_id;
       const fromSnapshotId = latestSnapshotId ?? snapshotId;
       let preRestoreSnapshotId: string | undefined;
+      const beforeWarnings = this.safetyCheckService.analyzeRestorePlan({
+        phase: 'before_restore',
+        fileStates: changedPaths.map((changedPath) => ({
+          filePath: changedPath,
+          content: currentStates.get(changedPath) ?? null,
+        })),
+      });
+      const afterWarnings = this.safetyCheckService.analyzeRestorePlan({
+        phase: 'after_restore',
+        fileStates: changedPaths.map((changedPath) => ({
+          filePath: changedPath,
+          content: desiredStates.get(changedPath) ?? null,
+        })),
+      });
 
       try {
         preRestoreSnapshotId = await this.createPreRestoreSnapshot(
@@ -100,6 +120,8 @@ export class RestoreService {
             pre_restore_snapshot_id: preRestoreSnapshotId ?? null,
             status: applyResult.appliedPaths.length > 0 ? 'partial' : 'failed',
             failure_reason: failureSummary,
+            safety_warnings_before_json: serializeSafetyWarnings(beforeWarnings),
+            safety_warnings_after_json: serializeSafetyWarnings(afterWarnings),
           });
           throw new Error(`Restore finished with partial failure: ${historyRow.failure_reason}`);
         }
@@ -110,12 +132,16 @@ export class RestoreService {
           target_snapshot_id: snapshotId,
           pre_restore_snapshot_id: preRestoreSnapshotId ?? null,
           status: 'success',
+          safety_warnings_before_json: serializeSafetyWarnings(beforeWarnings),
+          safety_warnings_after_json: serializeSafetyWarnings(afterWarnings),
         });
 
         return {
           snapshotId,
           preRestoreSnapshotId,
           changedPaths,
+          beforeWarnings,
+          afterWarnings,
           restoreHistory: this.toRestoreHistory(historyRow),
         };
       } catch (error) {
@@ -131,6 +157,8 @@ export class RestoreService {
           pre_restore_snapshot_id: preRestoreSnapshotId ?? null,
           status: 'failed',
           failure_reason: failureReason,
+          safety_warnings_before_json: serializeSafetyWarnings(beforeWarnings),
+          safety_warnings_after_json: serializeSafetyWarnings(afterWarnings),
         });
 
         throw new Error(`Restore failed: ${historyRow.failure_reason ?? failureReason}`);
@@ -358,6 +386,7 @@ export class RestoreService {
         const desiredState = desiredStates.get(changedPath) ?? null;
         const absolutePath = path.resolve(this.workspaceRoot, changedPath);
         this.assertInsideWorkspace(absolutePath);
+        this.safetyCheckService.assertNoBlockedDeletion(changedPath, desiredState);
 
         if (desiredState === null) {
           await fs.rm(absolutePath, { force: true });
@@ -482,6 +511,8 @@ export class RestoreService {
     status: 'success' | 'failed' | 'partial';
     restored_at: string;
     failure_reason: string | null;
+    safety_warnings_before_json: string | null;
+    safety_warnings_after_json: string | null;
   }): RestoreHistory {
     return {
       restoreId: row.restore_history_id,
@@ -491,6 +522,8 @@ export class RestoreService {
       status: row.status,
       restoredAt: row.restored_at,
       failureReason: row.failure_reason ?? undefined,
+      beforeWarnings: deserializeSafetyWarnings(row.safety_warnings_before_json),
+      afterWarnings: deserializeSafetyWarnings(row.safety_warnings_after_json),
     };
   }
 }
