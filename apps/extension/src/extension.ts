@@ -37,12 +37,15 @@ import { PrSettingsMessageHandler } from './features/settings/PrSettingsMessageH
 import {
   createMergeRepositories,
   MergeAnalysisArtifactStore,
+  AiPipelineMergeProposalProvider,
   MergeConflictAnalysisService,
   MergeConflictGuardService,
   MergeConflictMessageHandler,
   MergeInputAssembler,
   MergeProposalMessageHandler,
+  LocalMergeProposalDraftProvider,
   MergeProposalService,
+  type MergeProposalProvider,
 } from './features/merge-analysis';
 
 export async function activate(context: vscode.ExtensionContext) {
@@ -282,17 +285,6 @@ async function initializeMergeConflictAnalysis(
   pullRequestHandler?: PullRequestMessageHandler,
   prSettingsService?: PrSettingsService,
 ): Promise<void> {
-  const { AiClient, MergeAiService } = await import('@gitcat/ai-pipeline');
-  const aiConfig = vscode.workspace.getConfiguration('gitcat.ai');
-  const mergeAiClient = new AiClient({
-    mode: aiConfig.get<string>('mode') as any,
-    localModelPath: aiConfig.get<string>('localModelPath'),
-    apiKeyProvider: async () => aiSecretService.getApiKey(),
-  });
-  const mergeAiService = new MergeAiService(mergeAiClient);
-  const { AiPipelineMergeProposalProvider } = await import('./features/merge-analysis');
-  const aiProvider = new AiPipelineMergeProposalProvider(mergeAiService, workspaceRoot);
-
   const repositories = createMergeRepositories(dbInstance);
   const assembler = new MergeInputAssembler(gitService);
   const artifactStore = new MergeAnalysisArtifactStore();
@@ -306,7 +298,7 @@ async function initializeMergeConflictAnalysis(
     artifactStore,
     workspaceRoot,
     gitService,
-    aiProvider,
+    await createMergeProposalProvider(aiSecretService, workspaceRoot),
   );
   const guardService = new MergeConflictGuardService(
     gitService,
@@ -319,6 +311,33 @@ async function initializeMergeConflictAnalysis(
   gitMessageHandler?.setMergeConflictGuardService(guardService);
   pullRequestHandler?.setMergeConflictGuardService(guardService);
   console.log('GitCat merge conflict analysis layer initialized');
+}
+
+async function createMergeProposalProvider(
+  aiSecretService: AiSecretService,
+  workspaceRoot: string,
+): Promise<MergeProposalProvider> {
+  try {
+    const { MergeAiService, AiClient } = await import('@gitcat/ai-pipeline');
+    const config = vscode.workspace.getConfiguration('gitcat.ai');
+    const mode = config.get<string>('mode') as 'mock' | 'live' | 'live-remote' | 'live-local' | undefined;
+    const localModelPath = config.get<string>('localModelPath');
+
+    const aiClient = new AiClient({
+      mode,
+      localModelPath,
+      apiKeyProvider: async () => aiSecretService.getApiKey(),
+    });
+
+    return new AiPipelineMergeProposalProvider(
+      new MergeAiService(aiClient),
+      workspaceRoot,
+    );
+  } catch (error) {
+    // AI 파이프라인 초기화 실패 시에도 병합 분석/수락 흐름은 확인할 수 있도록 로컬 MVP provider로 낮춥니다.
+    console.warn('GitCat merge AI provider initialization failed. Falling back to local provider:', error);
+    return new LocalMergeProposalDraftProvider();
+  }
 }
 
 async function initializeRecommendationBackfill(

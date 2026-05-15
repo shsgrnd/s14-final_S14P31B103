@@ -43,6 +43,7 @@ export const SNAPSHOT_KEEP_RECENT_COUNT = 10;
  * 단순 커서 이동 등 의도 없는 변경을 필터링하기 위한 값이다.
  */
 export const SNAPSHOT_MIN_CHANGED_LINES = 5;
+const LOCAL_AI_SUMMARY_DELAY_MS = 300;
 
 /**
  * SnapshotService 생성 옵션
@@ -564,7 +565,7 @@ export class SnapshotService implements ISnapshotService {
     // 클로저 내부에서 undefined 가능성을 없애기 위해 로컬 변수에 고정
     const aiClient = this.aiClient;
 
-    setImmediate(async () => {
+    const runSummary = async () => {
       try {
         // [Task 45] 스냅샷 타입에 따른 세분화된 태그 결정
         let tag = '[User]';
@@ -584,6 +585,8 @@ export class SnapshotService implements ISnapshotService {
         const rawSummary = await aiClient.generateResponse('recommendation', {
           systemPrompt: getSnapshotSummarySystemPrompt(),
           userPrompt: buildSnapshotSummaryUserPrompt(trimmedDiff),
+        }, {
+          priority: 'background',
         });
 
         // AI 응답에서 앞뒤 공백/줄바꿈 제거 후 태그 붙이기
@@ -602,6 +605,17 @@ export class SnapshotService implements ISnapshotService {
       } catch (aiError) {
         console.warn(`[SnapshotService] AI 요약 생성 실패 (snapshotId=${snapshotId}):`, aiError);
       }
+    };
+
+    if (aiClient.isLiveLocalMode()) {
+      setTimeout(() => {
+        void runSummary();
+      }, LOCAL_AI_SUMMARY_DELAY_MS);
+      return;
+    }
+
+    setImmediate(() => {
+      void runSummary();
     });
   }
 
