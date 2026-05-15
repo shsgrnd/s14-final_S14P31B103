@@ -425,8 +425,8 @@ export const PrPanelLayout: React.FC = () => {
                 WebkitAppearance: 'none',
                 MozAppearance: 'none',
                 padding: '8px 40px 8px 12px',
-                background: 'var(--vscode-input-background)',
-                color: 'var(--vscode-input-foreground)',
+                background: 'var(--vscode-dropdown-background, var(--vscode-input-background))',
+                color: 'var(--vscode-dropdown-foreground, var(--vscode-input-foreground))',
                 border: `1px solid ${baseBranch ? 'var(--vscode-input-border, var(--vscode-panel-border))' : 'var(--vscode-focusBorder)'}`,
                 borderRadius: '6px',
                 outline: 'none',
@@ -451,7 +451,7 @@ export const PrPanelLayout: React.FC = () => {
                 top: '50%',
                 transform: 'translateY(-50%)',
                 pointerEvents: 'none',
-                color: 'var(--vscode-input-foreground)',
+                color: 'var(--vscode-dropdown-foreground, var(--vscode-input-foreground))',
                 opacity: 0.72,
               }}
             />
@@ -576,8 +576,8 @@ export const PrPanelLayout: React.FC = () => {
                   WebkitAppearance: 'none',
                   MozAppearance: 'none',
                   padding: '8px 40px 8px 12px',
-                  background: 'var(--vscode-input-background)',
-                  color: 'var(--vscode-input-foreground)',
+                  background: 'var(--vscode-dropdown-background, var(--vscode-input-background))',
+                  color: 'var(--vscode-dropdown-foreground, var(--vscode-input-foreground))',
                   border: '1px solid var(--vscode-input-border, var(--vscode-panel-border))',
                   borderRadius: '6px',
                   outline: 'none',
@@ -602,7 +602,7 @@ export const PrPanelLayout: React.FC = () => {
                   top: '50%',
                   transform: 'translateY(-50%)',
                   pointerEvents: 'none',
-                  color: 'var(--vscode-input-foreground)',
+                  color: 'var(--vscode-dropdown-foreground, var(--vscode-input-foreground))',
                   opacity: 0.72,
                 }}
               />

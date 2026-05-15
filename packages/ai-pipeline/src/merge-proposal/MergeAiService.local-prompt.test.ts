@@ -37,8 +37,11 @@ function run(): void {
 
   assert.equal(localPrompt.systemPrompt.includes('<think>'), false);
   assert.equal(localPrompt.userPrompt.includes('Task (Chain of Thought):'), false);
+  assert.equal(localPrompt.userPrompt.includes('Return exactly 3 total candidates'), true);
+  assert.equal(localPrompt.localGenerationOptions?.maxTokens, 112);
   assert.equal(remotePrompt.systemPrompt.includes('<think>'), true);
   assert.equal(remotePrompt.userPrompt.includes('Task (Chain of Thought):'), true);
+  assert.equal(remotePrompt.localGenerationOptions, undefined);
 
   console.log('MergeAiService.local-prompt tests passed');
 }
