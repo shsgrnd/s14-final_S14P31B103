@@ -13,6 +13,7 @@ import {
   type SidebarSectionKey,
   useSidebarSectionWeights,
 } from '../../hooks/useSidebarSectionWeights';
+import { snapshotsVisibleInSidebarTimeline } from '../../shared/snapshotTimelineVisibility';
 
 const GitActionPanel = lazy(() =>
   import('../git/GitActionPanel').then((m) => ({ default: m.GitActionPanel })),
@@ -53,6 +54,10 @@ const SECTION_MIN_HEIGHT_PX = 80;
  */
 export const SidebarLayout: React.FC = () => {
   const snapshots = useGitCatStore((state) => state.snapshots);
+  const snapshotTimelineBadgeCount = useMemo(
+    () => snapshotsVisibleInSidebarTimeline(snapshots).length,
+    [snapshots],
+  );
   const stashes = useGitCatStore((state) => state.stashes);
   const notificationLogs = useGitCatStore((state) => state.notificationLogs);
   const clearNotificationLogs = useGitCatStore((state) => state.clearNotificationLogs);
@@ -292,7 +297,7 @@ export const SidebarLayout: React.FC = () => {
           <SectionHeader
             label="Snapshots"
             expanded={expanded.safety}
-            badge={snapshots.length > 0 ? snapshots.length : undefined}
+            badge={snapshotTimelineBadgeCount > 0 ? snapshotTimelineBadgeCount : undefined}
             onToggle={() => setExpanded((p) => ({ ...p, safety: !p.safety }))}
           />
           {expanded.safety && (
