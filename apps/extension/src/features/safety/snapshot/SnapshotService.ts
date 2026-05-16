@@ -525,12 +525,16 @@ export class SnapshotService implements ISnapshotService {
     for (const [filePath, content] of baselines ?? new Map<string, Uint8Array>()) {
       normalizedBaselines.set(this.normalizeWorkspacePath(filePath), content);
     }
+    const normalizedCurrentContents = new Map<string, Uint8Array | null>();
+    for (const [filePath, content] of currentContents ?? new Map<string, Uint8Array | null>()) {
+      normalizedCurrentContents.set(this.normalizeWorkspacePath(filePath), content);
+    }
 
     for (const file of changedFiles) {
       const targetPath = this.normalizeWorkspacePath(file.filePath);
-      const currentContent = currentContents?.get(targetPath)
-        ?? currentContents?.get(file.filePath)
-        ?? await this.readWorkspaceFileContent(targetPath);
+      const currentContent = normalizedCurrentContents.has(targetPath)
+        ? normalizedCurrentContents.get(targetPath) ?? null
+        : await this.readWorkspaceFileContent(targetPath);
 
       if (file.status === 'renamed' && file.renamedFrom) {
         const beforePath = this.normalizeWorkspacePath(file.renamedFrom);

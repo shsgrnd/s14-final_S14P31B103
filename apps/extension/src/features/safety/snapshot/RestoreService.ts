@@ -88,7 +88,7 @@ export class RestoreService {
           targetIndex,
         );
         desiredStates.set(candidatePath, desiredState);
-        currentStates.set(candidatePath, await this.readWorkspaceFile(candidatePath));
+        currentStates.set(candidatePath, await this.readCurrentFileState(candidatePath));
       }
       console.log(
         `[GitCat][Restore] target state resolution complete: snapshotId=${snapshotId}, ` +
@@ -241,6 +241,7 @@ export class RestoreService {
       summary: `Pre-restore backup for ${targetSnapshotId}`,
       changedFiles: changedPaths,
       baselines,
+      currentContents: new Map(currentStates),
     });
 
     if (!preRestoreSnapshotId) {
@@ -518,6 +519,21 @@ export class RestoreService {
       }
       throw error;
     }
+  }
+
+  private async readCurrentFileState(filePath: string): Promise<Uint8Array | null> {
+    const normalizedPath = this.normalizeRelativePath(filePath);
+    const dirtyDocument = vscode.workspace.textDocuments.find((doc) =>
+      doc.isDirty &&
+      doc.uri.scheme === 'file' &&
+      path.resolve(doc.uri.fsPath) === path.resolve(this.workspaceRoot, normalizedPath),
+    );
+
+    if (dirtyDocument) {
+      return Buffer.from(dirtyDocument.getText(), 'utf8');
+    }
+
+    return this.readWorkspaceFile(normalizedPath);
   }
 
   private async removeEmptyParentDirectories(directoryPath: string): Promise<void> {
