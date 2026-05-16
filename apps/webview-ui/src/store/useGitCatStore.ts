@@ -149,6 +149,8 @@ interface GitCatState {
   resolvedCandidates: Record<string, 'accepted' | 'rejected'>;
   /** CONFLICT_RESULT를 유발한 원래 Git 동작 (push | pull | pr | merge) */
   pendingGitAction: 'push' | 'pull' | 'pr' | 'merge' | null;
+  /** merge 충돌 시 재시도에 필요한 source 브랜치 이름 */
+  pendingMergeSource: string | null;
   /** PR 충돌 해결 후 커밋&푸시 완료 — 다음 CREATE_PR 시 충돌 가드를 건너뜀 */
   prSkipMergeGuard: boolean;
   /** Extension LOADING target mergeAnalysis */
@@ -354,6 +356,7 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
   mergeConflictArtifactPath: null,
   resolvedCandidates: {},
   pendingGitAction: null,
+  pendingMergeSource: null,
   prSkipMergeGuard: false,
   isMergeAnalysisLoading: false,
   isMergeProposalLoading: false,
@@ -484,12 +487,13 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
       isAnalyzing: false,
       resolvedCandidates: {},
       pendingGitAction: null,
+      pendingMergeSource: null,
     }),
   markCandidateResolved: (candidateId, status) =>
     set((state) => ({
       resolvedCandidates: { ...state.resolvedCandidates, [candidateId]: status },
     })),
-  clearResolvedCandidates: () => set({ resolvedCandidates: {}, pendingGitAction: null }),
+  clearResolvedCandidates: () => set({ resolvedCandidates: {}, pendingGitAction: null, pendingMergeSource: null }),
   clearMergeApplyHint: () => set({ mergeApplyFollowupHint: null }),
   clearRestoreConfirmDialog: () => set({ restoreConfirmDialog: null }),
 
@@ -687,6 +691,8 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
           mergeApplyFollowupHint: null,
           resolvedCandidates: {},
           pendingGitAction: (payload as any).triggeringAction ?? null,
+          // merge 재시도에 필요한 source 브랜치 저장
+          pendingMergeSource: (payload as any).mergeSource ?? null,
         });
         break;
       case 'MERGE_PROPOSAL':
@@ -892,11 +898,12 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
       case 'NOTIFICATION': {
         const raw = payload.message ?? '';
         if (raw.includes('병합 제안을 수락')) {
-          const followUp =
-            '제안이 로컬 작업 트리에 반영되었습니다. 스테이징(Add) → 커밋 → 푸시로 원격 저장소에 반영하세요.';
           const message = translateUserFacingGitMessage(raw, toneFor(payload.type));
           set((state) => ({
-            mergeApplyFollowupHint: followUp,
+            // Merge 시나리오는 "Merge 다시 시도" 버튼이 자동으로 stage+commit 처리하므로
+            // 수동 스테이징/커밋/푸시 안내 배너를 표시하지 않는다.
+            mergeApplyFollowupHint: state.pendingGitAction === 'merge' ? null
+              : '제안이 로컬 작업 트리에 반영되었습니다. 스테이징(Add) → 커밋 → 푸시로 원격 저장소에 반영하세요.',
             globalNotification: { type: 'success', message },
             sectionNotifications: {
               ...state.sectionNotifications,
@@ -945,6 +952,7 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
                 isAnalyzing: false,
                 resolvedCandidates: {},
                 pendingGitAction: null,
+                pendingMergeSource: null,
                 // PR 충돌 해결 후 푸시 성공: 다음 CREATE_PR 시 가드 건너뜀
                 prSkipMergeGuard: isPrConflictResolved,
               } : {}),

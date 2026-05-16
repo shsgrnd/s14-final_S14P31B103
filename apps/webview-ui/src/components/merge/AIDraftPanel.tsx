@@ -43,10 +43,24 @@ function countConflictClusters(diffText: string): number {
   return count;
 }
 
+// ─── 헬퍼: 텍스트가 unified diff 형식인지 판별 ───────────────────────────────
+function isDiffFormat(text: string): boolean {
+  if (!text) return false;
+  const lines = text.split('\n');
+  return lines.some(line =>
+    line.startsWith('@@') ||
+    line.startsWith('diff ') ||
+    ((line.startsWith('+') && !line.startsWith('+++')) ||
+     (line.startsWith('-') && !line.startsWith('---')))
+  );
+}
+
 // ─── 헬퍼: diff 컨텍스트 축약 (충돌 구간 ±N줄만 유지, 나머지는 ~~N~~ 마커) ─
 const CONTEXT_LINES = 4;
 function trimDiffContext(diffText: string, ctx: number = CONTEXT_LINES): string {
   if (!diffText) return diffText;
+  // plain text(AI가 반환한 최종 merged code)는 trimming 없이 그대로 반환
+  if (!isDiffFormat(diffText)) return diffText;
   const lines = diffText.split('\n');
 
   // 항상 유지할 헤더 라인
@@ -107,6 +121,22 @@ const LineNum: React.FC<{ num: string | number }> = ({ num }) => (
 // ─── 헬퍼: diff 라인 렌더링 (줄 번호 + 생략 마커 포함) ──────────────────────
 function renderDiffLines(text: string): React.ReactNode {
   if (!text) return <span style={{ opacity: 0.4 }}>내용 없음</span>;
+
+  // plain text(AI merged code): 줄 번호만 붙여 그대로 렌더링
+  if (!isDiffFormat(text)) {
+    return text.split('\n').map((line, i) => (
+      <div key={i} style={{ display: 'flex', background: 'transparent' }}>
+        <LineNum num={i + 1} />
+        <span style={{
+          flex: 1, paddingLeft: 4, fontWeight: 'normal',
+          color: 'var(--vscode-editor-foreground)',
+          whiteSpace: 'pre-wrap', wordBreak: 'break-all',
+        }}>
+          {line || ' '}
+        </span>
+      </div>
+    ));
+  }
 
   let lineOld = 1;
   let lineNew = 1;

@@ -158,6 +158,8 @@ export class MessageRouter {
     analysisId?: string;
     artifactPath?: string | null;
     candidates: unknown[];
+    triggeringAction?: 'push' | 'pull' | 'pr' | 'merge';
+    mergeSource?: string;
   }): void {
     this.mergeReviewConflictPayload = payload;
     this.mergeReviewProposalPayload = null;

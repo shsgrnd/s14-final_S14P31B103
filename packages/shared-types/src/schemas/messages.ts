@@ -84,7 +84,7 @@ export const InboundPayloadSchemaMap = {
   ANALYZE_CONFLICT: AnalyzeConflictRequestSchema,
   ACCEPT_MERGE: AcceptMergeRequestSchema,
   REJECT_MERGE: RejectMergeRequestSchema,
-  RUN_MERGE: z.object({ source: z.string(), target: z.string() }),
+  RUN_MERGE: z.object({ source: z.string(), target: z.string().optional(), skipGuard: z.boolean().optional() }),
   RECOMMEND_COMMIT: z.object({
     prompt: z.string().trim().optional(),
     diffText: z.string().trim().optional(),

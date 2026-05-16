@@ -11,11 +11,14 @@
  *   RUN_MERGE, OPEN_MERGE_PANEL
  */
 
+import * as fs from 'fs/promises';
+import * as path from 'path';
 import * as vscode from 'vscode';
 import { GitService, type GitStatusResponse } from './GitService';
 import { BranchCleanupService } from './BranchCleanupService';
 import type { MergeConflictGuardService } from '../merge-analysis/MergeConflictGuardService';
 import type { MessageRouter } from '../../core/MessageRouter';
+import { gitcatLog, gitcatLogWarn } from '../../platform/GitCatLog';
 
 export class GitMessageHandler {
   private mergeConflictGuardService: MergeConflictGuardService | null = null;
@@ -102,7 +105,7 @@ export class GitMessageHandler {
 
       // ─── Merge ───────────────────────────────────────────────────────────
       case 'RUN_MERGE':
-        await this.handleRunMerge(payload, webview);
+        await this.handleRunMerge(payload as { source: string; target?: string; skipGuard?: boolean }, webview);
         return true;
 
       case 'MERGE_ABORT':
@@ -417,7 +420,7 @@ export class GitMessageHandler {
           }
         }
       } catch (error) {
-        console.warn('[GitCat] Push 가드 검증 중 예외 발생:', error);
+        gitcatLogWarn('[GitCat] Push 가드 검증 중 예외 발생:', error);
       }
 
       // 실제 push할 커밋이 있을 때만 충돌 가드를 실행한다.
@@ -459,7 +462,7 @@ export class GitMessageHandler {
       await this.gitService.runCommit('GitCat: AI 병합 제안 적용');
     } catch (error) {
       // Auto-commit 실패는 push 자체를 막지 않도록 경고만 로깅합니다.
-      console.warn('[GitCat] autoCommitAcceptedChanges 실패:', error);
+      gitcatLogWarn('[GitCat] autoCommitAcceptedChanges 실패:', error);
     }
   }
 
@@ -508,21 +511,57 @@ export class GitMessageHandler {
   private async handleMergeContinueAfterReview(
     webview: vscode.Webview,
     status: GitStatusResponse,
+    successMessage = 'Pull이 완료되었습니다.',
   ): Promise<void> {
+    // ACCEPT_MERGE는 워크스페이스 파일만 덮어쓰므로, git 인덱스에 unmerged 엔트리(stage 1,2,3)가
+    // 남아있을 수 있다. git add <file>로 명시적으로 해소한 뒤, 나머지 수정 파일도 함께 스테이징해야
+    // `git commit --no-edit`이 "You have unmerged paths" 오류 없이 성공한다.
     const conflictedPaths = status.conflicted.map((f) => f.path);
+    gitcatLog(`[GitCat] handleMergeContinueAfterReview: conflictedPaths=[${conflictedPaths.join(',')}]`);
 
-    if (conflictedPaths.length > 0) {
-      // Stage files that had conflicts. Accepted AI proposals already wrote clean content.
-      // Any file still having conflict markers will cause merge --continue to fail (expected).
-      await this.gitService.stageFiles(conflictedPaths);
-    } else {
-      // No git-conflicted files remain; stage any other modified files.
-      await this.gitService.stageAll();
+    // 커밋 전, 충돌 파일에 conflict 마커가 남아있으면 커밋을 거부한다.
+    // (REJECT_MERGE 또는 미해결 상태에서 retry를 누른 경우 방지)
+    const repoRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath ?? '';
+    gitcatLog(`[GitCat] handleMergeContinueAfterReview: repoRoot=${repoRoot}`);
+    const markerFiles = await this.findFilesWithConflictMarkers(repoRoot, conflictedPaths);
+    gitcatLog(`[GitCat] handleMergeContinueAfterReview: markerFiles=[${markerFiles.join(',')}]`);
+    if (markerFiles.length > 0) {
+      throw new Error(
+        `다음 파일에 충돌 마커(<<<<<<, =======, >>>>>>>)가 남아있습니다: ${markerFiles.join(', ')}\n` +
+        '직접 편집하여 충돌을 해소한 뒤 다시 시도해주세요.',
+      );
     }
 
+    if (conflictedPaths.length > 0) {
+      gitcatLog(`[GitCat] stageFiles: ${conflictedPaths.join(',')}`);
+      await this.gitService.stageFiles(conflictedPaths);
+    }
+    gitcatLog('[GitCat] stageAll');
+    await this.gitService.stageAll();
+
+    gitcatLog('[GitCat] mergeContinue (git commit --no-edit)');
     await this.gitService.mergeContinue();
-    this.notifySuccessAllWebviews(webview, 'Pull이 완료되었습니다.');
+    gitcatLog('[GitCat] mergeContinue success, sending notification');
+    this.notifySuccessAllWebviews(webview, successMessage);
     await this.handleRefreshStatus(webview);
+  }
+
+  private async findFilesWithConflictMarkers(repoRoot: string, filePaths: string[]): Promise<string[]> {
+    const markerFiles: string[] = [];
+    for (const filePath of filePaths) {
+      try {
+        const absolutePath = path.isAbsolute(filePath) ? filePath : path.join(repoRoot, filePath);
+        const content = await fs.readFile(absolutePath, 'utf8');
+        // `<<<<<<< ` (7 `<` + space) is the canonical Git conflict marker start.
+        // Using only `<<<<<<<` avoids the false-positive risk from `=======` or `>>>>>>>`.
+        if (content.includes('<<<<<<<')) {
+          markerFiles.push(filePath);
+        }
+      } catch {
+        // 파일을 읽을 수 없으면 무시
+      }
+    }
+    return markerFiles;
   }
 
   private async blockPushWhenTrackingBranchBehind(webview: vscode.Webview): Promise<boolean> {
@@ -599,10 +638,37 @@ export class GitMessageHandler {
     payload: { source: string; target?: string },
     webview: vscode.Webview,
   ): Promise<boolean> {
-    if (!this.mergeConflictGuardService) {
+    if (!this.mergeConflictGuardService || !this.messageRouter) {
       return false;
     }
 
+    // 실제 git merge를 먼저 실행한다.
+    // - 충돌 없이 성공 → 완료 처리 후 blocked=true 반환 (handleRunMerge가 재시도하지 않도록)
+    // - 충돌 발생 → MERGING 상태가 됨. 분석 결과와 함께 CONFLICT_RESULT 전송 후 blocked=true 반환.
+    //   이후 ACCEPT_MERGE로 파일을 정리한 뒤 retry 시 isMerging=true 경로로 정상 완료됨.
+    const mergeResult = await this.gitService.runMerge(payload.source);
+
+    if (mergeResult.success) {
+      // 충돌 없이 merge 완료
+      this.sendOperationResult(webview, 'RUN_MERGE', { success: true, message: mergeResult.stdout });
+      webview.postMessage({
+        type: 'MERGE_COMPLETE',
+        payload: {
+          merge: {
+            status: 'completed',
+            message: mergeResult.stdout || 'Merge completed.',
+            source: payload.source,
+            target: payload.target,
+            completedAt: new Date().toISOString(),
+          },
+        },
+      });
+      this.notifySuccessAllWebviews(webview, '병합이 완료되었습니다.');
+      await this.handleRefreshStatus(webview);
+      return true;
+    }
+
+    // 충돌 발생 — MERGING 상태. 가드 분석으로 후보 목록 구성 후 UI 표시.
     const status = await this.gitService.getStatus();
     const targetBranch = payload.target?.trim() || status.currentBranch;
     const result = await this.mergeConflictGuardService.guard({
@@ -611,33 +677,50 @@ export class GitMessageHandler {
       targetScope: 'local',
     });
 
-    if (result.skipped || !result.hasConflicts) {
-      return false;
-    }
+    const message = `로컬 브랜치(${payload.source})를 병합하는 중 충돌이 발생했습니다. AI 추천을 확인하고 해결 후 다시 시도해 주세요.`;
 
-    const message = `로컬 브랜치(${result.sourceBranch})를 ${result.targetBranch}에 병합하면 충돌 가능성이 있습니다. 추천 확인 후 다시 merge해 주세요.`;
-    webview.postMessage({
-      type: 'CONFLICT_RESULT',
-      payload: {
+    if (!result.skipped && result.hasConflicts) {
+      this.messageRouter.publishConflictResult({
         analysisId: result.analysis.analysisId,
         artifactPath: result.analysis.artifactPath,
         candidates: result.analysis.candidates,
-      },
-    });
+        triggeringAction: 'merge',
+        mergeSource: payload.source,
+      });
+    } else {
+      // 분석에서 후보를 찾지 못한 경우(엣지케이스) — 간단한 경고만 표시
+      this.messageRouter.broadcast({ type: 'NOTIFICATION', payload: { type: 'warning', message } });
+    }
+
     this.sendOperationResult(webview, 'RUN_MERGE', { success: false, message });
-    this.sendNotification(webview, 'warning', message);
     return true;
   }
 
   private async handleRunMerge(
-    payload: { source: string; target?: string },
+    payload: { source: string; target?: string; skipGuard?: boolean },
     webview: vscode.Webview,
   ): Promise<void> {
     this.sendLoading(webview, 'merge', true);
     try {
-      const blocked = await this.guardLocalRunMergeConflict(payload, webview);
-      if (blocked) {
-        return;
+      // skipGuard=true: 충돌 해결 후 재시도 — 가드를 건너뛰고 바로 merge 실행
+      if (!payload.skipGuard) {
+        const blocked = await this.guardLocalRunMergeConflict(payload, webview);
+        if (blocked) {
+          return;
+        }
+      }
+
+      // skipGuard=true이고 git이 이미 MERGING 상태이면, 충돌 해결 후 merge --continue를 실행해야 한다.
+      // (git merge <source>를 다시 실행하면 "already in a merge" 오류가 발생함)
+      if (payload.skipGuard) {
+        const status = await this.gitService.getStatus();
+        gitcatLog(`[GitCat] RUN_MERGE retry: isMerging=${status.isMerging}, conflicted=[${status.conflicted.map(f => f.path).join(',')}]`);
+        if (status.isMerging) {
+          await this.handleMergeContinueAfterReview(webview, status, '병합이 완료되었습니다.');
+          return;
+        }
+        // MERGING 상태가 아닌 경우: 실제 merge를 실행한다
+        gitcatLog('[GitCat] RUN_MERGE retry: not in MERGING state, running git merge again');
       }
 
       const result = await this.gitService.runMerge(payload.source);
@@ -683,6 +766,9 @@ export class GitMessageHandler {
         );
         await this.handleRefreshStatus(webview);
       }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.notifyErrorAllWebviews(webview, message || 'Merge에 실패했습니다.');
     } finally {
       this.sendLoading(webview, 'merge', false);
     }

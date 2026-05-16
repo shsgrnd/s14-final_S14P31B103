@@ -29,7 +29,8 @@ export const ConflictAnalysisView: React.FC = () => {
     conflicts, isAnalyzing, isMergeAnalysisLoading,
     selectedConflict, setSelectedConflict,
     resolvedCandidates, pendingGitAction, clearResolvedCandidates,
-    isPulling, isPushing, globalNotification,
+    isPulling, isPushing, isMerging, globalNotification,
+    pendingMergeSource,
   } = useGitCatStore();
   const isPrPushRetrying = pendingGitAction === 'pr' && isPushing;
   const { sendMessage } = useVsCodeApi();
@@ -46,7 +47,8 @@ export const ConflictAnalysisView: React.FC = () => {
   // 현재 retry 작업 실행 중 여부
   const isRetrying =
     (pendingGitAction === 'pull' && isPulling) ||
-    (pendingGitAction === 'push' && isPushing);
+    (pendingGitAction === 'push' && isPushing) ||
+    (pendingGitAction === 'merge' && isMerging);
 
   // 에디터 패널에는 globalNotification이 렌더링되지 않으므로 여기서 직접 표시
   const retryError =
@@ -54,11 +56,16 @@ export const ConflictAnalysisView: React.FC = () => {
 
   const handleContinueAction = () => {
     if (!pendingGitAction || isRetrying) return;
-    // UI는 그대로 유지 — pull/push 성공 알림이 오면 스토어에서 자동으로 정리됨
+    // UI는 그대로 유지 — pull/push/merge 성공 알림이 오면 스토어에서 자동으로 정리됨
     const msgType = ACTION_INBOUND[pendingGitAction];
     if (msgType) {
-      // skipGuard: true → 충돌 가드를 건너뛰고 Git 작업 바로 실행
-      (sendMessage as any)(msgType, { skipGuard: true });
+      if (pendingGitAction === 'merge' && pendingMergeSource) {
+        // merge 재시도: source 브랜치 정보 포함 필요
+        (sendMessage as any)(msgType, { source: pendingMergeSource, skipGuard: true });
+      } else {
+        // skipGuard: true → 충돌 가드를 건너뛰고 Git 작업 바로 실행
+        (sendMessage as any)(msgType, { skipGuard: true });
+      }
     }
   };
 
