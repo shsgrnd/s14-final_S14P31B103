@@ -1,9 +1,6 @@
 """
 generate_eval_report.py
 ========================
-명세서 요구사항:
-- [실험 결과를 csv 또는 markdown report로 자동 정리]
-- [결과 요약 테이블 자동 생성]
 
 analyze_eval_results.py 가 생성한 분석 결과를 종합하여
 Base / SFT / DPO 세 모델의 성능을 한눈에 비교하는

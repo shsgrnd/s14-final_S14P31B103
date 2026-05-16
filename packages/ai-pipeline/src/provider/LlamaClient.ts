@@ -3,6 +3,7 @@ import type {
   LlamaContext,
   LlamaChatSession,
   LLamaChatPromptOptions,
+// @ts-ignore
 } from 'node-llama-cpp';
 import { promises as fs } from 'node:fs';
 import type { PromptPayload } from './AiClient';
@@ -141,8 +142,8 @@ export class GitCatLlamaClient {
       // 프롬프트와 함께 전달된 로컬 전용 생성 옵션만 골라서 node-llama-cpp에 넘깁니다.
       const promptOptions: LLamaChatPromptOptions | undefined = payload.localGenerationOptions
         ? {
-            ...payload.localGenerationOptions,
-          }
+          ...payload.localGenerationOptions,
+        }
         : undefined;
       const response = await session.prompt(payload.userPrompt, promptOptions);
       return {
