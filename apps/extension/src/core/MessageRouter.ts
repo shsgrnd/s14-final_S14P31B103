@@ -429,7 +429,12 @@ export class MessageRouter {
     const snapshotQueryService = this.requireSnapshotQueryService();
     const restoreHistoryService = this.requireRestoreHistoryQueryService();
     const payload = message.payload as { snapshotId: string };
+    console.log(`[GitCat][Restore] RESTORE_SNAPSHOT received: snapshotId=${payload.snapshotId}`);
     const result = await service.restoreToSnapshot(payload.snapshotId);
+    console.log(
+      `[GitCat][Restore] restoreToSnapshot success: snapshotId=${payload.snapshotId}, ` +
+      `preRestoreSnapshotId=${result.preRestoreSnapshotId ?? 'none'}, changedPaths=${result.changedPaths.length}`,
+    );
 
     await webview.postMessage({
       type: 'RESTORE_DONE',
@@ -447,6 +452,10 @@ export class MessageRouter {
       snapshotQueryService.listSnapshots(),
       restoreHistoryService.listHistory(),
     ]);
+    console.log(
+      `[GitCat][Restore] follow-up queries complete: snapshotId=${payload.snapshotId}, ` +
+      `snapshotCount=${snapshots.snapshots.length}, historyCount=${histories.length}`,
+    );
 
     await webview.postMessage({
       type: 'SNAPSHOT_LIST',
