@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import type { RecommendationInput } from '@gitcat/shared-types';
-import { buildRecommendationUserPrompt } from './recommendation';
+import {
+  buildRecommendationUserPrompt,
+  getRecommendationSystemPrompt,
+} from './recommendation';
 
 function createCommitPayload(): RecommendationInput {
   return {
@@ -51,6 +54,15 @@ function createPrPayload(): RecommendationInput {
 }
 
 function run(): void {
+  const localSystemPrompt = getRecommendationSystemPrompt('local-fast', 'commit_message');
+  const remoteSystemPrompt = getRecommendationSystemPrompt('default', 'commit_message');
+
+  assert.equal(localSystemPrompt.includes('recommendation_type'), true);
+  assert.equal(localSystemPrompt.includes('Do not include recommendation_type in the JSON'), true);
+  assert.equal(localSystemPrompt.includes('Return only these required fields: title, summary, primary_text, alternative_texts.'), true);
+  assert.equal(remoteSystemPrompt.includes('Required JSON fields: title, summary, primary_text, alternative_texts.'), true);
+  assert.equal(remoteSystemPrompt.includes('Do not include recommendation_type in the JSON'), true);
+
   const localCommitPrompt = buildRecommendationUserPrompt(createCommitPayload(), 'local-fast');
   const remoteCommitPrompt = buildRecommendationUserPrompt(createCommitPayload(), 'default');
 
