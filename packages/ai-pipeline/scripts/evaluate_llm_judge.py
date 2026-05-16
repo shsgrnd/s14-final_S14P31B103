@@ -73,11 +73,32 @@ def resolve_output_file(model_type: str, output_file: str | None) -> str:
 def extract_json_block(raw_text: str) -> Dict[str, Any]:
     json_match = re.search(r"\{[\s\S]*\}", raw_text, re.DOTALL)
     if not json_match:
-        return {"accuracy": 0, "clarity": 0, "format": 0}
+        return {"accuracy": 0, "clarity": 0, "format": 0, "json_valid": False}
     try:
-        return json.loads(json_match.group(0))
+        data = json.loads(json_match.group(0))
+        data["json_valid"] = True
+        return data
     except json.JSONDecodeError:
-        return {"accuracy": 0, "clarity": 0, "format": 0}
+        return {"accuracy": 0, "clarity": 0, "format": 0, "json_valid": False}
+
+
+def calculate_repetition_rate(text: str, window_size: int = 10) -> float:
+    """텍스트 내 시퀀스 반복 비율을 계산하여 무한 루프 징후를 포착합니다."""
+    if not text or len(text) < window_size * 2:
+        return 0.0
+
+    words = text.split()
+    if len(words) < window_size * 2:
+        return 0.0
+
+    sequences = []
+    for i in range(len(words) - window_size + 1):
+        sequences.append(" ".join(words[i : i + window_size]))
+
+    unique_sequences = set(sequences)
+    if not sequences:
+        return 0.0
+    return 1.0 - (len(unique_sequences) / len(sequences))
 
 
 def build_task_context(record: Dict[str, Any]) -> str:
@@ -112,6 +133,7 @@ def build_judge_prompt(record: Dict[str, Any], response_text: str) -> str:
 - accuracy: 작업 의도 충족도, 기술적 타당성, reference 대비 의미 보존 정도 (1~10)
 - clarity: 설명의 명확성, 읽기 쉬움, 후속 행동 가능성 (1~10)
 - format: JSON/필드 구조/마크다운 등 출력 형식 준수 정도 (1~10)
+- hallucination: 코드에 없는 변수, 함수, 파일명을 허구로 지어냈는지 여부 (1: 없음, 10: 심각함)
 
 [Prompt]
 {record.get("prompt", "")}
@@ -123,7 +145,7 @@ def build_judge_prompt(record: Dict[str, Any], response_text: str) -> str:
 {response_text}
 
 결과는 반드시 아래 JSON 형식으로만 답하세요.
-{{"accuracy": 8, "clarity": 9, "format": 10}}
+{{"accuracy": 8, "clarity": 9, "format": 10, "hallucination": 1}}
 """
 
 
@@ -145,7 +167,7 @@ def score_with_llm(
         return extract_json_block(content)
     except Exception as error:
         print(f"\n[ERROR] LLM Evaluation failed: {error}", flush=True)
-        return {"accuracy": 0, "clarity": 0, "format": 0}
+        return {"accuracy": 0, "clarity": 0, "format": 0, "hallucination": 0}
 
 
 def main():
@@ -161,7 +183,8 @@ def main():
     client = build_client()
     os.makedirs(os.path.dirname(output_file), exist_ok=True)
 
-    total_scores = {"accuracy": 0, "clarity": 0, "format": 0}
+    total_scores = {"accuracy": 0, "clarity": 0, "format": 0, "hallucination": 0}
+    stability_metrics = {"json_valid_count": 0, "total_repetition_rate": 0.0}
     count = 0
 
     print("\n[START] LLM-as-a-Judge Evaluation", flush=True)
@@ -186,22 +209,42 @@ def main():
             sys.stdout.flush()
 
             scores = score_with_llm(client, args.judge_model, record, response_text)
+            
+            # stability metrics 계산
+            is_json_valid = scores.get("json_valid", False)
+            rep_rate = calculate_repetition_rate(response_text)
+            
             record["llm_judge_scores"] = scores
+            record["stability_metrics"] = {
+                "json_valid": is_json_valid,
+                "repetition_rate": rep_rate
+            }
             record["judge_model"] = args.judge_model
             output_stream.write(json.dumps(record, ensure_ascii=False) + "\n")
 
             total_scores["accuracy"] += scores.get("accuracy", 0)
             total_scores["clarity"] += scores.get("clarity", 0)
             total_scores["format"] += scores.get("format", 0)
+            total_scores["hallucination"] += scores.get("hallucination", 0)
+            
+            if is_json_valid:
+                stability_metrics["json_valid_count"] += 1
+            stability_metrics["total_repetition_rate"] += rep_rate
+            
             count += 1
 
     print("\n\n" + "=" * 50)
     print("🏆 [EVALUATION REPORT] 🏆")
     if count > 0:
         print(f"Total Samples: {count}")
-        print(f"Avg Accuracy : {total_scores['accuracy'] / count:.2f} / 10.0")
-        print(f"Avg Clarity  : {total_scores['clarity'] / count:.2f} / 10.0")
-        print(f"Avg Format   : {total_scores['format'] / count:.2f} / 10.0")
+        print(f"Avg Accuracy      : {total_scores['accuracy'] / count:.2f} / 10.0")
+        print(f"Avg Clarity       : {total_scores['clarity'] / count:.2f} / 10.0")
+        print(f"Avg Format        : {total_scores['format'] / count:.2f} / 10.0")
+        print(f"Avg Hallucination : {total_scores['hallucination'] / count:.2f} / 10.0 (낮을수록 좋음)")
+        
+        print("\n🛡️ [STABILITY METRICS] 🛡️")
+        print(f"JSON Validity Rate: {(stability_metrics['json_valid_count'] / count) * 100:.1f}%")
+        print(f"Avg Repetition Rate: {(stability_metrics['total_repetition_rate'] / count) * 100:.1f}%")
 
         final_score = (
             total_scores["accuracy"] + total_scores["clarity"] + total_scores["format"]
