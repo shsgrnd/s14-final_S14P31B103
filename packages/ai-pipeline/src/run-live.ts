@@ -51,16 +51,6 @@ async function main(): Promise<void> {
   console.log('[GitCat AI] Parsed result:');
   console.log(JSON.stringify(result, null, 2));
   if (result.feature_type === 'merge_patch_draft') {
-    if (result.diff_patch_ref) {
-      console.log(
-        `[GitCat AI] Saved diff patch artifact: ${resolveProposalArtifactPath(
-          workspaceRoot,
-          result.session_id,
-          result.proposal_id,
-          result.diff_patch_ref,
-        )}`,
-      );
-    }
     if (result.merged_code_ref) {
       console.log(
         `[GitCat AI] Saved merged code artifact: ${resolveProposalArtifactPath(

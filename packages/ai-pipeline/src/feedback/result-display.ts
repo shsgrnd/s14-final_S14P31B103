@@ -72,8 +72,7 @@ function buildFeatureSections(result: ParsedAiResult): DisplaySection[] {
           title: 'Merge Draft',
           fields: [
             { label: 'Applied Files', value: joinList(result.applied_files) },
-            { label: 'Diff Patch Ref', value: result.diff_patch_ref ?? 'Not provided' },
-            { label: 'Merged Code Ref', value: result.merged_code_ref ?? 'Not provided' },
+            { label: 'Merged Code Ref', value: result.merged_code_ref },
             { label: 'Validation Required', value: String(result.validation_required) },
             { label: 'Validation Summary', value: result.validation_summary },
           ],

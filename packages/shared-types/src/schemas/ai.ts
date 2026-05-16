@@ -25,15 +25,11 @@ export const ParsedAiResultBaseSchema = z.object({
 
 export const MergePatchDraftResultSchema = ParsedAiResultBaseSchema.extend({
   feature_type: z.literal('merge_patch_draft'),
-  diff_patch_ref: z.string().optional(),
-  merged_code_ref: z.string().optional(),
+  merged_code_ref: z.string(),
   applied_files: z.array(z.string()),
   validation_required: z.boolean(),
   validation_summary: z.string(),
-}).refine(
-  (data) => !!data.diff_patch_ref || !!data.merged_code_ref,
-  { message: "Either diff_patch_ref or merged_code_ref must be provided for merge_patch_draft" }
-);
+});
 
 export const ConflictExplanationResultSchema = ParsedAiResultBaseSchema.extend({
   feature_type: z.literal('conflict_explanation'),
@@ -76,7 +72,7 @@ export const MinimalMergePatchResponseSchema = z.object({
   summary: z.string(),
   explanation: z.string().optional().default(""),
   confidence_score: z.number().optional().default(0.5),
-  merged_code: z.string(),
+  merged_code: z.string().trim().min(1),
   validation_summary: z.string().optional().default(""),
 });
 

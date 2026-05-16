@@ -40,7 +40,7 @@ function filterSystemMetadata(payload: Record<string, any>): Record<string, any>
 }
 
 /**
- * 인라인 치환이 필요한 파일 ref(diff_patch_ref, final_code_ref 등)가 있다면
+ * 인라인 치환이 필요한 파일 ref(merged_code_ref, final_code_ref 등)가 있다면
  * 실제 로컬 파일을 읽어서 문자열로 교체합니다.
  */
 async function inlineArtifactRefs(
@@ -51,20 +51,6 @@ async function inlineArtifactRefs(
   const sessionId = payload.session_id;
   const proposalId = payload.proposal_id;
   const feedbackId = payload.feedback_id;
-
-  if (result.diff_patch_ref && sessionId && proposalId) {
-    try {
-      const artifactPath = resolveProposalArtifactPath(
-        workspaceRoot,
-        sessionId,
-        proposalId,
-        result.diff_patch_ref,
-      );
-      result.diff_patch_ref = await fs.readFile(artifactPath, 'utf8');
-    } catch (e) {
-      console.warn(`Failed to inline diff_patch_ref: ${e}`);
-    }
-  }
 
   if (result.merged_code_ref && sessionId && proposalId) {
     try {

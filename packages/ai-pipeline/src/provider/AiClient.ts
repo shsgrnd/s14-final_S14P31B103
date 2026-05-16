@@ -176,14 +176,9 @@ export class AiClient {
           summary: "Combined imports and logic to resolve conflict.",
           explanation: "The changes are non-overlapping but touch the same module.",
           confidence_score: 0.95,
-          diff_patch_ref: "patch-12345",
-          diff_patch: [
-            "--- a/src/index.ts",
-            "+++ b/src/index.ts",
-            "@@",
-            "-import { oldHelper } from './old';",
-            "+import { oldHelper } from './old';",
-            "+import { newHelper } from './new';",
+          merged_code: [
+            "import { oldHelper } from './old';",
+            "import { newHelper } from './new';",
           ].join("\n"),
           applied_files: ["src/index.ts"],
           validation_required: true,
