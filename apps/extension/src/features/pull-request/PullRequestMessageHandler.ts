@@ -45,15 +45,27 @@ import { GitHubApiError } from '../../integrations/github/interfaces';
 import type { ErrorCode } from '@gitcat/shared-types';
 import { InboundPayloadSchemaMap } from '@gitcat/shared-types';
 import type { MergeConflictGuardService } from '../merge-analysis/MergeConflictGuardService';
+import type { MessageRouter } from '../../core/MessageRouter';
 
 export class PullRequestMessageHandler {
   private mergeConflictGuardService: MergeConflictGuardService | null = null;
+  private messageRouter: MessageRouter | null = null;
+  /**
+   * PR 충돌 해결 후 커밋&푸시 완료 시 true로 설정된다.
+   * 다음 CREATE_PR 요청에서 충돌 가드를 건너뛰고 바로 PR을 생성한다.
+   * CREATE_PR 처리 후(성공/실패 무관) 자동으로 false로 초기화된다.
+   */
+  private nextCreatePrSkipGuard = false;
 
   constructor(
     private readonly pullRequestService: PullRequestService,
     private readonly openPullRequestPanel?: () => void,
     private readonly closePullRequestPanel?: () => void,
   ) {}
+
+  public setMessageRouter(router: MessageRouter): void {
+    this.messageRouter = router;
+  }
 
   public setMergeConflictGuardService(service: MergeConflictGuardService): void {
     this.mergeConflictGuardService = service;
@@ -159,13 +171,22 @@ export class PullRequestMessageHandler {
       // Zod 스키마로 payload 검증 (headBranch, reviewers 등 포함)
       const validated = InboundPayloadSchemaMap.CREATE_PR.parse(payload);
 
-      const blocked = await this.guardCreatePrMergeConflict(
-        validated.headBranch,
-        validated.base,
-        webview,
-      );
-      if (blocked) {
-        return;
+      // skipGuard 판단: 프론트에서 전달한 값 OR extension 측에서 예약된 플래그
+      const shouldSkipGuard = validated.skipGuard === true || this.nextCreatePrSkipGuard;
+      // 사용 후 즉시 초기화 (1회용 플래그)
+      this.nextCreatePrSkipGuard = false;
+
+      if (!shouldSkipGuard) {
+        const blocked = await this.guardCreatePrMergeConflict(
+          validated.headBranch,
+          validated.base,
+          webview,
+        );
+        if (blocked) {
+          return;
+        }
+      } else {
+        console.log('[GitCat] PullRequestMessageHandler: CREATE_PR 충돌 가드 건너뜀 (충돌 해결 후 재시도)');
       }
 
       const result = await this.pullRequestService.createPullRequest({
@@ -255,7 +276,13 @@ export class PullRequestMessageHandler {
    *   1. 기본 base branch(예: 'main')가 정해진 경우 → 즉시 RECOMMEND_PR 전송
    *   2. base branch 미선택 → 사용자가 선택한 뒤 RECOMMEND_PR 전송
    */
-  private async handleOpenPRPanel(_payload: any, webview: vscode.Webview): Promise<void> {
+  private async handleOpenPRPanel(payload: any, webview: vscode.Webview): Promise<void> {
+    // skipGuard=true: 충돌 해결 후 커밋&푸시 완료 → 다음 CREATE_PR에서 가드 건너뜀
+    if (payload?.skipGuard === true) {
+      this.nextCreatePrSkipGuard = true;
+      console.log('[GitCat] PullRequestMessageHandler: OPEN_PR_PANEL skipGuard=true — 다음 CREATE_PR 가드 건너뜀 예약');
+    }
+
     // ─── 1. push 상태 검증 ────────────────────────────────────────────────────
     // 원격 브랜치가 없거나 ahead 커밋이 있으면 패널을 열지 않고 ERROR를 반환한다.
     // 프론트는 code: 'GITHUB_BRANCH_NOT_PUSHED'를 받아 사용자에게 안내한다.
@@ -311,18 +338,28 @@ export class PullRequestMessageHandler {
     }
 
     const message = `PR target 브랜치(${result.targetBranch})와 병합 충돌 가능성이 있습니다. 추천 확인 후 다시 PR을 생성해 주세요.`;
-    webview.postMessage({
-      type: 'CONFLICT_RESULT',
-      payload: {
-        analysisId: result.analysis.analysisId,
-        artifactPath: result.analysis.artifactPath,
-        candidates: result.analysis.candidates,
-      },
-    });
-    webview.postMessage({
-      type: 'NOTIFICATION',
-      payload: { type: 'warning', message },
-    });
+    const conflictPayload = {
+      analysisId: result.analysis.analysisId,
+      artifactPath: result.analysis.artifactPath,
+      candidates: result.analysis.candidates,
+      triggeringAction: 'pr' as const,
+    };
+    if (this.messageRouter) {
+      this.messageRouter.publishConflictResult(conflictPayload);
+      this.messageRouter.broadcast({
+        type: 'NOTIFICATION',
+        payload: { type: 'warning', message },
+      });
+    } else {
+      webview.postMessage({
+        type: 'CONFLICT_RESULT',
+        payload: conflictPayload,
+      });
+      webview.postMessage({
+        type: 'NOTIFICATION',
+        payload: { type: 'warning', message },
+      });
+    }
     return true;
   }
 

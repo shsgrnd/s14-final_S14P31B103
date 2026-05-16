@@ -17,6 +17,7 @@ import {
   type SnapshotFile,
 } from '@gitcat/shared-types';
 import { translateUserFacingGitMessage, type UiMessageTone } from '../shared/gitMessageKo';
+import { sendMessage } from '../hooks/useVsCodeApi';
 
 /** 전역 알림 메시지 타입 */
 export interface GlobalNotification {
@@ -132,7 +133,24 @@ interface GitCatState {
   snapshots: SnapshotMeta[];
   // 병합 화면은 AI/DB 원본이 아니라 Webview projection DTO만 보관합니다.
   conflicts: MergeConflictCandidateView[];
+  /** 사용자가 목록에서 선택한 충돌 후보 (2-컬럼 미리보기 단계) */
+  selectedConflict: MergeConflictCandidateView | null;
   currentAIDraft: MergeProposalView | null;
+  /** 마지막 CONFLICT_RESULT 상위 analysisId (가드·수동 분석 공통) */
+  mergeConflictAnalysisId: string | null;
+  mergeConflictArtifactPath: string | null;
+  /** 각 candidateId 별 처리 상태 (accepted | rejected) */
+  resolvedCandidates: Record<string, 'accepted' | 'rejected'>;
+  /** CONFLICT_RESULT를 유발한 원래 Git 동작 (push | pull | pr | merge) */
+  pendingGitAction: 'push' | 'pull' | 'pr' | 'merge' | null;
+  /** PR 충돌 해결 후 커밋&푸시 완료 — 다음 CREATE_PR 시 충돌 가드를 건너뜀 */
+  prSkipMergeGuard: boolean;
+  /** Extension LOADING target mergeAnalysis */
+  isMergeAnalysisLoading: boolean;
+  /** Extension LOADING target mergeProposal */
+  isMergeProposalLoading: boolean;
+  /** ACCEPT_MERGE 후 로컬만 반영됨을 안내하는 카피 */
+  mergeApplyFollowupHint: string | null;
   currentBranch: string;
   currentWorktreePath: string;
   isAnalyzing: boolean;
@@ -235,7 +253,12 @@ interface GitCatState {
   // Actions
   setSnapshots: (snapshots: SnapshotMeta[]) => void;
   setConflicts: (conflicts: MergeConflictCandidateView[]) => void;
+  setSelectedConflict: (conflict: MergeConflictCandidateView | null) => void;
   setAIDraft: (draft: MergeProposalView | null) => void;
+  /** 충돌 후보 처리 결과를 기록합니다 */
+  markCandidateResolved: (candidateId: string, status: 'accepted' | 'rejected') => void;
+  /** 모든 충돌 후보 처리 상태를 초기화합니다 */
+  clearResolvedCandidates: () => void;
   setCurrentBranch: (branch: string) => void;
   setAnalyzing: (isAnalyzing: boolean) => void;
   setRefreshingStatus: (isRefreshingStatus: boolean) => void;
@@ -262,6 +285,9 @@ interface GitCatState {
   clearPrRecommendationError: () => void;
   setBranchCleanupInSettingsMode: (open: boolean) => void;
   clearSnapshotFileDiff: () => void;
+  /** 병합 검토 UI 상태 초기화(Extension 분석 데이터는 그대로) */
+  clearMergeReviewUi: () => void;
+  clearMergeApplyHint: () => void;
 
   handleMessage: (event: MessageEvent<OutboundMessage>) => void;
 }
@@ -314,7 +340,16 @@ const GIT_PANEL_OPERATION_FAILURE = ['GIT_ADD_ALL', 'EXECUTE_COMMIT', 'GIT_PUSH'
 export const useGitCatStore = create<GitCatState>((set, get) => ({
   snapshots: [],
   conflicts: [],
+  selectedConflict: null,
   currentAIDraft: null,
+  mergeConflictAnalysisId: null,
+  mergeConflictArtifactPath: null,
+  resolvedCandidates: {},
+  pendingGitAction: null,
+  prSkipMergeGuard: false,
+  isMergeAnalysisLoading: false,
+  isMergeProposalLoading: false,
+  mergeApplyFollowupHint: null,
   currentBranch: '',
   currentWorktreePath: '',
   isAnalyzing: false,
@@ -366,6 +401,7 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
 
   setSnapshots: (snapshots) => set({ snapshots }),
   setConflicts: (conflicts) => set({ conflicts }),
+  setSelectedConflict: (selectedConflict) => set({ selectedConflict, currentAIDraft: null }),
   setAIDraft: (currentAIDraft) => set({ currentAIDraft }),
   setCurrentBranch: (currentBranch) => set({ currentBranch }),
   setAnalyzing: (isAnalyzing) => set({ isAnalyzing }),
@@ -426,6 +462,26 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
   clearPrRecommendationError: () => set({ prRecommendationError: null }),
   setBranchCleanupInSettingsMode: (open) => set({ branchCleanupInSettingsMode: open }),
   clearSnapshotFileDiff: () => set({ snapshotFileDiff: null }),
+  clearMergeReviewUi: () =>
+    set({
+      conflicts: [],
+      selectedConflict: null,
+      currentAIDraft: null,
+      mergeConflictAnalysisId: null,
+      mergeConflictArtifactPath: null,
+      mergeApplyFollowupHint: null,
+      isMergeAnalysisLoading: false,
+      isMergeProposalLoading: false,
+      isAnalyzing: false,
+      resolvedCandidates: {},
+      pendingGitAction: null,
+    }),
+  markCandidateResolved: (candidateId, status) =>
+    set((state) => ({
+      resolvedCandidates: { ...state.resolvedCandidates, [candidateId]: status },
+    })),
+  clearResolvedCandidates: () => set({ resolvedCandidates: {}, pendingGitAction: null }),
+  clearMergeApplyHint: () => set({ mergeApplyFollowupHint: null }),
 
   toggleSection: (sectionId) => set((state) => ({
     expandedSections: state.expandedSections.includes(sectionId)
@@ -539,15 +595,22 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
       case 'BRANCH_LIST':
         set({ branches: payload.branches });
         break;
-      case 'GIT_STATUS_UPDATED':
+      case 'GIT_STATUS_UPDATED': {
+        const status = (payload as { status?: Record<string, unknown> }).status ?? (payload as Record<string, unknown>);
+        const branch =
+          (status.branch as string | undefined) ??
+          (status.currentBranch as string | undefined) ??
+          'HEAD';
+        const staged = (status.staged as { length?: number }[] | undefined) ?? [];
         set({
-          currentBranch: payload.status.branch ?? (payload.status as any).currentBranch ?? 'HEAD',
-          currentWorktreePath: payload.status.currentWorktreePath ?? '',
+          currentBranch: branch,
+          currentWorktreePath: (status.currentWorktreePath as string | undefined) ?? '',
           isRefreshingStatus: false,
           lastStatusRefreshAt: Date.now(),
-          stagedCount: payload.status.staged?.length ?? 0,
+          stagedCount: Array.isArray(staged) ? staged.length : 0,
         });
         break;
+      }
       case 'LOADING':
         if (payload.target === 'status') {
           set({ isRefreshingStatus: payload.loading });
@@ -585,9 +648,25 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
         if (payload.target === 'commitRecommendation') {
           set({ isCommitRecommendationLoading: payload.loading });
         }
+        if (payload.target === 'mergeAnalysis') {
+          set({
+            isMergeAnalysisLoading: payload.loading,
+            isAnalyzing: payload.loading,
+          });
+        }
+        if (payload.target === 'mergeProposal') {
+          set({ isMergeProposalLoading: payload.loading });
+        }
         break;
       case 'CONFLICT_RESULT':
-        set({ conflicts: payload.candidates });
+        set({
+          conflicts: payload.candidates ?? [],
+          mergeConflictAnalysisId: payload.analysisId ?? null,
+          mergeConflictArtifactPath: payload.artifactPath ?? null,
+          mergeApplyFollowupHint: null,
+          resolvedCandidates: {},
+          pendingGitAction: (payload as any).triggeringAction ?? null,
+        });
         break;
       case 'MERGE_PROPOSAL':
         if (payload.proposals && payload.proposals.length > 0) {
@@ -644,6 +723,8 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
         set((state) => ({
           lastCreatedPr: payload,
           isCreatingPr: false,
+          // PR 생성 성공 후 skipGuard 플래그 초기화
+          prSkipMergeGuard: false,
           globalNotification: {
             type: warnings.length > 0 ? 'warning' : 'success',
             message: notifMsg,
@@ -750,7 +831,12 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
         const message = translateUserFacingGitMessage(rawMsg, 'error');
         const checkoutFailure = isCheckoutFailureMessage(rawMsg);
         if (section === 'git') {
+          // When we are in the middle of a merge review (pendingGitAction is set),
+          // the error must also appear in globalNotification so the editor panel's
+          // ConflictAnalysisView retryError banner can display it.
+          const inMergeReview = !!get().pendingGitAction;
           set((state) => ({
+            globalNotification: inMergeReview ? { type: 'error', message } : state.globalNotification,
             sectionNotifications: {
               ...state.sectionNotifications,
               git: { type: 'error', message },
@@ -784,18 +870,65 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
 
       case 'NOTIFICATION': {
         const raw = payload.message ?? '';
+        if (raw.includes('병합 제안을 수락')) {
+          const followUp =
+            '제안이 로컬 작업 트리에 반영되었습니다. 스테이징(Add) → 커밋 → 푸시로 원격 저장소에 반영하세요.';
+          const message = translateUserFacingGitMessage(raw, toneFor(payload.type));
+          set((state) => ({
+            mergeApplyFollowupHint: followUp,
+            globalNotification: { type: 'success', message },
+            sectionNotifications: {
+              ...state.sectionNotifications,
+              git: { type: 'success', message },
+            },
+            notificationLogs: [...state.notificationLogs, makeLogEntry('success', message, 'notification')],
+          }));
+          break;
+        }
         if (isPrimaryGitPanelCompletionNotification(raw)) {
           const message = translateUserFacingGitMessage(raw, toneFor(payload.type));
           const bannerType: GlobalNotification['type'] =
             payload.type === 'error' ? 'error' :
               payload.type === 'warning' ? 'warning' : 'success';
-          set((state) => ({
-            sectionNotifications: {
-              ...state.sectionNotifications,
-              git: { type: bannerType, message },
-            },
-            notificationLogs: [...state.notificationLogs, makeLogEntry(bannerType, message, 'notification')],
-          }));
+          set((state) => {
+            // pull/push/merge 성공 시 병합 리뷰 UI 자동 정리
+            const shouldClearMerge =
+              bannerType === 'success' && state.pendingGitAction !== null;
+            // PR 충돌 해결 후 커밋&푸시 성공: PR 패널을 자동으로 열어 바로 PR 생성 가능하게 함
+            const isPrConflictResolved = shouldClearMerge && state.pendingGitAction === 'pr';
+            if (isPrConflictResolved) {
+              // skipGuard: true → extension 측에서 다음 CREATE_PR 가드를 건너뜀
+              // PR 패널은 별도 webview라 store 상태를 공유하지 않으므로 extension 측에서 플래그 관리
+              setTimeout(() => sendMessage('OPEN_PR_PANEL', { skipGuard: true }), 50);
+            }
+            return {
+              // 병합 검토 흐름에서 성공/완료 알림은 globalNotification에도 표시하여
+              // 에디터 패널이 닫힌 뒤 사용자가 결과를 알 수 있도록 한다.
+              globalNotification: bannerType === 'success'
+                ? { type: 'success', message }
+                : state.globalNotification,
+              sectionNotifications: {
+                ...state.sectionNotifications,
+                git: { type: bannerType, message },
+              },
+              notificationLogs: [...state.notificationLogs, makeLogEntry(bannerType, message, 'notification')],
+              ...(shouldClearMerge ? {
+                conflicts: [],
+                selectedConflict: null,
+                currentAIDraft: null,
+                mergeConflictAnalysisId: null,
+                mergeConflictArtifactPath: null,
+                mergeApplyFollowupHint: null,
+                isMergeAnalysisLoading: false,
+                isMergeProposalLoading: false,
+                isAnalyzing: false,
+                resolvedCandidates: {},
+                pendingGitAction: null,
+                // PR 충돌 해결 후 푸시 성공: 다음 CREATE_PR 시 가드 건너뜀
+                prSkipMergeGuard: isPrConflictResolved,
+              } : {}),
+            };
+          });
           break;
         }
         set((state) => {

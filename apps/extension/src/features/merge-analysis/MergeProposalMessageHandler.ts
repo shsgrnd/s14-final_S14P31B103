@@ -6,6 +6,7 @@ import {
   type OutboundMessage,
 } from '@gitcat/shared-types';
 import { MergeProposalService } from './MergeProposalService';
+import type { MessageRouter } from '../../core/MessageRouter';
 
 /**
  * AI 병합 제안과 사용자 피드백 메시지를 처리합니다.
@@ -14,7 +15,10 @@ import { MergeProposalService } from './MergeProposalService';
  * 이 핸들러는 제안 조회, 수락/거절 피드백 저장, 수락 결과 상태 전달까지만 담당합니다.
  */
 export class MergeProposalMessageHandler {
-  constructor(private readonly service: MergeProposalService) {}
+  constructor(
+    private readonly service: MergeProposalService,
+    private readonly messageRouter: MessageRouter,
+  ) {}
 
   async handle(type: string, payload: unknown, webview: vscode.Webview): Promise<boolean> {
     switch (type) {
@@ -32,27 +36,24 @@ export class MergeProposalMessageHandler {
     }
   }
 
-  private async handleGetAiDraft(payload: unknown, webview: vscode.Webview): Promise<void> {
-    webview.postMessage({ type: 'LOADING', payload: { target: 'mergeProposal', loading: true } });
+  private async handleGetAiDraft(payload: unknown, _webview: vscode.Webview): Promise<void> {
+    this.messageRouter.publishMergeReviewLoading('mergeProposal', true);
     try {
       const request = GetAiDraftRequestSchema.parse(payload);
       const result = await this.service.getDraft(request);
-      webview.postMessage({
-        type: 'MERGE_PROPOSAL',
-        payload: { proposals: result.proposals },
-      });
+      this.messageRouter.publishMergeProposal({ proposals: result.proposals });
     } catch (error) {
-      this.postError(webview, error);
+      this.postError(error);
     } finally {
-      webview.postMessage({ type: 'LOADING', payload: { target: 'mergeProposal', loading: false } });
+      this.messageRouter.publishMergeReviewLoading('mergeProposal', false);
     }
   }
 
-  private async handleAcceptMerge(payload: unknown, webview: vscode.Webview): Promise<void> {
+  private async handleAcceptMerge(payload: unknown, _webview: vscode.Webview): Promise<void> {
     try {
       const request = AcceptMergeRequestSchema.parse(payload);
       const result = await this.service.accept(request);
-      webview.postMessage({
+      this.messageRouter.broadcast({
         type: 'NOTIFICATION',
         payload: {
           type: result.merge?.status === 'conflicted' ? 'warning' : 'info',
@@ -61,27 +62,27 @@ export class MergeProposalMessageHandler {
       });
 
       if (result.merge) {
-        webview.postMessage({
+        this.messageRouter.broadcast({
           type: 'MERGE_COMPLETE',
           payload: { merge: result.merge },
         });
       }
       if (result.gitStatus) {
-        webview.postMessage({
+        this.messageRouter.broadcast({
           type: 'GIT_STATUS_UPDATED',
           payload: { status: result.gitStatus },
         });
       }
     } catch (error) {
-      this.postError(webview, error);
+      this.postError(error);
     }
   }
 
-  private async handleRejectMerge(payload: unknown, webview: vscode.Webview): Promise<void> {
+  private async handleRejectMerge(payload: unknown, _webview: vscode.Webview): Promise<void> {
     try {
       const request = RejectMergeRequestSchema.parse(payload);
       const result = await this.service.reject(request);
-      webview.postMessage({
+      this.messageRouter.broadcast({
         type: 'NOTIFICATION',
         payload: {
           type: 'info',
@@ -89,13 +90,13 @@ export class MergeProposalMessageHandler {
         },
       });
     } catch (error) {
-      this.postError(webview, error);
+      this.postError(error);
     }
   }
 
-  private postError(webview: vscode.Webview, error: unknown): void {
+  private postError(error: unknown): void {
     const message = error instanceof Error ? error.message : String(error);
-    webview.postMessage({
+    this.messageRouter.broadcast({
       type: 'ERROR',
       payload: {
         code: 'INTERNAL_ERROR',

@@ -178,16 +178,25 @@ export class MergeProposalService {
   ) {}
 
   async getDraft(request: GetAiDraftRequest): Promise<MergeProposalResult> {
+    const hasHunkFilter =
+      Array.isArray(request.selectedHunks) && request.selectedHunks.length > 0;
+
+    // proposals artifact는 기존 제안 병합에 항상 필요 (캐시 재사용 판단에도 사용)
     const existingArtifact = await this.artifactStore.readProposals<StoredProposalsArtifact>(
       this.workspaceRoot,
       request.analysisId,
     );
-    const existing = existingArtifact?.proposals.find(
-      (proposal) => proposal.candidate_id === request.candidateId
-        && proposal.feature_type === (request.featureType ?? 'merge_patch_draft'),
-    );
-    if (existing) {
-      return { proposals: [this.toProposalView(existing)] };
+
+    // selectedHunks가 없을 때만 캐시된 제안을 재사용
+    // (구간을 다르게 선택하면 다른 AI 결과가 나와야 하므로 캐시 건너뜀)
+    if (!hasHunkFilter) {
+      const existing = existingArtifact?.proposals.find(
+        (proposal) => proposal.candidate_id === request.candidateId
+          && proposal.feature_type === (request.featureType ?? 'merge_patch_draft'),
+      );
+      if (existing) {
+        return { proposals: [this.toProposalView(existing)] };
+      }
     }
 
     const analysis = await this.loadAnalysisArtifact(request.analysisId);
@@ -198,7 +207,22 @@ export class MergeProposalService {
       throw new Error(`Merge conflict candidate not found: ${request.candidateId}`);
     }
 
-    const candidate = this.toAiConflictCandidate(analysis, candidateArtifact);
+    // selectedHunks가 있으면 해당 구간의 excerpt만 남겨 AI에 전달
+    const filteredArtifact = hasHunkFilter
+      ? {
+          ...candidateArtifact,
+          source_excerpt: filterDiffToSelectedHunks(
+            candidateArtifact.source_excerpt ?? '',
+            request.selectedHunks!,
+          ),
+          target_excerpt: filterDiffToSelectedHunks(
+            candidateArtifact.target_excerpt ?? '',
+            request.selectedHunks!,
+          ),
+        }
+      : candidateArtifact;
+
+    const candidate = this.toAiConflictCandidate(analysis, filteredArtifact);
     const aiInput = this.buildAiInput(
       analysis,
       [candidate],
@@ -572,4 +596,71 @@ export class MergeProposalService {
 
 function hash(value: string): string {
   return createHash('sha1').update(value).digest('hex').slice(0, 16);
+}
+
+/**
+ * unified diff 텍스트에서 선택된 충돌 클러스터(0-based 인덱스)만 남기고 나머지를 제거합니다.
+ *
+ * 충돌 클러스터: --- / +++ 를 제외한 연속된 -/+ 라인 블록을 하나의 클러스터로 봅니다.
+ * 프론트엔드 AIDraftPanel의 countConflictClusters와 동일한 알고리즘을 사용합니다.
+ */
+function filterDiffToSelectedHunks(diffText: string, selectedHunks: number[]): string {
+  if (!diffText || selectedHunks.length === 0) return diffText;
+
+  const selectedSet = new Set(selectedHunks);
+  const lines = diffText.split('\n');
+  const result: string[] = [];
+  let clusterIndex = -1;
+  let i = 0;
+
+  while (i < lines.length) {
+    const line = lines[i];
+
+    // 헤더 라인은 그대로 유지
+    if (
+      line.startsWith('@@') ||
+      line.startsWith('diff ') ||
+      line.startsWith('index ') ||
+      line.startsWith('---') ||
+      line.startsWith('+++')
+    ) {
+      result.push(line);
+      i++;
+      continue;
+    }
+
+    // 충돌 클러스터(연속된 -/+ 블록) 처리
+    const isConflictLine =
+      (line.startsWith('-') && !line.startsWith('---')) ||
+      (line.startsWith('+') && !line.startsWith('+++'));
+
+    if (isConflictLine) {
+      clusterIndex++;
+      const isSelected = selectedSet.has(clusterIndex);
+
+      // 연속된 충돌 라인 전체 수집
+      const conflictLines: string[] = [];
+      while (i < lines.length) {
+        const l = lines[i];
+        const isCL =
+          (l.startsWith('-') && !l.startsWith('---')) ||
+          (l.startsWith('+') && !l.startsWith('+++'));
+        if (!isCL) break;
+        conflictLines.push(l);
+        i++;
+      }
+
+      if (isSelected) {
+        result.push(...conflictLines);
+      }
+      // 미선택 클러스터는 완전히 제거
+      continue;
+    }
+
+    // 컨텍스트 라인은 항상 유지
+    result.push(line);
+    i++;
+  }
+
+  return result.join('\n');
 }

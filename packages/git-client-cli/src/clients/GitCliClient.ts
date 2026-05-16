@@ -423,7 +423,10 @@ export class GitCliClient implements IGitClient {
   }
 
   async runMergeContinue(): Promise<void> {
-    await this.git.raw(['merge', '--continue', '--no-edit']);
+    // `git merge --continue --no-edit` fails on some git versions because
+    // --no-edit is treated as a positional argument. Use `git commit --no-edit`
+    // instead, which is the equivalent operation when the repo is in MERGING state.
+    await this.git.raw(['commit', '--no-edit']);
   }
 
   async runMergeAbort(): Promise<void> {

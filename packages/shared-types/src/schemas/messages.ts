@@ -126,13 +126,13 @@ export const InboundPayloadSchemaMap = {
   GET_RESTORE_HISTORY: z.object({}).strict(),
   OPEN_FILE_DIFF: z.object({ filePath: z.string(), snapshotId: z.string().optional() }),
   OPEN_WORKSPACE_FILE: z.object({ filePath: z.string(), status: z.string().optional() }),
-  EXECUTE_PULL: z.object({}).strict(),
+  EXECUTE_PULL: z.object({ skipGuard: z.boolean().optional() }),
   OPEN_DIFF_EDITOR: z.object({ filePath: z.string() }),
   SET_CONFIG: z.object({ config: z.any() }),
   GET_AI_DRAFT: GetAiDraftRequestSchema,
   EXECUTE_COMMIT: z.object({ message: z.string() }),
   GIT_ADD_ALL: z.object({}).strict(),
-  GIT_PUSH: z.object({}).strict(),
+  GIT_PUSH: z.object({ skipGuard: z.boolean().optional() }),
   OPEN_MERGE_PANEL: z.object({}).strict(),
   CHECKOUT_BRANCH: z.object({ name: z.string() }),
   // stash
@@ -172,8 +172,9 @@ export const InboundPayloadSchemaMap = {
     assignees: z.array(z.string()).optional(),
     labels: z.array(z.string()).optional(),
     milestone: z.number().int().optional(), // GitHub milestone 번호
+    skipGuard: z.boolean().optional(),    // 충돌 가드 건너뜀 (충돌 해결 후 재시도 시)
   }),
-  OPEN_PR_PANEL: z.object({}).strict(),
+  OPEN_PR_PANEL: z.object({ skipGuard: z.boolean().optional() }),
   // AI API Key 관리
   SAVE_AI_API_KEY: z.object({ apiKey: z.string().min(1) }),
   DELETE_AI_API_KEY: z.object({}).strict(),
@@ -222,6 +223,8 @@ export const OutboundPayloadSchemaMap = {
     analysisId: z.string().optional(),
     artifactPath: z.string().nullable().optional(),
     candidates: z.array(MergeConflictCandidateViewSchema),
+    /** 가드가 차단한 원래 Git 동작. 모든 충돌 후보 처리 후 이 동작을 재시도할 수 있습니다. */
+    triggeringAction: z.enum(['push', 'pull', 'pr', 'merge']).optional(),
   }),
   MERGE_PROPOSAL: z.object({ proposals: z.array(MergeProposalViewSchema) }),
   MERGE_COMPLETE: z.object({ merge: MergeCompleteViewSchema }),

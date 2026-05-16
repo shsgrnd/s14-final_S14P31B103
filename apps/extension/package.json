@@ -117,6 +117,11 @@
           "default": 5,
           "minimum": 1,
           "description": "Safety Layer가 대량 삭제 경고를 발생시키는 삭제 파일 수 임계치입니다."
+        },
+        "gitcat.merge.openMainPanelOnConflict": {
+          "type": "boolean",
+          "default": true,
+          "description": "Push/Pull/PR 가드 또는 병합 분석(CONFLICT_RESULT) 수신 시 GitCat 에디터 패널(메인 뷰)을 자동으로 엽니다. 사이드바와 동기화하려면 켜 두세요."
         }
       }
     }

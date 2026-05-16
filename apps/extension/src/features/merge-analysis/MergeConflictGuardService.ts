@@ -107,10 +107,23 @@ export class MergeConflictGuardService {
       };
     }
 
-    return this.guard({
-      sourceBranch: trackingState.sourceBranch,
-      targetBranch: trackingState.trackingBranch,
+    // tracking branch 비교는 로컬 vs origin/로컬 이므로
+    // guard()의 sameBranch 체크를 우회하고 분석 서비스를 직접 호출한다.
+    const sourceBranch = trackingState.sourceBranch;
+    const targetBranch = this.toRemoteTargetBranch(trackingState.trackingBranch)!;
+
+    const analysis = await this.analysisService.analyze({
+      source: sourceBranch,
+      target: targetBranch,
     });
+
+    return {
+      skipped: false,
+      sourceBranch,
+      targetBranch,
+      analysis,
+      hasConflicts: analysis.candidates.length > 0,
+    };
   }
 
   async guard(options: MergeConflictGuardRunOptions): Promise<MergeConflictGuardResult> {

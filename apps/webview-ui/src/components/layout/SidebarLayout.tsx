@@ -64,7 +64,13 @@ export const SidebarLayout: React.FC = () => {
   const removeNotificationLog = useGitCatStore((state) => state.removeNotificationLog);
   const sectionNotifications = useGitCatStore((state) => state.sectionNotifications);
   const branchCleanupInSettingsMode = useGitCatStore((state) => state.branchCleanupInSettingsMode);
+  const conflicts = useGitCatStore((state) => state.conflicts);
+  const currentAIDraft = useGitCatStore((state) => state.currentAIDraft);
+  const mergeApplyFollowupHint = useGitCatStore((state) => state.mergeApplyFollowupHint);
+  const isMergeAnalysisLoading = useGitCatStore((state) => state.isMergeAnalysisLoading);
+  const isMergeProposalLoading = useGitCatStore((state) => state.isMergeProposalLoading);
 
+  const mergeReviewActiveRef = useRef(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [prSettingsOpen, setPrSettingsOpen] = useState(false);
   const [notificationCenterOpen, setNotificationCenterOpen] = useState(false);
@@ -82,6 +88,25 @@ export const SidebarLayout: React.FC = () => {
     setNotificationCenterOpen(true);
     setLastReadAt(Date.now());
   }, []);
+
+  useEffect(() => {
+    const active =
+      conflicts.length > 0 ||
+      currentAIDraft != null ||
+      mergeApplyFollowupHint != null ||
+      isMergeAnalysisLoading ||
+      isMergeProposalLoading;
+    if (active && !mergeReviewActiveRef.current) {
+      setExpanded((p) => ({ ...p, git: true }));
+    }
+    mergeReviewActiveRef.current = active;
+  }, [
+    conflicts.length,
+    currentAIDraft,
+    mergeApplyFollowupHint,
+    isMergeAnalysisLoading,
+    isMergeProposalLoading,
+  ]);
 
   useEffect(() => {
     if (!aggregateSectionAlertsToFooter) {

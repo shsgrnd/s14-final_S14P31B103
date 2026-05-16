@@ -12,17 +12,23 @@
  */
 
 import * as vscode from 'vscode';
-import { GitService } from './GitService';
+import { GitService, type GitStatusResponse } from './GitService';
 import { BranchCleanupService } from './BranchCleanupService';
 import type { MergeConflictGuardService } from '../merge-analysis/MergeConflictGuardService';
+import type { MessageRouter } from '../../core/MessageRouter';
 
 export class GitMessageHandler {
   private mergeConflictGuardService: MergeConflictGuardService | null = null;
+  private messageRouter: MessageRouter | null = null;
 
   constructor(
     private readonly gitService: GitService,
     private readonly branchCleanupService: BranchCleanupService
   ) {}
+
+  public setMessageRouter(router: MessageRouter): void {
+    this.messageRouter = router;
+  }
 
   public setMergeConflictGuardService(service: MergeConflictGuardService): void {
     this.mergeConflictGuardService = service;
@@ -87,11 +93,11 @@ export class GitMessageHandler {
         return true;
 
       case 'GIT_PUSH':
-        await this.handlePush(webview);
+        await this.handlePush(webview, payload as { skipGuard?: boolean } | undefined);
         return true;
 
       case 'EXECUTE_PULL':
-        await this.handlePull(webview);
+        await this.handlePull(webview, payload as { skipGuard?: boolean } | undefined);
         return true;
 
       // ─── Merge ───────────────────────────────────────────────────────────
@@ -371,7 +377,7 @@ export class GitMessageHandler {
     }
   }
 
-  private async handlePush(webview: vscode.Webview): Promise<void> {
+  private async handlePush(webview: vscode.Webview, opts?: { skipGuard?: boolean }): Promise<void> {
     this.sendLoading(webview, 'push', true);
     try {
       const shouldPullFirst = await this.blockPushWhenTrackingBranchBehind(webview);
@@ -379,12 +385,16 @@ export class GitMessageHandler {
         return;
       }
 
-      const blocked = await this.guardPushTargetMergeConflict(webview);
-      if (blocked) {
-        return;
+      // skipGuard=true: 충돌 검토 후 재시도.
+      // ACCEPT_MERGE가 로컬 파일에만 내용을 기록하므로, 수정된 파일을 자동으로
+      // stage + commit 하고 push 해야 변경사항이 원격에 실제로 반영된다.
+      if (opts?.skipGuard) {
+        await this.autoCommitAcceptedChanges();
       }
 
-      // Push 전 가드: Push할 커밋이 있는지 확인한다.
+      // Push할 커밋이 있는지 먼저 확인한다.
+      // 커밋이 없으면 충돌 가드도 실행하지 않는다 —
+      // 이미 push가 완료된 상태에서 가드를 재실행하면 같은 충돌 경고를 반복해서 보여주게 된다.
       try {
         const branches = await this.gitService.getBranches();
         const currentBranch = branches.find((b) => b.isCurrent);
@@ -394,14 +404,28 @@ export class GitMessageHandler {
         if (currentBranch && currentBranch.trackingBranch) {
           const unpushed = await this.gitService.getUnpushedFiles();
           if (unpushed.length === 0) {
-            const message = 'Push할 새로운 커밋이 없습니다. (이미 원격 저장소와 최신 상태입니다)';
-            this.sendOperationResult(webview, 'GIT_PUSH', { success: false, message });
-            this.sendNotification(webview, 'info', message);
+            if (opts?.skipGuard) {
+              // 충돌 검토 후 재시도 시: 이미 앞선 retry에서 push가 완료된 상태.
+              // 병합 리뷰 UI를 닫고 완료 알림을 broadcast 한다.
+              this.notifySuccessAllWebviews(webview, 'Push가 완료되었습니다.');
+            } else {
+              const message = 'Push할 새로운 커밋이 없습니다. (이미 원격 저장소와 최신 상태입니다)';
+              this.sendOperationResult(webview, 'GIT_PUSH', { success: false, message });
+              this.sendNotification(webview, 'info', message);
+            }
             return;
           }
         }
       } catch (error) {
         console.warn('[GitCat] Push 가드 검증 중 예외 발생:', error);
+      }
+
+      // 실제 push할 커밋이 있을 때만 충돌 가드를 실행한다.
+      if (!opts?.skipGuard) {
+        const blocked = await this.guardPushTargetMergeConflict(webview);
+        if (blocked) {
+          return;
+        }
       }
 
       const result = await this.gitService.push();
@@ -412,17 +436,52 @@ export class GitMessageHandler {
       } else {
         this.sendError(webview, result.message ?? 'Push에 실패했습니다.');
       }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      this.notifyErrorAllWebviews(webview, message || 'Push에 실패했습니다.');
     } finally {
       this.sendLoading(webview, 'push', false);
     }
   }
 
-  private async handlePull(webview: vscode.Webview): Promise<void> {
+  /**
+   * 충돌 검토 후 재시도 시 ACCEPT_MERGE로 작성된 로컬 파일을 자동으로 stage + commit 합니다.
+   * 변경 파일이 없으면 아무것도 하지 않습니다.
+   */
+  private async autoCommitAcceptedChanges(): Promise<void> {
+    try {
+      const status = await this.gitService.getStatus();
+      const hasModified = status.unstaged.length > 0 || status.staged.length > 0;
+      if (!hasModified) {
+        return;
+      }
+      await this.gitService.stageAll();
+      await this.gitService.runCommit('GitCat: AI 병합 제안 적용');
+    } catch (error) {
+      // Auto-commit 실패는 push 자체를 막지 않도록 경고만 로깅합니다.
+      console.warn('[GitCat] autoCommitAcceptedChanges 실패:', error);
+    }
+  }
+
+  private async handlePull(webview: vscode.Webview, opts?: { skipGuard?: boolean }): Promise<void> {
     this.sendLoading(webview, 'pull', true);
     try {
-      const blocked = await this.guardPullTrackingMergeConflict(webview);
-      if (blocked) {
-        return;
+      if (!opts?.skipGuard) {
+        const blocked = await this.guardPullTrackingMergeConflict(webview);
+        if (blocked) {
+          return;
+        }
+      }
+
+      // skipGuard=true means the user is retrying after conflict review.
+      // If git is already in MERGING state (actual conflicts were created by the pull),
+      // we must complete the merge instead of attempting another git pull.
+      if (opts?.skipGuard) {
+        const status = await this.gitService.getStatus();
+        if (status.isMerging) {
+          await this.handleMergeContinueAfterReview(webview, status);
+          return;
+        }
       }
 
       const result = await this.gitService.pull();
@@ -433,9 +492,37 @@ export class GitMessageHandler {
       } else {
         this.sendError(webview, result.message ?? 'Pull에 실패했습니다.');
       }
+    } catch (error) {
+      // Ensure errors from git operations are always surfaced to the webview.
+      const message = error instanceof Error ? error.message : String(error);
+      this.notifyErrorAllWebviews(webview, message || 'Pull에 실패했습니다.');
     } finally {
       this.sendLoading(webview, 'pull', false);
     }
+  }
+
+  /**
+   * 병합 충돌 검토 후 재시도 시, git이 이미 MERGING 상태인 경우 처리합니다.
+   * 수락된 AI 제안으로 작성된 파일들을 스테이징하고 merge --continue를 실행합니다.
+   */
+  private async handleMergeContinueAfterReview(
+    webview: vscode.Webview,
+    status: GitStatusResponse,
+  ): Promise<void> {
+    const conflictedPaths = status.conflicted.map((f) => f.path);
+
+    if (conflictedPaths.length > 0) {
+      // Stage files that had conflicts. Accepted AI proposals already wrote clean content.
+      // Any file still having conflict markers will cause merge --continue to fail (expected).
+      await this.gitService.stageFiles(conflictedPaths);
+    } else {
+      // No git-conflicted files remain; stage any other modified files.
+      await this.gitService.stageAll();
+    }
+
+    await this.gitService.mergeContinue();
+    this.notifySuccessAllWebviews(webview, 'Pull이 완료되었습니다.');
+    await this.handleRefreshStatus(webview);
   }
 
   private async blockPushWhenTrackingBranchBehind(webview: vscode.Webview): Promise<boolean> {
@@ -450,7 +537,7 @@ export class GitMessageHandler {
 
     const message = `원격 브랜치(${trackingState.trackingBranch})에 먼저 받아야 할 변경이 있습니다. pull로 동기화한 뒤 다시 push해 주세요.`;
     this.sendOperationResult(webview, 'GIT_PUSH', { success: false, message });
-    this.sendNotification(webview, 'warning', message);
+    this.notifyWarningAllWebviews(webview, message);
     return true;
   }
 
@@ -465,16 +552,19 @@ export class GitMessageHandler {
     }
 
     const message = `원격 target 브랜치(${result.targetBranch})와 병합 충돌 가능성이 있습니다. 추천 확인 후 다시 push해 주세요.`;
-    webview.postMessage({
-      type: 'CONFLICT_RESULT',
-      payload: {
-        analysisId: result.analysis.analysisId,
-        artifactPath: result.analysis.artifactPath,
-        candidates: result.analysis.candidates,
-      },
-    });
+    const conflictPayload = {
+      analysisId: result.analysis.analysisId,
+      artifactPath: result.analysis.artifactPath,
+      candidates: result.analysis.candidates,
+      triggeringAction: 'push' as const,
+    };
+    if (this.messageRouter) {
+      this.messageRouter.publishConflictResult(conflictPayload);
+    } else {
+      webview.postMessage({ type: 'CONFLICT_RESULT', payload: conflictPayload });
+    }
     this.sendOperationResult(webview, 'GIT_PUSH', { success: false, message });
-    this.sendNotification(webview, 'warning', message);
+    this.notifyWarningAllWebviews(webview, message);
     return true;
   }
 
@@ -489,16 +579,19 @@ export class GitMessageHandler {
     }
 
     const message = `원격 브랜치(${result.targetBranch})를 pull하면 병합 충돌 가능성이 있습니다. 추천 확인 후 동기화를 진행해 주세요.`;
-    webview.postMessage({
-      type: 'CONFLICT_RESULT',
-      payload: {
-        analysisId: result.analysis.analysisId,
-        artifactPath: result.analysis.artifactPath,
-        candidates: result.analysis.candidates,
-      },
-    });
+    const conflictPayload = {
+      analysisId: result.analysis.analysisId,
+      artifactPath: result.analysis.artifactPath,
+      candidates: result.analysis.candidates,
+      triggeringAction: 'pull' as const,
+    };
+    if (this.messageRouter) {
+      this.messageRouter.publishConflictResult(conflictPayload);
+    } else {
+      webview.postMessage({ type: 'CONFLICT_RESULT', payload: conflictPayload });
+    }
     this.sendOperationResult(webview, 'EXECUTE_PULL', { success: false, message });
-    this.sendNotification(webview, 'warning', message);
+    this.notifyWarningAllWebviews(webview, message);
     return true;
   }
 
@@ -800,6 +893,33 @@ export class GitMessageHandler {
     message: string,
   ): void {
     webview.postMessage({ type: 'NOTIFICATION', payload: { type, message } });
+  }
+
+  /** 사이드바·에디터 패널 등 모든 GitCat 웹뷰에 동일 경고를 띄울 때 */
+  private notifyWarningAllWebviews(webview: vscode.Webview, message: string): void {
+    if (this.messageRouter) {
+      this.messageRouter.broadcast({ type: 'NOTIFICATION', payload: { type: 'warning', message } });
+    } else {
+      this.sendNotification(webview, 'warning', message);
+    }
+  }
+
+  /** 모든 웹뷰에 에러를 broadcast — editor 패널의 retryError가 반드시 표시되도록 ERROR 타입으로 전파 */
+  private notifyErrorAllWebviews(webview: vscode.Webview, message: string): void {
+    if (this.messageRouter) {
+      this.messageRouter.broadcast({ type: 'ERROR', payload: { code: 'GIT_OPERATION_FAILED', message } });
+    } else {
+      this.sendError(webview, message);
+    }
+  }
+
+  /** 모든 웹뷰에 성공 알림을 broadcast */
+  private notifySuccessAllWebviews(webview: vscode.Webview, message: string): void {
+    if (this.messageRouter) {
+      this.messageRouter.broadcast({ type: 'NOTIFICATION', payload: { type: 'info', message } });
+    } else {
+      this.sendNotification(webview, 'info', message);
+    }
   }
 
   private sendOperationResult(

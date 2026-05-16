@@ -154,6 +154,12 @@ export async function activate(context: vscode.ExtensionContext) {
   }
 
   const webviewProvider = new WebviewProvider(context, messageRouter);
+  messageRouter.setMainPanelOpener(
+    () => webviewProvider.createOrShow('main'),
+    () => webviewProvider.isPrPanelOpen(),
+  );
+  gitMessageHandler?.setMessageRouter(messageRouter);
+  pullRequestHandler?.setMessageRouter(messageRouter);
   openPullRequestPanelRef.current = () => webviewProvider.createOrShow('pr');
   closePullRequestPanelRef.current = () => webviewProvider.closePrPanel();
   const sidebarProvider = new SidebarProvider(context, messageRouter);
@@ -306,8 +312,8 @@ async function initializeMergeConflictAnalysis(
     () => prSettingsService?.getDefaultBaseBranch() ?? null,
   );
 
-  messageRouter.setMergeConflictHandler(new MergeConflictMessageHandler(analysisService));
-  messageRouter.setMergeProposalHandler(new MergeProposalMessageHandler(proposalService));
+  messageRouter.setMergeConflictHandler(new MergeConflictMessageHandler(analysisService, messageRouter));
+  messageRouter.setMergeProposalHandler(new MergeProposalMessageHandler(proposalService, messageRouter));
   gitMessageHandler?.setMergeConflictGuardService(guardService);
   pullRequestHandler?.setMergeConflictGuardService(guardService);
   console.log('GitCat merge conflict analysis layer initialized');
