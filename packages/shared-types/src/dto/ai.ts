@@ -331,8 +331,7 @@ export interface ParsedAiResultBase {
 
 export interface MergePatchDraftResult extends ParsedAiResultBase {
   feature_type: 'merge_patch_draft';
-  diff_patch_ref?: string;
-  merged_code_ref?: string;
+  merged_code_ref: string;
   applied_files: string[];
   validation_required: boolean;
   validation_summary: string;

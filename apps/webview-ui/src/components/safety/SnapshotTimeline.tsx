@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+﻿import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { FileText, Rewind, ChevronRight, Crosshair, Sparkles, Layers, PencilLine, Plus, Edit2, Trash2, History, Bookmark, Archive, X } from 'lucide-react';
 import { useGitCatStore } from '../../store/useGitCatStore';
@@ -19,6 +19,8 @@ export const SnapshotTimeline: React.FC = () => {
     snapshotFileDiff,
     clearSnapshotFileDiff,
     restoreHistories,
+    restoreConfirmDialog,
+    clearRestoreConfirmDialog,
   } = useGitCatStore();
   const { sendMessage } = useVsCodeApi();
   const dismissSnapshotsNotification = useCallback(() => clearSectionNotification('snapshots'), [clearSectionNotification]);
@@ -52,6 +54,21 @@ export const SnapshotTimeline: React.FC = () => {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [snapshotFileDiff, restoreHistoryOpen, clearSnapshotFileDiff]);
+
+  useEffect(() => {
+    if (!restoreConfirmDialog) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      clearRestoreConfirmDialog();
+      sendMessage('CONFIRM_RESTORE_SNAPSHOT', {
+        snapshotId: restoreConfirmDialog.snapshotId,
+        confirmed: false,
+      });
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [restoreConfirmDialog, clearRestoreConfirmDialog, sendMessage]);
 
   const getStatusLabel = (status: string) => {
     const u = status.toUpperCase();
@@ -96,6 +113,24 @@ export const SnapshotTimeline: React.FC = () => {
 
   const handleRestore = (snapshot: SnapshotMeta) => {
     sendMessage('RESTORE_SNAPSHOT', { snapshotId: snapshot.snapshotId });
+  };
+
+  const handleConfirmRestore = () => {
+    if (!restoreConfirmDialog) return;
+    sendMessage('CONFIRM_RESTORE_SNAPSHOT', {
+      snapshotId: restoreConfirmDialog.snapshotId,
+      confirmed: true,
+    });
+    clearRestoreConfirmDialog();
+  };
+
+  const handleCancelRestore = () => {
+    if (!restoreConfirmDialog) return;
+    sendMessage('CONFIRM_RESTORE_SNAPSHOT', {
+      snapshotId: restoreConfirmDialog.snapshotId,
+      confirmed: false,
+    });
+    clearRestoreConfirmDialog();
   };
 
   const openRestoreHistory = () => {
@@ -333,7 +368,7 @@ export const SnapshotTimeline: React.FC = () => {
               margin: '0 auto',
               width: '100%',
               maxWidth: '720px',
-              maxHeight: 'min(90vh, calc(100vh - 48px))',
+              height: 'min(90vh, calc(100vh - 48px))',
               minHeight: 0,
               display: 'flex',
               flexDirection: 'column',
@@ -371,17 +406,17 @@ export const SnapshotTimeline: React.FC = () => {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  width: '28px',
-                  height: '28px',
-                  border: 'none',
-                  background: 'var(--vscode-toolbar-hoverBackground)',
-                  color: 'var(--vscode-foreground)',
+                  width: '32px',
+                  height: '32px',
+                  border: '1px solid var(--vscode-contrastBorder, var(--vscode-panel-border))',
+                  background: 'var(--vscode-editorWidget-background, var(--vscode-toolbar-hoverBackground))',
+                  color: 'var(--vscode-editor-foreground)',
                   borderRadius: '4px',
                   cursor: 'pointer',
                   flexShrink: 0,
                 }}
               >
-                <X size={14} />
+                <X size={18} strokeWidth={2.4} />
               </button>
             </div>
             <div
@@ -395,7 +430,7 @@ export const SnapshotTimeline: React.FC = () => {
               <pre
                 style={{
                   margin: 0,
-                  padding: '12px',
+                  padding: '8px 10px',
                   fontSize: '11px',
                   lineHeight: 1.45,
                   fontFamily: 'var(--vscode-editor-font-family, monospace)',
@@ -431,7 +466,7 @@ export const SnapshotTimeline: React.FC = () => {
               margin: '0 auto',
               width: '100%',
               maxWidth: '520px',
-              maxHeight: 'min(90vh, calc(100vh - 48px))',
+              height: 'min(90vh, calc(100vh - 48px))',
               minHeight: 0,
               display: 'flex',
               flexDirection: 'column',
@@ -467,17 +502,17 @@ export const SnapshotTimeline: React.FC = () => {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  width: '28px',
-                  height: '28px',
-                  border: 'none',
-                  background: 'var(--vscode-toolbar-hoverBackground)',
-                  color: 'var(--vscode-foreground)',
+                  width: '32px',
+                  height: '32px',
+                  border: '1px solid var(--vscode-contrastBorder, var(--vscode-panel-border))',
+                  background: 'var(--vscode-editorWidget-background, var(--vscode-toolbar-hoverBackground))',
+                  color: 'var(--vscode-editor-foreground)',
                   borderRadius: '4px',
                   cursor: 'pointer',
                   flexShrink: 0,
                 }}
               >
-                <X size={14} />
+                <X size={18} strokeWidth={2.4} />
               </button>
             </div>
             <div
@@ -527,6 +562,99 @@ export const SnapshotTimeline: React.FC = () => {
         document.body,
         )
         : null}
+
+      {restoreConfirmDialog
+        ? createPortal(
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="스냅샷 복원 확인"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 60_000,
+            background: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+          }}
+          onClick={handleCancelRestore}
+        >
+          <div
+            style={{
+              width: '100%',
+              maxWidth: '520px',
+              background: 'var(--vscode-editor-background)',
+              color: 'var(--vscode-editor-foreground)',
+              border: '1px solid var(--vscode-panel-border)',
+              borderRadius: '8px',
+              boxShadow: '0 12px 36px rgba(0, 0, 0, 0.4)',
+              padding: '16px',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ fontSize: '14px', fontWeight: 700, marginBottom: '10px' }}>
+              대량 삭제 위험 경고
+            </div>
+            <div style={{ fontSize: '12px', color: 'var(--vscode-descriptionForeground)', lineHeight: 1.5 }}>
+              복원 시 {restoreConfirmDialog.changedPathsCount}개 경로가 변경됩니다. 아래 경고를 확인한 뒤 진행해 주세요.
+            </div>
+            <div
+              style={{
+                marginTop: '10px',
+                maxHeight: '180px',
+                overflowY: 'auto',
+                border: '1px solid var(--vscode-panel-border)',
+                borderRadius: '6px',
+                padding: '8px',
+                background: 'var(--vscode-editorWidget-background)',
+                fontSize: '12px',
+                lineHeight: 1.5,
+              }}
+            >
+              {restoreConfirmDialog.warningMessages.map((warning, idx) => (
+                <div key={`${idx}-${warning}`} style={{ marginBottom: idx === restoreConfirmDialog.warningMessages.length - 1 ? 0 : '6px' }}>
+                  - {warning}
+                </div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '14px' }}>
+              <button
+                type="button"
+                onClick={handleCancelRestore}
+                style={{
+                  border: '1px solid var(--vscode-panel-border)',
+                  background: 'transparent',
+                  color: 'var(--vscode-foreground)',
+                  borderRadius: '4px',
+                  padding: '6px 12px',
+                  cursor: 'pointer',
+                }}
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmRestore}
+                style={{
+                  border: 'none',
+                  background: 'var(--vscode-button-background)',
+                  color: 'var(--vscode-button-foreground)',
+                  borderRadius: '4px',
+                  padding: '6px 12px',
+                  cursor: 'pointer',
+                  fontWeight: 600,
+                }}
+              >
+                확인하고 복원
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body,
+        )
+        : null}
     </div>
   );
 };
@@ -547,6 +675,12 @@ function asRestoreHistoryView(h: RestoreHistory): RestoreHistoryRowView {
 }
 
 type DiffLineKind = 'add' | 'del' | 'meta' | 'ctx';
+type DiffDisplayLine = {
+  kind: Exclude<DiffLineKind, 'meta'>;
+  text: string;
+  oldLine: number | null;
+  newLine: number | null;
+};
 
 function classifyDiffLine(raw: string): DiffLineKind {
   const line = raw.trimEnd();
@@ -590,30 +724,145 @@ function diffLineColors(kind: DiffLineKind): { color: string; backgroundColor?: 
   }
 }
 
+function parseHunkHeader(line: string): { oldStart: number; newStart: number } | null {
+  const m = /^@@ -(\d+)(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(line.trim());
+  if (!m) return null;
+  return {
+    oldStart: Number(m[1]),
+    newStart: Number(m[2]),
+  };
+}
+
+function buildDiffDisplayLines(text: string): DiffDisplayLine[] {
+  const lines = text.split('\n');
+  const result: DiffDisplayLine[] = [];
+  let oldLine = 0;
+  let newLine = 0;
+  let inHunk = false;
+
+  for (const rawLine of lines) {
+    const kind = classifyDiffLine(rawLine);
+    if (kind === 'meta') {
+      const parsed = parseHunkHeader(rawLine);
+      if (parsed) {
+        oldLine = parsed.oldStart;
+        newLine = parsed.newStart;
+        inHunk = true;
+      }
+      continue;
+    }
+    if (!inHunk) {
+      continue;
+    }
+
+    if (rawLine.startsWith('+')) {
+      result.push({
+        kind: 'add',
+        text: rawLine,
+        oldLine: null,
+        newLine,
+      });
+      newLine += 1;
+      continue;
+    }
+
+    if (rawLine.startsWith('-')) {
+      result.push({
+        kind: 'del',
+        text: rawLine,
+        oldLine,
+        newLine: null,
+      });
+      oldLine += 1;
+      continue;
+    }
+
+    result.push({
+      kind: 'ctx',
+      text: rawLine,
+      oldLine,
+      newLine,
+    });
+    oldLine += 1;
+    newLine += 1;
+  }
+
+  return result;
+}
+
 function renderColoredDiffText(text: string | undefined): React.ReactNode {
   if (text == null || text.trim() === '') {
     return <span style={{ color: 'var(--vscode-descriptionForeground)' }}>(diff 없음)</span>;
   }
-  const lines = text.split('\n');
-  return lines.map((line, i) => {
-    const kind = classifyDiffLine(line);
+  const displayLines = buildDiffDisplayLines(text);
+  const changedIndexes = displayLines
+    .map((line, index) => (line.kind === 'add' || line.kind === 'del' ? index : -1))
+    .filter((index) => index >= 0);
+
+  if (changedIndexes.length === 0) {
+    return <span style={{ color: 'var(--vscode-descriptionForeground)' }}>(변경된 +/- 라인이 없습니다)</span>;
+  }
+
+  const CONTEXT_LINES = 2;
+  const include = new Set<number>();
+  for (const idx of changedIndexes) {
+    const start = Math.max(0, idx - CONTEXT_LINES);
+    const end = Math.min(displayLines.length - 1, idx + CONTEXT_LINES);
+    for (let i = start; i <= end; i += 1) {
+      include.add(i);
+    }
+  }
+
+  const selected = Array.from(include).sort((a, b) => a - b);
+  const rendered: React.ReactNode[] = [];
+  let prev = -1;
+  for (const idx of selected) {
+    if (prev >= 0 && idx - prev > 1) {
+      rendered.push(
+        <span
+          key={`gap-${idx}`}
+          style={{
+            display: 'block',
+            color: 'var(--vscode-descriptionForeground)',
+            opacity: 0.7,
+            padding: '0 6px',
+          }}
+        >
+          ...
+        </span>,
+      );
+    }
+
+    const line = displayLines[idx];
+    const kind = line.kind;
     const { color, backgroundColor } = diffLineColors(kind);
-    return (
+    rendered.push(
       <span
-        key={i}
+        key={idx}
         style={{
-          display: 'block',
+          display: 'grid',
+          gridTemplateColumns: '30px 1fr',
+          columnGap: '6px',
+          alignItems: 'baseline',
           color,
           backgroundColor,
-          whiteSpace: 'pre-wrap',
-          wordBreak: 'break-word',
+          whiteSpace: 'pre',
           minHeight: '1.45em',
+          padding: '0 2px',
         }}
       >
-        {line.length === 0 ? '\u00a0' : line}
+        <span style={{ color: 'var(--vscode-descriptionForeground)', textAlign: 'right', userSelect: 'none' }}>
+          {line.newLine ?? ''}
+        </span>
+        <span style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+          {line.text.length === 0 ? '\u00a0' : line.text}
+        </span>
       </span>
     );
-  });
+    prev = idx;
+  }
+
+  return rendered;
 }
 
 function formatRelativeTime(timestamp: number): string {
@@ -631,5 +880,4 @@ function formatRelativeTime(timestamp: number): string {
     return '';
   }
 }
-
 

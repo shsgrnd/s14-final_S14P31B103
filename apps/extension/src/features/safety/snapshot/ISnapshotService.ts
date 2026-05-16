@@ -16,6 +16,11 @@ export interface CreateSnapshotOptions {
     /** AI 세션 시작 시점의 파일 베이스라인 (AI diff 계산용) */
     baselines?: Map<string, Uint8Array>;
     /**
+     * 스냅샷 생성 시점의 현재 파일 상태.
+     * - 미저장 편집 내용까지 diff에 반영하기 위해 사용
+     */
+    currentContents?: Map<string, Uint8Array | null>;
+    /**
      * AI 세션 시작 전 사용자가 변경한 파일 경로 목록
      * - auto_dirty_before_ai, ai_result 타입에서 user_patch.diff 생성에 사용
      */
@@ -25,6 +30,7 @@ export interface CreateSnapshotOptions {
      * - 이전 AI 세션 종료 시점부터 누적된 baseline
      */
     userBaselines?: Map<string, Uint8Array>;
+    userCurrentContents?: Map<string, Uint8Array | null>;
 }
 
 export interface ISnapshotService {

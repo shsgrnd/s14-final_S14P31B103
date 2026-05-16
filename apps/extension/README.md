@@ -13,3 +13,16 @@ Node.js 환경에서 동작하며, 사용자의 명령어 입력 처리, 로컬 
 - Windows 기준으로 `pnpm --dir apps/extension run package:vsix`를 실행하면 `.artifacts/` 아래에 VSIX 파일이 생성됩니다.
 - 이 스크립트는 `vsce package`를 호출하며, 내부적으로 `vscode:prepublish`를 통해 extension compile도 함께 수행합니다.
 - GitHub Actions에서는 `.github/workflows/package-vsix.yml`로 동일한 패키징 절차를 수동 실행하거나 태그 푸시 기준으로 재사용할 수 있습니다.
+
+## 로컬 모델 설정 (`live-local`)
+로컬 추론용 GGUF 모델은 아래 Hugging Face 저장소에서 다운로드할 수 있습니다.
+
+- 모델 저장소: https://huggingface.co/shsgrnd/SSAFY_gitcat-local-llm
+- 권장 파일:
+  - `gitcat-v2-sft-merged-Q4_K_M.gguf`
+  - `gitcat-v2-dpo-merged-Q4_K_M.gguf`
+
+설정 순서:
+1. VS Code에서 `Gitcat > Ai: Mode`를 `live-local`로 변경합니다.
+2. `Gitcat > Ai: Local Model Path`에 다운로드한 GGUF 파일의 절대 경로를 입력합니다.
+3. branch recommendation, commit recommendation, PR recommendation을 로컬 추론으로 실행합니다.

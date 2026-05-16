@@ -114,6 +114,7 @@ export class SafetySessionCoordinator {
             reason: reason || '세션 종료',
             changedFiles: Array.from(this.changedFiles),
             baselines: new Map(this.baselines),
+            currentContents: this.buildCurrentContentsSnapshot(),
         });
 
         if (endedSession.type === 'ai') {
@@ -129,6 +130,34 @@ export class SafetySessionCoordinator {
         }
 
         return endedSession;
+    }
+
+    public async createManualSnapshot(title?: string): Promise<string | undefined> {
+        if (this.snapshotService.isRestoreOperationActive()) {
+            return undefined;
+        }
+
+        // Manual snapshot should take priority over pending auto-timeout snapshot.
+        if (this.sessionTimer) {
+            clearTimeout(this.sessionTimer);
+            this.sessionTimer = null;
+        }
+
+        const snapshotId = await this.snapshotService.createSnapshot('savepoint', {
+            reason: title?.trim() || '수동 스냅샷',
+            force: true,
+            changedFiles: Array.from(this.changedFiles),
+            baselines: new Map(this.baselines),
+            currentContents: this.buildCurrentContentsSnapshot(),
+        });
+
+        // Prevent immediate duplicate auto snapshot from the same change set.
+        this.currentSession = null;
+        this.baselines.clear();
+        this.currentTextCache.clear();
+        this.changedFiles.clear();
+
+        return snapshotId;
     }
 
     private resetSessionTimer() {
@@ -228,6 +257,35 @@ export class SafetySessionCoordinator {
         }
         const fsPath = doc.uri.fsPath;
         this.dirtyFiles.delete(fsPath);
+
+    }
+
+    public resetAfterRestore(): void {
+        if (this.sessionTimer) {
+            clearTimeout(this.sessionTimer);
+            this.sessionTimer = null;
+        }
+
+        this.currentSession = null;
+        this.baselines.clear();
+        this.currentTextCache.clear();
+        this.changedFiles.clear();
+        this.dirtyFiles.clear();
+        this.interSessionUserBaselines.clear();
+        this.interSessionUserChangedFiles.clear();
+        console.log('[SafetySessionCoordinator] reset state after snapshot restore.');
+    }
+
+    private buildCurrentContentsSnapshot(): Map<string, Uint8Array | null> {
+        const currentContents = new Map<string, Uint8Array | null>();
+        for (const filePath of this.changedFiles) {
+            const currentText = this.currentTextCache.get(filePath);
+            if (currentText === undefined) {
+                continue;
+            }
+            currentContents.set(filePath, Buffer.from(currentText, 'utf8'));
+        }
+        return currentContents;
     }
 
     private isIgnoredPath(fsPath: string): boolean {

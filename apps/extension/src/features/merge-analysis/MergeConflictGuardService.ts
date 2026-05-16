@@ -5,6 +5,7 @@ import type { GitService } from '../git/GitService';
 export interface MergeConflictGuardRunOptions {
   sourceBranch?: string;
   targetBranch?: string | null;
+  targetScope?: 'remote' | 'local';
 }
 
 export type MergeConflictGuardResult =
@@ -110,7 +111,7 @@ export class MergeConflictGuardService {
     // tracking branch 비교는 로컬 vs origin/로컬 이므로
     // guard()의 sameBranch 체크를 우회하고 분석 서비스를 직접 호출한다.
     const sourceBranch = trackingState.sourceBranch;
-    const targetBranch = this.toRemoteTargetBranch(trackingState.trackingBranch)!;
+    const targetBranch = this.toTargetBranch(trackingState.trackingBranch, 'remote')!;
 
     const analysis = await this.analysisService.analyze({
       source: sourceBranch,
@@ -131,7 +132,7 @@ export class MergeConflictGuardService {
 
     const status = await this.gitService.getStatus();
     const sourceBranch = options.sourceBranch?.trim() || status.currentBranch;
-    const targetBranch = this.toRemoteTargetBranch(options.targetBranch);
+    const targetBranch = this.toTargetBranch(options.targetBranch, options.targetScope ?? 'remote');
 
     if (!targetBranch) {
       return {
@@ -165,10 +166,18 @@ export class MergeConflictGuardService {
     };
   }
 
-  private toRemoteTargetBranch(targetBranch?: string | null): string | null {
+  private toTargetBranch(
+    targetBranch: string | null | undefined,
+    scope: 'remote' | 'local',
+  ): string | null {
     const trimmed = targetBranch?.trim();
     if (!trimmed) {
       return null;
+    }
+
+    // 로컬 merge는 현재 로컬 브랜치를 target으로 비교해야 하므로 origin/ 접두사를 붙이지 않습니다.
+    if (scope === 'local') {
+      return trimmed;
     }
 
     if (trimmed.startsWith('origin/')) {

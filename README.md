@@ -65,6 +65,19 @@ GitCat은 생성형 AI 코딩 환경에서 흔히 발생하는 예기치 않은 
 
 ---
 
+## 🤗 로컬 모델 다운로드
+`live-local` 모드에서 사용하는 로컬 GGUF 모델은 아래 Hugging Face 저장소에서 받을 수 있습니다.
+
+- 모델 저장소: https://huggingface.co/shsgrnd/SSAFY_gitcat-local-llm
+- 권장 파일:
+  - `gitcat-v2-sft-merged-Q4_K_M.gguf`
+  - `gitcat-v2-dpo-merged-Q4_K_M.gguf`
+
+사용 시에는 VS Code 설정에서 `Gitcat > Ai: Mode`를 `live-local`로 변경한 뒤,
+`Gitcat > Ai: Local Model Path`에 다운로드한 GGUF 파일의 절대 경로를 입력하면 됩니다.
+
+---
+
 ## 🛠 기술 스택 (Tech Stack)
 문서 폴더의 `docs/architecture/GitCat_tech_stack.csv` 문서를 참고해주세요.
 

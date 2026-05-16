@@ -12,15 +12,22 @@ export interface ParseAiResultOptions {
 
 export class MergeResultParser {
   /**
-   * 원시 LLM 응답 문자열을 정제 (마크다운 제거 등)
+   * 원시 LLM 응답 문자열에서 JSON 본문만 안전하게 추출합니다.
    */
   private cleanResponse(raw: string): string {
     // 1. <think>...</think> 블록 제거
     let text = raw.replace(/<think>[\s\S]*?<\/think>/g, '');
 
-    // 2. 마크다운 블록을 사용했을 경우 내부 텍스트 추출
-    const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-    text = jsonMatch ? jsonMatch[1] : text;
+    // 2. 마크다운 코드블록이 응답 전체를 감싸는 경우에만 내부 JSON을 허용합니다.
+    const fencedBlockMatch = text.match(/^\s*```(?:json)?\s*([\s\S]*?)\s*```\s*$/);
+    if (fencedBlockMatch) {
+      return fencedBlockMatch[1].trim();
+    }
+
+    // 3. 코드블록이 있더라도 앞뒤에 설명 문장이 섞여 있으면 실패하게 원문을 그대로 둡니다.
+    if (/```(?:json)?/i.test(text)) {
+      return text.trim();
+    }
 
     return text.trim();
   }
@@ -85,7 +92,7 @@ export class MergeResultParser {
     // 3. 시스템 필드 주입 (Enrichment)
     const enrichedData = this.buildParsedAiResult(rawJson, featureType, sessionId);
 
-    // 4. 아티팩트 구체화 (Diff Patch Ref 생성 등)
+    // 4. 아티팩트 구체화 (Merged Code Ref 생성 등)
     const materializedData = await materializeAiArtifacts({
       workspaceRoot: options.workspaceRoot,
       proposalId: enrichedData.proposal_id,

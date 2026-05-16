@@ -80,6 +80,7 @@ export const EnvelopeSchema = z.object({
  */
 export const InboundPayloadSchemaMap = {
   RESTORE_SNAPSHOT: z.object({ snapshotId: z.string() }),
+  CONFIRM_RESTORE_SNAPSHOT: z.object({ snapshotId: z.string(), confirmed: z.boolean() }),
   ANALYZE_CONFLICT: AnalyzeConflictRequestSchema,
   ACCEPT_MERGE: AcceptMergeRequestSchema,
   REJECT_MERGE: RejectMergeRequestSchema,
@@ -217,6 +218,11 @@ export const OutboundPayloadSchemaMap = {
     changedPaths: z.array(z.string()).optional(),
     beforeWarnings: z.array(SafetyWarningSchema).optional(),
     afterWarnings: z.array(SafetyWarningSchema).optional(),
+  }),
+  RESTORE_CONFIRM_REQUIRED: z.object({
+    snapshotId: z.string(),
+    changedPathsCount: z.number().int().nonnegative(),
+    warningMessages: z.array(z.string()),
   }),
   // 병합 화면 응답은 AI/DB 원본 DTO가 아닌 projection DTO로 고정합니다.
   CONFLICT_RESULT: z.object({

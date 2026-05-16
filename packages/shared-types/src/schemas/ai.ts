@@ -25,15 +25,11 @@ export const ParsedAiResultBaseSchema = z.object({
 
 export const MergePatchDraftResultSchema = ParsedAiResultBaseSchema.extend({
   feature_type: z.literal('merge_patch_draft'),
-  diff_patch_ref: z.string().optional(),
-  merged_code_ref: z.string().optional(),
+  merged_code_ref: z.string(),
   applied_files: z.array(z.string()),
   validation_required: z.boolean(),
   validation_summary: z.string(),
-}).refine(
-  (data) => !!data.diff_patch_ref || !!data.merged_code_ref,
-  { message: "Either diff_patch_ref or merged_code_ref must be provided for merge_patch_draft" }
-);
+});
 
 export const ConflictExplanationResultSchema = ParsedAiResultBaseSchema.extend({
   feature_type: z.literal('conflict_explanation'),
@@ -76,7 +72,7 @@ export const MinimalMergePatchResponseSchema = z.object({
   summary: z.string(),
   explanation: z.string().optional().default(""),
   confidence_score: z.number().optional().default(0.5),
-  diff_patch: z.string(),
+  merged_code: z.string().trim().min(1),
   validation_summary: z.string().optional().default(""),
 });
 
@@ -89,7 +85,8 @@ export type MinimalMergePatchResponse = z.infer<typeof MinimalMergePatchResponse
  *   필수: title, summary, primary_text, alternative_texts
  *   선택: explanation, confidence_score, generation_basis_summary, format_notes, warnings
  *
- * 시스템 메타데이터(proposal_id, session_id 등)는 파서에서 후처리로 주입합니다.
+ * recommendation_type을 포함한 시스템 메타데이터(proposal_id, session_id 등)는
+ * 호출 컨텍스트와 파서 후처리에서 주입합니다.
  */
 export const MinimalRecommendationResponseSchema = z.object({
   title: z.string(),

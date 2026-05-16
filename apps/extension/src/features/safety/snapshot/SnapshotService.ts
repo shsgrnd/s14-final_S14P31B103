@@ -14,7 +14,7 @@ import {
 } from '@gitcat/ai-pipeline';
 import type { AiClient } from '@gitcat/ai-pipeline';
 import { ISnapshotService, SnapshotCreationType, CreateSnapshotOptions } from './ISnapshotService';
-import { SnapshotDiffService } from './SnapshotDiffService';
+import { SnapshotDiffService, SnapshotFileInput } from './SnapshotDiffService';
 import { SnapshotFullStateEntry, SnapshotLocalStore } from './SnapshotLocalStore';
 import { SnapshotIdGenerator } from './SnapshotIdGenerator';
 import { SnapshotAutoCleanupService } from './SnapshotAutoCleanupService';
@@ -22,21 +22,15 @@ import { SafetyCheckService } from './SafetyCheckService';
 import { serializeSafetyWarnings } from './SafetyWarningSerialization';
 
 /**
- * 스냅샷 타입 중 AI가 수행한 작업으로 분류되는 타입 목록입니다.
- *
- * 이 목록에 포함된 타입으로 생성된 스냅샷은 AI 요약 제목 앞에 [AI] 태그가 붙습니다.
- * 그 외의 타입(savepoint, auto_dirty_before_ai 등)은 [Human] 태그가 붙습니다.
- */
-const AI_SNAPSHOT_TYPES: ReadonlySet<SnapshotCreationType> = new Set([
-  'ai_result',       // AI가 코드 변경 작업을 완료한 뒤 찍히는 스냅샷
-  'ai_pre_action',   // AI가 작업을 시작하기 직전 찍히는 스냅샷
-]);
-
-/**
  * 스냅샷 자동 삭제 정책: 최근 N개 초과 시 오래된 스냅샷을 삭제한다.
  * 이 값을 수정하면 보관 개수 정책이 즉시 반영된다.
  */
 export const SNAPSHOT_KEEP_RECENT_COUNT = 10;
+/**
+ * pre_restore 스냅샷 별도 보관 개수.
+ * 기본 정책상 일반 스냅샷 보관 수와 별도로 유지된다.
+ */
+export const SNAPSHOT_KEEP_RECENT_PRE_RESTORE_COUNT = 3;
 
 /**
  * 스냅샷 생성 최소 변경 줄 수
@@ -106,7 +100,7 @@ export interface SnapshotServiceOptions {
  * 6. 생성 후 자동 삭제 정책 적용 (최근 N개 유지)
  * 7. [Task 45] 스냅샷 생성 직후 백그라운드에서 AI 요약 제목 자동 생성
  *    - aiClient가 주입된 경우에만 동작하며, 실패해도 스냅샷 생성 결과에 영향 없음
- *    - 스냅샷 타입에 따라 [AI] 또는 [Human] 접두사를 붙여 DB에 저장
+ *    - AI가 반환한 한 줄 요약만 스냅샷 제목으로 저장
  */
 export class SnapshotService implements ISnapshotService {
   private readonly localStore: SnapshotLocalStore;
@@ -141,7 +135,7 @@ export class SnapshotService implements ISnapshotService {
     this.onSnapshotUpdated = options.onSnapshotUpdated;
     this.keepRecentPreRestoreCount =
       options.keepRecentPreRestoreCount ??
-      SnapshotAutoCleanupService.DEFAULT_KEEP_RECENT_PRE_RESTORE;
+      SNAPSHOT_KEEP_RECENT_PRE_RESTORE_COUNT;
 
     this.worktreeInstanceId =
       options.worktreeInstanceId ??
@@ -187,7 +181,7 @@ export class SnapshotService implements ISnapshotService {
     // baselines(AI 세션 시작 시점) → 현재 파일 상태 diff
     let diffResult;
     try {
-      diffResult = await this.buildDiff(primaryBaselines, primaryChangedFiles);
+      diffResult = await this.buildDiff(primaryBaselines, primaryChangedFiles, options.currentContents);
     } catch (diffError) {
       console.error('[SnapshotService] diff 생성 실패:', diffError);
       return undefined;
@@ -208,7 +202,7 @@ export class SnapshotService implements ISnapshotService {
       }
     } else if (!options.force) {
       // 자동 스냅샷: 변경 줄 수가 최소 기준 미만이면 생략
-      const totalChangedLines = this.countChangedLines(patchText);
+      const totalChangedLines = this.countChangedLines(changedFiles);
       if (totalChangedLines < SNAPSHOT_MIN_CHANGED_LINES) {
         console.log(
           `[SnapshotService] 변경 줄 수 부족 → 스냅샷 생략 ` +
@@ -223,7 +217,11 @@ export class SnapshotService implements ISnapshotService {
     let userPatchText: string | undefined;
     if (options.userBaselines && options.userBaselines.size > 0) {
       try {
-        const userDiff = await this.buildDiff(options.userBaselines, options.userChangedFiles ?? []);
+        const userDiff = await this.buildDiff(
+          options.userBaselines,
+          options.userChangedFiles ?? [],
+          options.userCurrentContents,
+        );
         userPatchText = userDiff.patchText;
       } catch (userDiffError) {
         // user diff 실패는 경고만 남기고 계속 진행
@@ -269,7 +267,7 @@ export class SnapshotService implements ISnapshotService {
     }
 
     const snapshotDir = storeResult.snapshotDir;
-    await this.saveFullSnapshotState(snapshotId, primaryBaselines, changedFiles);
+    await this.saveFullSnapshotState(snapshotId, primaryBaselines, changedFiles, options.currentContents);
 
     // --- 세션 준비 (DB session_id 확보) ---
     const sessionId = await this.ensureSession(options.sessionId, type, createdAt);
@@ -325,10 +323,14 @@ export class SnapshotService implements ISnapshotService {
     );
 
     // --- 자동 삭제 정책 적용 (비동기, 실패 허용) ---
-    this.scheduleCleanup();
+    // pre_restore는 restore 흐름 한가운데에서 생성된다. 이 타이밍에 cleanup이 같이 돌면
+    // Windows에서 디렉터리 rename/delete 충돌(EPERM)이 발생할 수 있으므로 restore 중에는 건너뛴다.
+    if (type !== 'pre_restore' && !this.isRestoreOperationActive()) {
+      this.scheduleCleanup();
+    }
 
     // --- AI 요약 제목 생성 (비동기, 실패 허용) ---
-    this.scheduleAiSummary(snapshotRow.snapshot_id, type, patchText);
+    this.scheduleAiSummary(snapshotRow.snapshot_id, patchText);
 
     return snapshotRow.snapshot_id;
   }
@@ -358,6 +360,7 @@ export class SnapshotService implements ISnapshotService {
   private async buildDiff(
     baselines: Map<string, Uint8Array> | undefined,
     changedFilePaths: string[] | undefined,
+    currentContents: Map<string, Uint8Array | null> | undefined,
   ) {
     const resolvedBaselines = baselines ?? new Map<string, Uint8Array>();
     const resolvedChanged = changedFilePaths ?? [];
@@ -373,10 +376,35 @@ export class SnapshotService implements ISnapshotService {
       };
     }
 
-    return this.diffService.buildFromWorkspace({
-      workspaceRoot: this.workspaceRoot,
-      baselines: resolvedBaselines,
-      changedFiles: resolvedChanged,
+    const baselineFiles: SnapshotFileInput[] = [];
+    for (const [filePath, content] of resolvedBaselines.entries()) {
+      baselineFiles.push({ filePath, content });
+    }
+
+    const currentFiles: SnapshotFileInput[] = [];
+    for (const filePath of resolvedChanged) {
+      const normalizedPath = this.normalizeWorkspacePath(filePath);
+      if (currentContents?.has(filePath)) {
+        const content = currentContents.get(filePath) ?? null;
+        currentFiles.push({ filePath: normalizedPath, content });
+        continue;
+      }
+      if (currentContents?.has(normalizedPath)) {
+        const content = currentContents.get(normalizedPath) ?? null;
+        currentFiles.push({ filePath: normalizedPath, content });
+        continue;
+      }
+
+      const diskContent = await this.readWorkspaceFileContent(normalizedPath);
+      currentFiles.push({ filePath: normalizedPath, content: diskContent });
+    }
+
+    return this.diffService.buildSnapshotDiff({
+      baselineFiles,
+      currentFiles,
+      options: {
+        workspaceRoot: this.workspaceRoot,
+      },
     });
   }
 
@@ -485,6 +513,7 @@ export class SnapshotService implements ISnapshotService {
     snapshotId: string,
     baselines: Map<string, Uint8Array> | undefined,
     changedFiles: SnapshotFile[],
+    currentContents: Map<string, Uint8Array | null> | undefined,
   ): Promise<void> {
     if (changedFiles.length === 0) {
       return;
@@ -496,10 +525,16 @@ export class SnapshotService implements ISnapshotService {
     for (const [filePath, content] of baselines ?? new Map<string, Uint8Array>()) {
       normalizedBaselines.set(this.normalizeWorkspacePath(filePath), content);
     }
+    const normalizedCurrentContents = new Map<string, Uint8Array | null>();
+    for (const [filePath, content] of currentContents ?? new Map<string, Uint8Array | null>()) {
+      normalizedCurrentContents.set(this.normalizeWorkspacePath(filePath), content);
+    }
 
     for (const file of changedFiles) {
       const targetPath = this.normalizeWorkspacePath(file.filePath);
-      const currentContent = await this.readWorkspaceFileContent(targetPath);
+      const currentContent = normalizedCurrentContents.has(targetPath)
+        ? normalizedCurrentContents.get(targetPath) ?? null
+        : await this.readWorkspaceFileContent(targetPath);
 
       if (file.status === 'renamed' && file.renamedFrom) {
         const beforePath = this.normalizeWorkspacePath(file.renamedFrom);
@@ -559,12 +594,11 @@ export class SnapshotService implements ISnapshotService {
   /**
    * AI를 이용해 스냅샷 요약 제목을 비동기 생성하고 DB에 업데이트한다.
    * - aiClient가 없으면 조용히 건너뜀 (하위 호환)
-   * - [AI] / [Human] 접두사를 type에 따라 자동으로 붙임
+   * - AI가 생성한 한 줄 요약만 저장하고 별도 접두사는 붙이지 않음
    * - 실패해도 스냅샷 생성 결과에 영향 없음
    */
   private scheduleAiSummary(
     snapshotId: string,
-    type: SnapshotCreationType,
     patchText: string,
   ): void {
     if (!this.aiClient || !patchText) {
@@ -576,18 +610,6 @@ export class SnapshotService implements ISnapshotService {
 
     const runSummary = async () => {
       try {
-        // [Task 45] 스냅샷 타입에 따른 세분화된 태그 결정
-        let tag = '[User]';
-        if (type === 'ai_result') {
-          tag = '[AI]';
-        } else if (type === 'ai_pre_action') {
-          tag = '[AI Base]';
-        } else if (type === 'savepoint') {
-          tag = '[Save]';
-        } else if (type === 'auto_dirty_before_ai') {
-          tag = '[Pre-AI]';
-        }
-
         // diff가 너무 길면 앞부분만 잘라서 전달 (토큰 절약)
         const trimmedDiff = patchText.length > 4000 ? patchText.slice(0, 4000) + '\n...(truncated)' : patchText;
 
@@ -598,8 +620,8 @@ export class SnapshotService implements ISnapshotService {
           priority: 'background',
         });
 
-        // AI 응답에서 앞뒤 공백/줄바꿈 제거 후 태그 붙이기
-        const summary = `${tag} ${rawSummary.trim().split('\n')[0]}`;
+        // 스냅샷 목록에는 분류 태그보다 실제 작업 요약이 더 중요해서 제목 본문만 저장합니다.
+        const summary = rawSummary.trim().split('\n')[0];
 
         await this.snapshotRepository.updateSummary(snapshotId, summary);
         console.log(`[SnapshotService] AI 요약 저장 완료: id=${snapshotId}, summary=${summary}`);
@@ -633,17 +655,12 @@ export class SnapshotService implements ISnapshotService {
    * 유니파이드 diff 형식에서 +/- 로 시작하는 줄을 세되,
    * +++/--- 헤더 줄은 제외한다.
    */
-  private countChangedLines(patchText: string): number {
-    if (!patchText) {
-      return 0;
-    }
-    return patchText
-      .split('\n')
-      .filter(
-        (line) =>
-          (line.startsWith('+') && !line.startsWith('+++')) ||
-          (line.startsWith('-') && !line.startsWith('---')),
-      ).length;
+  private countChangedLines(changedFiles: SnapshotFile[]): number {
+    return changedFiles.reduce((sum, file) => {
+      const additions = file.additions ?? 0;
+      const deletions = file.deletions ?? 0;
+      return sum + additions + deletions;
+    }, 0);
   }
 
   private normalizeWorkspacePath(filePath: string): string {

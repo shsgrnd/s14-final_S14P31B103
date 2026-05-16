@@ -67,8 +67,7 @@ function extractParsedResultFields(parsedResult: ParsedAiResult): Record<string,
   };
 
   if (parsedResult.feature_type === 'merge_patch_draft') {
-    fields.diff_patch_ref = parsedResult.diff_patch_ref ?? null;
-    fields.merged_code_ref = parsedResult.merged_code_ref ?? null;
+    fields.merged_code_ref = parsedResult.merged_code_ref;
     fields.applied_files = parsedResult.applied_files;
     fields.validation_summary = parsedResult.validation_summary;
   } else if (parsedResult.feature_type === 'conflict_explanation') {

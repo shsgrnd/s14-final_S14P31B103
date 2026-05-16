@@ -36,7 +36,7 @@ export async function runExportMockValidation() {
     feedback: feedbackMerge,
     datasetType: 'sft',
     trainingCandidateId: tcMergeId,
-    promptText: 'System: You are an AI assistant...\nUser: Create a patch for the conflict.',
+    promptText: 'System: You are an AI assistant...\nUser: Return the final resolved code for the conflict.',
   });
 
   const candidateMerge = buildTrainingCandidatePayload({

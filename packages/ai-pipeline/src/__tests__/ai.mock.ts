@@ -75,7 +75,6 @@ export const mockParsedAiResults: ParsedAiResult[] = [
     confidence_score: 0.82,
     proposal_status: "parsed",
     parser_version: "v1",
-    diff_patch_ref: "patch://local/aip_20260427_001/merge.patch",
     merged_code_ref: "code://local/aip_20260427_001/merged.ts",
     applied_files: ["src/auth/service.ts"],
     validation_required: true,
@@ -219,10 +218,39 @@ async function testParser() {
 
   const parser = new MergeResultParser();
   const sessionId = "test-session";
+  const workspaceRoot = getMockWorkspaceRoot();
+
+  try {
+    const parsed = await parser.parse(
+      [
+        "```json",
+        JSON.stringify({
+          title: "코드블록 병합 초안",
+          summary: "코드블록 안의 JSON만 추출",
+          explanation: "설명 없는 fenced JSON 응답은 허용",
+          confidence_score: 0.77,
+          merged_code: "const resolved = true;",
+          validation_summary: "run tests",
+        }, null, 2),
+        "```",
+      ].join("\n"),
+      "merge_patch_draft",
+      sessionId,
+      { workspaceRoot },
+    );
+    if (parsed.feature_type !== "merge_patch_draft") {
+      throw new Error("Expected merge_patch_draft parser result");
+    }
+    console.log("[PASS] merge_patch_draft fenced JSON 응답 파싱 완료");
+    console.log(`      - Merged Code Ref: ${parsed.merged_code_ref}`);
+  } catch (err) {
+    console.log("[FAIL] merge_patch_draft fenced JSON 응답 파싱 실패");
+    console.error(err);
+  }
 
   for (const mock of invalidResponseMocks) {
     try {
-      await parser.parse(mock.rawResponse, mock.featureType as any, sessionId);
+      await parser.parse(mock.rawResponse, mock.featureType as any, sessionId, { workspaceRoot });
       console.log(`[FAIL] ${mock.name}: 에러가 발생해야 하는데 통과됨`);
     } catch (err: any) {
       const firstError = err.errors?.[0];
@@ -565,7 +593,7 @@ function testParsedResultRepositoryInputDraft() {
   console.log(`[PASS] merge proposal repository draft 생성 완료`);
   console.log(`      - Proposal ID: ${mergeProposalDraft.proposal_id}`);
   console.log(`      - File Path: ${mergeProposalDraft.file_path}`);
-  console.log(`      - Diff Patch Ref: ${mergeProposalDraft.diff_patch_ref ?? "none"}`);
+  console.log(`      - Merged Code Ref: ${mergeProposalDraft.merged_code_ref ?? "none"}`);
 
   console.log(`[PASS] recommendation repository draft 생성 완료`);
   console.log(`      - Recommendation ID: ${recommendationDraft.recommendation_id}`);
@@ -668,7 +696,9 @@ async function testFullServiceFlow() {
       }
 
       console.log(`\n>>> [Testing Feature: ${feature}]`);
-      const result = await service.processMergeRequest(payload);
+      const result = await service.processMergeRequest(payload, {
+        workspaceRoot: getMockWorkspaceRoot(),
+      });
       
       console.log(`[PASS] 서비스 흐름 완료`);
       console.log(`      - 생성된 Proposal ID: ${result.proposal_id}`);

@@ -24,8 +24,8 @@ VS Code 환경에 전혀 의존하지 않으므로, 독립적인 Mock 데이터 
 ### live run 메모
 
 - `test:live`는 UI/저장 연결 없이 mock `ai_input_payload`를 실제 OpenAI 호출로 보내고 `parsed_ai_result`를 출력합니다.
-- `merge_patch_draft` 시나리오는 응답의 `diff_patch` 또는 `merged_code` 본문이 있으면 `.vscode/gitcat/merge-sessions/<session_id>/ai-results/<proposal_id>/` 아래에 실제 로컬 파일로 저장하고, 결과 ref를 그 파일 기준으로 다시 정규화합니다.
-- 모델이 본문 없이 ref만 반환하더라도, 시연용 fallback artifact 파일은 동일한 위치에 생성합니다.
+- `merge_patch_draft` 시나리오는 응답의 `merged_code` 본문을 `.vscode/gitcat/merge-sessions/<session_id>/ai-results/<proposal_id>/` 아래 실제 로컬 파일로 저장하고, 결과 ref를 그 파일 기준으로 다시 정규화합니다.
+- `merged_code` 본문이 없거나 비어 있으면 merge patch draft 결과는 실패 처리합니다.
 - 루트 `.env`가 있으면 자동으로 읽고, 셸에 이미 주입된 환경변수는 덮어쓰지 않습니다.
 - `GMS_BASE_URL`을 기준으로 실제 SDK base URL을 `.../api.openai.com/v1` 형태로 조립합니다.
 - 시나리오 이름은 `merge_mediation`, `conflict_explanation`, `merge_patch_draft`, `recommendation_branch_name`, `recommendation_commit_message`, `recommendation_work_description` 중에서 선택합니다.

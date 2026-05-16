@@ -176,14 +176,9 @@ export class AiClient {
           summary: "Combined imports and logic to resolve conflict.",
           explanation: "The changes are non-overlapping but touch the same module.",
           confidence_score: 0.95,
-          diff_patch_ref: "patch-12345",
-          diff_patch: [
-            "--- a/src/index.ts",
-            "+++ b/src/index.ts",
-            "@@",
-            "-import { oldHelper } from './old';",
-            "+import { oldHelper } from './old';",
-            "+import { newHelper } from './new';",
+          merged_code: [
+            "import { oldHelper } from './old';",
+            "import { newHelper } from './new';",
           ].join("\n"),
           applied_files: ["src/index.ts"],
           validation_required: true,
@@ -224,7 +219,6 @@ export class AiClient {
           return "```json\n" + JSON.stringify({
             title: "Branch Name Recommendations",
             summary: "Generated branch names based on intent.",
-            recommendation_type: "branch_name",
             primary_text: "feat/auth-refactor",
             alternative_texts: [
               "feat/login-response-handling",
@@ -236,7 +230,6 @@ export class AiClient {
           return "```json\n" + JSON.stringify({
             title: "PR Description Recommendation",
             summary: "Generated PR description markdown.",
-            recommendation_type: "pr_description",
             primary_text: "## 🚀 Overview\n인증 응답 로직과 예외 처리 흐름을 개선했습니다.\n\n## 🛠️ Changes\n- DTO 구조 변경\n- 에러 플로우 수정\n\n## ⚠️ Notes\n충분한 테스트가 필요합니다.",
             alternative_texts: [],
             confidence_score: 0.90
@@ -245,7 +238,6 @@ export class AiClient {
           return "Here is your recommendation:\n```json\n" + JSON.stringify({
             title: "Commit Message Recommendations",
             summary: "Generated commit messages based on your changes.",
-            recommendation_type: "commit_message",
             primary_text: "feat(auth): refactor login response handling",
             alternative_texts: [
               "fix: correct exception flow in login service",
