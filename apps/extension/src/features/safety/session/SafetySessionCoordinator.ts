@@ -260,6 +260,22 @@ export class SafetySessionCoordinator {
 
     }
 
+    public resetAfterRestore(): void {
+        if (this.sessionTimer) {
+            clearTimeout(this.sessionTimer);
+            this.sessionTimer = null;
+        }
+
+        this.currentSession = null;
+        this.baselines.clear();
+        this.currentTextCache.clear();
+        this.changedFiles.clear();
+        this.dirtyFiles.clear();
+        this.interSessionUserBaselines.clear();
+        this.interSessionUserChangedFiles.clear();
+        console.log('[SafetySessionCoordinator] reset state after snapshot restore.');
+    }
+
     private buildCurrentContentsSnapshot(): Map<string, Uint8Array | null> {
         const currentContents = new Map<string, Uint8Array | null>();
         for (const filePath of this.changedFiles) {

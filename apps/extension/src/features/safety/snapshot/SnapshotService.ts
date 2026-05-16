@@ -323,7 +323,11 @@ export class SnapshotService implements ISnapshotService {
     );
 
     // --- 자동 삭제 정책 적용 (비동기, 실패 허용) ---
-    this.scheduleCleanup();
+    // pre_restore는 restore 흐름 한가운데에서 생성된다. 이 타이밍에 cleanup이 같이 돌면
+    // Windows에서 디렉터리 rename/delete 충돌(EPERM)이 발생할 수 있으므로 restore 중에는 건너뛴다.
+    if (type !== 'pre_restore' && !this.isRestoreOperationActive()) {
+      this.scheduleCleanup();
+    }
 
     // --- AI 요약 제목 생성 (비동기, 실패 허용) ---
     this.scheduleAiSummary(snapshotRow.snapshot_id, patchText);
@@ -521,12 +525,16 @@ export class SnapshotService implements ISnapshotService {
     for (const [filePath, content] of baselines ?? new Map<string, Uint8Array>()) {
       normalizedBaselines.set(this.normalizeWorkspacePath(filePath), content);
     }
+    const normalizedCurrentContents = new Map<string, Uint8Array | null>();
+    for (const [filePath, content] of currentContents ?? new Map<string, Uint8Array | null>()) {
+      normalizedCurrentContents.set(this.normalizeWorkspacePath(filePath), content);
+    }
 
     for (const file of changedFiles) {
       const targetPath = this.normalizeWorkspacePath(file.filePath);
-      const currentContent = currentContents?.get(targetPath)
-        ?? currentContents?.get(file.filePath)
-        ?? await this.readWorkspaceFileContent(targetPath);
+      const currentContent = normalizedCurrentContents.has(targetPath)
+        ? normalizedCurrentContents.get(targetPath) ?? null
+        : await this.readWorkspaceFileContent(targetPath);
 
       if (file.status === 'renamed' && file.renamedFrom) {
         const beforePath = this.normalizeWorkspacePath(file.renamedFrom);

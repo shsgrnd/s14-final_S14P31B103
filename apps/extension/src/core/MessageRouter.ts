@@ -22,7 +22,7 @@ import type { MergeProposalMessageHandler } from '../features/merge-analysis/Mer
 import type { SnapshotQueryService } from '../features/safety/snapshot/SnapshotQueryService';
 import type { ISnapshotService } from '../features/safety/snapshot/ISnapshotService';
 import type { RestoreHistoryQueryService } from '../features/safety/snapshot/RestoreHistoryQueryService';
-import type { RestoreService } from '../features/safety/snapshot/RestoreService';
+import type { RestoreService, RestoreSnapshotResult } from '../features/safety/snapshot/RestoreService';
 import type { SafetySessionCoordinator } from '../features/safety/session/SafetySessionCoordinator';
 import {
   InboundMessage,
@@ -426,10 +426,42 @@ export class MessageRouter {
 
   private async handleRestoreSnapshot(message: InboundMessage, webview: vscode.Webview): Promise<void> {
     const service = this.requireRestoreService();
+    const snapshotService = this.requireSnapshotService();
     const snapshotQueryService = this.requireSnapshotQueryService();
     const restoreHistoryService = this.requireRestoreHistoryQueryService();
     const payload = message.payload as { snapshotId: string };
-    const result = await service.restoreToSnapshot(payload.snapshotId);
+
+    const openFileDocuments = this.getOpenFileDocuments();
+    const dirtyDocuments = openFileDocuments.filter((doc) => doc.isDirty);
+    const restoreApproved = await this.confirmRestoreWithDirtyEditors(dirtyDocuments);
+    if (!restoreApproved) {
+      await webview.postMessage({
+        type: 'NOTIFICATION',
+        payload: {
+          type: 'warning',
+          message: 'Restore cancelled. Save or discard unsaved changes before retrying if needed.',
+        },
+        requestId: message.requestId,
+      } as OutboundMessage);
+      return;
+    }
+
+    snapshotService.beginRestoreOperation();
+    let result: RestoreSnapshotResult;
+    try {
+      result = await service.restoreToSnapshot(payload.snapshotId);
+      console.log(
+        `[GitCat][Restore] restoreToSnapshot success: snapshotId=${payload.snapshotId}, ` +
+        `preRestoreSnapshotId=${result.preRestoreSnapshotId ?? 'none'}, ` +
+        `changedPaths=${result.changedPaths.length}, paths=${this.formatPathListForLog(result.changedPaths)}`,
+      );
+
+      await this.reloadOpenEditorsAfterRestore(openFileDocuments, result.changedPaths);
+
+      this.safetySessionCoordinator?.resetAfterRestore();
+    } finally {
+      snapshotService.endRestoreOperation();
+    }
 
     await webview.postMessage({
       type: 'RESTORE_DONE',
@@ -470,6 +502,96 @@ export class MessageRouter {
       payload: { histories },
       requestId: message.requestId,
     } as OutboundMessage);
+  }
+
+  private formatPathListForLog(paths: readonly string[], maxCount = 5): string {
+    if (paths.length === 0) {
+      return 'none';
+    }
+
+    const visible = paths.slice(0, maxCount).join(', ');
+    const remaining = paths.length - maxCount;
+    return remaining > 0 ? `${visible}, ...and ${remaining} more` : visible;
+  }
+
+  private async confirmRestoreWithDirtyEditors(
+    dirtyDocuments: readonly vscode.TextDocument[],
+  ): Promise<boolean> {
+    if (dirtyDocuments.length === 0) {
+      return true;
+    }
+
+    const samplePaths = dirtyDocuments
+      .slice(0, 3)
+      .map((doc) => {
+        const workspaceFolder = vscode.workspace.getWorkspaceFolder(doc.uri);
+        return workspaceFolder
+          ? path.relative(workspaceFolder.uri.fsPath, doc.uri.fsPath).replace(/\\/g, '/')
+          : doc.uri.fsPath;
+      });
+    const extraCount = Math.max(0, dirtyDocuments.length - samplePaths.length);
+    const detail = extraCount > 0
+      ? `${samplePaths.join(', ')} and ${extraCount} more`
+      : samplePaths.join(', ');
+
+    const restoreAction = 'Restore Anyway';
+    const selection = await vscode.window.showWarningMessage(
+      `There are unsaved changes in open editors (${detail}). ` +
+      'Restoring a snapshot may make the editor view differ from files on disk until you save or undo those edits.',
+      {
+        modal: true,
+        detail: 'Save or discard unsaved editor changes first if you want the restored snapshot to be reflected immediately in the editor.',
+      },
+      restoreAction,
+      'Cancel',
+    );
+
+    return selection === restoreAction;
+  }
+
+  private getOpenFileDocuments(): vscode.TextDocument[] {
+    return vscode.workspace.textDocuments.filter((doc) =>
+      doc.uri.scheme === 'file',
+    );
+  }
+
+  private async reloadOpenEditorsAfterRestore(
+    openDocuments: readonly vscode.TextDocument[],
+    changedPaths: readonly string[],
+  ): Promise<void> {
+    const previouslyActiveEditor = vscode.window.activeTextEditor;
+    const changedPathSet = new Set(
+      changedPaths.map((changedPath) => path.resolve(this.getWorkspaceRootForMessageRouter(), changedPath)),
+    );
+
+    for (const document of openDocuments) {
+      if (!changedPathSet.has(path.resolve(document.uri.fsPath))) {
+        continue;
+      }
+
+      const editor = await vscode.window.showTextDocument(document, {
+        preserveFocus: false,
+        preview: false,
+      });
+
+      await vscode.commands.executeCommand('workbench.action.files.revert');
+
+      if (editor.document.isDirty) {
+        throw new Error(`Failed to reload restored file in editor: ${document.uri.fsPath}`);
+      }
+    }
+
+    if (previouslyActiveEditor) {
+      await vscode.window.showTextDocument(previouslyActiveEditor.document, previouslyActiveEditor.viewColumn, true);
+    }
+  }
+
+  private getWorkspaceRootForMessageRouter(): string {
+    const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+    if (!workspaceRoot) {
+      throw new Error('Workspace folder is required to resolve restored file paths.');
+    }
+    return workspaceRoot;
   }
 
   private async handleGetWorkspaceTree(webview: vscode.Webview): Promise<void> {
