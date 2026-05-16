@@ -430,15 +430,11 @@ export class MessageRouter {
     const snapshotQueryService = this.requireSnapshotQueryService();
     const restoreHistoryService = this.requireRestoreHistoryQueryService();
     const payload = message.payload as { snapshotId: string };
-    console.log(`[GitCat][Restore] RESTORE_SNAPSHOT received: snapshotId=${payload.snapshotId}`);
 
     const openFileDocuments = this.getOpenFileDocuments();
     const dirtyDocuments = openFileDocuments.filter((doc) => doc.isDirty);
     const restoreApproved = await this.confirmRestoreWithDirtyEditors(dirtyDocuments);
     if (!restoreApproved) {
-      console.log(
-        `[GitCat][Restore] restore cancelled by user due to unsaved changes: snapshotId=${payload.snapshotId}`,
-      );
       await webview.postMessage({
         type: 'NOTIFICATION',
         payload: {
@@ -454,16 +450,11 @@ export class MessageRouter {
     let result: RestoreSnapshotResult;
     try {
       result = await service.restoreToSnapshot(payload.snapshotId);
-      const restoreLogMessage =
-        `[GitCat][Restore] restoreToSnapshot ${result.changedPaths.length === 0 ? 'no-op' : 'success'}: ` +
-        `snapshotId=${payload.snapshotId}, ` +
+      console.log(
+        `[GitCat][Restore] restoreToSnapshot success: snapshotId=${payload.snapshotId}, ` +
         `preRestoreSnapshotId=${result.preRestoreSnapshotId ?? 'none'}, ` +
-        `changedPaths=${result.changedPaths.length}, paths=${this.formatPathListForLog(result.changedPaths)}`;
-      if (result.changedPaths.length === 0) {
-        console.warn(restoreLogMessage);
-      } else {
-        console.log(restoreLogMessage);
-      }
+        `changedPaths=${result.changedPaths.length}, paths=${this.formatPathListForLog(result.changedPaths)}`,
+      );
 
       await this.reloadOpenEditorsAfterRestore(openFileDocuments, result.changedPaths);
 
@@ -488,10 +479,6 @@ export class MessageRouter {
       snapshotQueryService.listSnapshots(),
       restoreHistoryService.listHistory(),
     ]);
-    console.log(
-      `[GitCat][Restore] follow-up queries complete: snapshotId=${payload.snapshotId}, ` +
-      `snapshotCount=${snapshots.snapshots.length}, historyCount=${histories.length}`,
-    );
 
     await webview.postMessage({
       type: 'SNAPSHOT_LIST',

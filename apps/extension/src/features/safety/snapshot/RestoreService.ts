@@ -53,30 +53,18 @@ export class RestoreService {
       throw new Error('Already restoring a snapshot. Please wait for the current operation to complete.');
     }
 
-    console.log(`[GitCat][Restore] restoreToSnapshot start: snapshotId=${snapshotId}`);
     this.snapshotService.beginRestoreOperation();
     this.isRestoring = true;
 
     try {
       const snapshots = await this.listSnapshotsOldestFirst();
-      console.log(
-        `[GitCat][Restore] snapshot list loaded: snapshotId=${snapshotId}, totalSnapshots=${snapshots.length}`,
-      );
       const targetIndex = snapshots.findIndex((row) => row.snapshot_id === snapshotId);
       if (targetIndex < 0) {
-        console.error(`[GitCat][Restore] target snapshot not found: snapshotId=${snapshotId}`);
         throw new Error(`Snapshot not found: ${snapshotId}`);
       }
-      console.log(
-        `[GitCat][Restore] target snapshot located: snapshotId=${snapshotId}, targetIndex=${targetIndex}`,
-      );
 
       const manifests = new Map<string, SnapshotManifest>();
       const candidatePaths = await this.collectCandidatePaths(snapshots, manifests);
-      console.log(
-        `[GitCat][Restore] candidate paths collected: snapshotId=${snapshotId}, ` +
-        `candidatePathCount=${candidatePaths.size}`,
-      );
       const desiredStates = new Map<string, Uint8Array | null>();
       const currentStates = new Map<string, Uint8Array | null>();
 
@@ -90,19 +78,12 @@ export class RestoreService {
         desiredStates.set(candidatePath, desiredState);
         currentStates.set(candidatePath, await this.readCurrentFileState(candidatePath));
       }
-      console.log(
-        `[GitCat][Restore] target state resolution complete: snapshotId=${snapshotId}, ` +
-        `desiredStateCount=${desiredStates.size}, currentStateCount=${currentStates.size}`,
-      );
 
       const changedPaths = [...candidatePaths].filter((candidatePath) =>
         !this.areEqualBytes(
           desiredStates.get(candidatePath) ?? null,
           currentStates.get(candidatePath) ?? null,
         ),
-      );
-      console.log(
-        `[GitCat][Restore] changed paths resolved: snapshotId=${snapshotId}, changedPathCount=${changedPaths.length}`,
       );
 
       const latestSnapshotId = snapshots.at(-1)?.snapshot_id;
@@ -122,36 +103,16 @@ export class RestoreService {
           content: desiredStates.get(changedPath) ?? null,
         })),
       });
-      console.log(
-        `[GitCat][Restore] warning analysis complete: snapshotId=${snapshotId}, ` +
-        `beforeWarningCount=${beforeWarnings.length}, afterWarningCount=${afterWarnings.length}`,
-      );
 
       try {
-        console.log(
-          `[GitCat][Restore] creating pre_restore snapshot: snapshotId=${snapshotId}, ` +
-          `changedPathCount=${changedPaths.length}`,
-        );
         preRestoreSnapshotId = await this.createPreRestoreSnapshot(
           snapshotId,
           changedPaths,
           currentStates,
         );
-        console.log(
-          `[GitCat][Restore] pre_restore snapshot created: snapshotId=${snapshotId}, ` +
-          `preRestoreSnapshotId=${preRestoreSnapshotId ?? 'none'}`,
-        );
         const applyResult = await this.applyWorkspaceState(changedPaths, desiredStates);
-        console.log(
-          `[GitCat][Restore] workspace apply complete: snapshotId=${snapshotId}, ` +
-          `applied=${applyResult.appliedPaths.length}, failed=${applyResult.failedPaths.length}`,
-        );
         if (applyResult.failedPaths.length > 0) {
           const failureSummary = this.buildApplyFailureSummary(applyResult);
-          console.error(
-            `[GitCat][Restore] workspace apply partial failure: snapshotId=${snapshotId}, ` +
-            `summary=${failureSummary}`,
-          );
           const historyRow = await this.restoreHistoryRepository.create({
             restore_history_id: `restore_${Date.now()}`,
             from_snapshot_id: fromSnapshotId,
@@ -174,10 +135,6 @@ export class RestoreService {
           safety_warnings_before_json: serializeSafetyWarnings(beforeWarnings),
           safety_warnings_after_json: serializeSafetyWarnings(afterWarnings),
         });
-        console.log(
-          `[GitCat][Restore] restore history recorded: snapshotId=${snapshotId}, ` +
-          `restoreHistoryId=${historyRow.restore_history_id}, status=${historyRow.status}`,
-        );
 
         return {
           snapshotId,
@@ -189,10 +146,6 @@ export class RestoreService {
         };
       } catch (error) {
         const failureReason = error instanceof Error ? error.message : String(error);
-        console.error(
-          `[GitCat][Restore] restore inner failure: snapshotId=${snapshotId}, reason=${failureReason}`,
-          error,
-        );
         if (failureReason.startsWith('Restore finished with partial failure:')) {
           throw error;
         }
@@ -211,7 +164,6 @@ export class RestoreService {
         throw new Error(`Restore failed: ${historyRow.failure_reason ?? failureReason}`);
       }
     } finally {
-      console.log(`[GitCat][Restore] restoreToSnapshot finalize: snapshotId=${snapshotId}`);
       this.isRestoring = false;
       this.snapshotService.endRestoreOperation();
     }
@@ -230,11 +182,6 @@ export class RestoreService {
       }
       baselines.set(changedPath, currentState);
     }
-    console.log(
-      `[GitCat][Restore] pre_restore snapshot input prepared: targetSnapshotId=${targetSnapshotId}, ` +
-      `changedPaths=${changedPaths.length}, baselineCount=${baselines.size}`,
-    );
-
     const preRestoreSnapshotId = await this.snapshotService.createSnapshot('pre_restore', {
       force: true,
       reason: `Automatic safety snapshot before restoring to ${targetSnapshotId}`,
@@ -433,9 +380,6 @@ export class RestoreService {
   ): Promise<ApplyWorkspaceStateResult> {
     const appliedPaths: string[] = [];
     const failedPaths: Array<{ path: string; reason: string }> = [];
-    console.log(
-      `[GitCat][Restore] applyWorkspaceState start: changedPathCount=${changedPaths.length}`,
-    );
 
     for (const changedPath of changedPaths) {
       try {
@@ -455,17 +399,9 @@ export class RestoreService {
         appliedPaths.push(changedPath);
       } catch (error) {
         const reason = error instanceof Error ? error.message : String(error);
-        console.error(
-          `[GitCat][Restore] applyWorkspaceState failed for path: path=${changedPath}, reason=${reason}`,
-          error,
-        );
         failedPaths.push({ path: changedPath, reason });
       }
     }
-
-    console.log(
-      `[GitCat][Restore] applyWorkspaceState end: applied=${appliedPaths.length}, failed=${failedPaths.length}`,
-    );
 
     return { appliedPaths, failedPaths };
   }
