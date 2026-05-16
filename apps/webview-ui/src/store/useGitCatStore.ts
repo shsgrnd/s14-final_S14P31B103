@@ -34,6 +34,12 @@ export interface NotificationLogEntry {
 
 export type NotificationSection = 'git' | 'files' | 'snapshots' | 'branchCleanup' | 'stash';
 
+export interface RestoreConfirmDialog {
+  snapshotId: string;
+  changedPathsCount: number;
+  warningMessages: string[];
+}
+
 /**
  * `stash` 단어가 들어간 일반 Git 안내(예: 브랜치 전환 전 stash 권고)를 stash 패널로 보내지 않기 위한 판별.
  */
@@ -231,6 +237,7 @@ interface GitCatState {
   restoreHistories: RestoreHistory[];
   /** 스냅샷 단일 파일 diff 패널 (GET_SNAPSHOT_FILE_DIFF 응답) */
   snapshotFileDiff: OutboundPayload<'SNAPSHOT_FILE_DIFF'> | null;
+  restoreConfirmDialog: RestoreConfirmDialog | null;
 
   // Actions
   setSnapshots: (snapshots: SnapshotMeta[]) => void;
@@ -262,6 +269,7 @@ interface GitCatState {
   clearPrRecommendationError: () => void;
   setBranchCleanupInSettingsMode: (open: boolean) => void;
   clearSnapshotFileDiff: () => void;
+  clearRestoreConfirmDialog: () => void;
 
   handleMessage: (event: MessageEvent<OutboundMessage>) => void;
 }
@@ -363,6 +371,7 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
   branchCleanupInSettingsMode: false,
   restoreHistories: [],
   snapshotFileDiff: null,
+  restoreConfirmDialog: null,
 
   setSnapshots: (snapshots) => set({ snapshots }),
   setConflicts: (conflicts) => set({ conflicts }),
@@ -426,6 +435,7 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
   clearPrRecommendationError: () => set({ prRecommendationError: null }),
   setBranchCleanupInSettingsMode: (open) => set({ branchCleanupInSettingsMode: open }),
   clearSnapshotFileDiff: () => set({ snapshotFileDiff: null }),
+  clearRestoreConfirmDialog: () => set({ restoreConfirmDialog: null }),
 
   toggleSection: (sectionId) => set((state) => ({
     expandedSections: state.expandedSections.includes(sectionId)
@@ -519,6 +529,7 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
       case 'RESTORE_DONE': {
         const sid = (payload as OutboundPayload<'RESTORE_DONE'>).snapshotId;
         set((state) => ({
+          restoreConfirmDialog: null,
           sectionNotifications: {
             ...state.sectionNotifications,
             snapshots: {
@@ -532,6 +543,16 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
         }));
         break;
       }
+
+      case 'RESTORE_CONFIRM_REQUIRED':
+        set({
+          restoreConfirmDialog: {
+            snapshotId: payload.snapshotId,
+            changedPathsCount: payload.changedPathsCount ?? 0,
+            warningMessages: payload.warningMessages ?? [],
+          },
+        });
+        break;
 
       case 'RESTORE_HISTORY_LIST':
         set({ restoreHistories: payload.histories ?? [] });

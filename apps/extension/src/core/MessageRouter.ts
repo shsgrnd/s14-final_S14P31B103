@@ -1,9 +1,8 @@
 /**
- * MessageRouter — Webview ↔ Extension Host 메시지 라우터
- *
- * Webview에서 수신한 InboundMessage를 type별 핸들러로 분기한다.
- * 1단계: Git 관련 메시지는 GitMessageHandler가 담당한다.
- * 미구현 핸들러(추천, 스냅샷, 병합 분석)는 stub 응답을 반환한다.
+ * MessageRouter ??Webview ??Extension Host 메시지 ?�우?? *
+ * Webview?�서 ?�신??InboundMessage�?type�??�들?�로 분기?�다.
+ * 1?�계: Git 관??메시지??GitMessageHandler가 ?�당?�다.
+ * 미구???�들??추천, ?�냅?? 병합 분석)??stub ?�답??반환?�다.
  */
 
 import * as vscode from 'vscode';
@@ -32,20 +31,20 @@ import {
 } from '@gitcat/shared-types';
 
 /**
- * Webview에서 오는 모든 메시지를 중앙에서 검증하고 각 핸들러로 분기하는 라우터입니다.
+ * Webview?�서 ?�는 모든 메시지�?중앙?�서 검증하�?�??�들?�로 분기?�는 ?�우?�입?�다.
  */
 export class MessageRouter {
   private readonly gitHandler: GitMessageHandler | null;
   private branchRecommendationHandler: BranchRecommendationMessageHandler | null;
   private commitRecommendationHandler: CommitRecommendationMessageHandler | null;
   private prRecommendationHandler: PrRecommendationHandler | null;
-  /** GitHub PR 생성 핸들러 (CREATE_PR, OPEN_PR_PANEL) */
+  /** GitHub PR ?�성 ?�들??(CREATE_PR, OPEN_PR_PANEL) */
   private readonly pullRequestHandler: PullRequestMessageHandler | null;
-  /** PR 환경설정 (기본 target 브랜치 저장/조회) */
+  /** PR ?�경?�정 (기본 target 브랜�??�??조회) */
   private prSettingsHandler: PrSettingsMessageHandler | null;
-  /** 병합 충돌 분석 메시지 핸들러 */
+  /** 병합 충돌 분석 메시지 ?�들??*/
   private mergeConflictHandler: MergeConflictMessageHandler | null;
-  /** AI 병합 제안/피드백 메시지 핸들러 */
+  /** AI 병합 ?�안/?�드�?메시지 ?�들??*/
   private mergeProposalHandler: MergeProposalMessageHandler | null;
   private readonly aiApiKeyMessageHandler: AiApiKeyMessageHandler | null;
   private snapshotQueryService: SnapshotQueryService | null = null;
@@ -141,12 +140,11 @@ export class MessageRouter {
   }
 
   public async route(rawMessage: any, webview: vscode.Webview) {
-    // 1. Zod를 이용한 메시지 규격 검증
     const parseResult = InboundMessageSchema.safeParse(rawMessage);
 
     if (!parseResult.success) {
       console.error('[GitCat] Invalid inbound message:', parseResult.error);
-      this.postError(webview, 'INVALID_PARAMETER', `메시지 규격이 올바르지 않습니다: ${parseResult.error.message}`);
+      this.postError(webview, 'INVALID_PARAMETER', `메시지 규격???�바르�? ?�습?�다: ${parseResult.error.message}`);
       return;
     }
 
@@ -154,55 +152,55 @@ export class MessageRouter {
     // console.log(`[GitCat] Processing message: ${message.type}`, message.payload);
 
     try {
-      // Git 핸들러에 우선 위임
+      // Git ?�들?�에 ?�선 ?�임
       if (this.gitHandler) {
         const handled = await this.gitHandler.handle(message.type, message.payload, webview);
         if (handled) return;
       }
-      // branch 추천 핸들러 위임
+      // branch 추천 ?�들???�임
       if (this.branchRecommendationHandler) {
         const handled = await this.branchRecommendationHandler.handle(message.type, message.payload, webview);
         if (handled) return;
       }
-      // commit 추천 핸들러 위임
+      // commit 추천 ?�들???�임
       if (this.commitRecommendationHandler) {
         const handled = await this.commitRecommendationHandler.handle(message.type, message.payload, webview);
         if (handled) return;
       }
-      // PR 추천 핸들러 위임
+      // PR 추천 ?�들???�임
       if (this.prRecommendationHandler) {
         const handled = await this.prRecommendationHandler.handle(message.type, message.payload, webview);
         if (handled) return;
       }
-      // GitHub PR 생성 핸들러 위임 (CREATE_PR, OPEN_PR_PANEL)
+      // GitHub PR ?�성 ?�들???�임 (CREATE_PR, OPEN_PR_PANEL)
       if (this.pullRequestHandler) {
         const handled = await this.pullRequestHandler.handle(message.type, message.payload, webview);
         if (handled) return;
       }
-      // PR 환경설정 핸들러 위임 (GET/SET/CLEAR_PR_DEFAULT_BASE_BRANCH)
+      // PR ?�경?�정 ?�들???�임 (GET/SET/CLEAR_PR_DEFAULT_BASE_BRANCH)
       if (this.prSettingsHandler) {
         const handled = await this.prSettingsHandler.handle(message.type, message.payload, webview);
         if (handled) return;
       }
-      // 병합 충돌 분석 핸들러 위임
+      // 병합 충돌 분석 ?�들???�임
       if (this.mergeConflictHandler) {
         const handled = await this.mergeConflictHandler.handle(message.type, message.payload, webview);
         if (handled) return;
       }
-      // AI 병합 제안/피드백 핸들러 위임
+      // AI 병합 ?�안/?�드�??�들???�임
       if (this.mergeProposalHandler) {
         const handled = await this.mergeProposalHandler.handle(message.type, message.payload, webview);
         if (handled) return;
       }
-      // AI API Key 핸들러 위임
+      // AI API Key ?�들???�임
       if (this.aiApiKeyMessageHandler) {
         const handled = await this.aiApiKeyMessageHandler.handle(message.type, message.payload, webview);
         if (handled) return;
       }
 
-      // 핸들러가 없거나 처리 못 한 메시지 — type별 분기
+      // ?�들?��? ?�거??처리 �???메시지 ??type�?분기
       switch (message.type) {
-        // ─── 스냅샷 관련 (3단계 구현) ─────────────────────────────────────
+        // ?�?�?� ?�냅??관??(3?�계 구현) ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�
         case 'GET_SNAPSHOT_LIST':
           await this.handleGetSnapshotList(message, webview);
           break;
@@ -218,13 +216,16 @@ export class MessageRouter {
         case 'RESTORE_SNAPSHOT':
           await this.handleRestoreSnapshot(message, webview);
           break;
+        case 'CONFIRM_RESTORE_SNAPSHOT':
+          await this.handleConfirmRestoreSnapshot(message, webview);
+          break;
 
         case 'RENAME_SNAPSHOT':
-          this.sendNotImplemented(webview, 'RENAME_SNAPSHOT', '스냅샷 이름 변경 (3단계 구현 예정)');
+          this.sendNotImplemented(webview, 'RENAME_SNAPSHOT', '?�냅???�름 변�?(3?�계 구현 ?�정)');
           break;
 
         case 'TOGGLE_SNAPSHOT_STAR':
-          this.sendNotImplemented(webview, 'TOGGLE_SNAPSHOT_STAR', '체크포인트 지정 (3단계 구현 예정)');
+          this.sendNotImplemented(webview, 'TOGGLE_SNAPSHOT_STAR', '체크?�인??지??(3?�계 구현 ?�정)');
           break;
 
         case 'GET_SNAPSHOT_FILES':
@@ -243,38 +244,38 @@ export class MessageRouter {
           await this.handleGetRestoreHistory(message, webview);
           break;
 
-        // ─── 추천 관련 (2단계 구현) ──────────────────────────────────────
+        // ?�?�?� 추천 관??(2?�계 구현) ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�
         case 'RECOMMEND_COMMIT':
-          this.sendNotImplemented(webview, 'RECOMMEND_COMMIT', '커밋 메시지 추천 (2단계 구현 예정)');
+          this.sendNotImplemented(webview, 'RECOMMEND_COMMIT', '커밋 메시지 추천 (2?�계 구현 ?�정)');
           break;
 
         case 'RECOMMEND_BRANCH':
-          this.postError(webview, 'INTERNAL_ERROR', '브랜치 추천 핸들러가 초기화되지 않았습니다.');
+          this.postError(webview, 'INTERNAL_ERROR', '브랜�?추천 ?�들?��? 초기?�되지 ?�았?�니??');
           break;
 
         case 'RECOMMEND_PR':
-          this.sendNotImplemented(webview, 'RECOMMEND_PR', 'PR 설명 추천 핸들러가 등록되지 않았습니다.');
+          this.sendNotImplemented(webview, 'RECOMMEND_PR', 'PR ?�명 추천 ?�들?��? ?�록?��? ?�았?�니??');
           break;
 
         case 'APPLY_COMMIT':
-          this.sendNotImplemented(webview, 'APPLY_COMMIT', '추천 커밋 적용 (Git 핸들러 없음)');
+          this.sendNotImplemented(webview, 'APPLY_COMMIT', '추천 커밋 ?�용 (Git ?�들???�음)');
           break;
 
-        // ─── 병합 분석 관련 (4단계 구현) ─────────────────────────────────
+        // ?�?�?� 병합 분석 관??(4?�계 구현) ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�
 
         case 'ACCEPT_MERGE':
-          this.sendNotImplemented(webview, 'ACCEPT_MERGE', '병합안 수락 (4단계 구현 예정)');
+          this.sendNotImplemented(webview, 'ACCEPT_MERGE', '병합???�락 (4?�계 구현 ?�정)');
           break;
 
         case 'REJECT_MERGE':
-          this.sendNotImplemented(webview, 'REJECT_MERGE', '병합안 거절 (4단계 구현 예정)');
+          this.sendNotImplemented(webview, 'REJECT_MERGE', '병합??거절 (4?�계 구현 ?�정)');
           break;
 
         case 'GET_AI_DRAFT':
-          this.sendNotImplemented(webview, 'GET_AI_DRAFT', 'AI 초안 조회 (4단계 구현 예정)');
+          this.sendNotImplemented(webview, 'GET_AI_DRAFT', 'AI 초안 조회 (4?�계 구현 ?�정)');
           break;
 
-        // ─── 유틸리티 ─────────────────────────────────────────────────────
+        // ?�?�?� ?�틸리티 ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�
         case 'OPEN_FILE_DIFF':
           await this.handleOpenFileDiff((message.payload as any));
           break;
@@ -289,7 +290,7 @@ export class MessageRouter {
 
         case 'OPEN_DIFF_EDITOR':
           vscode.window.showInformationMessage(
-            `GitCat: Diff 에디터 열기 — ${(message.payload as any).filePath}`,
+            `GitCat: Diff ?�디???�기 ??${(message.payload as any).filePath}`,
           );
           break;
 
@@ -297,7 +298,7 @@ export class MessageRouter {
           console.log('[GitCat] SET_CONFIG received', message.payload);
           break;
 
-        // ─── Git 관련 (GitHandler가 없을 때의 기본 응답) ───────────────
+        // ?�?�?� Git 관??(GitHandler가 ?�을 ?�의 기본 ?�답) ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�
         case 'GET_BRANCH_LIST':
           webview.postMessage({ type: 'BRANCH_LIST', payload: { branches: [] } });
           break;
@@ -319,10 +320,10 @@ export class MessageRouter {
     }
   }
 
-  // ─── Helpers ──────────────────────────────────────────────────────────────
+  // ?�?�?� Helpers ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�
 
   private async handleOpenFileDiff(payload: { filePath: string; snapshotId?: string }) {
-    vscode.window.showInformationMessage(`GitCat: 파일 비교 요청 — ${payload.filePath}`);
+    vscode.window.showInformationMessage(`GitCat: ?�일 비교 ?�청 ??${payload.filePath}`);
   }
 
   private async handleGetSnapshotList(message: InboundMessage, webview: vscode.Webview): Promise<void> {
@@ -379,7 +380,7 @@ export class MessageRouter {
     const snapshotId = this.safetySessionCoordinator
       ? await this.safetySessionCoordinator.createManualSnapshot(title)
       : await snapshotService.createSnapshot('savepoint', {
-        reason: title || '수동 스냅샷',
+        reason: title || 'Manual snapshot',
         force: true,
       });
 
@@ -426,9 +427,6 @@ export class MessageRouter {
 
   private async handleRestoreSnapshot(message: InboundMessage, webview: vscode.Webview): Promise<void> {
     const service = this.requireRestoreService();
-    const snapshotService = this.requireSnapshotService();
-    const snapshotQueryService = this.requireSnapshotQueryService();
-    const restoreHistoryService = this.requireRestoreHistoryQueryService();
     const payload = message.payload as { snapshotId: string };
 
     const openFileDocuments = this.getOpenFileDocuments();
@@ -446,12 +444,54 @@ export class MessageRouter {
       return;
     }
 
+    const preview = await service.previewRestoreWarnings(payload.snapshotId);
+    if (preview.beforeWarnings.length > 0) {
+      await webview.postMessage({
+        type: 'RESTORE_CONFIRM_REQUIRED',
+        payload: {
+          snapshotId: payload.snapshotId,
+          changedPathsCount: preview.changedPathsCount,
+          warningMessages: preview.beforeWarnings.map((warning) => warning.message),
+        },
+        requestId: message.requestId,
+      } as OutboundMessage);
+      return;
+    }
+
+    await this.performRestoreSnapshot(payload.snapshotId, webview, message.requestId);
+  }
+
+  private async handleConfirmRestoreSnapshot(message: InboundMessage, webview: vscode.Webview): Promise<void> {
+    const payload = message.payload as { snapshotId: string; confirmed: boolean };
+    if (!payload.confirmed) {
+      await webview.postMessage({
+        type: 'NOTIFICATION',
+        payload: { type: 'info', message: 'Snapshot restore cancelled.' },
+        requestId: message.requestId,
+      } as OutboundMessage);
+      return;
+    }
+
+    await this.performRestoreSnapshot(payload.snapshotId, webview, message.requestId);
+  }
+
+  private async performRestoreSnapshot(
+    snapshotId: string,
+    webview: vscode.Webview,
+    requestId?: string,
+  ): Promise<void> {
+    const service = this.requireRestoreService();
+    const snapshotService = this.requireSnapshotService();
+    const snapshotQueryService = this.requireSnapshotQueryService();
+    const restoreHistoryService = this.requireRestoreHistoryQueryService();
+    const openFileDocuments = this.getOpenFileDocuments();
+
     snapshotService.beginRestoreOperation();
     let result: RestoreSnapshotResult;
     try {
-      result = await service.restoreToSnapshot(payload.snapshotId);
+      result = await service.restoreToSnapshot(snapshotId);
       console.log(
-        `[GitCat][Restore] restoreToSnapshot success: snapshotId=${payload.snapshotId}, ` +
+        `[GitCat][Restore] restoreToSnapshot success: snapshotId=${snapshotId}, ` +
         `preRestoreSnapshotId=${result.preRestoreSnapshotId ?? 'none'}, ` +
         `changedPaths=${result.changedPaths.length}, paths=${this.formatPathListForLog(result.changedPaths)}`,
       );
@@ -472,7 +512,7 @@ export class MessageRouter {
         beforeWarnings: result.beforeWarnings,
         afterWarnings: result.afterWarnings,
       },
-      requestId: message.requestId,
+      requestId,
     } as OutboundMessage);
 
     const [snapshots, histories] = await Promise.all([
@@ -483,16 +523,15 @@ export class MessageRouter {
     await webview.postMessage({
       type: 'SNAPSHOT_LIST',
       payload: snapshots,
-      requestId: message.requestId,
+      requestId,
     } as OutboundMessage);
 
     await webview.postMessage({
       type: 'RESTORE_HISTORY_LIST',
       payload: { histories },
-      requestId: message.requestId,
+      requestId,
     } as OutboundMessage);
   }
-
   private async handleGetRestoreHistory(message: InboundMessage, webview: vscode.Webview): Promise<void> {
     const service = this.requireRestoreHistoryQueryService();
     const histories = await service.listHistory();
@@ -706,7 +745,7 @@ export class MessageRouter {
   }
 
   private sendNotImplemented(webview: vscode.Webview, type: string, description: string) {
-    console.log(`[GitCat] Not implemented yet: ${type} — ${description}`);
+    console.log(`[GitCat] Not implemented yet: ${type} ??${description}`);
     webview.postMessage({
       type: 'NOTIFICATION',
       payload: { type: 'info', message: `${description}` },
