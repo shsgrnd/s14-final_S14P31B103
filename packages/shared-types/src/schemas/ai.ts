@@ -85,7 +85,8 @@ export type MinimalMergePatchResponse = z.infer<typeof MinimalMergePatchResponse
  *   필수: title, summary, primary_text, alternative_texts
  *   선택: explanation, confidence_score, generation_basis_summary, format_notes, warnings
  *
- * 시스템 메타데이터(proposal_id, session_id 등)는 파서에서 후처리로 주입합니다.
+ * recommendation_type을 포함한 시스템 메타데이터(proposal_id, session_id 등)는
+ * 호출 컨텍스트와 파서 후처리에서 주입합니다.
  */
 export const MinimalRecommendationResponseSchema = z.object({
   title: z.string(),
