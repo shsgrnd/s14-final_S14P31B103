@@ -1,8 +1,8 @@
 /**
- * MessageRouter ??Webview ??Extension Host ë©”ì‹œì§€ ?¼ìš°?? *
- * Webview?ì„œ ?˜ì‹ ??InboundMessageë¥?typeë³??¸ë“¤?¬ë¡œ ë¶„ê¸°?œë‹¤.
- * 1?¨ê³„: Git ê´€??ë©”ì‹œì§€??GitMessageHandlerê°€ ?´ë‹¹?œë‹¤.
- * ë¯¸êµ¬???¸ë“¤??ì¶”ì²œ, ?¤ëƒ…?? ë³‘í•© ë¶„ì„)??stub ?‘ë‹µ??ë°˜í™˜?œë‹¤.
+ * MessageRouter ??Webview ??Extension Host ë©”ì‹œì§€ ?ï¿½ìš°?? *
+ * Webview?ï¿½ì„œ ?ï¿½ì‹ ??InboundMessageï¿½?typeï¿½??ï¿½ë“¤?ï¿½ë¡œ ë¶„ê¸°?ï¿½ë‹¤.
+ * 1?ï¿½ê³„: Git ê´€??ë©”ì‹œì§€??GitMessageHandlerê°€ ?ï¿½ë‹¹?ï¿½ë‹¤.
+ * ë¯¸êµ¬???ï¿½ë“¤??ì¶”ì²œ, ?ï¿½ëƒ…?? ë³‘í•© ë¶„ì„)??stub ?ï¿½ë‹µ??ë°˜í™˜?ï¿½ë‹¤.
  */
 
 import * as vscode from 'vscode';
@@ -31,20 +31,20 @@ import {
 } from '@gitcat/shared-types';
 
 /**
- * Webview?ì„œ ?¤ëŠ” ëª¨ë“  ë©”ì‹œì§€ë¥?ì¤‘ì•™?ì„œ ê²€ì¦í•˜ê³?ê°??¸ë“¤?¬ë¡œ ë¶„ê¸°?˜ëŠ” ?¼ìš°?°ì…?ˆë‹¤.
+ * Webview?ï¿½ì„œ ?ï¿½ëŠ” ëª¨ë“  ë©”ì‹œì§€ï¿½?ì¤‘ì•™?ï¿½ì„œ ê²€ì¦í•˜ï¿½?ï¿½??ï¿½ë“¤?ï¿½ë¡œ ë¶„ê¸°?ï¿½ëŠ” ?ï¿½ìš°?ï¿½ì…?ï¿½ë‹¤.
  */
 export class MessageRouter {
   private readonly gitHandler: GitMessageHandler | null;
   private branchRecommendationHandler: BranchRecommendationMessageHandler | null;
   private commitRecommendationHandler: CommitRecommendationMessageHandler | null;
   private prRecommendationHandler: PrRecommendationHandler | null;
-  /** GitHub PR ?ì„± ?¸ë“¤??(CREATE_PR, OPEN_PR_PANEL) */
+  /** GitHub PR ?ï¿½ì„± ?ï¿½ë“¤??(CREATE_PR, OPEN_PR_PANEL) */
   private readonly pullRequestHandler: PullRequestMessageHandler | null;
-  /** PR ?˜ê²½?¤ì • (ê¸°ë³¸ target ë¸Œëœì¹??€??ì¡°íšŒ) */
+  /** PR ?ï¿½ê²½?ï¿½ì • (ê¸°ë³¸ target ë¸Œëœï¿½??ï¿½??ì¡°íšŒ) */
   private prSettingsHandler: PrSettingsMessageHandler | null;
-  /** ë³‘í•© ì¶©ëŒ ë¶„ì„ ë©”ì‹œì§€ ?¸ë“¤??*/
+  /** ë³‘í•© ì¶©ëŒ ë¶„ì„ ë©”ì‹œì§€ ?ï¿½ë“¤??*/
   private mergeConflictHandler: MergeConflictMessageHandler | null;
-  /** AI ë³‘í•© ?œì•ˆ/?¼ë“œë°?ë©”ì‹œì§€ ?¸ë“¤??*/
+  /** AI ë³‘í•© ?ï¿½ì•ˆ/?ï¿½ë“œï¿½?ë©”ì‹œì§€ ?ï¿½ë“¤??*/
   private mergeProposalHandler: MergeProposalMessageHandler | null;
   private readonly aiApiKeyMessageHandler: AiApiKeyMessageHandler | null;
   private snapshotQueryService: SnapshotQueryService | null = null;
@@ -144,7 +144,7 @@ export class MessageRouter {
 
     if (!parseResult.success) {
       console.error('[GitCat] Invalid inbound message:', parseResult.error);
-      this.postError(webview, 'INVALID_PARAMETER', `ë©”ì‹œì§€ ê·œê²©???¬ë°”ë¥´ì? ?ŠìŠµ?ˆë‹¤: ${parseResult.error.message}`);
+      this.postError(webview, 'INVALID_PARAMETER', `ë©”ì‹œì§€ ê·œê²©???ï¿½ë°”ë¥´ï¿½? ?ï¿½ìŠµ?ï¿½ë‹¤: ${parseResult.error.message}`);
       return;
     }
 
@@ -152,55 +152,55 @@ export class MessageRouter {
     // console.log(`[GitCat] Processing message: ${message.type}`, message.payload);
 
     try {
-      // Git ?¸ë“¤?¬ì— ?°ì„  ?„ì„
+      // Git ?ï¿½ë“¤?ï¿½ì— ?ï¿½ì„  ?ï¿½ì„
       if (this.gitHandler) {
         const handled = await this.gitHandler.handle(message.type, message.payload, webview);
         if (handled) return;
       }
-      // branch ì¶”ì²œ ?¸ë“¤???„ì„
+      // branch ì¶”ì²œ ?ï¿½ë“¤???ï¿½ì„
       if (this.branchRecommendationHandler) {
         const handled = await this.branchRecommendationHandler.handle(message.type, message.payload, webview);
         if (handled) return;
       }
-      // commit ì¶”ì²œ ?¸ë“¤???„ì„
+      // commit ì¶”ì²œ ?ï¿½ë“¤???ï¿½ì„
       if (this.commitRecommendationHandler) {
         const handled = await this.commitRecommendationHandler.handle(message.type, message.payload, webview);
         if (handled) return;
       }
-      // PR ì¶”ì²œ ?¸ë“¤???„ì„
+      // PR ì¶”ì²œ ?ï¿½ë“¤???ï¿½ì„
       if (this.prRecommendationHandler) {
         const handled = await this.prRecommendationHandler.handle(message.type, message.payload, webview);
         if (handled) return;
       }
-      // GitHub PR ?ì„± ?¸ë“¤???„ì„ (CREATE_PR, OPEN_PR_PANEL)
+      // GitHub PR ?ï¿½ì„± ?ï¿½ë“¤???ï¿½ì„ (CREATE_PR, OPEN_PR_PANEL)
       if (this.pullRequestHandler) {
         const handled = await this.pullRequestHandler.handle(message.type, message.payload, webview);
         if (handled) return;
       }
-      // PR ?˜ê²½?¤ì • ?¸ë“¤???„ì„ (GET/SET/CLEAR_PR_DEFAULT_BASE_BRANCH)
+      // PR ?ï¿½ê²½?ï¿½ì • ?ï¿½ë“¤???ï¿½ì„ (GET/SET/CLEAR_PR_DEFAULT_BASE_BRANCH)
       if (this.prSettingsHandler) {
         const handled = await this.prSettingsHandler.handle(message.type, message.payload, webview);
         if (handled) return;
       }
-      // ë³‘í•© ì¶©ëŒ ë¶„ì„ ?¸ë“¤???„ì„
+      // ë³‘í•© ì¶©ëŒ ë¶„ì„ ?ï¿½ë“¤???ï¿½ì„
       if (this.mergeConflictHandler) {
         const handled = await this.mergeConflictHandler.handle(message.type, message.payload, webview);
         if (handled) return;
       }
-      // AI ë³‘í•© ?œì•ˆ/?¼ë“œë°??¸ë“¤???„ì„
+      // AI ë³‘í•© ?ï¿½ì•ˆ/?ï¿½ë“œï¿½??ï¿½ë“¤???ï¿½ì„
       if (this.mergeProposalHandler) {
         const handled = await this.mergeProposalHandler.handle(message.type, message.payload, webview);
         if (handled) return;
       }
-      // AI API Key ?¸ë“¤???„ì„
+      // AI API Key ?ï¿½ë“¤???ï¿½ì„
       if (this.aiApiKeyMessageHandler) {
         const handled = await this.aiApiKeyMessageHandler.handle(message.type, message.payload, webview);
         if (handled) return;
       }
 
-      // ?¸ë“¤?¬ê? ?†ê±°??ì²˜ë¦¬ ëª???ë©”ì‹œì§€ ??typeë³?ë¶„ê¸°
+      // ?ï¿½ë“¤?ï¿½ï¿½? ?ï¿½ê±°??ì²˜ë¦¬ ï¿½???ë©”ì‹œì§€ ??typeï¿½?ë¶„ê¸°
       switch (message.type) {
-        // ?€?€?€ ?¤ëƒ…??ê´€??(3?¨ê³„ êµ¬í˜„) ?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€
+        // ?ï¿½?ï¿½?ï¿½ ?ï¿½ëƒ…??ê´€??(3?ï¿½ê³„ êµ¬í˜„) ?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½
         case 'GET_SNAPSHOT_LIST':
           await this.handleGetSnapshotList(message, webview);
           break;
@@ -221,11 +221,11 @@ export class MessageRouter {
           break;
 
         case 'RENAME_SNAPSHOT':
-          this.sendNotImplemented(webview, 'RENAME_SNAPSHOT', '?¤ëƒ…???´ë¦„ ë³€ê²?(3?¨ê³„ êµ¬í˜„ ?ˆì •)');
+          this.sendNotImplemented(webview, 'RENAME_SNAPSHOT', '?ï¿½ëƒ…???ï¿½ë¦„ ë³€ï¿½?(3?ï¿½ê³„ êµ¬í˜„ ?ï¿½ì •)');
           break;
 
         case 'TOGGLE_SNAPSHOT_STAR':
-          this.sendNotImplemented(webview, 'TOGGLE_SNAPSHOT_STAR', 'ì²´í¬?¬ì¸??ì§€??(3?¨ê³„ êµ¬í˜„ ?ˆì •)');
+          this.sendNotImplemented(webview, 'TOGGLE_SNAPSHOT_STAR', 'ì²´í¬?ï¿½ì¸??ì§€??(3?ï¿½ê³„ êµ¬í˜„ ?ï¿½ì •)');
           break;
 
         case 'GET_SNAPSHOT_FILES':
@@ -244,38 +244,38 @@ export class MessageRouter {
           await this.handleGetRestoreHistory(message, webview);
           break;
 
-        // ?€?€?€ ì¶”ì²œ ê´€??(2?¨ê³„ êµ¬í˜„) ?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€
+        // ?ï¿½?ï¿½?ï¿½ ì¶”ì²œ ê´€??(2?ï¿½ê³„ êµ¬í˜„) ?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½
         case 'RECOMMEND_COMMIT':
-          this.sendNotImplemented(webview, 'RECOMMEND_COMMIT', 'ì»¤ë°‹ ë©”ì‹œì§€ ì¶”ì²œ (2?¨ê³„ êµ¬í˜„ ?ˆì •)');
+          this.sendNotImplemented(webview, 'RECOMMEND_COMMIT', 'ì»¤ë°‹ ë©”ì‹œì§€ ì¶”ì²œ (2?ï¿½ê³„ êµ¬í˜„ ?ï¿½ì •)');
           break;
 
         case 'RECOMMEND_BRANCH':
-          this.postError(webview, 'INTERNAL_ERROR', 'ë¸Œëœì¹?ì¶”ì²œ ?¸ë“¤?¬ê? ì´ˆê¸°?”ë˜ì§€ ?Šì•˜?µë‹ˆ??');
+          this.postError(webview, 'INTERNAL_ERROR', 'ë¸Œëœï¿½?ì¶”ì²œ ?ï¿½ë“¤?ï¿½ï¿½? ì´ˆê¸°?ï¿½ë˜ì§€ ?ï¿½ì•˜?ï¿½ë‹ˆ??');
           break;
 
         case 'RECOMMEND_PR':
-          this.sendNotImplemented(webview, 'RECOMMEND_PR', 'PR ?¤ëª… ì¶”ì²œ ?¸ë“¤?¬ê? ?±ë¡?˜ì? ?Šì•˜?µë‹ˆ??');
+          this.sendNotImplemented(webview, 'RECOMMEND_PR', 'PR ?ï¿½ëª… ì¶”ì²œ ?ï¿½ë“¤?ï¿½ï¿½? ?ï¿½ë¡?ï¿½ï¿½? ?ï¿½ì•˜?ï¿½ë‹ˆ??');
           break;
 
         case 'APPLY_COMMIT':
-          this.sendNotImplemented(webview, 'APPLY_COMMIT', 'ì¶”ì²œ ì»¤ë°‹ ?ìš© (Git ?¸ë“¤???†ìŒ)');
+          this.sendNotImplemented(webview, 'APPLY_COMMIT', 'ì¶”ì²œ ì»¤ë°‹ ?ï¿½ìš© (Git ?ï¿½ë“¤???ï¿½ìŒ)');
           break;
 
-        // ?€?€?€ ë³‘í•© ë¶„ì„ ê´€??(4?¨ê³„ êµ¬í˜„) ?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€
+        // ?ï¿½?ï¿½?ï¿½ ë³‘í•© ë¶„ì„ ê´€??(4?ï¿½ê³„ êµ¬í˜„) ?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½
 
         case 'ACCEPT_MERGE':
-          this.sendNotImplemented(webview, 'ACCEPT_MERGE', 'ë³‘í•©???˜ë½ (4?¨ê³„ êµ¬í˜„ ?ˆì •)');
+          this.sendNotImplemented(webview, 'ACCEPT_MERGE', 'ë³‘í•©???ï¿½ë½ (4?ï¿½ê³„ êµ¬í˜„ ?ï¿½ì •)');
           break;
 
         case 'REJECT_MERGE':
-          this.sendNotImplemented(webview, 'REJECT_MERGE', 'ë³‘í•©??ê±°ì ˆ (4?¨ê³„ êµ¬í˜„ ?ˆì •)');
+          this.sendNotImplemented(webview, 'REJECT_MERGE', 'ë³‘í•©??ê±°ì ˆ (4?ï¿½ê³„ êµ¬í˜„ ?ï¿½ì •)');
           break;
 
         case 'GET_AI_DRAFT':
-          this.sendNotImplemented(webview, 'GET_AI_DRAFT', 'AI ì´ˆì•ˆ ì¡°íšŒ (4?¨ê³„ êµ¬í˜„ ?ˆì •)');
+          this.sendNotImplemented(webview, 'GET_AI_DRAFT', 'AI ì´ˆì•ˆ ì¡°íšŒ (4?ï¿½ê³„ êµ¬í˜„ ?ï¿½ì •)');
           break;
 
-        // ?€?€?€ ? í‹¸ë¦¬í‹° ?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€
+        // ?ï¿½?ï¿½?ï¿½ ?ï¿½í‹¸ë¦¬í‹° ?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½
         case 'OPEN_FILE_DIFF':
           await this.handleOpenFileDiff((message.payload as any));
           break;
@@ -290,7 +290,7 @@ export class MessageRouter {
 
         case 'OPEN_DIFF_EDITOR':
           vscode.window.showInformationMessage(
-            `GitCat: Diff ?ë””???´ê¸° ??${(message.payload as any).filePath}`,
+            `GitCat: Diff ?ï¿½ë””???ï¿½ê¸° ??${(message.payload as any).filePath}`,
           );
           break;
 
@@ -298,7 +298,7 @@ export class MessageRouter {
           console.log('[GitCat] SET_CONFIG received', message.payload);
           break;
 
-        // ?€?€?€ Git ê´€??(GitHandlerê°€ ?†ì„ ?Œì˜ ê¸°ë³¸ ?‘ë‹µ) ?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€
+        // ?ï¿½?ï¿½?ï¿½ Git ê´€??(GitHandlerê°€ ?ï¿½ì„ ?ï¿½ì˜ ê¸°ë³¸ ?ï¿½ë‹µ) ?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½
         case 'GET_BRANCH_LIST':
           webview.postMessage({ type: 'BRANCH_LIST', payload: { branches: [] } });
           break;
@@ -320,10 +320,10 @@ export class MessageRouter {
     }
   }
 
-  // ?€?€?€ Helpers ?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€?€
+  // ?ï¿½?ï¿½?ï¿½ Helpers ?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½?ï¿½
 
   private async handleOpenFileDiff(payload: { filePath: string; snapshotId?: string }) {
-    vscode.window.showInformationMessage(`GitCat: ?Œì¼ ë¹„êµ ?”ì²­ ??${payload.filePath}`);
+    vscode.window.showInformationMessage(`GitCat: ?ï¿½ì¼ ë¹„êµ ?ï¿½ì²­ ??${payload.filePath}`);
   }
 
   private async handleGetSnapshotList(message: InboundMessage, webview: vscode.Webview): Promise<void> {
