@@ -14,6 +14,7 @@ import { LocalStorageImpl } from '../../../adapters/LocalStorageImpl';
 import type { ISnapshotService } from './ISnapshotService';
 import { SnapshotIdGenerator } from './SnapshotIdGenerator';
 import { SafetyCheckService } from './SafetyCheckService';
+import { SnapshotDiffService, type SnapshotFileInput } from './SnapshotDiffService';
 import { deserializeSafetyWarnings, serializeSafetyWarnings } from './SafetyWarningSerialization';
 
 const MAX_SNAPSHOTS = 1000;
@@ -45,6 +46,7 @@ export class RestoreService {
   private readonly storage: LocalStorageImpl;
   private readonly workspaceRoot: string;
   private readonly safetyCheckService: SafetyCheckService;
+  private readonly diffService: SnapshotDiffService;
   private isRestoring = false;
 
   constructor(
@@ -56,6 +58,7 @@ export class RestoreService {
     this.workspaceRoot = path.resolve(workspaceRoot);
     this.storage = new LocalStorageImpl(this.workspaceRoot);
     this.safetyCheckService = new SafetyCheckService(this.workspaceRoot);
+    this.diffService = new SnapshotDiffService();
   }
 
   async restoreToSnapshot(snapshotId: string): Promise<RestoreSnapshotResult> {
@@ -182,13 +185,21 @@ export class RestoreService {
         currentStates.get(candidatePath) ?? null,
       ),
     );
+    const restoreDiff = this.diffService.buildSnapshotDiff({
+      baselineFiles: this.toSnapshotFileInputs(currentStates, changedPaths),
+      currentFiles: this.toSnapshotFileInputs(desiredStates, changedPaths),
+      options: {
+        workspaceRoot: this.workspaceRoot,
+      },
+    });
 
     const beforeWarnings = this.safetyCheckService.analyzeRestorePlan({
       phase: 'before_restore',
       fileStates: changedPaths.map((changedPath) => ({
         filePath: changedPath,
-        content: currentStates.get(changedPath) ?? null,
+        content: desiredStates.get(changedPath) ?? null,
       })),
+      changedFiles: restoreDiff.changedFiles,
     });
     const afterWarnings = this.safetyCheckService.analyzeRestorePlan({
       phase: 'after_restore',
@@ -196,6 +207,7 @@ export class RestoreService {
         filePath: changedPath,
         content: desiredStates.get(changedPath) ?? null,
       })),
+      changedFiles: restoreDiff.changedFiles,
     });
 
     return {
@@ -206,6 +218,16 @@ export class RestoreService {
       beforeWarnings,
       afterWarnings,
     };
+  }
+
+  private toSnapshotFileInputs(
+    states: Map<string, Uint8Array | null>,
+    changedPaths: readonly string[],
+  ): SnapshotFileInput[] {
+    return changedPaths.map((changedPath) => ({
+      filePath: changedPath,
+      content: states.get(changedPath) ?? null,
+    }));
   }
 
   private async createPreRestoreSnapshot(
