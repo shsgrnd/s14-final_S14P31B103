@@ -22,6 +22,7 @@ import { ISnapshotService } from './features/safety/snapshot/ISnapshotService';
 import { WebviewProvider } from './webview/WebviewProvider';
 import { SidebarProvider } from './webview/SidebarProvider';
 import { MessageRouter } from './core/MessageRouter';
+import { registerGitCatOutputChannel } from './platform/GitCatLog';
 import { AiSecretService } from './features/recommendation/AiSecretService';
 import { AiApiKeyMessageHandler } from './features/recommendation/AiApiKeyMessageHandler';
 import { GitService } from './features/git/GitService';
@@ -50,6 +51,7 @@ import {
 
 export async function activate(context: vscode.ExtensionContext) {
   console.log('GitCat Extension is now active!');
+  registerGitCatOutputChannel(context);
 
   const workspaceFolders = vscode.workspace.workspaceFolders;
   if (!workspaceFolders || workspaceFolders.length === 0) {
@@ -154,6 +156,12 @@ export async function activate(context: vscode.ExtensionContext) {
   }
 
   const webviewProvider = new WebviewProvider(context, messageRouter);
+  messageRouter.setMainPanelOpener(
+    () => webviewProvider.createOrShow('main'),
+    () => webviewProvider.isPrPanelOpen(),
+  );
+  gitMessageHandler?.setMessageRouter(messageRouter);
+  pullRequestHandler?.setMessageRouter(messageRouter);
   openPullRequestPanelRef.current = () => webviewProvider.createOrShow('pr');
   closePullRequestPanelRef.current = () => webviewProvider.closePrPanel();
   const sidebarProvider = new SidebarProvider(context, messageRouter);
@@ -307,8 +315,8 @@ async function initializeMergeConflictAnalysis(
     () => prSettingsService?.getDefaultBaseBranch() ?? null,
   );
 
-  messageRouter.setMergeConflictHandler(new MergeConflictMessageHandler(analysisService));
-  messageRouter.setMergeProposalHandler(new MergeProposalMessageHandler(proposalService));
+  messageRouter.setMergeConflictHandler(new MergeConflictMessageHandler(analysisService, messageRouter));
+  messageRouter.setMergeProposalHandler(new MergeProposalMessageHandler(proposalService, messageRouter));
   gitMessageHandler?.setMergeConflictGuardService(guardService);
   pullRequestHandler?.setMergeConflictGuardService(guardService);
   console.log('GitCat merge conflict analysis layer initialized');

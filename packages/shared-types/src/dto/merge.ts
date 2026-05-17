@@ -52,6 +52,8 @@ export const GetAiDraftRequestSchema = z.object({
     'merge_mediation',
     'conflict_explanation',
   ]).optional(),
+  /** 분석할 충돌 구간 인덱스 목록 (0-based). 미제공 시 전체 분석 */
+  selectedHunks: z.array(z.number().int().nonnegative()).optional(),
 }).strict();
 export type GetAiDraftRequest = z.infer<typeof GetAiDraftRequestSchema>;
 

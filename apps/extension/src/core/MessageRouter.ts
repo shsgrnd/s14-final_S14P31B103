@@ -54,6 +54,31 @@ export class MessageRouter {
   private safetySessionCoordinator: SafetySessionCoordinator | null = null;
   private readonly webviews = new Set<vscode.Webview>();
 
+  /** 사이드바 외 에디터 패널을 연다 (GitCat WebviewProvider.createOrShow('main')). */
+  private openMainPanel: (() => void) | null = null;
+  /** PR 패널이 현재 열려 있는지 확인 (충돌 시 main 패널 대신 PR 패널 유지 판단용). */
+  private isPrPanelOpen: (() => boolean) | null = null;
+
+  /**
+   * 에디터 패널이 나중에 열려도 동기화되도록 마지막 병합 검토 응답을 보관합니다.
+   * (registerWebview 시 단일 웹뷰로 재전송)
+   */
+  private mergeReviewConflictPayload: {
+    analysisId?: string;
+    artifactPath?: string | null;
+    candidates: unknown[];
+    triggeringAction?: 'push' | 'pull' | 'pr' | 'merge';
+    mergeSource?: string;
+    preserveResolvedCandidates?: boolean;
+    resolvedCandidates?: Record<string, 'accepted' | 'rejected'>;
+    resolvedCandidatesByFilePath?: Record<string, 'accepted' | 'rejected'>;
+  } | null = null;
+
+  private mergeReviewProposalPayload: { proposals: unknown[] } | null = null;
+
+  private mergeReviewResolvedCandidates: Record<string, 'accepted' | 'rejected'> = {};
+  private mergeReviewResolvedByFilePath: Record<string, 'accepted' | 'rejected'> = {};
+
   constructor(
     private readonly dbInstance: any,
     gitHandler?: GitMessageHandler,
@@ -123,8 +148,102 @@ export class MessageRouter {
     }
   }
 
+  public setMainPanelOpener(opener: (() => void) | null, isPrOpen?: () => boolean): void {
+    this.openMainPanel = opener;
+    this.isPrPanelOpen = isPrOpen ?? null;
+  }
+
+  private shouldOpenMainPanelOnMergeConflict(): boolean {
+    return vscode.workspace
+      .getConfiguration()
+      .get<boolean>('gitcat.merge.openMainPanelOnConflict', true);
+  }
+
+  /**
+   * CONFLICT_RESULT — 모든 GitCat 웹뷰에 브로드캐스트하고, 옵션이 켜져 있으면 에디터 패널을 연다.
+   */
+  public publishConflictResult(payload: {
+    analysisId?: string;
+    artifactPath?: string | null;
+    candidates: unknown[];
+    triggeringAction?: 'push' | 'pull' | 'pr' | 'merge';
+    mergeSource?: string;
+    /** git merge 진행 중 재진입 시 UI의 "반영 완료" 상태 유지 */
+    preserveResolvedCandidates?: boolean;
+  }): void {
+    if (!payload.preserveResolvedCandidates) {
+      this.mergeReviewResolvedCandidates = {};
+      this.mergeReviewResolvedByFilePath = {};
+    }
+    const enriched = {
+      ...payload,
+      resolvedCandidates: payload.preserveResolvedCandidates
+        ? { ...this.mergeReviewResolvedCandidates }
+        : undefined,
+      resolvedCandidatesByFilePath: payload.preserveResolvedCandidates
+        ? { ...this.mergeReviewResolvedByFilePath }
+        : undefined,
+    };
+    this.mergeReviewConflictPayload = enriched;
+    this.mergeReviewProposalPayload = null;
+    // 이미 떠 있는 웹뷰(사이드바 + 열린 패널)에 즉시 반영
+    this.broadcast({ type: 'CONFLICT_RESULT', payload: enriched });
+    if (this.shouldOpenMainPanelOnMergeConflict()) {
+      try {
+        this.openMainPanel?.();
+      } catch (e) {
+        console.warn('[GitCat] openMainPanel failed:', e);
+      }
+    }
+  }
+
+  public publishMergeProposal(payload: { proposals: unknown[] }): void {
+    this.mergeReviewProposalPayload = payload;
+    this.broadcast({ type: 'MERGE_PROPOSAL', payload });
+  }
+
+  /** 수락/거절 상태를 extension에 보관하고 모든 webview에 동기화 */
+  public publishCandidateResolved(payload: {
+    candidateId: string;
+    filePath: string;
+    status: 'accepted' | 'rejected';
+  }): void {
+    this.mergeReviewResolvedCandidates[payload.candidateId] = payload.status;
+    this.mergeReviewResolvedByFilePath[payload.filePath] = payload.status;
+    if (this.mergeReviewConflictPayload) {
+      this.mergeReviewConflictPayload = {
+        ...this.mergeReviewConflictPayload,
+        preserveResolvedCandidates: true,
+        resolvedCandidates: { ...this.mergeReviewResolvedCandidates },
+        resolvedCandidatesByFilePath: { ...this.mergeReviewResolvedByFilePath },
+      };
+    }
+    this.broadcast({ type: 'CANDIDATE_RESOLVED', payload });
+  }
+
+  public clearMergeReviewSnapshot(): void {
+    this.mergeReviewConflictPayload = null;
+    this.mergeReviewProposalPayload = null;
+    this.mergeReviewResolvedCandidates = {};
+    this.mergeReviewResolvedByFilePath = {};
+  }
+
+  public publishMergeReviewLoading(target: 'mergeAnalysis' | 'mergeProposal', loading: boolean): void {
+    this.broadcast({ type: 'LOADING', payload: { target, loading } });
+  }
+
+  private replayMergeReviewSnapshotTo(webview: vscode.Webview): void {
+    if (this.mergeReviewConflictPayload) {
+      void webview.postMessage({ type: 'CONFLICT_RESULT', payload: this.mergeReviewConflictPayload });
+    }
+    if (this.mergeReviewProposalPayload) {
+      void webview.postMessage({ type: 'MERGE_PROPOSAL', payload: this.mergeReviewProposalPayload });
+    }
+  }
+
   public registerWebview(webview: vscode.Webview): vscode.Disposable {
     this.webviews.add(webview);
+    this.replayMergeReviewSnapshotTo(webview);
     return new vscode.Disposable(() => {
       this.webviews.delete(webview);
     });
@@ -140,6 +259,23 @@ export class MessageRouter {
   }
 
   public async route(rawMessage: any, webview: vscode.Webview) {
+    // 웹뷰 React 마운트 전 registerWebview/replay가 유실되는 경우를 보완합니다.
+    if (rawMessage?.type === 'WEBVIEW_READY') {
+      this.replayMergeReviewSnapshotTo(webview);
+      return;
+    }
+
+    // 사이드바 알림 배너의 "에디터에서 검토" 버튼
+    if (rawMessage?.type === 'OPEN_MAIN_PANEL') {
+      try {
+        this.openMainPanel?.();
+      } catch (e) {
+        console.warn('[GitCat] OPEN_MAIN_PANEL from webview failed:', e);
+      }
+      return;
+    }
+
+    // 1. Zod를 이용한 메시지 규격 검증
     const parseResult = InboundMessageSchema.safeParse(rawMessage);
 
     if (!parseResult.success) {
