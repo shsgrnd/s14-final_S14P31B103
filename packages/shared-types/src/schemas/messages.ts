@@ -231,6 +231,15 @@ export const OutboundPayloadSchemaMap = {
     candidates: z.array(MergeConflictCandidateViewSchema),
     /** 가드가 차단한 원래 Git 동작. 모든 충돌 후보 처리 후 이 동작을 재시도할 수 있습니다. */
     triggeringAction: z.enum(['push', 'pull', 'pr', 'merge']).optional(),
+    mergeSource: z.string().optional(),
+    preserveResolvedCandidates: z.boolean().optional(),
+    resolvedCandidates: z.record(z.string(), z.enum(['accepted', 'rejected'])).optional(),
+    resolvedCandidatesByFilePath: z.record(z.string(), z.enum(['accepted', 'rejected'])).optional(),
+  }),
+  CANDIDATE_RESOLVED: z.object({
+    candidateId: z.string(),
+    filePath: z.string(),
+    status: z.enum(['accepted', 'rejected']),
   }),
   MERGE_PROPOSAL: z.object({ proposals: z.array(MergeProposalViewSchema) }),
   MERGE_COMPLETE: z.object({ merge: MergeCompleteViewSchema }),

@@ -433,6 +433,17 @@ export class GitCliClient implements IGitClient {
     await this.git.raw(['merge', '--abort']);
   }
 
+  async checkoutMergeOurs(filePaths: string[]): Promise<void> {
+    if (filePaths.length === 0) {
+      return;
+    }
+    await this.git.checkout(['--ours', '--', ...filePaths]);
+  }
+
+  async readIndexStage(filePath: string, stage: 2 | 3): Promise<string> {
+    return this.git.show([`:${stage}:${filePath}`]);
+  }
+
   // ─── Helpers ─────────────────────────────────────────────────────────────
 
   private async getRepoRoot(): Promise<string> {

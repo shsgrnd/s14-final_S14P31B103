@@ -147,6 +147,10 @@ interface GitCatState {
   mergeConflictArtifactPath: string | null;
   /** 각 candidateId 별 처리 상태 (accepted | rejected) */
   resolvedCandidates: Record<string, 'accepted' | 'rejected'>;
+  /** candidateId 변경(재분석) 후에도 파일 단위로 반영 상태 유지 */
+  resolvedCandidatesByFilePath: Record<string, 'accepted' | 'rejected'>;
+  /** ACCEPT_MERGE로 워킹트리에 쓴 최종 텍스트 (상단 미리보기용) */
+  appliedFileContents: Record<string, string>;
   /** CONFLICT_RESULT를 유발한 원래 Git 동작 (push | pull | pr | merge) */
   pendingGitAction: 'push' | 'pull' | 'pr' | 'merge' | null;
   /** merge 충돌 시 재시도에 필요한 source 브랜치 이름 */
@@ -265,7 +269,9 @@ interface GitCatState {
   setSelectedConflict: (conflict: MergeConflictCandidateView | null) => void;
   setAIDraft: (draft: MergeProposalView | null) => void;
   /** 충돌 후보 처리 결과를 기록합니다 */
-  markCandidateResolved: (candidateId: string, status: 'accepted' | 'rejected') => void;
+  markCandidateResolved: (candidateId: string, status: 'accepted' | 'rejected', filePath?: string) => void;
+  setAppliedFileContent: (filePath: string, content: string) => void;
+  getCandidateResolvedStatus: (conflict: MergeConflictCandidateView) => 'accepted' | 'rejected' | undefined;
   /** 모든 충돌 후보 처리 상태를 초기화합니다 */
   clearResolvedCandidates: () => void;
   setCurrentBranch: (branch: string) => void;
@@ -303,6 +309,38 @@ interface GitCatState {
 }
 
 /** Grid 액션 완료 등 백엔드 NOTIFICATION 원문 매칭 */
+function mergeResolvedStateForConflicts(
+  conflicts: MergeConflictCandidateView[],
+  resolvedCandidates: Record<string, 'accepted' | 'rejected'>,
+  resolvedCandidatesByFilePath: Record<string, 'accepted' | 'rejected'>,
+  preserve: boolean,
+  incomingResolved?: Record<string, 'accepted' | 'rejected'>,
+  incomingByFile?: Record<string, 'accepted' | 'rejected'>,
+): {
+  resolvedCandidates: Record<string, 'accepted' | 'rejected'>;
+  resolvedCandidatesByFilePath: Record<string, 'accepted' | 'rejected'>;
+} {
+  const byFile = preserve
+    ? { ...resolvedCandidatesByFilePath, ...incomingByFile }
+    : { ...incomingByFile };
+  const byId = preserve
+    ? { ...resolvedCandidates, ...incomingResolved }
+    : { ...incomingResolved };
+
+  for (const conflict of conflicts) {
+    const fromFile = byFile[conflict.filePath];
+    if (fromFile && !byId[conflict.candidateId]) {
+      byId[conflict.candidateId] = fromFile;
+    }
+    const fromId = byId[conflict.candidateId];
+    if (fromId) {
+      byFile[conflict.filePath] = fromId;
+    }
+  }
+
+  return { resolvedCandidates: byId, resolvedCandidatesByFilePath: byFile };
+}
+
 function isPrimaryGitPanelCompletionNotification(raw: string): boolean {
   const s = raw.trim();
   if (!s) return false;
@@ -355,6 +393,8 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
   mergeConflictAnalysisId: null,
   mergeConflictArtifactPath: null,
   resolvedCandidates: {},
+  resolvedCandidatesByFilePath: {},
+  appliedFileContents: {},
   pendingGitAction: null,
   pendingMergeSource: null,
   prSkipMergeGuard: false,
@@ -486,14 +526,37 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
       isMergeProposalLoading: false,
       isAnalyzing: false,
       resolvedCandidates: {},
+      resolvedCandidatesByFilePath: {},
+      appliedFileContents: {},
       pendingGitAction: null,
       pendingMergeSource: null,
     }),
-  markCandidateResolved: (candidateId, status) =>
+  markCandidateResolved: (candidateId, status, filePath) =>
     set((state) => ({
       resolvedCandidates: { ...state.resolvedCandidates, [candidateId]: status },
+      resolvedCandidatesByFilePath: filePath
+        ? { ...state.resolvedCandidatesByFilePath, [filePath]: status }
+        : state.resolvedCandidatesByFilePath,
     })),
-  clearResolvedCandidates: () => set({ resolvedCandidates: {}, pendingGitAction: null, pendingMergeSource: null }),
+  setAppliedFileContent: (filePath, content) =>
+    set((state) => ({
+      appliedFileContents: { ...state.appliedFileContents, [filePath]: content },
+    })),
+  getCandidateResolvedStatus: (conflict) => {
+    const state = get();
+    return (
+      state.resolvedCandidates[conflict.candidateId] ??
+      state.resolvedCandidatesByFilePath[conflict.filePath]
+    );
+  },
+  clearResolvedCandidates: () =>
+    set({
+      resolvedCandidates: {},
+      resolvedCandidatesByFilePath: {},
+      appliedFileContents: {},
+      pendingGitAction: null,
+      pendingMergeSource: null,
+    }),
   clearMergeApplyHint: () => set({ mergeApplyFollowupHint: null }),
   clearRestoreConfirmDialog: () => set({ restoreConfirmDialog: null }),
 
@@ -683,18 +746,52 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
           set({ isMergeProposalLoading: payload.loading });
         }
         break;
-      case 'CONFLICT_RESULT':
-        set({
-          conflicts: payload.candidates ?? [],
-          mergeConflictAnalysisId: payload.analysisId ?? null,
-          mergeConflictArtifactPath: payload.artifactPath ?? null,
-          mergeApplyFollowupHint: null,
-          resolvedCandidates: {},
-          pendingGitAction: (payload as any).triggeringAction ?? null,
-          // merge 재시도에 필요한 source 브랜치 저장
-          pendingMergeSource: (payload as any).mergeSource ?? null,
+      case 'CONFLICT_RESULT': {
+        const conflictPayload = payload as {
+          preserveResolvedCandidates?: boolean;
+          resolvedCandidates?: Record<string, 'accepted' | 'rejected'>;
+          resolvedCandidatesByFilePath?: Record<string, 'accepted' | 'rejected'>;
+          triggeringAction?: GitCatState['pendingGitAction'];
+          mergeSource?: string;
+        };
+        const preserveResolved = conflictPayload.preserveResolvedCandidates === true;
+        const nextConflicts = payload.candidates ?? [];
+        set((state) => {
+          const merged = mergeResolvedStateForConflicts(
+            nextConflicts,
+            state.resolvedCandidates,
+            state.resolvedCandidatesByFilePath,
+            preserveResolved,
+            conflictPayload.resolvedCandidates,
+            conflictPayload.resolvedCandidatesByFilePath,
+          );
+          return {
+            conflicts: nextConflicts,
+            mergeConflictAnalysisId: payload.analysisId ?? null,
+            mergeConflictArtifactPath: payload.artifactPath ?? null,
+            mergeApplyFollowupHint: null,
+            resolvedCandidates: merged.resolvedCandidates,
+            resolvedCandidatesByFilePath: merged.resolvedCandidatesByFilePath,
+            appliedFileContents: preserveResolved ? state.appliedFileContents : {},
+            pendingGitAction: conflictPayload.triggeringAction ?? state.pendingGitAction,
+            pendingMergeSource: conflictPayload.mergeSource ?? state.pendingMergeSource,
+          };
         });
         break;
+      }
+      case 'CANDIDATE_RESOLVED': {
+        const resolvedPayload = payload as {
+          candidateId: string;
+          filePath: string;
+          status: 'accepted' | 'rejected';
+        };
+        get().markCandidateResolved(
+          resolvedPayload.candidateId,
+          resolvedPayload.status,
+          resolvedPayload.filePath,
+        );
+        break;
+      }
       case 'MERGE_PROPOSAL':
         if (payload.proposals && payload.proposals.length > 0) {
           set({ currentAIDraft: payload.proposals[0] });
@@ -951,6 +1048,8 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
                 isMergeProposalLoading: false,
                 isAnalyzing: false,
                 resolvedCandidates: {},
+                resolvedCandidatesByFilePath: {},
+                appliedFileContents: {},
                 pendingGitAction: null,
                 pendingMergeSource: null,
                 // PR 충돌 해결 후 푸시 성공: 다음 CREATE_PR 시 가드 건너뜀

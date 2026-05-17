@@ -28,7 +28,7 @@ export const ConflictAnalysisView: React.FC = () => {
   const {
     conflicts, isAnalyzing, isMergeAnalysisLoading,
     selectedConflict, setSelectedConflict,
-    resolvedCandidates, pendingGitAction, clearResolvedCandidates,
+    getCandidateResolvedStatus, pendingGitAction, clearResolvedCandidates,
     isPulling, isPushing, isMerging, globalNotification,
     pendingMergeSource,
   } = useGitCatStore();
@@ -37,7 +37,7 @@ export const ConflictAnalysisView: React.FC = () => {
   const analyzing = isAnalyzing || isMergeAnalysisLoading;
 
   const totalCount = conflicts.length;
-  const resolvedCount = Object.keys(resolvedCandidates).length;
+  const resolvedCount = conflicts.filter((c) => getCandidateResolvedStatus(c) != null).length;
   const allResolved = totalCount > 0 && resolvedCount >= totalCount;
 
   const handleFocusConflict = (conflict: MergeConflictCandidateView) => {
@@ -128,7 +128,7 @@ export const ConflictAnalysisView: React.FC = () => {
               key={`${conflict.filePath}-${idx}`}
               conflict={conflict}
               isSelected={selectedConflict?.candidateId === conflict.candidateId}
-              resolvedStatus={resolvedCandidates[conflict.candidateId]}
+              resolvedStatus={getCandidateResolvedStatus(conflict)}
               onClick={() => handleFocusConflict(conflict)}
             />
           ))

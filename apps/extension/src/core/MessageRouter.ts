@@ -67,9 +67,17 @@ export class MessageRouter {
     analysisId?: string;
     artifactPath?: string | null;
     candidates: unknown[];
+    triggeringAction?: 'push' | 'pull' | 'pr' | 'merge';
+    mergeSource?: string;
+    preserveResolvedCandidates?: boolean;
+    resolvedCandidates?: Record<string, 'accepted' | 'rejected'>;
+    resolvedCandidatesByFilePath?: Record<string, 'accepted' | 'rejected'>;
   } | null = null;
 
   private mergeReviewProposalPayload: { proposals: unknown[] } | null = null;
+
+  private mergeReviewResolvedCandidates: Record<string, 'accepted' | 'rejected'> = {};
+  private mergeReviewResolvedByFilePath: Record<string, 'accepted' | 'rejected'> = {};
 
   constructor(
     private readonly dbInstance: any,
@@ -160,11 +168,26 @@ export class MessageRouter {
     candidates: unknown[];
     triggeringAction?: 'push' | 'pull' | 'pr' | 'merge';
     mergeSource?: string;
+    /** git merge 진행 중 재진입 시 UI의 "반영 완료" 상태 유지 */
+    preserveResolvedCandidates?: boolean;
   }): void {
-    this.mergeReviewConflictPayload = payload;
+    if (!payload.preserveResolvedCandidates) {
+      this.mergeReviewResolvedCandidates = {};
+      this.mergeReviewResolvedByFilePath = {};
+    }
+    const enriched = {
+      ...payload,
+      resolvedCandidates: payload.preserveResolvedCandidates
+        ? { ...this.mergeReviewResolvedCandidates }
+        : undefined,
+      resolvedCandidatesByFilePath: payload.preserveResolvedCandidates
+        ? { ...this.mergeReviewResolvedByFilePath }
+        : undefined,
+    };
+    this.mergeReviewConflictPayload = enriched;
     this.mergeReviewProposalPayload = null;
     // 이미 떠 있는 웹뷰(사이드바 + 열린 패널)에 즉시 반영
-    this.broadcast({ type: 'CONFLICT_RESULT', payload });
+    this.broadcast({ type: 'CONFLICT_RESULT', payload: enriched });
     if (this.shouldOpenMainPanelOnMergeConflict()) {
       try {
         this.openMainPanel?.();
@@ -177,6 +200,32 @@ export class MessageRouter {
   public publishMergeProposal(payload: { proposals: unknown[] }): void {
     this.mergeReviewProposalPayload = payload;
     this.broadcast({ type: 'MERGE_PROPOSAL', payload });
+  }
+
+  /** 수락/거절 상태를 extension에 보관하고 모든 webview에 동기화 */
+  public publishCandidateResolved(payload: {
+    candidateId: string;
+    filePath: string;
+    status: 'accepted' | 'rejected';
+  }): void {
+    this.mergeReviewResolvedCandidates[payload.candidateId] = payload.status;
+    this.mergeReviewResolvedByFilePath[payload.filePath] = payload.status;
+    if (this.mergeReviewConflictPayload) {
+      this.mergeReviewConflictPayload = {
+        ...this.mergeReviewConflictPayload,
+        preserveResolvedCandidates: true,
+        resolvedCandidates: { ...this.mergeReviewResolvedCandidates },
+        resolvedCandidatesByFilePath: { ...this.mergeReviewResolvedByFilePath },
+      };
+    }
+    this.broadcast({ type: 'CANDIDATE_RESOLVED', payload });
+  }
+
+  public clearMergeReviewSnapshot(): void {
+    this.mergeReviewConflictPayload = null;
+    this.mergeReviewProposalPayload = null;
+    this.mergeReviewResolvedCandidates = {};
+    this.mergeReviewResolvedByFilePath = {};
   }
 
   public publishMergeReviewLoading(target: 'mergeAnalysis' | 'mergeProposal', loading: boolean): void {

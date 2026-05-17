@@ -38,6 +38,7 @@ export const PrPanelLayout: React.FC = () => {
     isPrTemplatesLoading,
     lastCreatedPr,
     clearLastCreatedPr,
+    prSkipMergeGuard,
     sectionNotifications,
     clearSectionNotification,
   } = useGitCatStore();
@@ -164,6 +165,7 @@ export const PrPanelLayout: React.FC = () => {
       description: prDescription,
       base: baseBranch,
       headBranch: currentBranch,
+      ...(prSkipMergeGuard ? { skipGuard: true } : {}),
       ...(prReviewers.length > 0 ? { reviewers: prReviewers } : {}),
       ...(prAssignees.length > 0 ? { assignees: prAssignees } : {}),
       ...(prLabels.length > 0 ? { labels: prLabels } : {}),

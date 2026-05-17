@@ -53,6 +53,11 @@ export class MergeProposalMessageHandler {
     try {
       const request = AcceptMergeRequestSchema.parse(payload);
       const result = await this.service.accept(request);
+      this.messageRouter.publishCandidateResolved({
+        candidateId: request.candidateId,
+        filePath: request.filePath,
+        status: 'accepted',
+      });
       this.messageRouter.broadcast({
         type: 'NOTIFICATION',
         payload: {
@@ -82,6 +87,11 @@ export class MergeProposalMessageHandler {
     try {
       const request = RejectMergeRequestSchema.parse(payload);
       const result = await this.service.reject(request);
+      this.messageRouter.publishCandidateResolved({
+        candidateId: request.candidateId,
+        filePath: request.filePath ?? '',
+        status: 'rejected',
+      });
       this.messageRouter.broadcast({
         type: 'NOTIFICATION',
         payload: {

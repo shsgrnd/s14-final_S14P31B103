@@ -45,6 +45,8 @@ export type MergeTrackingBranchState =
  * 실제 merge는 실행하지 않고, 기존 충돌 분석 서비스를 재사용해 진행 차단 여부만 판단합니다.
  */
 export class MergeConflictGuardService {
+  private static readonly FALLBACK_TARGET_NAMES = ['main', 'master', 'develop'] as const;
+
   constructor(
     private readonly gitService: GitService,
     private readonly analysisService: MergeConflictAnalysisService,
@@ -56,6 +58,27 @@ export class MergeConflictGuardService {
       sourceBranch,
       targetBranch: this.getDefaultTargetBranch(),
     });
+  }
+
+  /** PR 기본 base 미설정 시 main/master/develop 로컬 브랜치를 push 가드 target으로 사용 */
+  async guardDefaultTargetWithFallback(sourceBranch?: string): Promise<MergeConflictGuardResult> {
+    const configured = this.getDefaultTargetBranch();
+    const targetBranch = configured ?? (await this.inferFallbackTargetBranch());
+    return this.guard({
+      sourceBranch,
+      targetBranch,
+    });
+  }
+
+  private async inferFallbackTargetBranch(): Promise<string | null> {
+    const branches = await this.gitService.getBranches();
+    const localNames = new Set(branches.filter((b) => !b.isRemote).map((b) => b.name));
+    for (const name of MergeConflictGuardService.FALLBACK_TARGET_NAMES) {
+      if (localNames.has(name)) {
+        return name;
+      }
+    }
+    return null;
   }
 
   async getCurrentTrackingBranchState(): Promise<MergeTrackingBranchState> {

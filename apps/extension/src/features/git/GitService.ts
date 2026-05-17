@@ -414,6 +414,14 @@ export class GitService {
     return { success: true, message: '병합이 취소되었습니다.' };
   }
 
+  async checkoutMergeOurs(filePaths: string[]): Promise<void> {
+    await this.gitClient.checkoutMergeOurs(filePaths);
+  }
+
+  async readIndexStage(filePath: string, stage: 2 | 3): Promise<string> {
+    return this.gitClient.readIndexStage(filePath, stage);
+  }
+
   // ─── AI 추천 입력 수집 (2단계 준비용) ────────────────────────────────────
 
   /**

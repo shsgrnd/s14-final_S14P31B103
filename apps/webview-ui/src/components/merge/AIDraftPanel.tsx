@@ -388,7 +388,8 @@ export const AIDraftPanel: React.FC = () => {
   const {
     currentAIDraft, setAIDraft, isMergeProposalLoading,
     selectedConflict, setSelectedConflict,
-    markCandidateResolved,
+    markCandidateResolved, setAppliedFileContent,
+    getCandidateResolvedStatus, appliedFileContents,
   } = useGitCatStore();
   const { sendMessage } = useVsCodeApi();
   const [isEditing, setIsEditing] = useState(false);
@@ -420,6 +421,37 @@ export const AIDraftPanel: React.FC = () => {
   }
 
   if (!currentAIDraft && selectedConflict) {
+    const resolvedStatus = getCandidateResolvedStatus(selectedConflict);
+    const appliedContent = appliedFileContents[selectedConflict.filePath];
+
+    if (resolvedStatus === 'accepted' && appliedContent != null) {
+      return (
+        <AppliedContentPreview
+          conflict={selectedConflict}
+          content={appliedContent}
+          onBack={() => setSelectedConflict(null)}
+        />
+      );
+    }
+
+    if (resolvedStatus === 'rejected') {
+      return (
+        <RejectedContentPreview
+          conflict={selectedConflict}
+          onBack={() => setSelectedConflict(null)}
+          onRequestAI={(hunks) => {
+            sendMessage('GET_AI_DRAFT', {
+              analysisId: selectedConflict.analysisId,
+              candidateId: selectedConflict.candidateId,
+              filePath: selectedConflict.filePath,
+              featureType: 'merge_patch_draft',
+              ...(hunks && hunks.length > 0 && { selectedHunks: hunks }),
+            });
+          }}
+        />
+      );
+    }
+
     return (
       <ConflictPreview
         conflict={selectedConflict}
@@ -455,6 +487,7 @@ export const AIDraftPanel: React.FC = () => {
   }
 
   const handleApprove = (content?: string) => {
+    const finalContent = diffToEditableContent(content ?? currentAIDraft.proposedContent);
     sendMessage('ACCEPT_MERGE', {
       proposalId: currentAIDraft.proposalId,
       candidateId: currentAIDraft.candidateId,
@@ -463,7 +496,8 @@ export const AIDraftPanel: React.FC = () => {
       proposedContent: content ?? currentAIDraft.proposedContent,
       finalExplanation: currentAIDraft.explanation,
     });
-    markCandidateResolved(currentAIDraft.candidateId, 'accepted');
+    setAppliedFileContent(currentAIDraft.filePath, finalContent);
+    markCandidateResolved(currentAIDraft.candidateId, 'accepted', currentAIDraft.filePath);
     setAIDraft(null);
   };
 
@@ -474,7 +508,7 @@ export const AIDraftPanel: React.FC = () => {
       analysisId: currentAIDraft.analysisId,
       filePath: currentAIDraft.filePath,
     });
-    markCandidateResolved(currentAIDraft.candidateId, 'rejected');
+    markCandidateResolved(currentAIDraft.candidateId, 'rejected', currentAIDraft.filePath);
     setAIDraft(null);
   };
 
@@ -695,6 +729,137 @@ export const AIDraftPanel: React.FC = () => {
             </div>
           )}
         </div>
+      </div>
+    </div>
+  );
+};
+
+// ─── 반영 완료 / 반영 안 함 미리보기 ─────────────────────────────────────────
+
+const AppliedContentPreview: React.FC<{
+  conflict: import('@gitcat/shared-types').MergeConflictCandidateView;
+  content: string;
+  onBack: () => void;
+}> = ({ conflict, content, onBack }) => {
+  const fileName = conflict.filePath.split('/').pop() ?? conflict.filePath;
+  const dirPath = conflict.filePath.includes('/')
+    ? conflict.filePath.substring(0, conflict.filePath.lastIndexOf('/'))
+    : '/ (루트 디렉토리)';
+
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden',
+      background: 'var(--vscode-editor-background)', color: 'var(--vscode-editor-foreground)',
+    }}>
+      <div style={{
+        flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8,
+        padding: '7px 12px', borderBottom: '1px solid var(--vscode-panel-border)',
+        background: 'var(--vscode-sideBarSectionHeader-background)',
+      }}>
+        <button type="button" onClick={onBack} title="목록으로" style={{
+          border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--vscode-foreground)', opacity: 0.7,
+        }}>
+          <ArrowLeft size={14} />
+        </button>
+        <span style={{
+          padding: '2px 7px', borderRadius: 3, fontSize: 10, fontWeight: 700,
+          background: 'color-mix(in srgb, var(--vscode-charts-green, #89d185) 18%, transparent)',
+          color: 'var(--vscode-charts-green, #89d185)',
+        }}>
+          반영 완료
+        </span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 12, fontWeight: 600 }}>{fileName}</div>
+          <div style={{ fontSize: 10, opacity: 0.65, color: 'var(--vscode-descriptionForeground)' }}>{dirPath}</div>
+        </div>
+      </div>
+      <div style={{
+        flexShrink: 0, padding: '6px 12px', fontSize: 11, lineHeight: 1.5,
+        background: 'var(--vscode-editor-inactiveSelectionBackground)',
+        borderBottom: '1px solid var(--vscode-panel-border)',
+      }}>
+        AI 병합 초안이 로컬 파일에 적용되었습니다. 아래에서 Git Push 등 원래 작업을 다시 시도할 수 있습니다.
+      </div>
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
+        <div style={{
+          flexShrink: 0, padding: '4px 10px', fontSize: 10, fontWeight: 700,
+          color: 'var(--vscode-charts-green, #89d185)',
+          borderBottom: '1px solid var(--vscode-panel-border)',
+          background: 'color-mix(in srgb, var(--vscode-charts-green, #89d185) 8%, var(--vscode-editor-background))',
+        }}>
+          워킹트리에 반영된 내용
+        </div>
+        <div style={{ flex: 1, overflow: 'auto', padding: '8px 12px' }}>
+          <pre style={{
+            margin: 0, fontFamily: 'var(--vscode-editor-font-family, monospace)',
+            fontSize: 12, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-all',
+          }}>
+            {renderDiffLines(content)}
+          </pre>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const RejectedContentPreview: React.FC<{
+  conflict: import('@gitcat/shared-types').MergeConflictCandidateView;
+  onBack: () => void;
+  onRequestAI: (selectedHunks?: number[]) => void;
+}> = ({ conflict, onBack, onRequestAI }) => {
+  const fileName = conflict.filePath.split('/').pop() ?? conflict.filePath;
+  const dirPath = conflict.filePath.includes('/')
+    ? conflict.filePath.substring(0, conflict.filePath.lastIndexOf('/'))
+    : '/ (루트 디렉토리)';
+
+  return (
+    <div style={{
+      display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden',
+      background: 'var(--vscode-editor-background)', color: 'var(--vscode-editor-foreground)',
+    }}>
+      <div style={{
+        flexShrink: 0, display: 'flex', alignItems: 'center', gap: 8,
+        padding: '7px 12px', borderBottom: '1px solid var(--vscode-panel-border)',
+        background: 'var(--vscode-sideBarSectionHeader-background)',
+      }}>
+        <button type="button" onClick={onBack} title="목록으로" style={{
+          border: 'none', background: 'transparent', cursor: 'pointer', color: 'var(--vscode-foreground)', opacity: 0.7,
+        }}>
+          <ArrowLeft size={14} />
+        </button>
+        <span style={{
+          padding: '2px 7px', borderRadius: 3, fontSize: 10, fontWeight: 700,
+          background: 'color-mix(in srgb, var(--vscode-charts-red, #f14c4c) 12%, transparent)',
+          color: 'color-mix(in srgb, var(--vscode-charts-red, #f14c4c) 80%, var(--vscode-foreground))',
+        }}>
+          반영 안 함
+        </span>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ fontSize: 12, fontWeight: 600 }}>{fileName}</div>
+          <div style={{ fontSize: 10, opacity: 0.65, color: 'var(--vscode-descriptionForeground)' }}>{dirPath}</div>
+        </div>
+      </div>
+      <div style={{
+        flexShrink: 0, padding: '10px 12px', borderTop: '1px solid var(--vscode-panel-border)',
+        display: 'flex', flexDirection: 'column', gap: 8,
+      }}>
+        <p style={{ margin: 0, fontSize: 11, lineHeight: 1.6, opacity: 0.75 }}>
+          이 충돌 후보는 반영하지 않았습니다. 다시 AI 초안을 생성할 수 있습니다.
+        </p>
+        <button
+          type="button"
+          onClick={() => onRequestAI()}
+          className="gitcat-ai-btn"
+          style={{
+            alignSelf: 'flex-start', display: 'inline-flex', alignItems: 'center', gap: 6,
+            padding: '5px 12px', borderRadius: 4, border: 'none',
+            background: 'var(--vscode-button-background)',
+            color: 'var(--vscode-button-foreground)',
+            fontSize: 11, fontWeight: 700, cursor: 'pointer',
+          }}
+        >
+          <Sparkles size={13} /> AI 병합 초안 다시 생성
+        </button>
       </div>
     </div>
   );
