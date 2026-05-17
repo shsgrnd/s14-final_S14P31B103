@@ -485,7 +485,7 @@ export class GitMessageHandler {
 
       if (opts?.skipGuard) {
         await this.autoCommitAcceptedChanges();
-        let status = await this.gitService.getStatus();
+        const status = await this.gitService.getStatus();
         gitcatLog(
           `[GitCat] EXECUTE_PULL retry: isMerging=${status.isMerging}, conflicted=[${status.conflicted.map((f) => f.path).join(',')}]`,
         );
@@ -875,7 +875,7 @@ export class GitMessageHandler {
 
       if (payload.skipGuard) {
         await this.autoCommitAcceptedChanges();
-        let status = await this.gitService.getStatus();
+        const status = await this.gitService.getStatus();
         gitcatLog(
           `[GitCat] RUN_MERGE retry: isMerging=${status.isMerging}, conflicted=[${status.conflicted.map((f) => f.path).join(',')}]`,
         );
