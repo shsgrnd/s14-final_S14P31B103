@@ -5,7 +5,7 @@ import type {
   RecommendationHistoryRow,
   RecommendationResult,
 } from '@gitcat/shared-types';
-import { MergeAiService } from '@gitcat/ai-pipeline';
+import { MergeAiService } from '@gitcat/ai-pipeline/extension';
 import { GitService } from '../git/GitService';
 import {
   BranchRecommendationHistoryContextDto,
