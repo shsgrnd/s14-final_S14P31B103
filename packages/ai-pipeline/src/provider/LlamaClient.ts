@@ -6,10 +6,14 @@ import type {
 // @ts-ignore
 } from 'node-llama-cpp';
 import { promises as fs } from 'node:fs';
+import * as path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import type { PromptPayload } from './AiClient';
 
 export interface LlamaClientOptions {
   modelPath: string; // 로컬에 다운로드된 GGUF 모델 파일의 절대 경로
+  runtimeRoot?: string;
+  allowBundledRuntimeFallback?: boolean;
 }
 
 export interface LlamaCallMetrics {
@@ -34,12 +38,16 @@ function formatLocalAiSummary(fields: Record<string, string | number | boolean>)
  */
 export class GitCatLlamaClient {
   private modelPath: string;
+  private readonly runtimeRoot?: string;
+  private readonly allowBundledRuntimeFallback: boolean;
   private llamaModel: LlamaModel | null = null;
   private llamaContext: LlamaContext | null = null;
   private backendInfo = 'backend info unavailable';
 
   constructor(options: LlamaClientOptions) {
     this.modelPath = options.modelPath;
+    this.runtimeRoot = options.runtimeRoot;
+    this.allowBundledRuntimeFallback = options.allowBundledRuntimeFallback ?? true;
   }
 
   /**
@@ -54,8 +62,7 @@ export class GitCatLlamaClient {
 
     const initStartedAt = Date.now();
     try {
-      // ESM 모듈인 node-llama-cpp를 CommonJS 환경에서 불러오기 위한 우회 기법
-      const nodeLlamaCpp = await new Function("return import('node-llama-cpp')")();
+      const nodeLlamaCpp = await this.loadNodeLlamaCpp();
       const getLlama = nodeLlamaCpp.getLlama;
 
       // 1. llama 엔진 초기화
@@ -121,7 +128,7 @@ export class GitCatLlamaClient {
       throw new Error('LlamaContext is not initialized');
     }
 
-    const nodeLlamaCpp = await new Function("return import('node-llama-cpp')")();
+    const nodeLlamaCpp = await this.loadNodeLlamaCpp();
     const LlamaChatSessionCls = nodeLlamaCpp.LlamaChatSession;
 
     const sessionCreateStartedAt = Date.now();
@@ -185,5 +192,40 @@ export class GitCatLlamaClient {
     );
 
     return resolved ?? 'backend info unavailable';
+  }
+
+  private async loadNodeLlamaCpp(): Promise<any> {
+    if (this.runtimeRoot) {
+      const runtimeEntryPath = path.join(
+        this.runtimeRoot,
+        'node_modules',
+        'node-llama-cpp',
+        'dist',
+        'index.js',
+      );
+
+      try {
+        await fs.access(runtimeEntryPath);
+        return await import(pathToFileURL(runtimeEntryPath).href);
+      } catch (error) {
+        if (!this.allowBundledRuntimeFallback) {
+          throw new Error(
+            'GitCat live-local runtime is not installed. Run `GitCat: Install Local Runtime` from the Command Palette, then try again.'
+          );
+        }
+      }
+    }
+
+    try {
+      // ESM 모듈인 node-llama-cpp를 CommonJS 환경에서 불러오기 위한 우회 기법
+      return await new Function("return import('node-llama-cpp')")();
+    } catch (error) {
+      if (this.runtimeRoot) {
+        throw new Error(
+          'GitCat live-local runtime is not available. Run `GitCat: Install Local Runtime` from the Command Palette, then try again.'
+        );
+      }
+      throw error;
+    }
   }
 }

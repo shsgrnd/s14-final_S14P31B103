@@ -70,11 +70,28 @@ GitCat은 생성형 AI 코딩 환경에서 흔히 발생하는 예기치 않은 
 
 - 모델 저장소: https://huggingface.co/shsgrnd/SSAFY_gitcat-local-llm
 - 권장 파일:
-  - `gitcat-v2-sft-merged-Q4_K_M.gguf`
-  - `gitcat-v2-dpo-merged-Q4_K_M.gguf`
+  - `gitcat-v3-sft-merged-Q4_K_M.gguf`
+  - `gitcat-v3-dpo-merged-Q4_K_M.gguf`
 
 사용 시에는 VS Code 설정에서 `Gitcat > Ai: Mode`를 `live-local`로 변경한 뒤,
 `Gitcat > Ai: Local Model Path`에 다운로드한 GGUF 파일의 절대 경로를 입력하면 됩니다.
+
+## 📦 AI 런타임 배포 정책
+GitCat VSIX는 **멀티플랫폼 단일 패키지** 정책을 따릅니다. 따라서 최종 VSIX에는 플랫폼별 `node-llama-cpp` 네이티브 런타임을 동봉하지 않습니다.
+
+- `mock`: 추가 설치 없이 바로 사용할 수 있습니다.
+- `live-remote`: GMS API 키만 준비하면 사용할 수 있습니다.
+- `live-local`: GGUF 모델 파일과 별도로 로컬 추론 런타임 초기 설치가 필요할 수 있습니다.
+
+`live-local` 사용 시 준비 순서:
+1. GGUF 모델 파일을 Hugging Face에서 다운로드합니다.
+2. VS Code 설정에서 `Gitcat > Ai: Mode`를 `live-local`로 변경합니다.
+3. `Gitcat > Ai: Local Model Path`에 GGUF 절대 경로를 입력합니다.
+4. VS Code에서 Command Palette(`Ctrl+Shift+P`, macOS는 `Cmd+Shift+P`)를 연 뒤 `GitCat: Install Local Runtime`을 실행해 `node-llama-cpp` 런타임 설치를 시작합니다.
+
+참고:
+- 이 저장소에서 실험적으로 측정한 `host-only` 최적화본은 최종 배포 정책이 아닙니다.
+- 최종 배포본은 특정 OS/아키텍처에 고정하지 않습니다.
 
 ---
 

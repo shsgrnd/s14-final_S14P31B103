@@ -49,6 +49,9 @@ importers:
         specifier: workspace:*
         version: link:../../packages/storage
     devDependencies:
+      esbuild:
+        specifier: ^0.25.12
+        version: 0.25.12
       '@types/node':
         specifier: 18.x
         version: 18.19.130

@@ -3,12 +3,14 @@ import { PanelCommandHandler } from './PanelCommandHandler';
 import { WebviewProvider } from '../webview/WebviewProvider';
 import { GitService } from '../features/git/GitService';
 import { GitHubTokenProvider } from '../integrations/github/GitHubTokenProvider';
+import { LiveLocalRuntimeManager } from '../platform/LiveLocalRuntimeManager';
 
 export class CommandRegistry {
     static registerAll(
         context: vscode.ExtensionContext,
         webviewProvider: WebviewProvider,
         gitService?: GitService,
+        liveLocalRuntimeManager?: LiveLocalRuntimeManager,
     ) {
 
         // Webview 패널 오픈 커맨드 (I-10-gitcat.openPanel)
@@ -27,6 +29,9 @@ export class CommandRegistry {
 
         // GitHub PR 생성 테스트용 토큰 설정
         context.subscriptions.push(
+            vscode.commands.registerCommand('gitcat.installLocalRuntime', async () => {
+                await liveLocalRuntimeManager?.startInstallFlow();
+            }),
             vscode.commands.registerCommand('gitcat.setGitHubToken', async () => {
                 const token = await vscode.window.showInputBox({
                     title: 'GitCat: Set GitHub Token',

@@ -5,6 +5,23 @@
   "main": "dist/ai-pipeline/src/index.js",
   "types": "dist/ai-pipeline/src/index.d.ts",
   "type": "commonjs",
+  "exports": {
+    ".": {
+      "types": "./dist/ai-pipeline/src/index.d.ts",
+      "require": "./dist/ai-pipeline/src/index.js",
+      "default": "./dist/ai-pipeline/src/index.js"
+    },
+    "./extension": {
+      "types": "./dist/ai-pipeline/src/extension.d.ts",
+      "require": "./dist/ai-pipeline/src/extension.js",
+      "default": "./dist/ai-pipeline/src/extension.js"
+    },
+    "./rag": {
+      "types": "./dist/ai-pipeline/src/rag-entry.d.ts",
+      "require": "./dist/ai-pipeline/src/rag-entry.js",
+      "default": "./dist/ai-pipeline/src/rag-entry.js"
+    }
+  },
   "scripts": {
     "build": "tsc",
     "test:mock": "ts-node -r tsconfig-paths/register src/run-mock.ts",

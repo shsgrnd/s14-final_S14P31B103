@@ -43,7 +43,7 @@ function copyDirectory(sourceDir, targetDir, filter) {
   });
 }
 
-function copyIfExists(relativePath) {
+function copyIfExists(relativePath, filter) {
   const sourcePath = path.join(extensionRoot, relativePath);
   if (!fs.existsSync(sourcePath)) {
     return;
@@ -52,7 +52,7 @@ function copyIfExists(relativePath) {
   const targetPath = path.join(stagingDir, relativePath);
   const sourceStat = fs.statSync(sourcePath);
   if (sourceStat.isDirectory()) {
-    copyDirectory(sourcePath, targetPath);
+    copyDirectory(sourcePath, targetPath, filter);
     return;
   }
 
@@ -60,7 +60,7 @@ function copyIfExists(relativePath) {
   fs.copyFileSync(sourcePath, targetPath);
 }
 
-function copyAbsolutePathIfExists(sourcePath, targetRelativePath) {
+function copyAbsolutePathIfExists(sourcePath, targetRelativePath, filter) {
   if (!fs.existsSync(sourcePath)) {
     return;
   }
@@ -68,12 +68,82 @@ function copyAbsolutePathIfExists(sourcePath, targetRelativePath) {
   const targetPath = path.join(stagingDir, targetRelativePath);
   const sourceStat = fs.statSync(sourcePath);
   if (sourceStat.isDirectory()) {
-    copyDirectory(sourcePath, targetPath);
+    copyDirectory(sourcePath, targetPath, filter);
     return;
   }
 
   ensureDir(path.dirname(targetPath));
   fs.copyFileSync(sourcePath, targetPath);
+}
+
+function isDeclarationFile(filename) {
+  return (
+    filename.endsWith('.d.ts') ||
+    filename.endsWith('.d.mts') ||
+    filename.endsWith('.d.cts')
+  );
+}
+
+function isSourceMapFile(filename) {
+  return filename.endsWith('.map');
+}
+
+function shouldIncludePackagedDistPath(distRoot, currentSourcePath, packageName) {
+  const relativePath = path.relative(distRoot, currentSourcePath);
+  if (!relativePath) {
+    return true;
+  }
+
+  const normalizedRelativePath = relativePath.split(path.sep).join('/');
+  const segments = relativePath.split(path.sep);
+  const topLevelName = segments[0];
+  const basename = path.basename(currentSourcePath);
+  const excludedTopLevelNames = new Set([
+    'node_modules',
+    'test',
+    'tests',
+    '__tests__',
+    'docs',
+    'doc',
+    'example',
+    'examples',
+  ]);
+
+  if (excludedTopLevelNames.has(topLevelName)) {
+    return false;
+  }
+
+  if (
+    isSourceMapFile(basename) ||
+    isDeclarationFile(basename) ||
+    basename === 'tsconfig.json' ||
+    basename === 'tsconfig.build.json'
+  ) {
+    return false;
+  }
+
+  if (packageName === 'extension') {
+    return normalizedRelativePath === 'extension.js';
+  }
+
+  if (packageName === '@gitcat/ai-pipeline') {
+    const excludedAiPipelinePrefixes = [
+      'ai-pipeline/src/eval/',
+      'ai-pipeline/src/export/',
+      'ai-pipeline/src/demo/',
+      'ai-pipeline/src/__tests__/',
+      'ai-pipeline/src/run-live.',
+      'ai-pipeline/src/run-mock.',
+      'ai-pipeline/src/run-export-mock.',
+      'ai-pipeline/src/rag/run-local-rag-test.',
+    ];
+
+    if (excludedAiPipelinePrefixes.some((prefix) => normalizedRelativePath.startsWith(prefix))) {
+      return false;
+    }
+  }
+
+  return true;
 }
 
 function nodeModulesPackagePath(nodeModulesRoot, packageName) {
@@ -151,7 +221,7 @@ function writeJson(filePath, value) {
   fs.writeFileSync(filePath, `${JSON.stringify(value, null, 2)}\n`, 'utf8');
 }
 
-function copyWorkspacePackageContents(sourceDir, targetDir) {
+function copyWorkspacePackageContents(sourceDir, targetDir, packageName) {
   ensureDir(targetDir);
 
   const distSourceDir = path.join(sourceDir, 'dist');
@@ -160,15 +230,9 @@ function copyWorkspacePackageContents(sourceDir, targetDir) {
     throw new Error(`workspace 패키지 dist 디렉터리를 찾을 수 없습니다: ${distSourceDir}`);
   }
 
-  copyDirectory(distSourceDir, distTargetDir, (currentSourcePath) => {
-    const basename = path.basename(currentSourcePath);
-
-    if (basename.endsWith('.map') || basename.endsWith('.d.ts')) {
-      return false;
-    }
-
-    return true;
-  });
+  copyDirectory(distSourceDir, distTargetDir, (currentSourcePath) =>
+    shouldIncludePackagedDistPath(distSourceDir, currentSourcePath, packageName)
+  );
 
   for (const filename of ['README.md', 'LICENSE', 'LICENSE.txt']) {
     const sourcePath = path.join(sourceDir, filename);
@@ -185,6 +249,7 @@ function transformWorkspaceManifestForPackaging(manifest) {
 
   if (transformed.name === '@gitcat/ai-pipeline') {
     delete transformed.dependencies?.['@xenova/transformers'];
+    delete transformed.dependencies?.['node-llama-cpp'];
     delete transformed.optionalDependencies?.['onnxruntime-node'];
   }
 
@@ -200,6 +265,11 @@ function shouldIncludeInstalledDependencyPath(packageRoot, currentSourcePath) {
   const segments = relativePath.split(path.sep);
   const topLevelName = segments[0];
   const basename = path.basename(currentSourcePath);
+  const packageName = path.basename(packageRoot);
+  const isRootPackageJson = relativePath === 'package.json';
+  const isRootLicenseFile =
+    segments.length === 1 &&
+    /^LICENSE(?:\.[^.]+)?$/i.test(basename);
   const excludedTopLevelNames = new Set([
     'test',
     'tests',
@@ -213,12 +283,19 @@ function shouldIncludeInstalledDependencyPath(packageRoot, currentSourcePath) {
     '.husky',
   ]);
 
+  if (isRootPackageJson || isRootLicenseFile) {
+    return true;
+  }
+
   if (excludedTopLevelNames.has(topLevelName)) {
     return false;
   }
 
   if (
-    basename.endsWith('.map') ||
+    isSourceMapFile(basename) ||
+    isDeclarationFile(basename) ||
+    /^README/i.test(basename) ||
+    /^CHANGELOG/i.test(basename) ||
     basename === 'tsconfig.json' ||
     basename === 'tsconfig.build.json'
   ) {
@@ -226,6 +303,17 @@ function shouldIncludeInstalledDependencyPath(packageRoot, currentSourcePath) {
   }
 
   return true;
+}
+
+function getInstalledDependencyNamesForPackaging(manifest) {
+  const dependencyNames = new Set(Object.keys(manifest.dependencies ?? {}));
+  const optionalDependencyNames = Object.keys(manifest.optionalDependencies ?? {});
+
+  for (const dependencyName of optionalDependencyNames) {
+    dependencyNames.add(dependencyName);
+  }
+
+  return dependencyNames;
 }
 
 function stageInstalledDependency(sourcePackagePath, targetConsumerDir, stagedKeys) {
@@ -252,10 +340,7 @@ function stageInstalledDependency(sourcePackagePath, targetConsumerDir, stagedKe
     shouldIncludeInstalledDependencyPath(sourceRealPath, currentSourcePath)
   );
 
-  const dependencyNames = new Set([
-    ...Object.keys(manifest.dependencies ?? {}),
-    ...Object.keys(manifest.optionalDependencies ?? {}),
-  ]);
+  const dependencyNames = getInstalledDependencyNamesForPackaging(manifest);
   const sourceParentNodeModules = packageNodeModulesRoot(sourceRealPath, manifest.name);
 
   for (const dependencyName of dependencyNames) {
@@ -282,7 +367,7 @@ function stageWorkspacePackage(packageName, workspacePackages, stagedWorkspacePa
 
   const targetDir = nodeModulesPackagePath(path.join(stagingDir, 'node_modules'), packageName);
   ensureDir(path.dirname(targetDir));
-  copyWorkspacePackageContents(workspacePackage.dir, targetDir);
+  copyWorkspacePackageContents(workspacePackage.dir, targetDir, packageName);
 
   const packagingManifest = transformWorkspaceManifestForPackaging(workspacePackage.manifest);
   const rewrittenManifest = rewriteWorkspaceSpecs(packagingManifest, workspacePackages);
@@ -359,7 +444,9 @@ function stageExtensionPackage(workspacePackages) {
 
   writeJson(path.join(stagingDir, 'package.json'), stagedManifest);
 
-  copyIfExists('dist');
+  copyIfExists('dist', (currentSourcePath) =>
+    shouldIncludePackagedDistPath(path.join(extensionRoot, 'dist'), currentSourcePath, 'extension')
+  );
   copyIfExists('media');
   copyIfExists('icon.png');
   copyIfExists('README.md');
@@ -401,6 +488,7 @@ for (const dependencyName of Object.keys(extensionPackageJson.dependencies ?? {}
 runCommand(process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm', ['run', 'build'], webviewUiRoot);
 
 // 실제 패키징은 스테이징 결과물을 사용하지만, extension 엔트리 번들은 먼저 최신 상태로 맞춥니다.
+runCommand(process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm', ['run', 'typecheck'], extensionRoot);
 runCommand(process.platform === 'win32' ? 'pnpm.cmd' : 'pnpm', ['run', 'compile'], extensionRoot);
 
 stageExtensionPackage(workspacePackages);
