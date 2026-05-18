@@ -175,9 +175,9 @@ export const PrPanelLayout: React.FC = () => {
 
   return (
     <div style={{
-      height: '100vh', width: '100%', display: 'flex', flexDirection: 'column',
+      height: '100%', minHeight: 0, width: '100%', display: 'flex', flexDirection: 'column',
       background: 'var(--vscode-editor-background)', color: 'var(--vscode-editor-foreground)',
-      padding: '20px', boxSizing: 'border-box', overflowY: 'auto', minHeight: 0,
+      padding: '20px', boxSizing: 'border-box', overflowY: 'auto',
     }}>
       <header style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px', paddingBottom: '16px', borderBottom: '1px solid var(--vscode-panel-border)' }}>
         <GitPullRequest size={24} style={{ color: 'var(--vscode-charts-blue)' }} />

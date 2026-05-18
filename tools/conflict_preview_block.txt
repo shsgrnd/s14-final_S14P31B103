@@ -1,0 +1,98 @@
+      {conflict.baseFullContent && (
+        <ViewTabBar
+          tabs={[
+            { id: 'two-way', label: '2열 비교' },
+            { id: 'base', label: '공통 조상' },
+          ]}
+          active={compareTab}
+          onChange={(id) => setCompareTab(id as MergeCompareTab)}
+        />
+      )}
+
+      {showRegionChips && regions.length > 0 && (
+        <RegionChipBar
+          regions={regions}
+          activeRegionId={activeRegionId}
+          onSelect={setActiveRegionId}
+        />
+      )}
+
+      {hasExcerpt || fullFileMode ? (
+        <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
+          {compareTab === 'base' ? (
+            <PlainCodeColumn
+              label="공통 조상 (Base)"
+              colorVar="var(--vscode-descriptionForeground)"
+              content={baseContent}
+            />
+          ) : fullFileMode ? (
+            <>
+              <PlainCodeColumn
+                label="상대 변경사항 (Incoming)"
+                colorVar="var(--vscode-charts-blue, #75beff)"
+                content={incomingContent}
+                highlightStart={activeRegion?.lineStart}
+                highlightEnd={activeRegion?.lineEnd}
+                scrollToLine={activeRegion?.lineStart}
+                hasBorderRight
+              />
+              <PlainCodeColumn
+                label="내 변경사항 (Current)"
+                colorVar="var(--vscode-charts-green, #89d185)"
+                content={currentContent}
+                highlightStart={activeRegion?.lineStart}
+                highlightEnd={activeRegion?.lineEnd}
+                scrollToLine={activeRegion?.lineStart}
+              />
+            </>
+          ) : (
+            <>
+              <div style={{
+                flex: 1, minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column',
+                borderRight: '1px solid var(--vscode-panel-border)',
+              }}>
+                <div style={{
+                  flexShrink: 0, padding: '4px 10px', fontSize: 10, fontWeight: 700,
+                  textTransform: 'uppercase', letterSpacing: '0.05em',
+                  color: 'var(--vscode-charts-blue, #75beff)',
+                  borderBottom: '1px solid var(--vscode-panel-border)',
+                  background: 'color-mix(in srgb, var(--vscode-charts-blue, #75beff) 8%, var(--vscode-editor-background))',
+                  display: 'flex', alignItems: 'center', gap: 6,
+                }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--vscode-charts-blue, #75beff)', display: 'inline-block' }} />
+                  상대 변경사항 (Incoming)
+                </div>
+                <div style={{ flex: 1, overflow: 'auto', padding: '8px 12px' }}>
+                  <pre style={{ margin: 0, fontFamily: 'var(--vscode-editor-font-family, monospace)', fontSize: 12, lineHeight: 1.6 }}>
+                    {totalClusters >= 2
+                      ? renderDiffWithClusterSelection(trimDiffContext(conflict.targetExcerpt ?? ''), selectedClusters, toggleCluster)
+                      : renderDiffLines(trimDiffContext(conflict.targetExcerpt ?? ''))}
+                  </pre>
+                </div>
+              </div>
+              <div style={{
+                flex: 1, minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column',
+              }}>
+                <div style={{
+                  flexShrink: 0, padding: '4px 10px', fontSize: 10, fontWeight: 700,
+                  textTransform: 'uppercase', letterSpacing: '0.05em',
+                  color: 'var(--vscode-charts-green, #89d185)',
+                  borderBottom: '1px solid var(--vscode-panel-border)',
+                  background: 'color-mix(in srgb, var(--vscode-charts-green, #89d185) 8%, var(--vscode-editor-background))',
+                  display: 'flex', alignItems: 'center', gap: 6,
+                }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--vscode-charts-green, #89d185)', display: 'inline-block' }} />
+                  내 변경사항 (Current)
+                </div>
+                <div style={{ flex: 1, overflow: 'auto', padding: '8px 12px' }}>
+                  <pre style={{ margin: 0, fontFamily: 'var(--vscode-editor-font-family, monospace)', fontSize: 12, lineHeight: 1.6 }}>
+                    {totalClusters >= 2
+                      ? renderDiffWithClusterSelection(trimDiffContext(conflict.sourceExcerpt ?? ''), selectedClusters, toggleCluster)
+                      : renderDiffLines(trimDiffContext(conflict.sourceExcerpt ?? ''))}
+                  </pre>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      ) : (

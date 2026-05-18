@@ -494,6 +494,14 @@ export class GitService {
     return this.gitClient.getMergeBase(source, target);
   }
 
+  async resolveRevision(ref: string): Promise<string> {
+    return this.gitClient.resolveRevision(ref);
+  }
+
+  async showFileAtRevision(revision: string, filePath: string): Promise<string> {
+    return this.gitClient.showFileAtRevision(revision, filePath);
+  }
+
   /** 병합 완료 브랜치 목록 (브랜치 정리 기능용) */
   async getMergedBranches(): Promise<string[]> {
     return this.gitClient.getMergedBranches();

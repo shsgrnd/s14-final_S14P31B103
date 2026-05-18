@@ -17,6 +17,13 @@ const ACTION_LABEL: Record<string, string> = {
   merge: 'Merge',
 };
 
+const ACTION_RETRY_HINT: Record<string, string> = {
+  push: '수락한 변경을 커밋한 뒤 원격에 Push합니다.',
+  pull: '수락한 변경을 반영한 뒤 Pull을 다시 실행합니다.',
+  merge: '수락한 변경을 반영한 뒤 Merge를 계속합니다.',
+  pr: '수락한 변경을 커밋·푸시한 뒤 PR 생성 단계로 이어집니다.',
+};
+
 const ACTION_INBOUND: Record<string, string> = {
   push: 'GIT_PUSH',
   pull: 'EXECUTE_PULL',
@@ -155,7 +162,7 @@ export const ConflictAnalysisView: React.FC = () => {
             color: 'var(--vscode-foreground)', opacity: 0.75,
           }}>
             {pendingGitAction
-              ? `이제 원래 작업(${ACTION_LABEL[pendingGitAction]})을 다시 진행할 수 있습니다.`
+              ? `${ACTION_RETRY_HINT[pendingGitAction]} (${ACTION_LABEL[pendingGitAction]})`
               : 'add → commit → push 순서로 변경 사항을 원격에 반영하세요.'}
           </p>
 

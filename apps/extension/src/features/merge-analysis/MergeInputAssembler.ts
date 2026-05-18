@@ -47,6 +47,8 @@ export interface MergeAnalysisInputContext {
   sourceDiffText: string;
   targetDiffText: string;
   branchDiffText: string;
+  sourceBranchTip: string;
+  targetBranchTip: string;
   relatedFiles: string[];
   workingTreeDiffRef: string;
   // 실제 코드 본문 번들은 다음 단계에서 로컬 스토리지에 저장하고 이 ref로 연결합니다.
@@ -83,12 +85,22 @@ export class MergeInputAssembler {
     // 4-2 단계에서는 DB 세션을 생성하지 않고, AI 입력에 필요한 워크플로 세션 ID만 보강합니다.
     const sessionId = request.sessionId ?? this.mergeSessionId(projectId, request.source, request.target, mergeBase);
 
-    const [sourceDiffs, targetDiffs, sourceDiffText, targetDiffText, branchDiffText] = await Promise.all([
+    const [
+      sourceDiffs,
+      targetDiffs,
+      sourceDiffText,
+      targetDiffText,
+      branchDiffText,
+      sourceBranchTip,
+      targetBranchTip,
+    ] = await Promise.all([
       this.gitService.getDiff(mergeBase, request.source),
       this.gitService.getDiff(mergeBase, request.target),
       this.gitService.getDiffText(mergeBase, request.source),
       this.gitService.getDiffText(mergeBase, request.target),
       this.gitService.getDiffText(request.target, request.source),
+      this.gitService.resolveRevision(request.source),
+      this.gitService.resolveRevision(request.target),
     ]);
 
     const source = this.resolveBranchWorktree({
@@ -125,6 +137,8 @@ export class MergeInputAssembler {
       sourceDiffText,
       targetDiffText,
       branchDiffText,
+      sourceBranchTip,
+      targetBranchTip,
       relatedFiles,
       workingTreeDiffRef: this.workingTreeDiffRef(analysisId, mergeBase, request.source, request.target),
       contextBundleRef,
