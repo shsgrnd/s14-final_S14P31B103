@@ -47,13 +47,17 @@ async function withTempWorkspace(
 
 async function run(): Promise<void> {
   await withTempWorkspace({
-    schema_version: 'runtime-merge-rag-context-v1',
+    schema_version: 'merge-context-bundle-v1',
     budget: { used_chars: 96, max_chars: 12000, truncated: false },
-    items: [{
+    ai_context_summary: 'Previous accepted feedback kept source validation and target error handling.',
+    results: [{
+      source_kind: 'feedback',
       source_type: 'proposal_feedback',
       title: 'Accepted previous fix',
       file_path: 'src/conflict.ts',
       score: 71.25,
+      recency_score: 10,
+      file_match_score: 40,
       content: 'Previous accepted feedback kept source validation and target error handling.',
     }],
   }, async (workspaceRoot, ref) => {
@@ -65,22 +69,25 @@ async function run(): Promise<void> {
   });
 
   await withTempWorkspace({
-    schema_version: 'runtime-merge-rag-context-v1',
+    schema_version: 'merge-context-bundle-v1',
     budget: { used_chars: 0, max_chars: 12000, truncated: false },
-    items: [],
+    results: [],
   }, async (workspaceRoot, ref) => {
     const prompt = await buildMergePatchDraftUserPrompt(createPayload(ref), workspaceRoot);
     assert.equal(prompt.includes('No local history matches found.'), true);
   });
 
   await withTempWorkspace({
-    schema_version: 'runtime-merge-rag-context-v1',
+    schema_version: 'merge-context-bundle-v1',
     budget: { used_chars: 12000, max_chars: 12000, truncated: true },
-    items: [{
+    results: [{
+      source_kind: 'change_record',
       source_type: 'changed_file',
       title: 'Changed file src/conflict.ts',
       file_path: 'src/conflict.ts',
       score: 55,
+      recency_score: 5,
+      file_match_score: 40,
       content: 'important prior change\n[truncated]',
     }],
   }, async (workspaceRoot, ref) => {

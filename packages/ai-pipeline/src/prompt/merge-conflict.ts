@@ -155,6 +155,7 @@ async function readRuntimeContextBundle(
   try {
     const fileContent = await fs.readFile(absolutePath, 'utf8');
     const parsed = JSON.parse(fileContent) as {
+      ai_context_summary?: string;
       budget?: { used_chars?: number; max_chars?: number; truncated?: boolean };
       items?: Array<{
         source_type?: string;
@@ -163,8 +164,19 @@ async function readRuntimeContextBundle(
         score?: number;
         content?: string;
       }>;
+      results?: Array<{
+        source_kind?: string;
+        source_type?: string;
+        title?: string;
+        file_path?: string;
+        score?: number;
+        recency_score?: number;
+        file_match_score?: number;
+        content?: string;
+        summary?: string;
+      }>;
     };
-    const items = parsed.items ?? [];
+    const items = parsed.results ?? parsed.items ?? [];
     if (items.length === 0) {
       return 'No local history matches found.';
     }
@@ -173,15 +185,19 @@ async function readRuntimeContextBundle(
       `context_bundle_ref=${contextBundleRef}`,
       `budget=${parsed.budget?.used_chars ?? 0}/${parsed.budget?.max_chars ?? 'N/A'} chars`,
       `truncated=${parsed.budget?.truncated ? 'true' : 'false'}`,
-    ].join('\n');
+      parsed.ai_context_summary ? `summary:\n${parsed.ai_context_summary}` : undefined,
+    ].filter(Boolean).join('\n');
     const formattedItems = items.map((item, index) => [
       `Item ${index + 1}:`,
+      `- source_kind: ${'source_kind' in item ? item.source_kind ?? 'N/A' : 'N/A'}`,
       `- source_type: ${item.source_type ?? 'unknown'}`,
       `- title: ${item.title ?? 'N/A'}`,
       `- file_path: ${item.file_path ?? 'N/A'}`,
       `- score: ${item.score ?? 0}`,
+      `- recency_score: ${'recency_score' in item ? item.recency_score ?? 0 : 0}`,
+      `- file_match_score: ${'file_match_score' in item ? item.file_match_score ?? 0 : 0}`,
       `- content:`,
-      item.content ?? '',
+      item.content ?? ('summary' in item ? item.summary ?? '' : ''),
     ].join('\n'));
 
     return [header, ...formattedItems].join('\n\n');

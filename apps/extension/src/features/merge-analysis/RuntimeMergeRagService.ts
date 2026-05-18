@@ -24,6 +24,12 @@ export type RuntimeRagSourceType =
   | 'change_record'
   | 'changed_file';
 
+export type RuntimeRagBundleSourceKind =
+  | 'snapshot'
+  | 'feedback'
+  | 'change_record'
+  | 'recommendation_history';
+
 export interface RuntimeRagSearchResult {
   id: string;
   source_type: RuntimeRagSourceType;
@@ -35,13 +41,34 @@ export interface RuntimeRagSearchResult {
   metadata?: Record<string, unknown>;
 }
 
+export interface RuntimeRagContextBundleResult {
+  id: string;
+  source_kind: RuntimeRagBundleSourceKind;
+  source_type: RuntimeRagSourceType;
+  title: string;
+  content: string;
+  summary: string;
+  file_path?: string;
+  created_at?: string;
+  score: number;
+  recency_score: number;
+  file_match_score: number;
+  metadata?: Record<string, unknown>;
+}
+
 export interface RuntimeRagContextBundle {
-  schema_version: 'runtime-merge-rag-context-v1';
-  analysis_id: string;
-  project_id: string;
-  session_id: string;
-  candidate_id: string;
+  schema_version: 'merge-context-bundle-v1';
+  metadata: {
+    generated_at: string;
+    analysis_id: string;
+    project_id: string;
+    session_id: string;
+    candidate_id: string;
+    source_count: number;
+    result_count: number;
+  };
   query: RuntimeRagQuery;
+  query_summary: string;
   budget: {
     max_chars: number;
     used_chars: number;
@@ -51,8 +78,8 @@ export interface RuntimeRagContextBundle {
     top_k: number;
     strategy: 'lexical-local-history';
   };
-  items: RuntimeRagSearchResult[];
-  created_at: string;
+  results: RuntimeRagContextBundleResult[];
+  ai_context_summary: string;
 }
 
 export interface RuntimeRagQuery {
@@ -105,6 +132,29 @@ interface BuildContextBundleInput {
   topK?: number;
 }
 
+interface StoredProposalArtifactEntry {
+  proposal_id: string;
+  candidate_id: string;
+  analysis_id: string;
+  file_path: string;
+  feature_type: string;
+  title: string;
+  summary: string;
+  proposed_content: string;
+  explanation: string;
+  source_content?: string;
+  target_content?: string;
+  confidence_score?: number;
+  validation_required?: boolean;
+  validation_summary?: string;
+  status: string;
+  created_at: string;
+}
+
+interface StoredProposalsArtifact {
+  proposals?: StoredProposalArtifactEntry[];
+}
+
 export interface RuntimeRagEmbeddingRanker {
   rank(
     documents: RuntimeRagSearchResult[],
@@ -143,6 +193,167 @@ const DEFAULT_MAX_CHARS = 12000;
 const DEFAULT_TOP_K = 12;
 const MAX_ITEM_CHARS = 1800;
 
+export class RuntimeMergeContextBundleBuilder {
+  build(input: {
+    analysis: RuntimeRagMergeAnalysisArtifact;
+    candidate: ConflictCandidate;
+    query: RuntimeRagQuery;
+    rankedResults: RuntimeRagSearchResult[];
+    maxChars: number;
+    topK: number;
+  }): RuntimeRagContextBundle {
+    const selected = input.rankedResults.slice(0, input.topK);
+    const budgeted = this.applyBudget(selected, input.query, input.maxChars);
+    return {
+      schema_version: 'merge-context-bundle-v1',
+      metadata: {
+        generated_at: new Date().toISOString(),
+        analysis_id: input.analysis.analysis_id,
+        project_id: input.analysis.project_id,
+        session_id: input.analysis.session_id,
+        candidate_id: input.candidate.candidate_id,
+        source_count: input.rankedResults.length,
+        result_count: budgeted.results.length,
+      },
+      query: input.query,
+      query_summary: this.querySummary(input.query),
+      budget: budgeted.budget,
+      ranking: {
+        top_k: input.topK,
+        strategy: 'lexical-local-history',
+      },
+      results: budgeted.results,
+      ai_context_summary: this.aiContextSummary(budgeted.results),
+    };
+  }
+
+  private applyBudget(
+    items: RuntimeRagSearchResult[],
+    query: RuntimeRagQuery,
+    maxChars: number,
+  ): { results: RuntimeRagContextBundleResult[]; budget: RuntimeRagContextBundle['budget'] } {
+    let usedChars = 0;
+    let truncated = false;
+    const output: RuntimeRagContextBundleResult[] = [];
+
+    for (const item of items) {
+      const available = maxChars - usedChars;
+      if (available <= 0) {
+        truncated = true;
+        break;
+      }
+
+      const contentLimit = Math.min(MAX_ITEM_CHARS, available);
+      const content = item.content.length > contentLimit
+        ? `${item.content.slice(0, contentLimit)}\n[truncated]`
+        : item.content;
+      truncated = truncated || content.length < item.content.length;
+      usedChars += content.length;
+      output.push({
+        id: item.id,
+        source_kind: this.toBundleSourceKind(item.source_type),
+        source_type: item.source_type,
+        title: item.title,
+        content,
+        summary: this.itemSummary(item, content),
+        file_path: item.file_path,
+        created_at: item.created_at,
+        score: item.score,
+        recency_score: this.recencyScore(item.created_at),
+        file_match_score: this.fileMatchScore(item.file_path, query.file_path),
+        metadata: item.metadata,
+      });
+    }
+
+    return {
+      results: output,
+      budget: {
+        max_chars: maxChars,
+        used_chars: usedChars,
+        truncated,
+      },
+    };
+  }
+
+  private toBundleSourceKind(sourceType: RuntimeRagSourceType): RuntimeRagBundleSourceKind {
+    switch (sourceType) {
+      case 'proposal_feedback':
+        return 'feedback';
+      case 'recommendation_history':
+        return 'recommendation_history';
+      case 'snapshot':
+      case 'snapshot_file':
+        return 'snapshot';
+      case 'change_record':
+      case 'changed_file':
+      case 'merge_analysis_artifact':
+      case 'conflict_candidate':
+      case 'merge_proposal':
+        return 'change_record';
+    }
+  }
+
+  private querySummary(query: RuntimeRagQuery): string {
+    return [
+      `file=${query.file_path}`,
+      `source=${query.source_branch ?? 'N/A'}`,
+      `target=${query.target_branch ?? 'N/A'}`,
+      `risk=${query.risk_level ?? 'N/A'}`,
+      `reason=${query.reason_summary ?? 'N/A'}`,
+    ].join('; ');
+  }
+
+  private aiContextSummary(results: RuntimeRagContextBundleResult[]): string {
+    if (results.length === 0) {
+      return 'No relevant local history was found for this merge candidate.';
+    }
+
+    return results
+      .slice(0, 6)
+      .map((result, index) => [
+        `${index + 1}. [${result.source_kind}/${result.source_type}] ${result.title}`,
+        `score=${result.score}; recency=${result.recency_score}; file_match=${result.file_match_score}`,
+        result.summary,
+      ].join('\n'))
+      .join('\n\n');
+  }
+
+  private itemSummary(item: RuntimeRagSearchResult, content: string): string {
+    return content
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .slice(0, 3)
+      .join(' ');
+  }
+
+  private recencyScore(createdAt?: string): number {
+    if (!createdAt) {
+      return 0;
+    }
+    const time = Date.parse(createdAt);
+    if (Number.isNaN(time)) {
+      return 0;
+    }
+    const ageDays = Math.max(0, (Date.now() - time) / (24 * 60 * 60 * 1000));
+    return Number(Math.max(0, 12 - ageDays).toFixed(4));
+  }
+
+  private fileMatchScore(filePath: string | undefined, queryFilePath: string): number {
+    if (!filePath) {
+      return 0;
+    }
+    const normalizedFile = filePath.replace(/\\/g, '/');
+    const normalizedQuery = queryFilePath.replace(/\\/g, '/');
+    if (normalizedFile === normalizedQuery) {
+      return 40;
+    }
+    const fileName = path.posix.basename(normalizedFile);
+    const queryFileName = path.posix.basename(normalizedQuery);
+    return fileName && queryFileName && fileName === queryFileName ? 18 : 0;
+  }
+}
+
 export class RuntimeMergeRagService {
   constructor(
     private readonly repositories: Pick<
@@ -158,6 +369,7 @@ export class RuntimeMergeRagService {
     private readonly artifactStore: MergeAnalysisArtifactStore,
     private readonly workspaceRoot: string,
     private readonly embeddingRanker?: RuntimeRagEmbeddingRanker,
+    private readonly bundleBuilder: RuntimeMergeContextBundleBuilder = new RuntimeMergeContextBundleBuilder(),
   ) {}
 
   async buildAndStore(input: BuildContextBundleInput): Promise<{
@@ -176,24 +388,15 @@ export class RuntimeMergeRagService {
   async build(input: BuildContextBundleInput): Promise<RuntimeRagContextBundle> {
     const query = this.toQuery(input.analysis, input.candidate);
     const documents = await this.collectDocuments(input, query);
-    const ranked = (await this.rank(documents, query)).slice(0, input.topK ?? DEFAULT_TOP_K);
-    const budgeted = this.applyBudget(ranked, input.maxChars ?? DEFAULT_MAX_CHARS);
-
-    return {
-      schema_version: 'runtime-merge-rag-context-v1',
-      analysis_id: input.analysis.analysis_id,
-      project_id: input.analysis.project_id,
-      session_id: input.analysis.session_id,
-      candidate_id: input.candidate.candidate_id,
+    const ranked = await this.rank(documents, query);
+    return this.bundleBuilder.build({
+      analysis: input.analysis,
+      candidate: input.candidate,
       query,
-      budget: budgeted.budget,
-      ranking: {
-        top_k: input.topK ?? DEFAULT_TOP_K,
-        strategy: 'lexical-local-history',
-      },
-      items: budgeted.items,
-      created_at: new Date().toISOString(),
-    };
+      rankedResults: ranked,
+      maxChars: input.maxChars ?? DEFAULT_MAX_CHARS,
+      topK: input.topK ?? DEFAULT_TOP_K,
+    });
   }
 
   private async collectDocuments(
@@ -202,7 +405,7 @@ export class RuntimeMergeRagService {
   ): Promise<RuntimeRagSearchResult[]> {
     const docs: RuntimeRagSearchResult[] = [];
     docs.push(...this.analysisDocuments(input.analysis, query));
-    docs.push(...this.feedbackDocuments(input.previousFeedback));
+    docs.push(...await this.feedbackDocuments(input.previousFeedback));
     docs.push(...await this.proposalDocuments(input.analysis.analysis_id));
     docs.push(...await this.recommendationDocuments(input.analysis.project_id));
     docs.push(...await this.snapshotDocuments(input.analysis));
@@ -254,39 +457,73 @@ export class RuntimeMergeRagService {
     return docs;
   }
 
-  private feedbackDocuments(feedbacks: ProposalFeedbackRow[]): RuntimeRagSearchResult[] {
-    return feedbacks.map((feedback) => ({
-      id: feedback.feedback_id,
-      source_type: 'proposal_feedback',
-      title: `Proposal feedback ${feedback.selection_status}`,
-      content: [
-        `selection_status=${feedback.selection_status}`,
-        `quality_tag=${feedback.quality_tag ?? 'N/A'}`,
-        `final_text=${feedback.final_text ?? ''}`,
-        `final_explanation=${feedback.final_explanation ?? ''}`,
-        `feedback_note=${feedback.feedback_note ?? ''}`,
-      ].join('\n'),
-      created_at: feedback.decided_at,
-      score: 0,
-      metadata: {
-        proposal_id: feedback.proposal_id,
-        merge_proposal_id: feedback.merge_proposal_id,
-        final_code_ref: feedback.final_code_ref,
-      },
+  private async feedbackDocuments(feedbacks: ProposalFeedbackRow[]): Promise<RuntimeRagSearchResult[]> {
+    return Promise.all(feedbacks.map(async (feedback) => {
+      const finalCodeExcerpt = feedback.final_code_ref
+        ? await this.readWorkspaceRelativeFile(feedback.final_code_ref, 2200)
+        : undefined;
+
+      return {
+        id: feedback.feedback_id,
+        source_type: 'proposal_feedback',
+        title: `Proposal feedback ${feedback.selection_status}`,
+        content: [
+          `selection_status=${feedback.selection_status}`,
+          `quality_tag=${feedback.quality_tag ?? 'N/A'}`,
+          `final_text=${feedback.final_text ?? ''}`,
+          `final_explanation=${feedback.final_explanation ?? ''}`,
+          `feedback_note=${feedback.feedback_note ?? ''}`,
+          finalCodeExcerpt ? `final_code_excerpt:\n${finalCodeExcerpt}` : '',
+        ].filter(Boolean).join('\n'),
+        created_at: feedback.decided_at,
+        score: 0,
+        metadata: {
+          proposal_id: feedback.proposal_id,
+          merge_proposal_id: feedback.merge_proposal_id,
+          final_code_ref: feedback.final_code_ref,
+          selection_status: feedback.selection_status,
+          quality_tag: feedback.quality_tag,
+          has_final_code_excerpt: Boolean(finalCodeExcerpt),
+        },
+      };
     }));
   }
 
   private async proposalDocuments(analysisId: string): Promise<RuntimeRagSearchResult[]> {
     try {
       const proposals = await this.repositories.mergeProposals.listByAnalysis(analysisId);
-      return proposals.map((proposal) => this.proposalDocument(proposal));
+      const artifactEntries = await this.proposalArtifactEntries(analysisId);
+      return proposals.map((proposal) =>
+        this.proposalDocument(
+          proposal,
+          artifactEntries.get(proposal.proposal_id),
+        ),
+      );
     } catch (error) {
       console.warn('GitCat runtime merge RAG proposal search failed:', error);
       return [];
     }
   }
 
-  private proposalDocument(proposal: MergeProposalRow): RuntimeRagSearchResult {
+  private async proposalArtifactEntries(analysisId: string): Promise<Map<string, StoredProposalArtifactEntry>> {
+    try {
+      const artifact = await this.artifactStore.readProposals<StoredProposalsArtifact>(
+        this.workspaceRoot,
+        analysisId,
+      );
+      return new Map(
+        (artifact?.proposals ?? []).map((entry) => [entry.proposal_id, entry]),
+      );
+    } catch (error) {
+      console.warn('GitCat runtime merge RAG proposal artifact read failed:', error);
+      return new Map();
+    }
+  }
+
+  private proposalDocument(
+    proposal: MergeProposalRow,
+    artifact?: StoredProposalArtifactEntry,
+  ): RuntimeRagSearchResult {
     return {
       id: proposal.proposal_id,
       source_type: 'merge_proposal',
@@ -299,12 +536,18 @@ export class RuntimeMergeRagService {
         `summary=${proposal.explanation_summary ?? ''}`,
         `validation_summary=${proposal.validation_summary ?? ''}`,
         `status=${proposal.status}`,
+        artifact?.explanation ? `artifact_explanation:\n${artifact.explanation}` : '',
+        artifact?.proposed_content ? `proposed_content_excerpt:\n${artifact.proposed_content.slice(0, 2200)}` : '',
+        artifact?.source_content ? `source_content_excerpt:\n${artifact.source_content.slice(0, 1000)}` : '',
+        artifact?.target_content ? `target_content_excerpt:\n${artifact.target_content.slice(0, 1000)}` : '',
       ].join('\n'),
       created_at: proposal.created_at,
       score: 0,
       metadata: {
         candidate_id: proposal.candidate_id,
         confidence_score: proposal.confidence_score,
+        artifact_status: artifact?.status,
+        has_proposed_content_excerpt: Boolean(artifact?.proposed_content),
       },
     };
   }
@@ -512,10 +755,11 @@ export class RuntimeMergeRagService {
         const lexicalScore = this.lexicalScore(queryTerms, doc);
         const recencyScore = this.recencyScore(doc.created_at);
         const sourceScore = this.sourcePriority(doc.source_type);
+        const feedbackScore = this.feedbackOutcomeScore(doc);
 
         return {
           ...doc,
-          score: Number((fileScore + lexicalScore + recencyScore + sourceScore).toFixed(4)),
+          score: Number((fileScore + lexicalScore + recencyScore + sourceScore + feedbackScore).toFixed(4)),
         };
       })
       .sort((a, b) => b.score - a.score || a.source_type.localeCompare(b.source_type));
@@ -534,39 +778,6 @@ export class RuntimeMergeRagService {
       query.working_diff_summary,
     ].filter(Boolean).join(' ');
     return queryText;
-  }
-
-  private applyBudget(
-    items: RuntimeRagSearchResult[],
-    maxChars: number,
-  ): { items: RuntimeRagSearchResult[]; budget: RuntimeRagContextBundle['budget'] } {
-    let usedChars = 0;
-    let truncated = false;
-    const output: RuntimeRagSearchResult[] = [];
-
-    for (const item of items) {
-      const available = maxChars - usedChars;
-      if (available <= 0) {
-        truncated = true;
-        break;
-      }
-
-      const content = item.content.length > Math.min(MAX_ITEM_CHARS, available)
-        ? `${item.content.slice(0, Math.min(MAX_ITEM_CHARS, available))}\n[truncated]`
-        : item.content;
-      truncated = truncated || content.length < item.content.length;
-      usedChars += content.length;
-      output.push({ ...item, content });
-    }
-
-    return {
-      items: output,
-      budget: {
-        max_chars: maxChars,
-        used_chars: usedChars,
-        truncated,
-      },
-    };
   }
 
   private toQuery(
@@ -671,6 +882,22 @@ export class RuntimeMergeRagService {
       case 'snapshot':
         return 5;
     }
+  }
+
+  private feedbackOutcomeScore(doc: RuntimeRagSearchResult): number {
+    if (doc.source_type !== 'proposal_feedback') {
+      return 0;
+    }
+
+    const selectionStatus = doc.metadata?.selection_status;
+    const qualityTag = doc.metadata?.quality_tag;
+    if (selectionStatus === 'accepted' || qualityTag === 'useful') {
+      return 16;
+    }
+    if (selectionStatus === 'rejected' || qualityTag === 'not_useful') {
+      return 4;
+    }
+    return 0;
   }
 
   private async readWorkspaceRelativeFile(
