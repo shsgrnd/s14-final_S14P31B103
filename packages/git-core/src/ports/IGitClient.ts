@@ -46,6 +46,12 @@ export interface IGitClient {
   /** 두 브랜치의 공통 조상 커밋 해시 반환 */
   getMergeBase(source: string, target: string): Promise<string>;
 
+  /** 브랜치/커밋 ref를 커밋 SHA로 해석 */
+  resolveRevision(ref: string): Promise<string>;
+
+  /** 지정 revision의 파일 전체 내용 반환 (git show rev:path) */
+  showFileAtRevision(revision: string, filePath: string): Promise<string>;
+
   /** 워크트리 정보 목록 반환 */
   getWorktrees(): Promise<WorktreeInfo[]>;
 

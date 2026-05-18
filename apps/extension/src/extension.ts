@@ -118,6 +118,7 @@ export async function activate(context: vscode.ExtensionContext) {
     undefined,
     aiApiKeyMessageHandler, // AI API Key 핸들러 주입
   );
+  aiApiKeyMessageHandler.attachMessageRouter(messageRouter);
 
   // PR 환경설정 핸들러 — 두 webview가 공유할 기본 target 브랜치 등을 workspaceState에 저장한다.
   const prSettingsService = new PrSettingsService(context.workspaceState);
@@ -301,6 +302,7 @@ async function initializeMergeConflictAnalysis(
     assembler,
     repositories,
     artifactStore,
+    gitService,
   );
   const proposalService = new MergeProposalService(
     repositories,

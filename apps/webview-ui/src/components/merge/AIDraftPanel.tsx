@@ -2,6 +2,14 @@ import React, { useState, useEffect } from 'react';
 import { useGitCatStore } from '../../store/useGitCatStore';
 import { useVsCodeApi } from '../../hooks/useVsCodeApi';
 import { Check, X, Edit3, ShieldCheck, Info, Sparkles, ArrowLeft } from 'lucide-react';
+import {
+  PlainCodeColumn,
+  RegionChipBar,
+  ViewTabBar,
+  pickCompareContent,
+  useFullFileCompare,
+  type MergeCompareTab,
+} from './mergeReviewCompare';
 
 // ─── 헬퍼: diff 텍스트에서 편집 가능한 순수 콘텐츠 추출 ──────────────────────
 // +/- 마커와 헤더 라인을 제거하고 최종 결과 파일 내용만 반환
@@ -386,20 +394,40 @@ const SEVERITY_COLOR: Record<string, string> = {
 // ─── 메인 컴포넌트 ────────────────────────────────────────────────────────────
 export const AIDraftPanel: React.FC = () => {
   const {
-    currentAIDraft, setAIDraft, isMergeProposalLoading,
+    currentAIDraft, isMergeProposalLoading,
     selectedConflict, setSelectedConflict,
-    markCandidateResolved, setAppliedFileContent,
+    beginMergeFeedback, pendingMergeFeedback,
     getCandidateResolvedStatus, appliedFileContents,
   } = useGitCatStore();
   const { sendMessage } = useVsCodeApi();
   const [isEditing, setIsEditing] = useState(false);
   const [editedContent, setEditedContent] = useState('');
+  const [draftTab, setDraftTab] = useState<'compare' | 'draft'>('draft');
 
   // draft가 바뀌면 편집 상태 초기화 (편집 textarea에는 순수 콘텐츠만)
   useEffect(() => {
     setIsEditing(false);
     setEditedContent(diffToEditableContent(currentAIDraft?.proposedContent ?? ''));
   }, [currentAIDraft]);
+
+  useEffect(() => {
+    setDraftTab('draft');
+  }, [currentAIDraft?.proposalId]);
+
+  useEffect(() => {
+    if (!selectedConflict?.compareContentTruncated) {
+      return;
+    }
+    sendMessage('GET_MERGE_COMPARE_CONTENT', {
+      analysisId: selectedConflict.analysisId,
+      candidateId: selectedConflict.candidateId,
+    });
+  }, [
+    selectedConflict?.analysisId,
+    selectedConflict?.candidateId,
+    selectedConflict?.compareContentTruncated,
+    sendMessage,
+  ]);
 
   if (isMergeProposalLoading && !currentAIDraft) {
     return (
@@ -486,30 +514,41 @@ export const AIDraftPanel: React.FC = () => {
     );
   }
 
+  const isFeedbackSubmitting = pendingMergeFeedback?.candidateId === currentAIDraft.candidateId;
+
   const handleApprove = (content?: string) => {
-    const finalContent = diffToEditableContent(content ?? currentAIDraft.proposedContent);
+    if (isFeedbackSubmitting) return;
+    const proposedContent = content ?? currentAIDraft.proposedContent;
+    const finalContent = diffToEditableContent(proposedContent);
+    beginMergeFeedback({
+      candidateId: currentAIDraft.candidateId,
+      filePath: currentAIDraft.filePath,
+      status: 'accepted',
+      proposedContent: finalContent,
+    });
     sendMessage('ACCEPT_MERGE', {
       proposalId: currentAIDraft.proposalId,
       candidateId: currentAIDraft.candidateId,
       analysisId: currentAIDraft.analysisId,
       filePath: currentAIDraft.filePath,
-      proposedContent: content ?? currentAIDraft.proposedContent,
+      proposedContent: finalContent,
       finalExplanation: currentAIDraft.explanation,
     });
-    setAppliedFileContent(currentAIDraft.filePath, finalContent);
-    markCandidateResolved(currentAIDraft.candidateId, 'accepted', currentAIDraft.filePath);
-    setAIDraft(null);
   };
 
   const handleReject = () => {
+    if (isFeedbackSubmitting) return;
+    beginMergeFeedback({
+      candidateId: currentAIDraft.candidateId,
+      filePath: currentAIDraft.filePath,
+      status: 'rejected',
+    });
     sendMessage('REJECT_MERGE', {
       proposalId: currentAIDraft.proposalId,
       candidateId: currentAIDraft.candidateId,
       analysisId: currentAIDraft.analysisId,
       filePath: currentAIDraft.filePath,
     });
-    markCandidateResolved(currentAIDraft.candidateId, 'rejected', currentAIDraft.filePath);
-    setAIDraft(null);
   };
 
   return (
@@ -553,7 +592,11 @@ export const AIDraftPanel: React.FC = () => {
           </span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
-          {isEditing ? (
+          {isFeedbackSubmitting ? (
+            <span style={{ fontSize: 11, opacity: 0.75, color: 'var(--vscode-descriptionForeground)' }}>
+              {pendingMergeFeedback?.status === 'accepted' ? '반영 중…' : '처리 중…'}
+            </span>
+          ) : isEditing ? (
             <>
               <button
                 onClick={() => { setIsEditing(false); setEditedContent(diffToEditableContent(currentAIDraft.proposedContent)); }}
@@ -631,27 +674,33 @@ export const AIDraftPanel: React.FC = () => {
         </div>
       </div>
 
-      {/* 3-column code view */}
-      <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
-        {/* Column 1: Incoming */}
-        <DiffColumn
-          label="상대 변경사항 (Incoming)"
-          colorVar="var(--vscode-charts-blue, #75beff)"
-          content={currentAIDraft.targetContent}
-          placeholder="// No incoming changes detected"
-          hasBorderRight
-        />
+      <ViewTabBar
+        tabs={[
+          { id: 'compare', label: '2열 비교 (상대·내)' },
+          { id: 'draft', label: 'AI 병합 초안' },
+        ]}
+        active={draftTab}
+        onChange={(id) => setDraftTab(id as 'compare' | 'draft')}
+      />
 
-        {/* Column 2: Current */}
-        <DiffColumn
-          label="내 변경사항 (Current)"
-          colorVar="var(--vscode-charts-green, #89d185)"
-          content={currentAIDraft.sourceContent}
-          placeholder="// No local changes detected"
-          hasBorderRight
-        />
-
-        {/* Column 3: AI Draft */}
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden', minHeight: 0 }}>
+        {draftTab === 'compare' ? (
+          <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
+            <DiffColumn
+              label="상대 변경사항 (Incoming)"
+              colorVar="var(--vscode-charts-blue, #75beff)"
+              content={currentAIDraft.targetContent}
+              placeholder="// No incoming changes detected"
+              hasBorderRight
+            />
+            <DiffColumn
+              label="내 변경사항 (Current)"
+              colorVar="var(--vscode-charts-green, #89d185)"
+              content={currentAIDraft.sourceContent}
+              placeholder="// No local changes detected"
+            />
+          </div>
+        ) : (
         <div style={{
           flex: 1, minWidth: 0, overflow: 'hidden',
           display: 'flex', flexDirection: 'column',
@@ -729,6 +778,7 @@ export const AIDraftPanel: React.FC = () => {
             </div>
           )}
         </div>
+        )}
       </div>
     </div>
   );
@@ -906,9 +956,23 @@ const ConflictPreview: React.FC<{
   };
 
   const hasExcerpt = !!(conflict.sourceExcerpt || conflict.targetExcerpt);
-  // excerpt가 없으면(저장된 후보) 클러스터 선택 없이 바로 AI 요청 가능
-  // 선택이 없어도 AI 요청 가능 (선택 없음 = 전체 구간 분석)
+  const fullFileMode = useFullFileCompare(conflict);
+  const regions = conflict.conflictRegions ?? [];
+  const [activeRegionId, setActiveRegionId] = useState<string | null>(regions[0]?.id ?? null);
+  const [compareTab, setCompareTab] = useState<MergeCompareTab>('two-way');
+  const activeRegion = regions.find((region) => region.id === activeRegionId) ?? regions[0] ?? null;
+
+  useEffect(() => {
+    const nextRegions = conflict.conflictRegions ?? [];
+    setActiveRegionId(nextRegions[0]?.id ?? null);
+    setCompareTab('two-way');
+  }, [conflict.candidateId]);
+
   const canRequestAI = true;
+  const showRegionChips = regions.length >= 2 || fullFileMode;
+  const incomingContent = pickCompareContent(conflict, 'incoming', activeRegion);
+  const currentContent = pickCompareContent(conflict, 'current', activeRegion);
+  const baseContent = pickCompareContent(conflict, 'base');
 
   return (
     <div style={{
@@ -1017,57 +1081,102 @@ const ConflictPreview: React.FC<{
         </div>
       )}
 
-      {/* 2-컬럼 diff */}
-      {hasExcerpt ? (
-        <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
-          {/* Incoming (Remote) */}
-          <div style={{
-            flex: 1, minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column',
-            borderRight: '1px solid var(--vscode-panel-border)',
-          }}>
-            <div style={{
-              flexShrink: 0, padding: '4px 10px', fontSize: 10, fontWeight: 700,
-              textTransform: 'uppercase', letterSpacing: '0.05em',
-              color: 'var(--vscode-charts-blue, #75beff)',
-              borderBottom: '1px solid var(--vscode-panel-border)',
-              background: 'color-mix(in srgb, var(--vscode-charts-blue, #75beff) 8%, var(--vscode-editor-background))',
-              display: 'flex', alignItems: 'center', gap: 6,
-            }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--vscode-charts-blue, #75beff)', display: 'inline-block' }} />
-              상대 변경사항 (Incoming)
-            </div>
-            <div style={{ flex: 1, overflow: 'auto', padding: '8px 12px' }}>
-              <pre style={{ margin: 0, fontFamily: 'var(--vscode-editor-font-family, monospace)', fontSize: 12, lineHeight: 1.6 }}>
-                {totalClusters >= 2
-                  ? renderDiffWithClusterSelection(trimDiffContext(conflict.targetExcerpt ?? ''), selectedClusters, toggleCluster)
-                  : renderDiffLines(trimDiffContext(conflict.targetExcerpt ?? ''))}
-              </pre>
-            </div>
-          </div>
+      {conflict.baseFullContent && (
+        <ViewTabBar
+          tabs={[
+            { id: 'two-way', label: '2열 비교' },
+            { id: 'base', label: '공통 조상' },
+          ]}
+          active={compareTab}
+          onChange={(id) => setCompareTab(id as MergeCompareTab)}
+        />
+      )}
 
-          {/* Current (Local) */}
-          <div style={{
-            flex: 1, minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column',
-          }}>
-            <div style={{
-              flexShrink: 0, padding: '4px 10px', fontSize: 10, fontWeight: 700,
-              textTransform: 'uppercase', letterSpacing: '0.05em',
-              color: 'var(--vscode-charts-green, #89d185)',
-              borderBottom: '1px solid var(--vscode-panel-border)',
-              background: 'color-mix(in srgb, var(--vscode-charts-green, #89d185) 8%, var(--vscode-editor-background))',
-              display: 'flex', alignItems: 'center', gap: 6,
-            }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--vscode-charts-green, #89d185)', display: 'inline-block' }} />
-              내 변경사항 (Current)
-            </div>
-            <div style={{ flex: 1, overflow: 'auto', padding: '8px 12px' }}>
-              <pre style={{ margin: 0, fontFamily: 'var(--vscode-editor-font-family, monospace)', fontSize: 12, lineHeight: 1.6 }}>
-                {totalClusters >= 2
-                  ? renderDiffWithClusterSelection(trimDiffContext(conflict.sourceExcerpt ?? ''), selectedClusters, toggleCluster)
-                  : renderDiffLines(trimDiffContext(conflict.sourceExcerpt ?? ''))}
-              </pre>
-            </div>
-          </div>
+      {showRegionChips && regions.length > 0 && (
+        <RegionChipBar
+          regions={regions}
+          activeRegionId={activeRegionId}
+          onSelect={setActiveRegionId}
+        />
+      )}
+
+      {hasExcerpt || fullFileMode ? (
+        <div style={{ flex: 1, display: 'flex', overflow: 'hidden', minHeight: 0 }}>
+          {compareTab === 'base' ? (
+            <PlainCodeColumn
+              label="공통 조상 (Base)"
+              colorVar="var(--vscode-descriptionForeground)"
+              content={baseContent}
+            />
+          ) : fullFileMode ? (
+            <>
+              <PlainCodeColumn
+                label="상대 변경사항 (Incoming)"
+                colorVar="var(--vscode-charts-blue, #75beff)"
+                content={incomingContent}
+                highlightStart={activeRegion?.lineStart}
+                highlightEnd={activeRegion?.lineEnd}
+                scrollToLine={activeRegion?.lineStart}
+                hasBorderRight
+              />
+              <PlainCodeColumn
+                label="내 변경사항 (Current)"
+                colorVar="var(--vscode-charts-green, #89d185)"
+                content={currentContent}
+                highlightStart={activeRegion?.lineStart}
+                highlightEnd={activeRegion?.lineEnd}
+                scrollToLine={activeRegion?.lineStart}
+              />
+            </>
+          ) : (
+            <>
+              <div style={{
+                flex: 1, minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column',
+                borderRight: '1px solid var(--vscode-panel-border)',
+              }}>
+                <div style={{
+                  flexShrink: 0, padding: '4px 10px', fontSize: 10, fontWeight: 700,
+                  textTransform: 'uppercase', letterSpacing: '0.05em',
+                  color: 'var(--vscode-charts-blue, #75beff)',
+                  borderBottom: '1px solid var(--vscode-panel-border)',
+                  background: 'color-mix(in srgb, var(--vscode-charts-blue, #75beff) 8%, var(--vscode-editor-background))',
+                  display: 'flex', alignItems: 'center', gap: 6,
+                }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--vscode-charts-blue, #75beff)', display: 'inline-block' }} />
+                  상대 변경사항 (Incoming)
+                </div>
+                <div style={{ flex: 1, overflow: 'auto', padding: '8px 12px' }}>
+                  <pre style={{ margin: 0, fontFamily: 'var(--vscode-editor-font-family, monospace)', fontSize: 12, lineHeight: 1.6 }}>
+                    {totalClusters >= 2
+                      ? renderDiffWithClusterSelection(trimDiffContext(conflict.targetExcerpt ?? ''), selectedClusters, toggleCluster)
+                      : renderDiffLines(trimDiffContext(conflict.targetExcerpt ?? ''))}
+                  </pre>
+                </div>
+              </div>
+              <div style={{
+                flex: 1, minWidth: 0, overflow: 'hidden', display: 'flex', flexDirection: 'column',
+              }}>
+                <div style={{
+                  flexShrink: 0, padding: '4px 10px', fontSize: 10, fontWeight: 700,
+                  textTransform: 'uppercase', letterSpacing: '0.05em',
+                  color: 'var(--vscode-charts-green, #89d185)',
+                  borderBottom: '1px solid var(--vscode-panel-border)',
+                  background: 'color-mix(in srgb, var(--vscode-charts-green, #89d185) 8%, var(--vscode-editor-background))',
+                  display: 'flex', alignItems: 'center', gap: 6,
+                }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--vscode-charts-green, #89d185)', display: 'inline-block' }} />
+                  내 변경사항 (Current)
+                </div>
+                <div style={{ flex: 1, overflow: 'auto', padding: '8px 12px' }}>
+                  <pre style={{ margin: 0, fontFamily: 'var(--vscode-editor-font-family, monospace)', fontSize: 12, lineHeight: 1.6 }}>
+                    {totalClusters >= 2
+                      ? renderDiffWithClusterSelection(trimDiffContext(conflict.sourceExcerpt ?? ''), selectedClusters, toggleCluster)
+                      : renderDiffLines(trimDiffContext(conflict.sourceExcerpt ?? ''))}
+                  </pre>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       ) : (
         /* excerpt 없음 */

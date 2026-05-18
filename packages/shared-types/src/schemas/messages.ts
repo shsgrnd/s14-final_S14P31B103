@@ -10,6 +10,8 @@ import {
   AcceptMergeRequestSchema,
   AnalyzeConflictRequestSchema,
   GetAiDraftRequestSchema,
+  GetMergeCompareContentRequestSchema,
+  MergeCompareContentPayloadSchema,
   MergeCompleteViewSchema,
   MergeConflictCandidateViewSchema,
   MergeProposalViewSchema,
@@ -82,6 +84,8 @@ export const InboundPayloadSchemaMap = {
   RESTORE_SNAPSHOT: z.object({ snapshotId: z.string() }),
   CONFIRM_RESTORE_SNAPSHOT: z.object({ snapshotId: z.string(), confirmed: z.boolean() }),
   ANALYZE_CONFLICT: AnalyzeConflictRequestSchema,
+  GET_MERGE_COMPARE_CONTENT: GetMergeCompareContentRequestSchema,
+  CLEAR_MERGE_REVIEW_UI: z.object({}).strict(),
   ACCEPT_MERGE: AcceptMergeRequestSchema,
   REJECT_MERGE: RejectMergeRequestSchema,
   RUN_MERGE: z.object({ source: z.string(), target: z.string().optional(), skipGuard: z.boolean().optional() }),
@@ -235,12 +239,15 @@ export const OutboundPayloadSchemaMap = {
     preserveResolvedCandidates: z.boolean().optional(),
     resolvedCandidates: z.record(z.string(), z.enum(['accepted', 'rejected'])).optional(),
     resolvedCandidatesByFilePath: z.record(z.string(), z.enum(['accepted', 'rejected'])).optional(),
+    /** 수락 반영된 파일 미리보기용 (filePath → 워킹트리에 쓴 본문) */
+    appliedFileContents: z.record(z.string(), z.string()).optional(),
   }),
   CANDIDATE_RESOLVED: z.object({
     candidateId: z.string(),
     filePath: z.string(),
     status: z.enum(['accepted', 'rejected']),
   }),
+  MERGE_COMPARE_CONTENT: MergeCompareContentPayloadSchema,
   MERGE_PROPOSAL: z.object({ proposals: z.array(MergeProposalViewSchema) }),
   MERGE_COMPLETE: z.object({ merge: MergeCompleteViewSchema }),
   COMMIT_SUGGESTIONS: z.object({ suggestions: CommitSuggestionSchema }),
@@ -250,7 +257,12 @@ export const OutboundPayloadSchemaMap = {
   WORKTREE_LIST: z.object({ worktrees: z.array(WorktreeInfoSchema) }),
   WORKSPACE_TREE: z.object({ tree: WorkspaceTreeSchema }),
   GIT_OPERATION_RESULT: z.object({ operation: z.string(), result: GitResultSchema }),
-  ERROR: z.object({ code: ErrorCodeEnum, message: z.string() }),
+  ERROR: z.object({
+    code: ErrorCodeEnum,
+    message: z.string(),
+    /** merge 수락/거절 피드백 롤백 여부 판단용 */
+    domain: z.enum(['merge_feedback']).optional(),
+  }),
   LOADING: z.object({ target: z.string(), loading: z.boolean() }),
   NOTIFICATION: z.object({ type: z.enum(['info', 'warning', 'error']), message: z.string() }),
   // stash 목록 응답

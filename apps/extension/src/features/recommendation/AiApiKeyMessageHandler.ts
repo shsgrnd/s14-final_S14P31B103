@@ -5,12 +5,19 @@ import {
   type OutboundMessage,
 } from '@gitcat/shared-types';
 import { AiSecretService } from './AiSecretService';
+import type { MessageRouter } from '../../core/MessageRouter';
 
 export class AiApiKeyMessageHandler {
+  private messageRouter: MessageRouter | null = null;
+
   constructor(
     private readonly aiSecretService: AiSecretService,
     private readonly onKeyChanged?: () => void,
   ) {}
+
+  public attachMessageRouter(messageRouter: MessageRouter): void {
+    this.messageRouter = messageRouter;
+  }
 
   public async handle(type: string, payload: unknown, webview: vscode.Webview): Promise<boolean> {
     if (type === 'SAVE_AI_API_KEY') {
@@ -70,11 +77,16 @@ export class AiApiKeyMessageHandler {
   }
 
   private async sendStatus(webview: vscode.Webview): Promise<void> {
-    const hasKey = await this.aiSecretService.hasApiKey();
-    webview.postMessage({
+    const hasKey = await this.aiSecretService.hasStoredApiKey();
+    const message = {
       type: 'AI_API_KEY_STATUS',
       payload: { hasKey },
-    } as OutboundMessage);
+    } as OutboundMessage;
+    if (this.messageRouter) {
+      this.messageRouter.broadcast(message);
+    } else {
+      await webview.postMessage(message);
+    }
   }
 
   private sendError(webview: vscode.Webview, code: ErrorCode, message: string): void {

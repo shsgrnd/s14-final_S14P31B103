@@ -8,7 +8,7 @@ import { MergeReviewPanel } from '../merge/MergeReviewPanel';
 export const MainPanelLayout: React.FC = () => {
   return (
     <div style={{
-      height: '100vh', width: '100%', display: 'flex', flexDirection: 'column',
+      height: '100%', minHeight: 0, width: '100%', display: 'flex', flexDirection: 'column',
       background: 'var(--vscode-editor-background)',
       color: 'var(--vscode-editor-foreground)',
       overflow: 'hidden',

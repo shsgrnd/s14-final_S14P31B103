@@ -57,6 +57,25 @@ export const GetAiDraftRequestSchema = z.object({
 }).strict();
 export type GetAiDraftRequest = z.infer<typeof GetAiDraftRequestSchema>;
 
+export const ConflictKindEnum = z.enum([
+  'hunk_overlap',
+  'same_file',
+  'full_file',
+  'add_add',
+]);
+export type ConflictKind = z.infer<typeof ConflictKindEnum>;
+
+/** 파일 내 검토 구간 (다중 hunk / full-file UI용) */
+export const MergeConflictRegionSchema = z.object({
+  id: z.string(),
+  label: z.string(),
+  lineStart: z.number().int(),
+  lineEnd: z.number().int(),
+  sourceExcerpt: z.string().optional(),
+  targetExcerpt: z.string().optional(),
+});
+export type MergeConflictRegion = z.infer<typeof MergeConflictRegionSchema>;
+
 /** CONFLICT_RESULT 응답에서 Webview가 소비하는 충돌 후보 projection DTO */
 export const MergeConflictCandidateViewSchema = z.object({
   analysisId: z.string(),
@@ -72,8 +91,34 @@ export const MergeConflictCandidateViewSchema = z.object({
   baseExcerpt: z.string().optional(),
   detectedBy: DetectionMethodEnum,
   riskLevel: RiskLevelEnum.optional(),
+  conflictKind: ConflictKindEnum.optional(),
+  conflictRegions: z.array(MergeConflictRegionSchema).optional(),
+  sourceFullContent: z.string().optional(),
+  targetFullContent: z.string().optional(),
+  baseFullContent: z.string().optional(),
+  /** true면 상세 비교 본문은 GET_MERGE_COMPARE_CONTENT로 요청 */
+  compareContentTruncated: z.boolean().optional(),
 });
 export type MergeConflictCandidateView = z.infer<typeof MergeConflictCandidateViewSchema>;
+
+export const GetMergeCompareContentRequestSchema = z.object({
+  analysisId: z.string().min(1),
+  candidateId: z.string().min(1),
+});
+export type GetMergeCompareContentRequest = z.infer<typeof GetMergeCompareContentRequestSchema>;
+
+export const MergeCompareContentPayloadSchema = z.object({
+  analysisId: z.string(),
+  candidateId: z.string(),
+  sourceExcerpt: z.string().optional(),
+  targetExcerpt: z.string().optional(),
+  baseExcerpt: z.string().optional(),
+  sourceFullContent: z.string().optional(),
+  targetFullContent: z.string().optional(),
+  baseFullContent: z.string().optional(),
+  conflictRegions: z.array(MergeConflictRegionSchema).optional(),
+});
+export type MergeCompareContentPayload = z.infer<typeof MergeCompareContentPayloadSchema>;
 
 /** MERGE_PROPOSAL 응답에서 Webview가 소비하는 병합 제안 projection DTO */
 export const MergeProposalViewSchema = z.object({

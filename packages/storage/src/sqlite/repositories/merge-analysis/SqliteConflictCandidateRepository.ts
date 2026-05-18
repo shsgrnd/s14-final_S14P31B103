@@ -70,4 +70,12 @@ export class SqliteConflictCandidateRepository implements ConflictCandidateRepos
 
     return stmt.all(analysisId) as ConflictCandidateRow[];
   }
+
+  async deleteByAnalysis(analysisId: string): Promise<void> {
+    const stmt = this.db.prepare(`
+      DELETE FROM conflict_candidates
+      WHERE analysis_id = ?
+    `);
+    stmt.run(analysisId);
+  }
 }

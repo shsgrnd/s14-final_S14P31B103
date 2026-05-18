@@ -331,6 +331,12 @@ export class PullRequestMessageHandler {
       targetBranch: baseBranch,
     });
     if (result.skipped) {
+      if (result.reason === 'missing-target') {
+        console.warn(
+          `[GitCat] PR merge guard skipped: base branch "${baseBranch}" is missing or equals head "${headBranch}". ` +
+          'PR 설정의 base 브랜치와 GitHub default branch를 확인하세요.',
+        );
+      }
       return false;
     }
     if (!result.hasConflicts) {

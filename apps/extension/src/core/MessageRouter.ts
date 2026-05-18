@@ -17,6 +17,7 @@ import type { AiApiKeyMessageHandler } from '../features/recommendation/AiApiKey
 import type { PullRequestMessageHandler } from '../features/pull-request/PullRequestMessageHandler';
 import type { PrSettingsMessageHandler } from '../features/settings/PrSettingsMessageHandler';
 import type { MergeConflictMessageHandler } from '../features/merge-analysis/MergeConflictMessageHandler';
+import { sanitizeCandidatesForWebview } from '../features/merge-analysis/mergeConflictWebviewPayload';
 import type { MergeProposalMessageHandler } from '../features/merge-analysis/MergeProposalMessageHandler';
 import type { SnapshotQueryService } from '../features/safety/snapshot/SnapshotQueryService';
 import type { ISnapshotService } from '../features/safety/snapshot/ISnapshotService';
@@ -72,12 +73,14 @@ export class MessageRouter {
     preserveResolvedCandidates?: boolean;
     resolvedCandidates?: Record<string, 'accepted' | 'rejected'>;
     resolvedCandidatesByFilePath?: Record<string, 'accepted' | 'rejected'>;
+    appliedFileContents?: Record<string, string>;
   } | null = null;
 
   private mergeReviewProposalPayload: { proposals: unknown[] } | null = null;
 
   private mergeReviewResolvedCandidates: Record<string, 'accepted' | 'rejected'> = {};
   private mergeReviewResolvedByFilePath: Record<string, 'accepted' | 'rejected'> = {};
+  private mergeReviewAppliedContents: Record<string, string> = {};
 
   constructor(
     private readonly dbInstance: any,
@@ -168,21 +171,20 @@ export class MessageRouter {
     candidates: unknown[];
     triggeringAction?: 'push' | 'pull' | 'pr' | 'merge';
     mergeSource?: string;
-    /** git merge 진행 중 재진입 시 UI의 "반영 완료" 상태 유지 */
+    /** @deprecated extension 스냅샷은 clearMergeReviewSnapshot()에서만 초기화 */
     preserveResolvedCandidates?: boolean;
   }): void {
-    if (!payload.preserveResolvedCandidates) {
-      this.mergeReviewResolvedCandidates = {};
-      this.mergeReviewResolvedByFilePath = {};
-    }
+    const hasResolved =
+      Object.keys(this.mergeReviewResolvedCandidates).length > 0
+      || Object.keys(this.mergeReviewResolvedByFilePath).length > 0;
+    const hasApplied = Object.keys(this.mergeReviewAppliedContents).length > 0;
     const enriched = {
       ...payload,
-      resolvedCandidates: payload.preserveResolvedCandidates
-        ? { ...this.mergeReviewResolvedCandidates }
-        : undefined,
-      resolvedCandidatesByFilePath: payload.preserveResolvedCandidates
-        ? { ...this.mergeReviewResolvedByFilePath }
-        : undefined,
+      candidates: sanitizeCandidatesForWebview(payload.candidates),
+      preserveResolvedCandidates: hasResolved || hasApplied || payload.preserveResolvedCandidates === true,
+      resolvedCandidates: { ...this.mergeReviewResolvedCandidates },
+      resolvedCandidatesByFilePath: { ...this.mergeReviewResolvedByFilePath },
+      appliedFileContents: { ...this.mergeReviewAppliedContents },
     };
     this.mergeReviewConflictPayload = enriched;
     this.mergeReviewProposalPayload = null;
@@ -210,15 +212,29 @@ export class MessageRouter {
   }): void {
     this.mergeReviewResolvedCandidates[payload.candidateId] = payload.status;
     this.mergeReviewResolvedByFilePath[payload.filePath] = payload.status;
-    if (this.mergeReviewConflictPayload) {
-      this.mergeReviewConflictPayload = {
-        ...this.mergeReviewConflictPayload,
-        preserveResolvedCandidates: true,
-        resolvedCandidates: { ...this.mergeReviewResolvedCandidates },
-        resolvedCandidatesByFilePath: { ...this.mergeReviewResolvedByFilePath },
-      };
+    if (payload.status === 'rejected') {
+      delete this.mergeReviewAppliedContents[payload.filePath];
     }
+    this.syncMergeReviewConflictPayload();
     this.broadcast({ type: 'CANDIDATE_RESOLVED', payload });
+  }
+
+  public publishAppliedFileContent(filePath: string, content: string): void {
+    this.mergeReviewAppliedContents[filePath] = content;
+    this.syncMergeReviewConflictPayload();
+  }
+
+  private syncMergeReviewConflictPayload(): void {
+    if (!this.mergeReviewConflictPayload) {
+      return;
+    }
+    this.mergeReviewConflictPayload = {
+      ...this.mergeReviewConflictPayload,
+      preserveResolvedCandidates: true,
+      resolvedCandidates: { ...this.mergeReviewResolvedCandidates },
+      resolvedCandidatesByFilePath: { ...this.mergeReviewResolvedByFilePath },
+      appliedFileContents: { ...this.mergeReviewAppliedContents },
+    };
   }
 
   public clearMergeReviewSnapshot(): void {
@@ -226,6 +242,7 @@ export class MessageRouter {
     this.mergeReviewProposalPayload = null;
     this.mergeReviewResolvedCandidates = {};
     this.mergeReviewResolvedByFilePath = {};
+    this.mergeReviewAppliedContents = {};
   }
 
   public publishMergeReviewLoading(target: 'mergeAnalysis' | 'mergeProposal', loading: boolean): void {
@@ -272,6 +289,15 @@ export class MessageRouter {
       } catch (e) {
         console.warn('[GitCat] OPEN_MAIN_PANEL from webview failed:', e);
       }
+      return;
+    }
+
+    if (rawMessage?.type === 'CLEAR_MERGE_REVIEW_UI') {
+      this.clearMergeReviewSnapshot();
+      this.broadcast({
+        type: 'CONFLICT_RESULT',
+        payload: { candidates: [], analysisId: undefined, artifactPath: null },
+      });
       return;
     }
 
@@ -398,18 +424,6 @@ export class MessageRouter {
           break;
 
         // ?�?�?� 병합 분석 관??(4?�계 구현) ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�
-
-        case 'ACCEPT_MERGE':
-          this.sendNotImplemented(webview, 'ACCEPT_MERGE', '병합???�락 (4?�계 구현 ?�정)');
-          break;
-
-        case 'REJECT_MERGE':
-          this.sendNotImplemented(webview, 'REJECT_MERGE', '병합??거절 (4?�계 구현 ?�정)');
-          break;
-
-        case 'GET_AI_DRAFT':
-          this.sendNotImplemented(webview, 'GET_AI_DRAFT', 'AI 초안 조회 (4?�계 구현 ?�정)');
-          break;
 
         // ?�?�?� ?�틸리티 ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�
         case 'OPEN_FILE_DIFF':
