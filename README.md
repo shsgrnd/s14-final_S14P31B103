@@ -93,6 +93,13 @@ GitCat VSIX는 **멀티플랫폼 단일 패키지** 정책을 따릅니다. 따�
 - 이 저장소에서 실험적으로 측정한 `host-only` 최적화본은 최종 배포 정책이 아닙니다.
 - 최종 배포본은 특정 OS/아키텍처에 고정하지 않습니다.
 
+## ⌨️ 주요 명령어
+VS Code에서 Command Palette(`Ctrl+Shift+P`, macOS는 `Cmd+Shift+P`)를 열면 아래 GitCat 명령어를 직접 실행할 수 있습니다.
+
+- `GitCat: Open Panel`: 메인 GitCat 패널을 엽니다.
+- `GitCat: Create Snapshot`: 현재 작업 상태를 수동 스냅샷으로 저장합니다.
+- `GitCat: Install Local Runtime`: `live-local`용 `node-llama-cpp` 런타임 설치를 시작합니다.
+
 ---
 
 ## 🛠 기술 스택 (Tech Stack)

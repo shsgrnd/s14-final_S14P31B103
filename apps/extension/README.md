@@ -9,6 +9,14 @@ Node.js 환경에서 동작하며, 사용자의 명령어 입력 처리, 로컬 
 - **웹뷰 통신 (`src/webview/`)**: 사용자와 상호작용하는 UI(`apps/webview-ui`)를 관리하고 메시지 통신(Message Passing) 중계
 - **AI 연동**: `packages/ai-pipeline`을 호출하여 비즈니스 로직을 연결하는 얇은 어댑터 역할 수행
 
+## Command Palette 명령어
+VS Code에서 Command Palette(`Ctrl+Shift+P`, macOS는 `Cmd+Shift+P`)를 열면 아래 명령어를 사용할 수 있습니다.
+
+- `GitCat: Open Panel`
+- `GitCat: Create Snapshot`
+- `GitCat: Install Local Runtime`
+- `GitCat: Refresh Status`
+
 ## 로컬 VSIX 패키징
 - Windows 기준으로 `pnpm --dir apps/extension run package:vsix`를 실행하면 `.artifacts/` 아래에 VSIX 파일이 생성됩니다.
 - 이 스크립트는 `vsce package`를 호출하며, 내부적으로 `typecheck + esbuild 번들 빌드`를 함께 수행합니다.
