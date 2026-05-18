@@ -1,282 +1,304 @@
-# 10_backend_split.md
+﻿# 10_backend_split.md
 
-# GitCat MVP 백엔드 작업 분담서
-
-## 목적
-백엔드 개발자 2명이 공통 프롬프트의 단계 순서를 유지하면서 병렬로 개발할 수 있도록 책임과 연결 시점을 정의한다.
-
----
-
-## 공통 원칙
-- 개발 순서는 아래 4단계로 고정한다.
-  1. 핵심 Git 작업(GUI)
-  2. 추천 기능
-  3. 세이프티 레이어
-  4. 병합 충돌 해결
-- 각 단계에서는 그 단계에 필요한 필수 구현만 한다.
-- 다음 단계에 필요한 로직/테이블/핸들러는 다음 단계에서 구현한다.
-- 프론트(Webview), AI 파트와 연결 가능한 최소 껍데기와 계약만 먼저 맞춘다.
-- 공통 타입, 메시지 규약, DTO, enum 변경은 반드시 합의 후 반영한다.
-- 실제 작업을 시작하기 전, 각 담당자는 **프로젝트 폴더와 참조 문서를 직접 읽고 현재 구현 상태를 파악한 뒤**, 자신이 명령받은 단계의 작업만 진행한다.
+# GitCat MVP 諛깆뿏???묒뾽 遺꾨떞??
+## 紐⑹쟻
+諛깆뿏??媛쒕컻??2紐낆씠 怨듯넻 ?꾨＼?꾪듃???④퀎 ?쒖꽌瑜??좎??섎㈃??蹂묐젹濡?媛쒕컻?????덈룄濡?梨낆엫怨??곌껐 ?쒖젏???뺤쓽?쒕떎.
 
 ---
 
-## 역할 요약
+## 怨듯넻 ?먯튃
+- 媛쒕컻 ?쒖꽌???꾨옒 4?④퀎濡?怨좎젙?쒕떎.
+  1. ?듭떖 Git ?묒뾽(GUI)
+  2. 異붿쿇 湲곕뒫
+  3. ?몄씠?꾪떚 ?덉씠??  4. 蹂묓빀 異⑸룎 ?닿껐
+- 媛??④퀎?먯꽌??洹??④퀎???꾩슂???꾩닔 援ы쁽留??쒕떎.
+- ?ㅼ쓬 ?④퀎???꾩슂??濡쒖쭅/?뚯씠釉??몃뱾?щ뒗 ?ㅼ쓬 ?④퀎?먯꽌 援ы쁽?쒕떎.
+- ?꾨줎??Webview), AI ?뚰듃? ?곌껐 媛?ν븳 理쒖냼 猿띾뜲湲곗? 怨꾩빟留?癒쇱? 留욎텣??
+- 怨듯넻 ??? 硫붿떆吏 洹쒖빟, DTO, enum 蹂寃쎌? 諛섎뱶???⑹쓽 ??諛섏쁺?쒕떎.
+- ?ㅼ젣 ?묒뾽???쒖옉?섍린 ?? 媛??대떦?먮뒗 **?꾨줈?앺듃 ?대뜑? 李몄“ 臾몄꽌瑜?吏곸젒 ?쎄퀬 ?꾩옱 援ы쁽 ?곹깭瑜??뚯븙????*, ?먯떊??紐낅졊諛쏆? ?④퀎???묒뾽留?吏꾪뻾?쒕떎.
 
-### 백엔드 1
-- Extension Host 실행 구조
-- Git 연동
-- GUI 기반 Git 명령 실행 흐름
-- 로컬 파일 저장소
-- 세션 / 스냅샷 / 원복 / 체크포인트
-- Git / Snapshot 관련 메시지 핸들러
+---
 
-### 백엔드 2
-- 공통 타입 / DTO / schema
-- SQLite 스키마 / repository 계층
+## ??븷 ?붿빟
+
+### 諛깆뿏??1
+- Extension Host ?ㅽ뻾 援ъ“
+- Git ?곕룞
+- GUI 湲곕컲 Git 紐낅졊 ?ㅽ뻾 ?먮쫫
+- 濡쒖뺄 ?뚯씪 ??μ냼
+- ?몄뀡 / ?ㅻ깄??/ ?먮났 / 泥댄겕?ъ씤??- Git / Snapshot 愿??硫붿떆吏 ?몃뱾??
+### 諛깆뿏??2
+- 怨듯넻 ???/ DTO / schema
+- SQLite ?ㅽ궎留?/ repository 怨꾩링
 - Secrets / settings abstraction
-- 추천 이력 / 제안 피드백 이력
-- 추천 서비스 / 병합 메타데이터 서비스
-- 추천 / 병합 관련 메시지 핸들러
-
+- 異붿쿇 ?대젰 / ?쒖븞 ?쇰뱶諛??대젰
+- 異붿쿇 ?쒕퉬??/ 蹂묓빀 硫뷀??곗씠???쒕퉬??- 異붿쿇 / 蹂묓빀 愿??硫붿떆吏 ?몃뱾??
 ---
 
-# 단계별 분담
+# ?④퀎蹂?遺꾨떞
 
-## 1단계. 핵심 Git 작업(GUI)
+## 1?④퀎. ?듭떖 Git ?묒뾽(GUI)
 
-### 백엔드 1
-- Git 상태 조회
-- 브랜치 목록 조회
-- 브랜치 생성 / 삭제 / 전환
+### 諛깆뿏??1
+- Git ?곹깭 議고쉶
+- 釉뚮옖移?紐⑸줉 議고쉶
+- 釉뚮옖移??앹꽦 / ??젣 / ?꾪솚
 - add / stage / unstage
-- commit 실행
-- push 실행
+- commit ?ㅽ뻾
+- push ?ㅽ뻾
 - stash save / pop / apply / drop
-- 기본 merge / merge abort / merge continue
-- Git 관련 command / message handler 연결
-- Webview가 바로 붙을 수 있는 Git 상태/명령 응답 구조 정리
+- 湲곕낯 merge / merge abort / merge continue
+- Git 愿??command / message handler ?곌껐
+- Webview媛 諛붾줈 遺숈쓣 ???덈뒗 Git ?곹깭/紐낅졊 ?묐떟 援ъ“ ?뺣━
 
-### 백엔드 2
-- Git 관련 request/response DTO 및 validator 보강
-- branch / worktree / workspace 메타데이터 repository 정리
-- Git 작업 결과를 저장/참조하는 최소 query model 정리
-- Git 메시지 응답 모델 정리
-- 오류 코드/실패 응답 구조 정리
-- command 실행 결과를 프론트가 소비하기 좋은 형태로 표준화
+### 諛깆뿏??2
+- Git 愿??request/response DTO 諛?validator 蹂닿컯
+- branch / worktree / workspace 硫뷀??곗씠??repository ?뺣━
+- Git ?묒뾽 寃곌낵瑜????李몄“?섎뒗 理쒖냼 query model ?뺣━
+- Git 硫붿떆吏 ?묐떟 紐⑤뜽 ?뺣━
+- ?ㅻ쪟 肄붾뱶/?ㅽ뙣 ?묐떟 援ъ“ ?뺣━
+- command ?ㅽ뻾 寃곌낵瑜??꾨줎?멸? ?뚮퉬?섍린 醫뗭? ?뺥깭濡??쒖???
+### ?④퀎 醫낅즺 ???곌껐
+- 諛깆뿏??1???ㅼ젣 Git ?ㅽ뻾 寃곌낵瑜?- 諛깆뿏??2??DTO / validator / ?묐떟 紐⑤뜽怨?留욎텣??
 
-### 단계 종료 후 연결
-- 백엔드 1의 실제 Git 실행 결과를
-- 백엔드 2의 DTO / validator / 응답 모델과 맞춘다.
+### ?꾨줎???곌껐 ?쒖젏
+- ???④퀎 ?앸굹硫??꾨줎?몃뒗
+  - branch 紐⑸줉
+  - ?꾩옱 ?곹깭
+  - add/commit/push/stash/merge 踰꾪듉
+  - ?ㅽ뻾 寃곌낵/?ㅻ쪟 硫붿떆吏 UI
+  瑜?遺숈씪 ???덈떎.
 
-### 프론트 연결 시점
-- 이 단계 끝나면 프론트는
-  - branch 목록
-  - 현재 상태
-  - add/commit/push/stash/merge 버튼
-  - 실행 결과/오류 메시지 UI
-  를 붙일 수 있다.
-
-### AI 연결 시점
-- 아직 본격 연결하지 않음
-- 단, 추천 기능에서 사용할 staged diff / branch / log 수집 구조만 준비한다.
+### AI ?곌껐 ?쒖젏
+- ?꾩쭅 蹂멸꺽 ?곌껐?섏? ?딆쓬
+- ?? 異붿쿇 湲곕뒫?먯꽌 ?ъ슜??staged diff / branch / log ?섏쭛 援ъ“留?以鍮꾪븳??
 
 ---
 
-## 2단계. 추천 기능
+## 2?④퀎. 異붿쿇 湲곕뒫
 
-### 분담 원칙
-- 추천 기능은 **기능 단위 세로분리**로 진행한다.
-- 각 담당자는 자신이 맡은 추천 기능에 대해
-  - Git 데이터 수집
-  - 핸들러 / 라우터 연결
-  - 서비스 구현
-  - recommendation_histories 저장 / 조회
-  - Webview 응답 전달
-  까지 한 흐름으로 책임진다.
-- AI 담당은
-  - 백엔드가 넘긴 raw data를 받아
-  - 프롬프트 입력으로 가공하고
-  - 외부 AI 호출 후
-  - 추천 응답 payload를 조립해
-  - 백엔드에 반환한다.
-- 백엔드는 AI 응답을 받아 validator 검증 후 history 저장 및 Webview 전달을 담당한다.
+### 遺꾨떞 ?먯튃
+- 異붿쿇 湲곕뒫? **湲곕뒫 ?⑥쐞 ?몃줈遺꾨━**濡?吏꾪뻾?쒕떎.
+- 媛??대떦?먮뒗 ?먯떊??留≪? 異붿쿇 湲곕뒫?????  - Git ?곗씠???섏쭛
+  - ?몃뱾??/ ?쇱슦???곌껐
+  - ?쒕퉬??援ы쁽
+  - recommendation_histories ???/ 議고쉶
+  - Webview ?묐떟 ?꾨떖
+  源뚯? ???먮쫫?쇰줈 梨낆엫吏꾨떎.
+- AI ?대떦?
+  - 諛깆뿏?쒓? ?섍릿 raw data瑜?諛쏆븘
+  - ?꾨＼?꾪듃 ?낅젰?쇰줈 媛怨듯븯怨?  - ?몃? AI ?몄텧 ??  - 異붿쿇 ?묐떟 payload瑜?議곕┰??  - 諛깆뿏?쒖뿉 諛섑솚?쒕떎.
+- 諛깆뿏?쒕뒗 AI ?묐떟??諛쏆븘 validator 寃利???history ???諛?Webview ?꾨떖???대떦?쒕떎.
 
-### 백엔드 1
-#### 담당 기능
-- 브랜치명 추천
-- 커밋명 추천
+### 諛깆뿏??1
+#### ?대떦 湲곕뒫
+- 釉뚮옖移섎챸 異붿쿇
+- 而ㅻ컠紐?異붿쿇
 
-#### 작업 범위
-- `RECOMMEND_BRANCH` 핸들러
-- `RECOMMEND_COMMIT` 핸들러
-- 추천 요청 전 필요한 Git 데이터 수집
-  - branch 추천: 작업 목적, 현재 branch, branch list
-  - commit 추천: staged diff, current branch, recent commits/log
-- branch / commit recommendation service 구현
-- recommendation_histories 저장 / 조회 연동
-- 추천 결과 DTO 변환 및 Webview 응답 전달
-- 실패 / 로딩 / 성공 응답 처리
+#### ?묒뾽 踰붿쐞
+- `RECOMMEND_BRANCH` ?몃뱾??- `RECOMMEND_COMMIT` ?몃뱾??- 異붿쿇 ?붿껌 ???꾩슂??Git ?곗씠???섏쭛
+  - branch 異붿쿇: ?묒뾽 紐⑹쟻, ?꾩옱 branch, branch list
+  - commit 異붿쿇: staged diff, current branch, recent commits/log
+- branch / commit recommendation service 援ы쁽
+- recommendation_histories ???/ 議고쉶 ?곕룞
+- 異붿쿇 寃곌낵 DTO 蹂??諛?Webview ?묐떟 ?꾨떖
+- ?ㅽ뙣 / 濡쒕뵫 / ?깃났 ?묐떟 泥섎━
 
-### 백엔드 2
-#### 담당 기능
-- PR description 추천
+### 諛깆뿏??2
+#### ?대떦 湲곕뒫
+- PR description 異붿쿇
 
-#### 작업 범위
-- `RECOMMEND_PR` 핸들러
-- 추천 요청 전 필요한 Git 데이터 수집
-  - base 비교 정보
+#### ?묒뾽 踰붿쐞
+- `RECOMMEND_PR` ?몃뱾??- 異붿쿇 ?붿껌 ???꾩슂??Git ?곗씠???섏쭛
+  - base 鍮꾧탳 ?뺣낫
   - diff
   - current branch
   - recent commits/log
-- PR recommendation service 구현
-- recommendation_histories 저장 / 조회 연동
-- 추천 결과 DTO 변환 및 Webview 응답 전달
-- 실패 / 로딩 / 성공 응답 처리
+- PR recommendation service 援ы쁽
+- recommendation_histories ???/ 議고쉶 ?곕룞
+- 異붿쿇 寃곌낵 DTO 蹂??諛?Webview ?묐떟 ?꾨떖
+- ?ㅽ뙣 / 濡쒕뵫 / ?깃났 ?묐떟 泥섎━
 
-### 단계 종료 후 연결
-- 백엔드 1의 branch / commit 추천 흐름과
-- 백엔드 2의 PR 추천 흐름이
-공통 recommendation_histories / AIClient / message protocol 위에서 일관되게 동작해야 한다.
+### ?④퀎 醫낅즺 ???곌껐
+- 諛깆뿏??1??branch / commit 異붿쿇 ?먮쫫怨?- 諛깆뿏??2??PR 異붿쿇 ?먮쫫??怨듯넻 recommendation_histories / AIClient / message protocol ?꾩뿉???쇨??섍쾶 ?숈옉?댁빞 ?쒕떎.
 
-### 프론트 연결 시점
-- 이 단계 끝나면 프론트는
-  - 브랜치명 추천 UI
-  - 커밋명 추천 UI
-  - PR description 추천 UI
-  를 각각 바로 붙일 수 있다.
+### ?꾨줎???곌껐 ?쒖젏
+- ???④퀎 ?앸굹硫??꾨줎?몃뒗
+  - 釉뚮옖移섎챸 異붿쿇 UI
+  - 而ㅻ컠紐?異붿쿇 UI
+  - PR description 異붿쿇 UI
+  瑜?媛곴컖 諛붾줈 遺숈씪 ???덈떎.
 
-### AI 연결 시점
-- 이 단계에서 AI 담당과 첫 본격 연동
-- AI 담당은
-  - provider 호출
+### AI ?곌껐 ?쒖젏
+- ???④퀎?먯꽌 AI ?대떦怨?泥?蹂멸꺽 ?곕룞
+- AI ?대떦?
+  - provider ?몄텧
   - prompt template
-  - parser 품질
-  을 recommendation service contract에 맞춰 붙인다.
+  - parser ?덉쭏
+  ??recommendation service contract??留욎떠 遺숈씤??
 
 ---
 
-## 3단계. 세이프티 레이어
+## 3?④퀎. ?몄씠?꾪떚 ?덉씠??
+### 諛깆뿏??1
+- WorkSession ?쒖옉/醫낅즺
+- ?섎룞 ?몄쭛 ?몄뀡 / AI ?묒뾽 ?몄뀡 遺꾧린
+- ?몄뀡蹂?蹂寃??뚯씪 異붿쟻
+- 理쒖큹 蹂寃????곹깭 ???- ?듯빀 ?ㅻ깄???앹꽦
+- 泥댄겕?ъ씤??吏???댁젣
+- ?먮났 ??pre_restore snapshot ?앹꽦
+- ?좏깮 ?ㅻ깄???먮났
+- .vscode/gitcat/snapshots 援ъ“ ?ㅼ젣 援ы쁽
+- snapshot ?뚯씪 ???議고쉶/??젣 濡쒖쭅
+- Snapshot / Restore 愿??硫붿떆吏 ?몃뱾???곌껐
 
-### 백엔드 1
-- WorkSession 시작/종료
-- 수동 편집 세션 / AI 작업 세션 분기
-- 세션별 변경 파일 추적
-- 최초 변경 전 상태 저장
-- 통합 스냅샷 생성
-- 체크포인트 지정/해제
-- 원복 전 pre_restore snapshot 생성
-- 선택 스냅샷 원복
-- .vscode/gitcat/snapshots 구조 실제 구현
-- snapshot 파일 저장/조회/삭제 로직
-- Snapshot / Restore 관련 메시지 핸들러 연결
+### 諛깆뿏??2
+- work_sessions / snapshots / snapshot_files / change_records / changed_files / restore_histories repository 援ы쁽
+- ?몄씠?꾪떚 ?덉씠?댁슜 DTO 諛?query model 援ы쁽
+- snapshot / restore 硫뷀??곗씠??????쒕퉬??援ы쁽
+- snapshot list / detail / restore history 議고쉶 ?쒕퉬??援ы쁽
 
-### 백엔드 2
-- work_sessions / snapshots / snapshot_files / change_records / changed_files / restore_histories repository 구현
-- 세이프티 레이어용 DTO 및 query model 구현
-- snapshot / restore 메타데이터 저장 서비스 구현
-- snapshot list / detail / checkpoint / restore history 조회 서비스 구현
+### ?④퀎 醫낅즺 ???곌껐
+- 諛깆뿏??1???ㅼ젣 ?뚯씪 ???濡쒖쭅怨?- 諛깆뿏??2??session/snapshot/restore repository ?곌껐
 
-### 단계 종료 후 연결
-- 백엔드 1의 실제 파일 저장 로직과
-- 백엔드 2의 session/snapshot/restore repository 연결
+### ?꾨줎???곌껐 ?쒖젏
+- ???④퀎 ?앸굹硫??꾨줎?몃뒗
+  - ?ㅻ깄??紐⑸줉
+  - 泥댄겕?ъ씤???쒖떆
+  - ?먮났 踰꾪듉
+  - ?먮났 ?대젰
+  UI瑜?遺숈씪 ???덈떎.
 
-### 프론트 연결 시점
-- 이 단계 끝나면 프론트는
-  - 스냅샷 목록
-  - 체크포인트 표시
-  - 원복 버튼
-  - 원복 이력
-  UI를 붙일 수 있다.
-
-### AI 연결 시점
-- 아직 병합 AI 본격 연결은 아님
-- 다만 세션/변경기록 컨텍스트를 이후 병합 단계에서 참고할 수 있게 준비한다.
+### AI ?곌껐 ?쒖젏
+- ?꾩쭅 蹂묓빀 AI 蹂멸꺽 ?곌껐? ?꾨떂
+- ?ㅻ쭔 ?몄뀡/蹂寃쎄린濡?而⑦뀓?ㅽ듃瑜??댄썑 蹂묓빀 ?④퀎?먯꽌 李멸퀬?????덇쾶 以鍮꾪븳??
 
 ---
 
-## 4단계. 병합 충돌 해결
+## 4?④퀎. 蹂묓빀 異⑸룎 ?닿껐
 
-### 백엔드 1
-- source/target 선택용 Git/브랜치/워크트리/워크트리 인스턴스 데이터 수집
-- merge base 계산용 Git adapter 연결
-- diff/merge command 실행 배선
-- git merge / merge continue / merge abort 실행 배선
-- conflict marker 재스캔 트리거
-- merge artifact 로컬 경로 생성
-- ANALYZE_CONFLICT / RUN_MERGE / ACCEPT_MERGE / REJECT_MERGE 메시지 라우팅
-- 병합 관련 결과를 Webview로 넘기는 최소 흐름 구현
-
-### 백엔드 2
-- merge_analyses / conflict_candidates / merge_proposals / proposal_feedbacks repository 구현
-- MergeAnalysisService 구현
-- ConflictAnalyzer orchestration interface 구현
-- MergeProposalService 구현
-- ProposalFeedbackService 구현
-- 과거 proposal_feedbacks를 현재 병합 제안 입력의 참고 데이터로 조회하는 서비스 구현
-- analysis_artifact_path / proposals_artifact_path 메타데이터 관리
-- ANALYZE_CONFLICT / CONFLICT_RESULT / MERGE_PROPOSAL / ACCEPT_MERGE / REJECT_MERGE 관련 DTO, validator, handler 구현
-
-### 단계 종료 후 연결
-- 백엔드 1의 Git diff/merge 결과를 백엔드 2 병합 분석 서비스에 전달
-- 백엔드 2의 conflict/proposal 결과를 백엔드 1 라우터로 전달
-- proposal_feedback 저장 흐름까지 맞춘다
-
-### 프론트 연결 시점
-- 이 단계 끝나면 프론트는
-  - 충돌 후보 목록
-  - 병합안 비교
-  - Accept/Reject
-  - 병합 실행
-  UI를 붙일 수 있다.
-
-### AI 연결 시점
-- 이 단계에서 AI 담당과 두 번째 본격 연동
-- AI 담당은 병합 제안 생성, explanation 생성, feedback 반영 품질을 붙인다.
+### 遺꾨떞 ?먯튃
+- 蹂묓빀 異⑸룎 ?닿껐 ?④퀎??諛깆뿏??1/2濡??섎늻吏 ?딄퀬 ?섎굹??諛깆뿏?쒓? 湲곕뒫 ?⑥쐞濡??앷퉴吏 援ы쁽?쒕떎.
+- ???④퀎???⑥닚 Git 紐낅졊 異붽?蹂대떎 怨꾩빟 ?뺣━? ?곌껐 ?먮쫫 援ы쁽???듭떖?대떎.
+- ?대? 援ы쁽??Git merge 愿??湲곕뒫? ?ш뎄?꾪븯吏 ?딄퀬 ?ъ궗?⑺븳??
+- AI ??Extension, Webview ??Extension, DB ???紐⑤뜽? 紐⑹쟻蹂?DTO瑜?遺꾨━?쒕떎.
+- 蹂묓빀 AI ?낅젰?먯꽌 `working_tree_diff_ref`, `context_bundle_ref` 媛숈? ref??AI provider媛 吏곸젒 濡쒖뺄 ?뚯씪???쎄린 ?꾪븳 媛믪씠 ?꾨땲??
+- Extension/backend orchestration 怨꾩링??ref瑜?濡쒖뺄 ?ㅽ넗由ъ? artifact濡?resolve/materialize???? ?ㅼ젣 肄붾뱶 蹂몃Ц ?먮뒗 excerpt瑜?AI prompt ?щ즺濡??섍린??援ъ“瑜??곗꽑?쒕떎.
+- SQLite?먮뒗 蹂묓빀 遺꾩꽍/?쒖븞/?쇰뱶諛깆쓽 硫뷀??곗씠?? ?곹깭, ?붿빟, artifact path/ref留???ν븯怨? 湲?diff쨌肄붾뱶 蹂몃Ц쨌prompt ?먮Ц쨌AI ?곗텧臾쇱? 濡쒖뺄 ?뚯씪 ?ㅽ넗由ъ?????ν븳??
+- `worktree_instance_id`??Git?먯꽌 吏곸젒 議고쉶?섎뒗 媛믪씠 ?꾨땲?? GitCat??`worktree + branch` 議고빀??異붿쟻?섍린 ?꾪빐 ?앹꽦?섎뒗 ?대? ?앸퀎?먮떎.
 
 ---
 
-# 충돌 방지 규칙
+### ?곗폆 4-1. 蹂묓빀 怨꾩빟 ?뺣━ 諛?DTO ?듭씪
 
-## 백엔드 1이 임의 변경하면 안 되는 것
-- SQLite schema 구조
-- repository 인터페이스 명세
-- recommendation_histories / proposal_feedbacks 데이터 구조
-- shared DTO / enum 핵심 값
+#### ?곗폆紐?[BE] 蹂묓빀 怨꾩빟 ?뺣━ 諛?DTO ?듭씪
 
-## 백엔드 2가 임의 변경하면 안 되는 것
-- extension entry / command registration 구조
-- Git adapter 구조
-- 실제 snapshot / merge artifact 파일 저장 규칙
-- event hook 구조
+#### ?댁빞 ????- `ANALYZE_CONFLICT` ?낅젰 怨꾩빟 ?뺤젙
+- Extension ??AI ?낅젰??`MergeProposalInputSchema` 湲곗??쇰줈 ?뺣━
+- Extension ??Webview 異쒕젰? ?붾㈃??projection DTO濡?遺꾨━
+- `CONFLICT_RESULT`, `MERGE_PROPOSAL`, `MERGE_COMPLETE` payload ?ъ젙??- `REJECT_AI_DRAFT`? `REJECT_MERGE` 以??섎굹瑜??쒖? 硫붿떆吏濡??듭씪
+- shared-types / AI DTO / Webview store媛 媛숈? 洹쒖빟???곕룄濡??뺣━
 
----
-
-# 단계별 산출물 체크
-
-## 1단계 완료 기준
-- Git GUI 핵심 기능 실행 가능
-- branch / add / commit / push / stash / merge 기본 흐름 가능
-- 프론트에서 Git 작업 UI 연동 가능
-
-## 2단계 완료 기준
-- 추천 요청/응답 배선 가능
-- recommendation history 저장/조회 가능
-- AI 담당 연결 가능
-
-## 3단계 완료 기준
-- 세션 생성 가능
-- 스냅샷 생성 / 조회 / 원복 가능
-- 프론트에서 snapshot UI 연동 가능
-
-## 4단계 완료 기준
-- 충돌 분석 / 제안 / 피드백 저장 가능
-- 병합 UI 연동 가능
-- AI 담당 연결 가능
+#### ?④퀎 醫낅즺 ???곌껐
+- AI ?대떦? `MergeProposalInputSchema` 湲곗? ?낅젰??諛쏆쓣 ???덈떎.
+- ?꾨줎???대떦? 蹂묓빀??projection DTO 湲곗??쇰줈 UI瑜?遺숈씪 ???덈떎.
 
 ---
 
-# 최종 목표
-- 백엔드 1은 실행/Git/파일/세션 흐름을 안정화한다.
-- 백엔드 2는 데이터 구조와 추천/병합 이력 구조를 안정화한다.
-- 각 단계 종료마다 프론트와 AI가 바로 붙을 수 있는 연결 포인트를 제공한다.
+### ?곗폆 4-2. 蹂묓빀 ?낅젰 議고빀 ?쒕퉬??援ы쁽
+
+#### ?곗폆紐?[BE] 蹂묓빀 ?낅젰 議고빀 ?쒕퉬??援ы쁽
+
+#### ?댁빞 ????- source / target / session / worktree context ?섏쭛
+- `getMergeBase`, `getDiff`, `getDiffText` 湲곕컲 ?낅젰 assembler 援ы쁽
+- 蹂묓빀 遺꾩꽍??raw data 議고빀
+- AI 蹂묓빀 ?쒖븞??raw data 議고빀
+- `session_id`媛 ?꾩닔???꾩옱 AI ?낅젰 怨꾩빟 諛섏쁺
+- `working_tree_diff_ref`? `context_bundle_ref`瑜?AI ?낅젰 怨꾩빟???ы븿?섎릺, ?ㅼ젣 濡쒖뺄 ?ㅽ넗由ъ? ???議고쉶???ㅼ쓬 ?묒뾽?먯꽌 援ы쁽
+- `context_bundle_ref`??異⑸룎 ?꾨낫 ?뚯씪 蹂몃Ц, 二쇰? 肄붾뱶, import/type/interface, 愿???뚯뒪???섏〈 ?뚯씪 excerpt瑜?臾띕뒗 濡쒖뺄 artifact???곌껐?먯쑝濡??ъ슜
+- 異⑸룎 遺꾩꽍 service? AI ?쒖븞 service媛 怨듯넻?쇰줈 ?ъ슜???낅젰 紐⑤뜽 ?뺣━
+
+#### ?④퀎 醫낅즺 ???곌껐
+- 異⑸룎 遺꾩꽍 service媛 諛붾줈 ?ъ슜???낅젰 援ъ“媛 以鍮꾨맂??
+- AI 蹂묓빀 ?쒖븞 ?낅젰 raw data媛 以鍮꾨맂??
+- ?ㅼ쓬 ?묒뾽?먯꽌??`context_bundle_ref`媛 媛由ы궎???ㅼ젣 肄붾뱶 context bundle??濡쒖뺄 ?ㅽ넗由ъ????앹꽦?섍퀬, AI ?몄텧 吏곸쟾 resolve/materialize?섎뒗 ?먮쫫??援ы쁽?쒕떎.
+
+---
+
+### ?곗폆 4-3. 蹂묓빀 遺꾩꽍 ???援ъ“ 蹂닿컯
+
+#### ?곗폆紐?[BE] 蹂묓빀 遺꾩꽍 ???援ъ“ 蹂닿컯
+
+#### ?댁빞 ????- `MergeAnalysisRepository`, `ConflictCandidateRepository`, `MergeProposalRepository`, `ProposalFeedbackRepository` 援ы쁽 ?곹깭 ?먭?
+- 湲곗〈 援ы쁽 ?ъ궗??媛???щ? ?뺤씤
+- ?녿뒗 repository留?蹂닿컯
+- export / DI ?곌껐
+- `analysis_artifact_path`, `proposals_artifact_path` ????먮쫫 ?곌껐
+- DB?먮뒗 硫뷀??곗씠??/ ?곹깭 / 寃쎈줈 / ?붿빟留???ν븯???먯튃 ?좎?
+
+#### ?④퀎 醫낅즺 ???곌껐
+- 遺꾩꽍/?쒖븞/?쇰뱶諛?service媛 ?ъ슜??repository 援ъ“媛 ?뺣━?쒕떎.
+- 濡쒖뺄 ?곗텧臾?寃쎈줈? DB 硫뷀??곗씠???곌껐??媛?ν빐吏꾨떎.
+
+---
+
+### ?곗폆 4-4. 異⑸룎 ?꾨낫 遺꾩꽍 ?몃뱾??룹꽌鍮꾩뒪 援ы쁽
+
+#### ?곗폆紐?[BE] 異⑸룎 ?꾨낫 遺꾩꽍 ?몃뱾??룹꽌鍮꾩뒪 援ы쁽
+
+#### ?댁빞 ????- `ANALYZE_CONFLICT` handler 援ы쁽
+- merge base 怨꾩궛
+- diff 鍮꾧탳
+- 異⑸룎 ?꾨낫 ?먯?
+- `conflict_candidates` ???- `analysis.json` 寃쎈줈 ???- `CONFLICT_RESULT`瑜?Webview projection DTO 湲곗??쇰줈 ?묐떟
+
+#### ?④퀎 醫낅즺 ???곌껐
+- ?꾨줎???대떦? 異⑸룎 ?꾨낫 紐⑸줉 UI瑜?遺숈씪 ???덈떎.
+- AI ?대떦? 異⑸룎 ?꾨낫 寃곌낵瑜?蹂묓빀 ?쒖븞 ?낅젰?쇰줈 ?ъ슜?????덈떎.
+
+---
+
+### ?곗폆 4-5. AI 蹂묓빀 ?쒖븞 諛??쇰뱶諛??먮쫫 援ы쁽
+
+#### ?곗폆紐?[BE] AI 蹂묓빀 ?쒖븞 諛??쇰뱶諛??먮쫫 援ы쁽
+
+#### ?댁빞 ????- `MergeProposalService` 援ы쁽
+- AI ?낅젰? `MergeProposalInputSchema` 湲곗??쇰줈 議고빀
+- AI ?몄텧 吏곸쟾 `context_bundle_ref`瑜?resolve?섏뿬 濡쒖뺄 ?ㅽ넗由ъ???肄붾뱶 context bundle???쎄퀬, prompt???ㅼ젣 肄붾뱶 蹂몃Ц/excerpt媛 ?ы븿?섎룄濡?materialize
+- AI provider ?먮뒗 ?쒖닔 ai-pipeline??VS Code workspace??濡쒖뺄 ?뚯씪??吏곸젒 ?쎌? ?딅룄濡??쒕떎.
+- ai-pipeline? ?꾨떖諛쏆? materialized payload/prompt context瑜?寃利? ?좏겙 理쒖쟻?? prompt ?앹꽦, parser 泥섎━?섎뒗 梨낆엫??吏묒쨷?쒕떎.
+- AI 寃곌낵??parser 寃곌낵 紐⑤뜽 湲곗??쇰줈 ?섏떊
+- DB?먮뒗 硫뷀??곗씠??/ ?붿빟 / ?곹깭 ???- ?ㅼ젣 ?쒖븞 肄붾뱶? 湲??ㅻ챸? `proposals.json`?????- `MERGE_PROPOSAL` ?묐떟 ?곌껐
+- `ACCEPT_MERGE` / `REJECT_MERGE` 泥섎━
+- `proposal_feedbacks` ???- 怨쇨굅 feedback???댄썑 AI 李멸퀬 ?대젰?쇰줈 議고쉶 媛?ν븳 援ъ“ 以鍮?
+#### ?④퀎 醫낅즺 ???곌껐
+- AI ?대떦? 蹂묓빀 ?쒖븞 ?앹꽦 / explanation ?앹꽦 / feedback 諛섏쁺 ?덉쭏??遺숈씪 ???덈떎.
+- ?꾨줎???대떦? Accept / Reject UI瑜?遺숈씪 ???덈떎.
+
+---
+
+### ?곗폆 4-6. 蹂묓빀 ?ㅽ뻾 諛?理쒖쥌 ?곹깭 諛섏쁺 援ы쁽
+
+#### ?곗폆紐?[BE] 蹂묓빀 ?ㅽ뻾 諛?理쒖쥌 ?곹깭 諛섏쁺 援ы쁽
+
+#### ?댁빞 ????- 湲곗〈 `RUN_MERGE`, `MERGE_ABORT`, `MERGE_CONTINUE` ?먮쫫 ?ъ궗??- Accept???쒖븞 諛섏쁺 ??蹂묓빀 ?ㅽ뻾
+- Reject???쒖븞? feedback留???ν븯怨?conflict ?좎? 媛?ν븯?꾨줉 泥섎━
+- conflict marker ?ъ뒪罹?- `MERGE_COMPLETE`, ?ㅻ쪟 ?묐떟, ?곹깭 媛깆떊 ?묐떟 ?뺣━
+- 蹂묓빀 ?꾨즺 / 誘몄셿猷?/ abort / continue ?곹깭瑜?Webview projection DTO 湲곗??쇰줈 諛섏쁺
+
+#### ?④퀎 醫낅즺 ???곌껐
+- ?꾨줎???대떦? 蹂묓빀 ?ㅽ뻾/?꾨즺/?ㅻ쪟 ?곹깭 UI瑜?遺숈씪 ???덈떎.
+- 蹂묓빀 ?꾨즺 ?댄썑 ?곹깭 媛깆떊源뚯? end-to-end ?먮쫫??留욎떠吏꾨떎.
+
+---
+
+### ?꾨줎???곌껐 ?쒖젏
+- ?곗폆 4-1 ?꾨즺 ?? 蹂묓빀??payload/DTO 湲곗??쇰줈 UI ?곌껐 媛??- ?곗폆 4-4 ?꾨즺 ?? 異⑸룎 ?꾨낫 紐⑸줉 UI ?곌껐 媛??- ?곗폆 4-5 ?꾨즺 ?? 蹂묓빀??鍮꾧탳, Accept / Reject UI ?곌껐 媛??- ?곗폆 4-6 ?꾨즺 ?? 蹂묓빀 ?ㅽ뻾 諛??꾨즺 ?곹깭 UI ?곌껐 媛??
+### AI ?곌껐 ?쒖젏
+- ?곗폆 4-1 ?꾨즺 ?? 蹂묓빀 ?낅젰/異쒕젰 怨꾩빟 湲곗? ?⑹쓽 媛??- ?곗폆 4-2 ?꾨즺 ?? AI ?낅젰??raw data ?꾨떖 媛??- ?곗폆 4-5 ?꾨즺 ?? 蹂묓빀 ?쒖븞 ?앹꽦怨?feedback 諛섏쁺 ?덉쭏 ?곌껐 媛??---
+
+# 理쒖쥌 紐⑺몴
+- 諛깆뿏??1? ?ㅽ뻾/Git/?뚯씪/?몄뀡 ?먮쫫???덉젙?뷀븳??
+- 諛깆뿏??2???곗씠??援ъ“? 異붿쿇/蹂묓빀 ?대젰 援ъ“瑜??덉젙?뷀븳??
+- 媛??④퀎 醫낅즺留덈떎 ?꾨줎?몄? AI媛 諛붾줈 遺숈쓣 ???덈뒗 ?곌껐 ?ъ씤?몃? ?쒓났?쒕떎.
+

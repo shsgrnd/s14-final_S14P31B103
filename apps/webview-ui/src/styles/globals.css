@@ -4,22 +4,10 @@
 
 @layer base {
   :root {
-    /* GitCat UI normalization palette (editor-agnostic) */
-    --gc-bg: #111315;
-    --gc-surface: #17191c;
-    --gc-surface-2: #1d2024;
-    --gc-border: #2a2f36;
-    --gc-text: #d6d9de;
-    --gc-text-muted: #9ba3ad;
-    --gc-primary: #6d9fe0;
-    --gc-primary-hover: #79a9e8;
-    --gc-secondary: #6a6a6a;
-    --gc-secondary-hover: #777777;
-    --gc-focus: #6d9fe0;
-
-    /* VS Code Theme Variables Mapping */
+    /* shadcn-style aliases → 호스트 웹뷰가 주입하는 --vscode-* (IDE 테마) */
     --background: var(--vscode-sideBar-background);
-    --foreground: var(--vscode-sideBar-foreground);
+    /* sideBar.foreground 만 어둡게 잡히는 테마 대비: workbench/editor 전경 우선 */
+    --foreground: var(--vscode-foreground, var(--vscode-sideBar-foreground, var(--vscode-editor-foreground)));
     --card: var(--vscode-editor-background);
     --card-foreground: var(--vscode-editor-foreground);
     --primary: var(--vscode-button-background);
@@ -37,35 +25,8 @@
     --ring: var(--vscode-focusBorder);
     
     /* Description Text */
-    --description: var(--vscode-descriptionForeground);
+    --description: var(--vscode-descriptionForeground, var(--vscode-foreground));
   }
-}
-
-/* Force stable color tokens across VS Code/Cursor/other hosts */
-body {
-  --vscode-sideBar-background: var(--gc-bg) !important;
-  --vscode-sideBar-foreground: var(--gc-text) !important;
-  --vscode-editor-background: var(--gc-surface) !important;
-  --vscode-editor-foreground: var(--gc-text) !important;
-  --vscode-panel-border: var(--gc-border) !important;
-  --vscode-input-background: var(--gc-surface-2) !important;
-  --vscode-input-foreground: var(--gc-text) !important;
-  --vscode-descriptionForeground: var(--gc-text-muted) !important;
-  --vscode-focusBorder: var(--gc-focus) !important;
-  --vscode-button-background: var(--gc-primary) !important;
-  --vscode-button-foreground: #f5f8ff !important;
-  --vscode-button-hoverBackground: var(--gc-primary-hover) !important;
-  --vscode-button-secondaryBackground: var(--gc-secondary) !important;
-  --vscode-button-secondaryForeground: #eeeeee !important;
-  --vscode-button-secondaryHoverBackground: var(--gc-secondary-hover) !important;
-  --vscode-list-hoverBackground: #22262c !important;
-  --vscode-list-activeSelectionBackground: #2a3240 !important;
-  --vscode-list-activeSelectionForeground: #eaf1ff !important;
-  --vscode-badge-background: #2f3f57 !important;
-  --vscode-badge-foreground: #d9e6ff !important;
-  --vscode-charts-blue: #6d9fe0 !important;
-  --vscode-charts-green: #6ec8a3 !important;
-  --vscode-charts-purple: #9f7ad6 !important;
 }
 
 body {
@@ -79,6 +40,21 @@ body {
   user-select: none;
 }
 
+/**
+ * Native <select> / <option>
+ * 일부 테마(Cursor Dark 등)에서 OS 드롭 목록만 밝은 배경인데 글자색이 input-foreground를 따라
+ * 거의 흰색으로 남아 대비가 사라지는 경우가 있어, menu/dropdown 토큰과 시스템 색을 보조로 씀.
+ * 인라인 style이 있는 닫힌 select 박스는 각 컴포넌트에서 dropdown 토큰을 쓰도록 맞춘다.
+ */
+select {
+  color-scheme: light dark;
+}
+
+select option {
+  background-color: var(--vscode-menu-background, var(--vscode-dropdown-background, var(--vscode-editor-background)));
+  color: var(--vscode-menu-foreground, var(--vscode-dropdown-foreground, var(--vscode-foreground)));
+}
+
 /* Slim Scrollbar for Premium Feel */
 ::-webkit-scrollbar {
   width: 6px;
@@ -88,11 +64,20 @@ body {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: var(--vscode-scrollbarSlider-background);
+  background: var(--vscode-scrollbarSlider-background, rgba(255, 255, 255, 0.25));
   border-radius: 3px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--vscode-scrollbarSlider-hoverBackground);
+  background: var(--vscode-scrollbarSlider-hoverBackground, rgba(255, 255, 255, 0.38));
+}
+
+/* 알림 기록: 높이 고정 그리드 안에서만 스크롤 (바깥은 overflow, 안은 콘텐츠 높이) */
+.gitcat-notification-log-scroll {
+  min-height: 0;
+  overflow-x: hidden;
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
+  scrollbar-color: var(--vscode-scrollbarSlider-background, rgba(255, 255, 255, 0.28)) transparent;
 }
 
 /* Animations */
@@ -101,16 +86,108 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 
+@keyframes gitcat-refresh-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+@keyframes gitcat-pulse {
+  0%   { opacity: 1;   transform: scale(1); }
+  50%  { opacity: 0.4; transform: scale(0.75); }
+  100% { opacity: 1;   transform: scale(1); }
+}
+
 .animate-fade-in {
   animation: fadeIn 0.2s ease-out forwards;
 }
 
-/* Sidebar Section Header Style */
+/**
+ * AI 병합 초안 생성 버튼 press 피드백
+ * hover: 배경 살짝 밝아지며 위로 살짝 이동
+ * active: 0.93 축소 + 약간 어둡게 (눌리는 느낌)
+ */
+.gitcat-ai-btn {
+  transition:
+    background-color 0.15s ease,
+    transform 0.08s ease,
+    box-shadow 0.15s ease,
+    opacity 0.15s ease;
+  will-change: transform, background-color;
+}
+.gitcat-ai-btn:not(:disabled):hover {
+  filter: brightness(1.12);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 8px rgba(0, 0, 0, 0.28) !important;
+}
+.gitcat-ai-btn:not(:disabled):active {
+  transform: scale(0.93) translateY(0px) !important;
+  filter: brightness(0.9);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.18) !important;
+  transition:
+    background-color 0.05s ease,
+    transform 0.05s ease,
+    box-shadow 0.05s ease;
+}
+.gitcat-ai-btn:disabled {
+  cursor: not-allowed;
+}
+
+/**
+ * 헤더 액션 버튼 (반영 안 함 / 수정 후 반영 / 최종 반영)
+ */
+.gitcat-header-btn {
+  transition:
+    background-color 0.15s ease,
+    transform 0.08s ease,
+    box-shadow 0.12s ease;
+  will-change: transform, background-color;
+}
+.gitcat-header-btn:hover {
+  filter: brightness(1.1);
+  transform: translateY(-1px);
+}
+.gitcat-header-btn:active {
+  transform: scale(0.94) !important;
+  filter: brightness(0.88);
+  transition: transform 0.05s ease, filter 0.05s ease;
+}
+
+/**
+ * 아이콘 버튼 공통 hover/press 애니메이션.
+ * - 푸터(SidebarLayout.footer)·BranchCleanup 헤더의 설정/돌아가기 등 공용.
+ * - hover: 배경 강조 + 살짝 떠오르는 듯한 미세 transform
+ * - active(누름): 80ms 안에 축소되며 눌리는 피드백
+ */
+.gitcat-icon-press {
+  transition:
+    background-color 0.18s ease,
+    color 0.18s ease,
+    transform 0.08s ease;
+  will-change: transform, background-color;
+}
+.gitcat-icon-press:hover {
+  background-color: var(--vscode-toolbar-hoverBackground, var(--vscode-list-hoverBackground)) !important;
+  color: var(--vscode-foreground);
+  transform: translateY(-1px);
+}
+.gitcat-icon-press:active {
+  background-color: var(--vscode-toolbar-activeBackground, var(--vscode-list-activeSelectionBackground)) !important;
+  transform: scale(0.92);
+  transition:
+    background-color 0.06s ease,
+    transform 0.06s ease;
+}
+.gitcat-icon-press:focus-visible {
+  outline: 1px solid var(--vscode-focusBorder);
+  outline-offset: 1px;
+}
+
+/* Sidebar Section Header Style (레거시 클래스 — SectionHeader 컴포넌트와 동일 토큰 체인) */
 .section-header {
   font-size: 11px;
   font-weight: bold;
   text-transform: uppercase;
-  color: var(--description);
+  color: var(--vscode-sideBarTitle-foreground, var(--vscode-titleBar-activeForeground, var(--vscode-tab-activeForeground, var(--vscode-activityBar-foreground, var(--vscode-sideBar-foreground, var(--vscode-editor-foreground))))));
   padding: 8px 12px;
   display: flex;
   align-items: center;
@@ -120,6 +197,63 @@ body {
 }
 
 .section-header:hover {
-  color: var(--foreground);
+  color: var(--vscode-sideBar-foreground);
 }
+
+/* Markdown preview (PR description preview tab) */
+.gitcat-md-preview > *:first-child { margin-top: 0; }
+.gitcat-md-preview > *:last-child { margin-bottom: 0; }
+.gitcat-md-preview h1,
+.gitcat-md-preview h2,
+.gitcat-md-preview h3,
+.gitcat-md-preview h4 {
+  margin: 14px 0 8px;
+  font-weight: 600;
+  line-height: 1.25;
+  color: var(--vscode-foreground);
+}
+.gitcat-md-preview h1 { font-size: 18px; border-bottom: 1px solid var(--vscode-panel-border); padding-bottom: 4px; }
+.gitcat-md-preview h2 { font-size: 16px; border-bottom: 1px solid var(--vscode-panel-border); padding-bottom: 3px; }
+.gitcat-md-preview h3 { font-size: 14px; }
+.gitcat-md-preview h4 { font-size: 13px; color: var(--vscode-descriptionForeground); }
+.gitcat-md-preview p { margin: 6px 0; }
+.gitcat-md-preview ul,
+.gitcat-md-preview ol { margin: 6px 0 6px 22px; padding: 0; }
+.gitcat-md-preview li { margin: 3px 0; }
+.gitcat-md-preview a {
+  color: var(--vscode-textLink-foreground);
+  text-decoration: underline;
+}
+.gitcat-md-preview a:hover { color: var(--vscode-textLink-activeForeground, var(--vscode-textLink-foreground)); }
+.gitcat-md-preview code {
+  font-family: var(--vscode-editor-font-family, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 12px;
+  background: var(--vscode-textBlockQuote-background, rgba(127,127,127,0.12));
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+.gitcat-md-preview pre {
+  margin: 8px 0;
+  padding: 10px 12px;
+  background: var(--vscode-textBlockQuote-background, rgba(127,127,127,0.12));
+  border: 1px solid var(--vscode-panel-border);
+  border-radius: 6px;
+  overflow-x: auto;
+  font-size: 12px;
+  line-height: 1.45;
+}
+.gitcat-md-preview pre code {
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+}
+.gitcat-md-preview blockquote {
+  margin: 8px 0;
+  padding: 4px 10px;
+  border-left: 3px solid var(--vscode-textBlockQuote-border, var(--vscode-focusBorder));
+  background: var(--vscode-textBlockQuote-background, rgba(127,127,127,0.08));
+  color: var(--vscode-descriptionForeground);
+}
+.gitcat-md-preview strong { font-weight: 700; }
+.gitcat-md-preview em { font-style: italic; }
 

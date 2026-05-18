@@ -30,11 +30,11 @@ const VscFile: React.FC<{ color?: string }> = ({ color }) => (
 // ── 파일 상태별 색상 및 레이블 설정 ──────────────────────────────────────────
 
 const STATUS_CONFIG: Record<string, { color: string; label: string; short: string }> = {
-  staged: { color: '#4ec9b0', label: 'Staged', short: 'S' },
-  unstaged: { color: '#ce9178', label: 'Unstaged', short: 'M' },
-  untracked: { color: '#9cdcfe', label: 'Untracked', short: 'U' },
-  conflicted: { color: '#f48771', label: 'Conflicted', short: '!' },
-  pushable: { color: '#569cd6', label: 'Pushable', short: 'P' },
+  staged: { color: 'var(--vscode-gitDecoration-addedResourceForeground)', label: 'Staged', short: 'S' },
+  unstaged: { color: 'var(--vscode-gitDecoration-modifiedResourceForeground)', label: 'Unstaged', short: 'M' },
+  untracked: { color: 'var(--vscode-gitDecoration-untrackedResourceForeground)', label: 'Untracked', short: 'U' },
+  conflicted: { color: 'var(--vscode-gitDecoration-conflictingResourceForeground)', label: 'Conflicted', short: '!' },
+  pushable: { color: 'var(--vscode-charts-blue)', label: 'Pushable', short: 'P' },
 };
 
 type NodeStatus = 'untracked' | 'unstaged' | 'staged' | 'conflicted';
@@ -64,11 +64,6 @@ const StatusSummaryPopup: React.FC<StatusSummaryPopupProps> = ({ onClose, trigge
     document.addEventListener('mousedown', handleMouseDown);
     return () => document.removeEventListener('mousedown', handleMouseDown);
   }, [onClose, triggerRef]);
-
-  // 마운트 시 상태 요약 요청
-  useEffect(() => {
-    sendMessage('GET_GIT_STATUS_SUMMARY', {});
-  }, [sendMessage]);
 
   const stats = statusSummary
     ? [
@@ -314,7 +309,7 @@ const TreeNode: React.FC<{
 // ── 메인 패널 ─────────────────────────────────────────────────────────────────
 
 export const FileTreePanel: React.FC = () => {
-  const { statusSummary, isRefreshingStatus, lastStatusRefreshAt } = useGitCatStore();
+  const { statusSummary, isRefreshingStatus } = useGitCatStore();
   const { sendMessage } = useVsCodeApi();
 
   // 기본 탭: All
@@ -350,10 +345,10 @@ export const FileTreePanel: React.FC = () => {
     loadTree();
   }, [loadTree]);
 
-  // 초기 마운트 및 Git 상태 갱신 시 상태 요약 자동 가져오기
+  // Files 패널 최초 진입 시에만 요약 요청 (Git 갱신마다 보내지 않음 — 익스텐션 로그·부하 감소)
   useEffect(() => {
     sendMessage('GET_GIT_STATUS_SUMMARY', {});
-  }, [sendMessage, lastStatusRefreshAt]);
+  }, [sendMessage]);
 
   // WORKSPACE_TREE 메시지 수신
   useEffect(() => {

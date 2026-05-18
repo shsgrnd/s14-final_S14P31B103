@@ -99,11 +99,16 @@ CREATE TABLE IF NOT EXISTS work_sessions (
 CREATE TABLE IF NOT EXISTS snapshots (
   snapshot_id TEXT PRIMARY KEY,
   session_id TEXT NOT NULL,
-  reason TEXT NOT NULL,
-  is_checkpoint INTEGER NOT NULL DEFAULT 0,
+  type TEXT NOT NULL,
+  previous_snapshot_id TEXT,
+  reason TEXT,
+  summary TEXT,
+  local_path TEXT,
+  safety_warnings_json TEXT,
   label TEXT,
   created_at TEXT NOT NULL,
-  FOREIGN KEY (session_id) REFERENCES work_sessions(session_id)
+  FOREIGN KEY (session_id) REFERENCES work_sessions(session_id),
+  FOREIGN KEY (previous_snapshot_id) REFERENCES snapshots(snapshot_id)
 );
 
 CREATE TABLE IF NOT EXISTS snapshot_files (
@@ -139,9 +144,15 @@ CREATE TABLE IF NOT EXISTS changed_files (
 
 CREATE TABLE IF NOT EXISTS restore_histories (
   restore_history_id TEXT PRIMARY KEY,
+  from_snapshot_id TEXT NOT NULL,
   target_snapshot_id TEXT NOT NULL,
   pre_restore_snapshot_id TEXT,
+  status TEXT NOT NULL DEFAULT 'success',
+  failure_reason TEXT,
+  safety_warnings_before_json TEXT,
+  safety_warnings_after_json TEXT,
   restored_at TEXT NOT NULL,
+  FOREIGN KEY (from_snapshot_id) REFERENCES snapshots(snapshot_id),
   FOREIGN KEY (target_snapshot_id) REFERENCES snapshots(snapshot_id),
   FOREIGN KEY (pre_restore_snapshot_id) REFERENCES snapshots(snapshot_id)
 );
@@ -247,3 +258,21 @@ CREATE INDEX IF NOT EXISTS idx_merge_proposals_candidate_status
   ON merge_proposals(candidate_id, status);
 CREATE INDEX IF NOT EXISTS idx_conflict_candidates_analysis
   ON conflict_candidates(analysis_id);
+
+CREATE INDEX IF NOT EXISTS idx_work_sessions_instance_status_started
+  ON work_sessions(worktree_instance_id, status, started_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_snapshots_session_created
+  ON snapshots(session_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_snapshot_files_snapshot
+  ON snapshot_files(snapshot_id);
+
+CREATE INDEX IF NOT EXISTS idx_change_records_session_created
+  ON change_records(session_id, created_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_changed_files_record
+  ON changed_files(record_id);
+
+CREATE INDEX IF NOT EXISTS idx_restore_histories_target_restored
+  ON restore_histories(target_snapshot_id, restored_at DESC);

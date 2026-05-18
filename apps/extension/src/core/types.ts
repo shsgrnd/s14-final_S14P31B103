@@ -25,7 +25,6 @@ export interface SnapshotMeta {
     snapshotId: string;
     sessionId: string;
     reason: string;
-    isCheckpoint: boolean;
     label: string;
     createdAt: string;
 }

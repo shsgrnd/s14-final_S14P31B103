@@ -5,7 +5,6 @@
 ,SnapshotMeta,files,string[],복사된 파일 경로 목록,필수
 ,SnapshotMeta,branchName,string,생성 시점 활성 브랜치명,필수
 ,SnapshotMeta,label,string?,사용자 지정 이름,선택
-,SnapshotMeta,isCheckpoint,boolean,체크포인트 지정 여부 — 자동 삭제 제외 대상,선택
 ,SnapshotReason,(enum),"ai_work, manual, pre_merge, pre_restore",스냅샷 생성 이유 값 목록,-
 ,SnapshotInputFile,uri,string,파일 URI (절대 경로),필수
 ,SnapshotInputFile,content,string,저장 직전 파일 내용 (document.getText()),필수
@@ -87,3 +86,4 @@ GIT,GitStatus,current,string,현재 체크아웃 브랜치명,필수
 ,LogEntry,date,string,커밋 날짜 (ISO 8601),필수
 ,LogEntry,message,string,커밋 메시지 첫 줄,필수
 공통 유틸리티,ErrorCode,(enum),"AI_RESPONSE_FAILED, BRANCH_DELETE_FAILED, GIT_OPERATION_FAILED, RESTORE_FAILED, SCHEMA_VALIDATION_FAILED, SNAPSHOT_WRITE_FAILED, UNKNOWN",오류 코드 표준 enum — I-02-ERROR 메시지의 code 필드에 사용,-
+

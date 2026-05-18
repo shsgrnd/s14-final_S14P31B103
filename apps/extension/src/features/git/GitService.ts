@@ -414,6 +414,14 @@ export class GitService {
     return { success: true, message: '병합이 취소되었습니다.' };
   }
 
+  async checkoutMergeOurs(filePaths: string[]): Promise<void> {
+    await this.gitClient.checkoutMergeOurs(filePaths);
+  }
+
+  async readIndexStage(filePath: string, stage: 2 | 3): Promise<string> {
+    return this.gitClient.readIndexStage(filePath, stage);
+  }
+
   // ─── AI 추천 입력 수집 (2단계 준비용) ────────────────────────────────────
 
   /**
@@ -429,6 +437,17 @@ export class GitService {
    */
   async getDiff(base: string, branch: string) {
     return this.gitClient.getDiff(base, branch);
+  }
+
+  /**
+   * 원격에 push되지 않은 파일 목록을 반환한다.
+   *
+   * 내부적으로 `git rev-list @{u}..HEAD --name-status`를 사용하므로,
+   * status.ahead(tracking 설정 여부에 따라 0이 될 수 있음)보다 신뢰할 수 있다.
+   * tracking 브랜치가 없는 경우 GitError를 throw하므로 호출부에서 catch 처리가 필요하다.
+   */
+  async getUnpushedFiles() {
+    return this.gitClient.getUnpushedFiles();
   }
 
   /**

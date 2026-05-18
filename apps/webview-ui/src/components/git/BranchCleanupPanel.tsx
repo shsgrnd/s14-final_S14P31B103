@@ -1,9 +1,11 @@
-import React, { useRef, useState, useCallback } from 'react';
-import { Trash2, Clock, Sparkles, GitBranch, AlertTriangle, Settings, ArrowLeft, Plus, X, ShieldCheck, Lock, Sliders, ChevronRight } from 'lucide-react';
+import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { Trash2, Clock, GitBranch, AlertTriangle, Settings, ArrowLeft, Plus, X, ShieldCheck, Lock, Sliders, ChevronRight, Save, Check } from 'lucide-react';
 import { useGitCatStore } from '../../store/useGitCatStore';
 import { useVsCodeApi } from '../../hooks/useVsCodeApi';
 import { BranchCleanupSettings, BranchCleanupCandidate } from '@gitcat/shared-types';
 import { SectionNotificationBanner } from '../common/SectionNotificationBanner';
+import { useSidebarSectionNotificationMode } from '../../app/SidebarSectionNotificationContext';
+import { vscodeSidebarViewTitleForeground, webviewBodyForeground, webviewDescriptionForeground } from '../../shared/styles';
 
 type BranchStatus = 'active' | 'merged' | 'stale' | 'protected';
 
@@ -40,6 +42,23 @@ const DEFAULT_CLEANUP_SETTINGS: BranchCleanupSettings = {
   protectedBranches: ['main', 'master'],
 };
 
+/**
+ * 두 BranchCleanupSettings 가 동일한지 비교 (draft vs cleanupSettings 의 dirty 판정용).
+ * protectedBranches 는 순서까지 동일해야 같다고 본다 — 추가/삭제는 항상 끝에 append 또는 filter 만 사용하므로 안전.
+ */
+function settingsEqual(a: BranchCleanupSettings, b: BranchCleanupSettings): boolean {
+  if (a.enabled !== b.enabled) return false;
+  if (a.olderThanValue !== b.olderThanValue) return false;
+  if (a.olderThanUnit !== b.olderThanUnit) return false;
+  if (a.deleteMergedBranches !== b.deleteMergedBranches) return false;
+  if (a.deleteGoneRemoteBranches !== b.deleteGoneRemoteBranches) return false;
+  if (a.protectedBranches.length !== b.protectedBranches.length) return false;
+  for (let i = 0; i < a.protectedBranches.length; i++) {
+    if (a.protectedBranches[i] !== b.protectedBranches[i]) return false;
+  }
+  return true;
+}
+
 export const BranchCleanupPanel: React.FC = () => {
   const {
     branches: allBranches,
@@ -49,19 +68,35 @@ export const BranchCleanupPanel: React.FC = () => {
     cleanupExecuteResult,
     sectionNotifications,
     clearSectionNotification,
+    setBranchCleanupInSettingsMode,
   } = useGitCatStore();
   const { sendMessage } = useVsCodeApi();
   const dismissCleanupNotification = useCallback(() => clearSectionNotification('branchCleanup'), [clearSectionNotification]);
+  const { showSectionBannersInline } = useSidebarSectionNotificationMode();
 
   const isGitConnected = currentBranch !== '';
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [warningMsg, setWarningMsg] = useState<string | null>(null);
   const [isSettingMode, setIsSettingMode] = useState(false);
+  const showCleanupSectionBanner = showSectionBannersInline || isSettingMode;
+
   const [newProtectedBranch, setNewProtectedBranch] = useState('');
   const [showConfirmModal, setShowConfirmModal] = useState(false); // 삭제 확인 모달 상태
-  const saveDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /**
+   * 자동 정리 구성 화면의 임시(draft) 상태.
+   * - 외부 cleanupSettings 와 분리되어, 사용자가 [저장] 버튼을 누를 때만 백엔드로 반영된다.
+   * - 설정 모드 진입/외부 cleanupSettings 갱신 시 동기화한다.
+   */
+  const [draftSettings, setDraftSettings] = useState<BranchCleanupSettings | null>(null);
+  const [justSaved, setJustSaved] = useState(false);
+  const justSavedTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // “추천 자동 선택”은 최초 1회만(사용자 조작 후에는 절대 강제 선택하지 않음)
   const autoSelectArmedRef = useRef(true);
+
+  useEffect(() => {
+    setBranchCleanupInSettingsMode(isSettingMode);
+    return () => setBranchCleanupInSettingsMode(false);
+  }, [isSettingMode, setBranchCleanupInSettingsMode]);
 
   const normalizedCurrentBranch = normalizeBranchName(currentBranch);
 
@@ -119,11 +154,34 @@ export const BranchCleanupPanel: React.FC = () => {
     });
   }, [effectiveBranches, deletableBranches]);
 
-  React.useEffect(() => {
-    return () => {
-      if (saveDebounceRef.current) {
-        clearTimeout(saveDebounceRef.current);
+  // 설정 모드 진입 시 외부 cleanupSettings 를 draft 로 복사 (이후엔 저장 전까지 분리 유지)
+  useEffect(() => {
+    if (isSettingMode && cleanupSettings && !draftSettings) {
+      setDraftSettings(cleanupSettings);
+    }
+    if (!isSettingMode) {
+      setDraftSettings(null);
+      setJustSaved(false);
+      if (justSavedTimerRef.current) {
+        clearTimeout(justSavedTimerRef.current);
+        justSavedTimerRef.current = null;
       }
+    }
+  }, [isSettingMode, cleanupSettings, draftSettings]);
+
+  // 외부 cleanupSettings 가 저장 echo 로 갱신되면, draft 가 clean 한 경우에만 동기화
+  useEffect(() => {
+    if (!isSettingMode || !cleanupSettings) return;
+    setDraftSettings((current) => {
+      if (!current) return cleanupSettings;
+      const isClean = settingsEqual(current, cleanupSettings);
+      return isClean ? cleanupSettings : current;
+    });
+  }, [cleanupSettings, isSettingMode]);
+
+  useEffect(() => {
+    return () => {
+      if (justSavedTimerRef.current) clearTimeout(justSavedTimerRef.current);
     };
   }, []);
 
@@ -202,101 +260,137 @@ export const BranchCleanupPanel: React.FC = () => {
     setShowConfirmModal(false);
   };
 
-  // 설정 저장 핸들러
-  const handleSaveSettings = (newSettings: Partial<BranchCleanupSettings>) => {
-    if (!cleanupSettings) {
+  /**
+   * draftSettings 를 부분 업데이트만 한다. 백엔드로는 전송되지 않으며,
+   * 사용자가 명시적으로 [저장] 버튼을 눌렀을 때 commitDraftSettings 로 전송된다.
+   */
+  const updateDraft = (newSettings: Partial<BranchCleanupSettings>) => {
+    setDraftSettings((prev) => {
+      const base = prev ?? cleanupSettings;
+      if (!base) return prev;
+      return { ...base, ...newSettings };
+    });
+  };
+
+  /**
+   * [저장] 버튼 클릭. draftSettings 를 SAVE_BRANCH_CLEANUP_SETTINGS 로 전송.
+   * - 저장 후 잠시 동안 버튼에 "저장됨" 피드백을 표시한다(2초).
+   */
+  const commitDraftSettings = () => {
+    if (!draftSettings) {
       showWarning('설정을 아직 불러오는 중입니다. 잠시 후 다시 시도해주세요.');
       return;
     }
-    const mergedSettings: BranchCleanupSettings = { ...cleanupSettings, ...newSettings };
-    if (saveDebounceRef.current) clearTimeout(saveDebounceRef.current);
-    saveDebounceRef.current = setTimeout(() => {
-      sendMessage('SAVE_BRANCH_CLEANUP_SETTINGS', { settings: mergedSettings });
-    }, 350);
+    sendMessage('SAVE_BRANCH_CLEANUP_SETTINGS', { settings: draftSettings });
+    setJustSaved(true);
+    if (justSavedTimerRef.current) clearTimeout(justSavedTimerRef.current);
+    justSavedTimerRef.current = setTimeout(() => setJustSaved(false), 2000);
   };
 
-  // 보호 브랜치 추가
+  // 보호 브랜치 추가 (draft 에만 반영, 저장은 별도 버튼)
   const addProtectedBranch = () => {
-    if (!newProtectedBranch.trim() || !cleanupSettings) return;
-    if (cleanupSettings.protectedBranches.includes(newProtectedBranch.trim())) {
+    if (!newProtectedBranch.trim() || !draftSettings) return;
+    if (draftSettings.protectedBranches.includes(newProtectedBranch.trim())) {
       showWarning('이미 보호 목록에 있는 브랜치입니다.');
       return;
     }
-    const updated = [...cleanupSettings.protectedBranches, newProtectedBranch.trim()];
-    handleSaveSettings({ protectedBranches: updated });
+    const updated = [...draftSettings.protectedBranches, newProtectedBranch.trim()];
+    updateDraft({ protectedBranches: updated });
     setNewProtectedBranch('');
   };
 
-  // 보호 브랜치 삭제 (master, main 제외)
+  // 보호 브랜치 삭제 (master, main 제외; draft 에만 반영)
   const removeProtectedBranch = (name: string) => {
-    if (!cleanupSettings || ['master', 'main'].includes(name)) return;
-    const updated = cleanupSettings.protectedBranches.filter(b => b !== name);
-    handleSaveSettings({ protectedBranches: updated });
+    if (!draftSettings || ['master', 'main'].includes(name)) return;
+    const updated = draftSettings.protectedBranches.filter(b => b !== name);
+    updateDraft({ protectedBranches: updated });
   };
+
+  const isDirty = Boolean(draftSettings && cleanupSettings && !settingsEqual(draftSettings, cleanupSettings));
 
 
 
   return (
-    <div className="animate-fade-in" style={{ padding: '0 0 12px 0', height: '100%', display: 'flex', flexDirection: 'column' }}>
-      {/* ── Fixed Header ── */}
+    <div className="animate-fade-in" style={{ padding: '0 0 12px 0', height: '100%', display: 'flex', flexDirection: 'column', color: webviewBodyForeground }}>
+      {/*
+        내부 헤더는 외곽 SectionHeader("Branch Cleanup")와 톤을 맞춘 슬림 툴바.
+        - List 모드: 좌측에 GitBranch 아이콘 + 라벨, 우측에 설정 아이콘
+        - Setting 모드: 좌측에 BackArrow + 라벨(자동 정리 구성)
+        - 폰트: 11px/700 uppercase letterSpacing 0.04em — 다른 패널의 서브 라벨 톤과 동일
+      */}
       <div style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-        padding: '12px 16px',
-        background: isSettingMode ? 'var(--vscode-editor-background)' : 'transparent',
+        padding: '6px 10px',
+        background: 'transparent',
         borderBottom: '1px solid var(--vscode-panel-border)',
-        zIndex: 10
+        flexShrink: 0,
+        zIndex: 10,
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', minWidth: 0, flex: 1 }}>
           {isSettingMode ? (
             <button
               onClick={() => setIsSettingMode(false)}
-              className="hover-bg"
+              className="gitcat-icon-press"
               style={{
                 background: 'none', border: 'none', cursor: 'pointer',
-                width: '24px', height: '24px', borderRadius: '4px',
+                width: '26px', height: '26px', borderRadius: '4px',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: 'var(--vscode-foreground)', transition: 'all 0.2s'
+                color: vscodeSidebarViewTitleForeground,
+                flexShrink: 0,
               }}
+              aria-label="브랜치 정리 목록으로 돌아가기"
+              title="돌아가기"
             >
-              <ArrowLeft size={18} />
+              <ArrowLeft size={16} />
             </button>
           ) : (
-            <div style={{ width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(78, 201, 176, 0.1)', borderRadius: '6px', color: '#4ec9b0' }}>
-              <GitBranch size={16} />
-            </div>
+            <GitBranch size={14} style={{ color: vscodeSidebarViewTitleForeground, opacity: 0.88, flexShrink: 0 }} />
           )}
-          <span style={{ fontSize: '13px', fontWeight: 600, letterSpacing: '-0.01em', color: 'var(--vscode-foreground)' }}>
+          <span style={{
+            fontSize: '11px',
+            fontWeight: 700,
+            letterSpacing: '0.04em',
+            textTransform: 'uppercase',
+            color: vscodeSidebarViewTitleForeground,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+            minWidth: 0,
+          }}>
             {isSettingMode ? '자동 정리 구성' : '브랜치 정리'}
           </span>
         </div>
         {!isSettingMode && (
           <button
             onClick={() => setIsSettingMode(true)}
-            className="hover-bg"
+            className="gitcat-icon-press"
             style={{
               background: 'none', border: 'none', cursor: 'pointer',
-              width: '28px', height: '28px', borderRadius: '4px',
+              width: '26px', height: '26px', borderRadius: '4px',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: 'var(--vscode-descriptionForeground)', transition: 'all 0.2s'
+              color: vscodeSidebarViewTitleForeground,
+              opacity: 0.9,
+              flexShrink: 0,
             }}
-            title="환경 설정"
+            title="자동 정리 환경 설정"
+            aria-label="자동 정리 환경 설정"
           >
-            <Settings size={18} />
+            <Settings size={16} />
           </button>
         )}
       </div>
 
       <div style={{ flex: 1, overflowY: 'auto', padding: '12px 0' }}>
-        <SectionNotificationBanner
-          notification={sectionNotifications.branchCleanup}
-          onDismiss={dismissCleanupNotification}
-        />
+        {showCleanupSectionBanner && (
+          <SectionNotificationBanner
+            notification={sectionNotifications.branchCleanup}
+            onDismiss={dismissCleanupNotification}
+          />
+        )}
         {!isGitConnected ? (
           <div style={{ padding: '40px 20px', textAlign: 'center' }}>
-            <div style={{ marginBottom: '12px', color: 'var(--vscode-descriptionForeground)', opacity: 0.5 }}>
+            <div style={{ marginBottom: '12px', color: webviewDescriptionForeground, opacity: 0.55 }}>
               <ShieldCheck size={32} strokeWidth={1} style={{ margin: '0 auto' }} />
             </div>
-            <div style={{ fontSize: '12px', color: 'var(--vscode-descriptionForeground)', lineHeight: '1.6' }}>
+            <div style={{ fontSize: '12px', color: webviewBodyForeground, opacity: 0.92, lineHeight: '1.6' }}>
               Git 저장소 정보가 없습니다.<br/>워크스페이스를 확인해주세요.
             </div>
           </div>
@@ -304,11 +398,12 @@ export const BranchCleanupPanel: React.FC = () => {
           <>
             {isSettingMode ? (
               <div style={{ padding: '4px 16px', display: 'flex', flexDirection: 'column', gap: '14px' }}>
-                {!cleanupSettings ? (
+                {!draftSettings ? (
                   <div style={{
                     padding: '18px 12px',
                     fontSize: '12px',
-                    color: 'var(--vscode-descriptionForeground)',
+                    color: webviewBodyForeground,
+                    opacity: 0.92,
                     border: '1px solid var(--vscode-panel-border)',
                     borderRadius: '6px',
                     textAlign: 'center',
@@ -323,7 +418,7 @@ export const BranchCleanupPanel: React.FC = () => {
                           borderRadius: '4px',
                           border: '1px solid var(--vscode-panel-border)',
                           background: 'var(--vscode-input-background)',
-                          color: 'var(--vscode-foreground)',
+                          color: 'var(--vscode-input-foreground)',
                           cursor: 'pointer',
                         }}
                       >
@@ -334,78 +429,132 @@ export const BranchCleanupPanel: React.FC = () => {
                 ) : (
                   <>
                     <section style={{ border: '1px solid var(--vscode-panel-border)', borderRadius: '6px', overflow: 'hidden' }}>
-                      <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--vscode-panel-border)', background: 'var(--vscode-sideBarSectionHeader-background)' }}>
+                      <div style={{
+                        padding: '6px 10px',
+                        borderBottom: '1px solid var(--vscode-panel-border)',
+                        background: 'var(--vscode-sideBarSectionHeader-background)',
+                      }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <Sliders size={13} style={{ color: 'var(--vscode-descriptionForeground)' }} />
-                          <span style={{ fontSize: '12px', fontWeight: 600 }}>정리 기준</span>
+                          <Sliders size={12} style={{ color: vscodeSidebarViewTitleForeground, opacity: 0.9 }} />
+                          <span style={{
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            letterSpacing: '0.04em',
+                            textTransform: 'uppercase',
+                            color: vscodeSidebarViewTitleForeground,
+                          }}>정리 기준</span>
                         </div>
                       </div>
 
                       <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', cursor: 'pointer' }}>
+                        <label style={{
+                          display: 'flex', alignItems: 'center', gap: '8px',
+                          fontSize: '12px', cursor: 'pointer', minWidth: 0,
+                          color: webviewBodyForeground,
+                        }}>
                           <input
                             type="checkbox"
-                            checked={cleanupSettings.enabled}
-                            onChange={(e) => handleSaveSettings({ enabled: e.target.checked })}
+                            checked={draftSettings.enabled}
+                            onChange={(e) => updateDraft({ enabled: e.target.checked })}
+                            style={{ flexShrink: 0 }}
                           />
-                          자동 정리 기능 사용
+                          <span style={{
+                            flex: 1, minWidth: 0,
+                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                            color: webviewBodyForeground,
+                          }}>
+                            자동 정리 기능 사용
+                          </span>
                         </label>
 
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span style={{ fontSize: '12px', minWidth: '70px', color: 'var(--vscode-descriptionForeground)' }}>미활동 기준</span>
-                          <input
-                            type="number"
-                            min="1"
-                            value={cleanupSettings.olderThanValue}
-                            onChange={(e) => handleSaveSettings({ olderThanValue: parseInt(e.target.value, 10) || 1 })}
-                            style={{
-                              width: '56px', padding: '6px', fontSize: '12px', textAlign: 'center',
-                              background: 'var(--vscode-input-background)', color: 'var(--vscode-input-foreground)',
-                              border: '1px solid var(--vscode-panel-border)', borderRadius: '4px', outline: 'none'
-                            }}
-                          />
-                          <div style={{ flex: 1, position: 'relative' }}>
-                            <select
-                              value={cleanupSettings.olderThanUnit}
-                              onChange={(e) => handleSaveSettings({ olderThanUnit: e.target.value as BranchCleanupSettings['olderThanUnit'] })}
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', minWidth: 0 }}>
+                          <span style={{
+                            fontSize: '12px',
+                            color: webviewBodyForeground,
+                            opacity: 0.88,
+                            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                          }} title="미활동 기준">미활동 기준</span>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', minWidth: 0 }}>
+                            <input
+                              type="number"
+                              min="1"
+                              value={draftSettings.olderThanValue}
+                              onChange={(e) => updateDraft({ olderThanValue: parseInt(e.target.value, 10) || 1 })}
                               style={{
-                                width: '100%', padding: '6px 26px 6px 8px', fontSize: '12px',
+                                width: '64px', padding: '6px', fontSize: '12px', textAlign: 'center',
                                 background: 'var(--vscode-input-background)', color: 'var(--vscode-input-foreground)',
                                 border: '1px solid var(--vscode-panel-border)', borderRadius: '4px', outline: 'none',
-                                appearance: 'none', cursor: 'pointer'
+                                flexShrink: 0,
                               }}
-                            >
-                              <option value="week">주</option>
-                              <option value="month">개월</option>
-                            </select>
-                            <div style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', opacity: 0.6 }}>
-                              <ChevronRight size={12} style={{ transform: 'rotate(90deg)' }} />
+                            />
+                            <div style={{ flex: 1, minWidth: 0, position: 'relative' }}>
+                              <select
+                                value={draftSettings.olderThanUnit}
+                                onChange={(e) => updateDraft({ olderThanUnit: e.target.value as BranchCleanupSettings['olderThanUnit'] })}
+                                style={{
+                                  width: '100%', padding: '6px 26px 6px 8px', fontSize: '12px',
+                                  background: 'var(--vscode-dropdown-background, var(--vscode-input-background))',
+                                  color: 'var(--vscode-dropdown-foreground, var(--vscode-input-foreground))',
+                                  border: '1px solid var(--vscode-panel-border)', borderRadius: '4px', outline: 'none',
+                                  appearance: 'none', cursor: 'pointer'
+                                }}
+                              >
+                                <option value="week">주</option>
+                                <option value="month">개월</option>
+                              </select>
+                              <div style={{ position: 'absolute', right: '10px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', opacity: 0.65, color: 'var(--vscode-dropdown-foreground, var(--vscode-input-foreground))' }}>
+                                <ChevronRight size={12} style={{ transform: 'rotate(90deg)' }} />
+                              </div>
                             </div>
                           </div>
                         </div>
 
-                        <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '12px', cursor: 'pointer' }}>
+                        <label style={{
+                          display: 'flex', alignItems: 'center', gap: '8px',
+                          fontSize: '12px', cursor: 'pointer', minWidth: 0,
+                          color: webviewBodyForeground,
+                        }}>
                           <input
                             type="checkbox"
-                            checked={cleanupSettings.deleteMergedBranches}
-                            onChange={(e) => handleSaveSettings({ deleteMergedBranches: e.target.checked })}
+                            checked={draftSettings.deleteMergedBranches}
+                            onChange={(e) => updateDraft({ deleteMergedBranches: e.target.checked })}
+                            style={{ flexShrink: 0 }}
                           />
-                          병합된 브랜치만 정리 대상에 포함
+                          <span
+                            style={{
+                              flex: 1, minWidth: 0,
+                              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                              color: webviewBodyForeground,
+                            }}
+                            title="병합된 브랜치만 정리 대상에 포함"
+                          >
+                            병합된 브랜치만 정리 대상에 포함
+                          </span>
                         </label>
                       </div>
                     </section>
 
                     <section style={{ border: '1px solid var(--vscode-panel-border)', borderRadius: '6px', overflow: 'hidden' }}>
-                      <div style={{ padding: '10px 12px', borderBottom: '1px solid var(--vscode-panel-border)', background: 'var(--vscode-sideBarSectionHeader-background)' }}>
+                      <div style={{
+                        padding: '6px 10px',
+                        borderBottom: '1px solid var(--vscode-panel-border)',
+                        background: 'var(--vscode-sideBarSectionHeader-background)',
+                      }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <ShieldCheck size={13} style={{ color: 'var(--vscode-descriptionForeground)' }} />
-                          <span style={{ fontSize: '12px', fontWeight: 600 }}>보호 브랜치</span>
+                          <ShieldCheck size={12} style={{ color: vscodeSidebarViewTitleForeground, opacity: 0.9 }} />
+                          <span style={{
+                            fontSize: '11px',
+                            fontWeight: 700,
+                            letterSpacing: '0.04em',
+                            textTransform: 'uppercase',
+                            color: vscodeSidebarViewTitleForeground,
+                          }}>보호 브랜치</span>
                         </div>
                       </div>
 
                       <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                          {cleanupSettings.protectedBranches.map(name => {
+                          {draftSettings.protectedBranches.map(name => {
                             const isSystem = ['master', 'main'].includes(name);
                             return (
                               <div
@@ -416,18 +565,27 @@ export const BranchCleanupPanel: React.FC = () => {
                                   border: '1px solid var(--vscode-panel-border)',
                                   background: 'var(--vscode-editor-background)',
                                   fontSize: '11px',
-                                  color: isSystem ? 'var(--vscode-descriptionForeground)' : 'var(--vscode-foreground)',
+                                  maxWidth: '100%', minWidth: 0,
+                                  color: 'var(--vscode-editor-foreground)',
+                                  opacity: isSystem ? 0.76 : 1,
                                 }}
+                                title={name}
                               >
-                                {isSystem ? <Lock size={10} /> : <ShieldCheck size={10} />}
-                                {name}
+                                {isSystem ? <Lock size={10} style={{ flexShrink: 0 }} /> : <ShieldCheck size={10} style={{ flexShrink: 0 }} />}
+                                <span style={{
+                                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                                  maxWidth: '120px',
+                                }}>
+                                  {name}
+                                </span>
                                 {!isSystem && (
                                   <button
                                     onClick={() => removeProtectedBranch(name)}
                                     aria-label={`${name} 보호 해제`}
                                     style={{
                                       background: 'none', border: 'none', padding: 0, cursor: 'pointer',
-                                      display: 'flex', color: 'var(--vscode-descriptionForeground)'
+                                      display: 'flex', color: 'var(--vscode-editor-foreground)', opacity: 0.85,
+                                      flexShrink: 0,
                                     }}
                                   >
                                     <X size={12} />
@@ -445,18 +603,20 @@ export const BranchCleanupPanel: React.FC = () => {
                             onChange={(e) => setNewProtectedBranch(e.target.value)}
                             onKeyDown={(e) => e.key === 'Enter' && addProtectedBranch()}
                             style={{
-                              flex: 1, padding: '7px 8px', fontSize: '12px',
+                              flex: 1, minWidth: 0, padding: '7px 8px', fontSize: '12px',
                               background: 'var(--vscode-input-background)', color: 'var(--vscode-input-foreground)',
                               border: '1px solid var(--vscode-panel-border)', borderRadius: '4px', outline: 'none'
                             }}
                           />
                           <button
                             onClick={addProtectedBranch}
+                            className="gitcat-icon-press"
                             style={{
                               minWidth: '32px', padding: '0 10px',
                               background: 'var(--vscode-button-background)', color: 'var(--vscode-button-foreground)',
                               border: 'none', borderRadius: '4px', cursor: 'pointer',
-                              display: 'flex', alignItems: 'center', justifyContent: 'center'
+                              display: 'flex', alignItems: 'center', justifyContent: 'center',
+                              flexShrink: 0,
                             }}
                             title="보호 브랜치 추가"
                           >
@@ -466,23 +626,67 @@ export const BranchCleanupPanel: React.FC = () => {
                       </div>
                     </section>
 
-                    <div style={{ fontSize: '11px', color: 'var(--vscode-descriptionForeground)', lineHeight: 1.5 }}>
-                      설정 변경 내용은 자동으로 저장됩니다.
-                    </div>
-                    <div>
+                    {/* ── Save Action Bar ── */}
+                    <div style={{
+                      display: 'flex', alignItems: 'center', gap: '8px',
+                      paddingTop: '4px',
+                    }}>
                       <button
-                        onClick={() => handleSaveSettings(DEFAULT_CLEANUP_SETTINGS)}
+                        onClick={() => updateDraft(DEFAULT_CLEANUP_SETTINGS)}
+                        className="gitcat-icon-press"
                         style={{
                           fontSize: '11px',
-                          padding: '5px 8px',
+                          padding: '6px 10px',
                           borderRadius: '4px',
                           border: '1px solid var(--vscode-panel-border)',
                           background: 'var(--vscode-input-background)',
-                          color: 'var(--vscode-descriptionForeground)',
+                          color: webviewBodyForeground,
+                          opacity: 0.9,
                           cursor: 'pointer',
+                          flexShrink: 0,
+                          whiteSpace: 'nowrap',
                         }}
+                        title="모든 설정을 기본값으로 되돌립니다 (저장 버튼을 눌러야 반영)"
                       >
                         기본값으로 복원
+                      </button>
+                      <button
+                        onClick={commitDraftSettings}
+                        disabled={!isDirty && !justSaved}
+                        className="gitcat-icon-press"
+                        style={{
+                          flex: 1,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px',
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          padding: '7px 10px',
+                          borderRadius: '4px',
+                          border: 'none',
+                          background: justSaved
+                            ? 'rgba(78, 201, 176, 0.2)'
+                            : isDirty
+                              ? 'var(--vscode-button-background)'
+                              : 'var(--vscode-button-secondaryBackground)',
+                          color: justSaved
+                            ? '#4ec9b0'
+                            : isDirty
+                              ? 'var(--vscode-button-foreground)'
+                              : 'var(--vscode-button-secondaryForeground)',
+                          cursor: (!isDirty && !justSaved) ? 'default' : 'pointer',
+                          opacity: (!isDirty && !justSaved) ? 0.55 : 1,
+                          whiteSpace: 'nowrap',
+                        }}
+                        title={
+                          justSaved
+                            ? '저장되었습니다'
+                            : isDirty
+                              ? '변경된 설정을 저장합니다'
+                              : '변경된 내용이 없습니다'
+                        }
+                        aria-label="자동 정리 설정 저장"
+                      >
+                        {justSaved ? <Check size={14} /> : <Save size={14} />}
+                        {justSaved ? '저장됨' : isDirty ? '변경사항 저장' : '저장'}
                       </button>
                     </div>
                   </>
@@ -493,23 +697,30 @@ export const BranchCleanupPanel: React.FC = () => {
                 {/* ── Select All Row ── */}
                 <div
                   style={{
-                    display: 'flex', alignItems: 'center', gap: '12px',
-                    padding: '8px 16px', cursor: manualSelectableBranches.length > 0 ? 'pointer' : 'not-allowed',
+                    display: 'flex', alignItems: 'center', gap: '10px',
+                    padding: '6px 12px', cursor: manualSelectableBranches.length > 0 ? 'pointer' : 'not-allowed',
                     opacity: manualSelectableBranches.length > 0 ? 1 : 0.6,
-                    marginBottom: '4px'
+                    marginBottom: '2px',
                   }}
                   onClick={toggleAll}
                 >
                   <div style={{
-                    width: '16px', height: '16px', borderRadius: '4px', border: '1.5px solid var(--vscode-panel-border)',
+                    width: '14px', height: '14px', borderRadius: '3px', border: '1.5px solid var(--vscode-panel-border)',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                     background: allSelected ? '#4ec9b0' : 'transparent',
                     borderColor: allSelected ? '#4ec9b0' : 'var(--vscode-panel-border)',
-                    transition: 'all 0.2s'
+                    transition: 'all 0.15s',
+                    flexShrink: 0,
                   }}>
-                    {allSelected && <ShieldCheck size={12} color="#fff" />}
+                    {allSelected && <ShieldCheck size={10} color="#fff" />}
                   </div>
-                  <span style={{ fontSize: '12px', color: 'var(--vscode-foreground)', fontWeight: 600 }}>
+                  <span style={{
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    letterSpacing: '0.04em',
+                    textTransform: 'uppercase',
+                    color: vscodeSidebarViewTitleForeground,
+                  }}>
                     선택 가능 브랜치 ({selectedManualCount}/{manualSelectableBranches.length})
                   </span>
                 </div>
@@ -548,10 +759,10 @@ export const BranchCleanupPanel: React.FC = () => {
                         </div>
                         
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: '13px', fontWeight: isChecked ? 600 : 400, color: 'var(--vscode-foreground)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                          <div style={{ fontSize: '13px', fontWeight: isChecked ? 600 : 400, color: vscodeSidebarViewTitleForeground, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {branch.name}
                           </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: 'var(--vscode-descriptionForeground)', marginTop: '3px', opacity: 0.7 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: webviewBodyForeground, marginTop: '3px', opacity: 0.78 }}>
                             <Clock size={10} />
                             {branch.lastActivity}
                           </div>
@@ -646,7 +857,7 @@ export const BranchCleanupPanel: React.FC = () => {
                 <AlertTriangle size={18} />
                 <span style={{ fontWeight: 700, fontSize: '14px' }}>브랜치 삭제 확인</span>
               </div>
-              <p style={{ fontSize: '12px', color: 'var(--vscode-descriptionForeground)', margin: 0 }}>
+              <p style={{ fontSize: '12px', color: webviewBodyForeground, opacity: 0.88, margin: 0 }}>
                 다음 {selected.size}개의 브랜치를 영구적으로 삭제할까요?
               </p>
             </div>
@@ -665,7 +876,7 @@ export const BranchCleanupPanel: React.FC = () => {
                 onClick={() => setShowConfirmModal(false)}
                 style={{
                   flex: 1, padding: '8px', borderRadius: '6px', border: '1px solid var(--vscode-panel-border)',
-                  background: 'transparent', color: 'var(--vscode-foreground)', cursor: 'pointer', fontSize: '12px'
+                  background: 'transparent', color: webviewBodyForeground, cursor: 'pointer', fontSize: '12px'
                 }}
               >
                 취소
@@ -686,8 +897,6 @@ export const BranchCleanupPanel: React.FC = () => {
       )}
 
       <style>{`
-        .hover-bg:hover { background-color: var(--vscode-toolbar-hoverBackground) !important; }
-        .hover-lighten:hover { opacity: 1 !important; background: rgba(255,255,255,0.1) !important; }
         @keyframes modal-pop {
           from { opacity: 0; transform: scale(0.95) translateY(10px); }
           to { opacity: 1; transform: scale(1) translateY(0); }

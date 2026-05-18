@@ -7,15 +7,36 @@
  *    → 성공: PR_CREATED 메시지 전송
  *    → 실패: ERROR 메시지 (errorCode 포함)
  *
- * 2. OPEN_PR_PANEL — PR 패널 진입 시
- *    → 현재 브랜치 정보와 함께 LOADING 없이 단순 응답
- *    → 프론트는 이 응답을 받아 base branch를 결정하고
+ * 2. OPEN_PR_PANEL — PR 패널 진입을 요청할 때
+ *    → validateHeadBranchReady()로 push 상태 검증
+ *    → 검증 실패: ERROR { code: 'GITHUB_BRANCH_NOT_PUSHED', message } 전송 후 패널 미개방
+ *    → 검증 성공: openPullRequestPanel() 호출 후 NOTIFICATION 전송
+ *      프론트는 이 응답을 받아 base branch를 결정하고
  *      곧바로 RECOMMEND_PR 메시지를 전송해 추천 흐름을 시작한다.
+ *
+ * 3. GET_PR_TEMPLATES — PR 템플릿 목록 조회 시
+ *    → PullRequestService.listPullRequestTemplates() 호출
+ *    → 성공: PR_TEMPLATES 메시지 전송
+ *    → 실패: ERROR 메시지 (errorCode 포함)
+ *
+ * 4. GET_PR_FORM_METADATA — PR 패널에서 reviewers/assignees/labels 후보 데이터 요청 시
+ *    → PullRequestService.listPrFormMetadata() 호출
+ *    → 성공: PR_FORM_METADATA 메시지 전송
+ *    → 실패: ERROR 메시지 (errorCode 포함)
  *
  * [주의]
  * - RECOMMEND_PR은 PrRecommendationHandler가 처리한다 (이 핸들러는 관여하지 않음)
  * - textarea에 description을 직접 입력하는 코드는 없음 (Webview 담당)
  * - PR 생성 후 GitHub merge는 구현하지 않음
+ *
+ * [PR 패널 진입 조건 — push 검증 흐름]
+ * 프론트가 OPEN_PR_PANEL 메시지를 보내면:
+ *   1. git fetch --all --prune 으로 원격 최신화
+ *   2. Detached HEAD 여부 → GITHUB_INVALID_BRANCH 에러
+ *   3. 원격 tracking 브랜치 없음 → GITHUB_BRANCH_NOT_PUSHED 에러
+ *   4. 로컬 커밋이 원격보다 앞섬(ahead > 0) → GITHUB_BRANCH_NOT_PUSHED 에러
+ *   5. 모두 통과 → 패널 오픈 + NOTIFICATION 전송
+ * 프론트는 ERROR 응답을 받으면 Git 섹션/전역 알림으로 사용자에게 안내한다.
  */
 
 import * as vscode from 'vscode';
@@ -23,13 +44,32 @@ import type { PullRequestService } from './PullRequestService';
 import { GitHubApiError } from '../../integrations/github/interfaces';
 import type { ErrorCode } from '@gitcat/shared-types';
 import { InboundPayloadSchemaMap } from '@gitcat/shared-types';
+import type { MergeConflictGuardService } from '../merge-analysis/MergeConflictGuardService';
+import type { MessageRouter } from '../../core/MessageRouter';
 
 export class PullRequestMessageHandler {
+  private mergeConflictGuardService: MergeConflictGuardService | null = null;
+  private messageRouter: MessageRouter | null = null;
+  /**
+   * PR 충돌 해결 후 커밋&푸시 완료 시 true로 설정된다.
+   * 다음 CREATE_PR 요청에서 충돌 가드를 건너뛰고 바로 PR을 생성한다.
+   * CREATE_PR 처리 후(성공/실패 무관) 자동으로 false로 초기화된다.
+   */
+  private nextCreatePrSkipGuard = false;
+
   constructor(
     private readonly pullRequestService: PullRequestService,
     private readonly openPullRequestPanel?: () => void,
     private readonly closePullRequestPanel?: () => void,
   ) {}
+
+  public setMessageRouter(router: MessageRouter): void {
+    this.messageRouter = router;
+  }
+
+  public setMergeConflictGuardService(service: MergeConflictGuardService): void {
+    this.mergeConflictGuardService = service;
+  }
 
   /**
    * 수신한 메시지 type을 확인해 처리 가능하면 true를 반환한다.
@@ -39,6 +79,10 @@ export class PullRequestMessageHandler {
     switch (type) {
       case 'GET_PR_TEMPLATES':
         await this.handleGetPRTemplates(payload, webview);
+        return true;
+
+      case 'GET_PR_FORM_METADATA':
+        await this.handleGetPrFormMetadata(payload, webview);
         return true;
 
       case 'CREATE_PR':
@@ -95,12 +139,55 @@ export class PullRequestMessageHandler {
     }
   }
 
+  private async handleGetPrFormMetadata(payload: any, webview: vscode.Webview): Promise<void> {
+    this.sendLoading(webview, 'GET_PR_FORM_METADATA', true);
+
+    try {
+      InboundPayloadSchemaMap.GET_PR_FORM_METADATA.parse(payload ?? {});
+      const meta = await this.pullRequestService.listPrFormMetadata();
+      webview.postMessage({
+        type: 'PR_FORM_METADATA',
+        payload: meta,
+      });
+    } catch (error: any) {
+      if (error instanceof GitHubApiError) {
+        this.sendError(webview, error.errorCode, error.message);
+      } else {
+        this.sendError(
+          webview,
+          'INVALID_PARAMETER',
+          `PR 메타데이터 조회를 처리할 수 없습니다: ${error?.message ?? String(error)}`,
+        );
+      }
+    } finally {
+      this.sendLoading(webview, 'GET_PR_FORM_METADATA', false);
+    }
+  }
+
   private async handleCreatePR(payload: any, webview: vscode.Webview): Promise<void> {
     this.sendLoading(webview, 'CREATE_PR', true);
 
     try {
       // Zod 스키마로 payload 검증 (headBranch, reviewers 등 포함)
       const validated = InboundPayloadSchemaMap.CREATE_PR.parse(payload);
+
+      // skipGuard 판단: 프론트에서 전달한 값 OR extension 측에서 예약된 플래그
+      const shouldSkipGuard = validated.skipGuard === true || this.nextCreatePrSkipGuard;
+      // 사용 후 즉시 초기화 (1회용 플래그)
+      this.nextCreatePrSkipGuard = false;
+
+      if (!shouldSkipGuard) {
+        const blocked = await this.guardCreatePrMergeConflict(
+          validated.headBranch,
+          validated.base,
+          webview,
+        );
+        if (blocked) {
+          return;
+        }
+      } else {
+        console.log('[GitCat] PullRequestMessageHandler: CREATE_PR 충돌 가드 건너뜀 (충돌 해결 후 재시도)');
+      }
 
       const result = await this.pullRequestService.createPullRequest({
         // owner/repo는 PullRequestService가 Git remote에서 자동 추출
@@ -116,7 +203,9 @@ export class PullRequestMessageHandler {
         milestone: validated.milestone,
       });
 
-      // 성공 응답 — 프론트는 이 메시지를 받아 PR 링크를 표시하거나 패널을 닫는다
+      // 성공 응답 — 프론트는 이 메시지를 받아 PR 링크를 표시한다.
+      // 부분 실패(reviewers 등)는 metadataWarnings로 함께 전달해 사용자에게 명시적으로 안내한다.
+      const metadataWarnings = result.metadataWarnings ?? [];
       webview.postMessage({
         type: 'PR_CREATED',
         payload: {
@@ -125,12 +214,15 @@ export class PullRequestMessageHandler {
           title: result.title,
           base: result.base,
           head: result.head,
+          metadataWarnings,
         },
       });
 
       // VS Code 알림으로도 PR URL 표시 (사용자 편의)
       vscode.window.showInformationMessage(
-        `✅ PR이 생성되었습니다: ${result.title}`,
+        metadataWarnings.length > 0
+          ? `PR이 생성되었습니다(일부 메타데이터 설정 실패): ${result.title}`
+          : `PR이 생성되었습니다: ${result.title}`,
         'GitHub에서 보기',
       ).then((selection) => {
         if (selection === 'GitHub에서 보기') {
@@ -138,7 +230,15 @@ export class PullRequestMessageHandler {
         }
       });
 
-      this.closePullRequestPanel?.();
+      // 부분 실패가 있으면 별도 NOTIFICATION 으로도 안내 (인패널 배너로 사용)
+      for (const warning of metadataWarnings) {
+        webview.postMessage({
+          type: 'NOTIFICATION',
+          payload: { type: 'warning', message: warning },
+        });
+      }
+
+      // 패널 자동 종료는 하지 않는다 — 사용자가 PR 링크와 경고를 확인한 뒤 직접 닫도록 함.
     } catch (error: any) {
       // GitHubApiError는 errorCode를 가져 구체적인 원인 전달 가능
       if (error instanceof GitHubApiError) {
@@ -162,21 +262,50 @@ export class PullRequestMessageHandler {
    * PR 패널 진입을 처리한다.
    *
    * [역할]
-   * - 패널이 열릴 때 백엔드가 해줄 수 있는 것은 PR 생성 흐름 초기화뿐이다.
+   * - 패널이 열릴 때 백엔드는 push 상태를 먼저 검증한다.
+   * - push되지 않은 브랜치라면 ERROR를 반환하고 패널을 열지 않는다.
+   * - 검증 통과 시에만 openPullRequestPanel()을 호출해 패널을 연다.
    * - 실제 PR description 추천은 프론트가 base branch를 결정한 뒤
    *   RECOMMEND_PR 메시지를 전송하면 PrRecommendationHandler가 처리한다.
    *
    * [프론트 연결 가이드]
-   * - OPEN_PR_PANEL 응답을 받으면 프론트는:
+   * - ERROR { code: 'GITHUB_BRANCH_NOT_PUSHED' } 응답을 받으면:
+   *   → 패널을 열지 말고, Git 섹션 또는 전역 알림으로 사용자에게 안내한다.
+   * - NOTIFICATION { type: 'info' } 응답을 받으면:
+   *   → 패널이 열린 것을 의미하며, RECOMMEND_PR 요청을 보낼 수 있다.
    *   1. 기본 base branch(예: 'main')가 정해진 경우 → 즉시 RECOMMEND_PR 전송
    *   2. base branch 미선택 → 사용자가 선택한 뒤 RECOMMEND_PR 전송
-   *
-   * 현재 구현: NOTIFICATION으로 패널 열림을 알리는 단순 응답만 전송
    */
-  private async handleOpenPRPanel(_payload: any, webview: vscode.Webview): Promise<void> {
+  private async handleOpenPRPanel(payload: any, webview: vscode.Webview): Promise<void> {
+    // skipGuard=true: 충돌 해결 후 커밋&푸시 완료 → 다음 CREATE_PR에서 가드 건너뜀
+    if (payload?.skipGuard === true) {
+      this.nextCreatePrSkipGuard = true;
+      console.log('[GitCat] PullRequestMessageHandler: OPEN_PR_PANEL skipGuard=true — 다음 CREATE_PR 가드 건너뜀 예약');
+    }
+
+    // ─── 1. push 상태 검증 ────────────────────────────────────────────────────
+    // 원격 브랜치가 없거나 ahead 커밋이 있으면 패널을 열지 않고 ERROR를 반환한다.
+    // 프론트는 code: 'GITHUB_BRANCH_NOT_PUSHED'를 받아 사용자에게 안내한다.
+    console.log('[GitCat] PullRequestMessageHandler: OPEN_PR_PANEL — push 상태 검증 시작');
+    const validation = await this.pullRequestService.validateHeadBranchReady();
+
+    if (!validation.ok) {
+      // push되지 않았거나 브랜치 상태가 올바르지 않으면 패널을 열지 않는다.
+      console.warn(
+        `[GitCat] PullRequestMessageHandler: OPEN_PR_PANEL 차단 — code: ${validation.code}, message: ${validation.message}`,
+      );
+      this.sendError(webview, validation.code, validation.message);
+      return; // 패널 오픈 없이 종료
+    }
+
+    // ─── 2. 검증 통과 시에만 패널을 연다 ─────────────────────────────────────
+    console.log(
+      `[GitCat] PullRequestMessageHandler: OPEN_PR_PANEL 통과 — branch: ${validation.branch}, remote: ${validation.remoteBranch}`,
+    );
     this.openPullRequestPanel?.();
 
-    // PR 패널 진입 확인 — 프론트는 이 응답 이후 RECOMMEND_PR 요청을 보내야 한다
+    // PR 패널 진입 확인 알림 전송
+    // 프론트는 이 NOTIFICATION을 받은 후 RECOMMEND_PR 요청을 보내야 한다.
     webview.postMessage({
       type: 'NOTIFICATION',
       payload: {
@@ -187,6 +316,52 @@ export class PullRequestMessageHandler {
   }
 
   // ─── 공통 Helpers ────────────────────────────────────────────────────────────
+
+  private async guardCreatePrMergeConflict(
+    headBranch: string,
+    baseBranch: string,
+    webview: vscode.Webview,
+  ): Promise<boolean> {
+    if (!this.mergeConflictGuardService) {
+      return false;
+    }
+
+    const result = await this.mergeConflictGuardService.guard({
+      sourceBranch: headBranch,
+      targetBranch: baseBranch,
+    });
+    if (result.skipped) {
+      return false;
+    }
+    if (!result.hasConflicts) {
+      return false;
+    }
+
+    const message = `PR target 브랜치(${result.targetBranch})와 병합 충돌 가능성이 있습니다. 추천 확인 후 다시 PR을 생성해 주세요.`;
+    const conflictPayload = {
+      analysisId: result.analysis.analysisId,
+      artifactPath: result.analysis.artifactPath,
+      candidates: result.analysis.candidates,
+      triggeringAction: 'pr' as const,
+    };
+    if (this.messageRouter) {
+      this.messageRouter.publishConflictResult(conflictPayload);
+      this.messageRouter.broadcast({
+        type: 'NOTIFICATION',
+        payload: { type: 'warning', message },
+      });
+    } else {
+      webview.postMessage({
+        type: 'CONFLICT_RESULT',
+        payload: conflictPayload,
+      });
+      webview.postMessage({
+        type: 'NOTIFICATION',
+        payload: { type: 'warning', message },
+      });
+    }
+    return true;
+  }
 
   private sendLoading(webview: vscode.Webview, target: string, loading: boolean): void {
     webview.postMessage({ type: 'LOADING', payload: { target, loading } });

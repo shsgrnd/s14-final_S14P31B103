@@ -89,7 +89,7 @@ export const CommitEditor: React.FC = () => {
           <div className="flex-1 space-y-4 overflow-y-auto pr-2 custom-scrollbar">
              <div className="space-y-2">
                 <label className="text-[12px] font-bold text-[var(--vscode-descriptionForeground)]">Type</label>
-                <select className="w-full p-2 bg-[var(--vscode-input-background)] border border-[var(--vscode-panel-border)] outline-none rounded">
+                <select className="w-full p-2 bg-[var(--vscode-dropdown-background,var(--vscode-input-background))] text-[var(--vscode-dropdown-foreground,var(--vscode-input-foreground))] border border-[var(--vscode-panel-border)] outline-none rounded">
                   <option>feat</option>
                   <option>fix</option>
                   <option>docs</option>

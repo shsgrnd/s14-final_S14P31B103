@@ -73,6 +73,22 @@ export class SqliteMergeProposalRepository implements MergeProposalRepository {
   }
 
   /**
+   * proposal_id 기준으로 단일 병합 제안을 조회합니다.
+   *
+   * Accept/Reject 피드백 저장 단계에서는 proposal_id가 표준 식별자이므로
+   * 후보 목록 전체를 다시 훑지 않고 이 메서드로 대상 제안을 확인합니다.
+   */
+  async findById(proposalId: string): Promise<MergeProposalRow | null> {
+    const stmt = this.db.prepare(`
+      SELECT *
+      FROM merge_proposals
+      WHERE proposal_id = ?
+      LIMIT 1
+    `);
+    return (stmt.get(proposalId) as MergeProposalRow | undefined) ?? null;
+  }
+
+  /**
    * 특정 병합 제안의 상태(Status)를 업데이트합니다.
    * 
    * @param proposalId 상태를 변경할 제안의 ID
@@ -87,4 +103,3 @@ export class SqliteMergeProposalRepository implements MergeProposalRepository {
     stmt.run(status, proposalId);
   }
 }
-

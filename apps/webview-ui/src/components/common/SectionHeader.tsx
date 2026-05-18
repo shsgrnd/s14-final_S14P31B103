@@ -1,5 +1,6 @@
 import React from 'react';
 import { ChevronDown, ChevronRight } from 'lucide-react';
+import { vscodeSidebarViewTitleForeground } from '../../shared/styles';
 
 export interface SectionHeaderProps {
   label: string;
@@ -20,16 +21,39 @@ export const SectionHeader: React.FC<SectionHeaderProps> = ({ label, expanded, b
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
       padding: '5px 8px', cursor: 'pointer', userSelect: 'none',
       borderBottom: '1px solid var(--vscode-panel-border)',
+      // flex 컨테이너 내에서 헤더가 줄어들지 않도록 고정
+      flexShrink: 0,
     }}
     onMouseOver={e => (e.currentTarget.style.background = 'var(--vscode-list-hoverBackground)')}
     onMouseOut={e => (e.currentTarget.style.background = 'transparent')}
   >
     <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
       {expanded
-        ? <ChevronDown size={14} style={{ color: 'var(--vscode-descriptionForeground)' }} />
-        : <ChevronRight size={14} style={{ color: 'var(--vscode-descriptionForeground)' }} />
-      }
-      <span style={{ fontSize: '11px', fontWeight: 700, color: 'var(--vscode-sideBar-foreground)' }}>
+        ? (
+          <ChevronDown
+            size={14}
+            style={{
+              color: vscodeSidebarViewTitleForeground,
+              opacity: 0.82,
+              flexShrink: 0,
+            }}
+          />
+        )
+        : (
+          <ChevronRight
+            size={14}
+            style={{
+              color: vscodeSidebarViewTitleForeground,
+              opacity: 0.82,
+              flexShrink: 0,
+            }}
+          />
+        )}
+      <span style={{
+        fontSize: '11px',
+        fontWeight: 700,
+        color: vscodeSidebarViewTitleForeground,
+      }}>
         {label}
       </span>
     </div>

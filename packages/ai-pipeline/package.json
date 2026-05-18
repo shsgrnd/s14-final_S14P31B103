@@ -10,15 +10,17 @@
     "test:mock": "ts-node -r tsconfig-paths/register src/run-mock.ts",
     "test:live": "ts-node -r tsconfig-paths/register src/run-live.ts",
     "export:mock": "ts-node -r tsconfig-paths/register src/run-export-mock.ts",
+    "export:pipeline": "ts-node -r tsconfig-paths/register scripts/export-pipeline.ts",
     "eval:baseline": "ts-node -r tsconfig-paths/register src/eval/run-llm-baseline.ts"
   },
   "dependencies": {
     "@gitcat/shared-types": "workspace:*",
+    "@gitcat/storage": "workspace:*",
+    "@xenova/transformers": "^2.17.1",
+    "node-llama-cpp": "^3.18.1",
     "openai": "^4.20.0",
     "simple-git": "^3.22.0",
-    "@gitcat/storage": "workspace:*",
-    "tiktoken": "^1.0.22",
-    "@xenova/transformers": "^2.17.1"
+    "tiktoken": "^1.0.22"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",

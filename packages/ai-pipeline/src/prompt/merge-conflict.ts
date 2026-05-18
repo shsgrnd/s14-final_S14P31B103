@@ -1,32 +1,10 @@
 import { ConflictCandidate, MergeProposalInput } from '@gitcat/shared-types';
+import * as fs from 'fs/promises';
+import * as path from 'path';
 
 /**
  * 병합 계열 feature가 공통으로 참고하는 컨텍스트를 문자열로 정리합니다.
  * LLM이 구조화된 입력을 잃지 않도록 "프로젝트/브랜치/파일/충돌 후보" 순서로 고정합니다.
- */
-function buildSharedMergeContext(payload: MergeProposalInput): string {
-  const conflictCandidates = payload.conflict_candidates
-    .map((candidate, index) => formatConflictCandidate(candidate, index))
-    .join('\n\n');
-
-  return [
-    `Context:`,
-    `- Feature: ${payload.feature_type}`,
-    `- Current: ${payload.current_branch}`,
-    `- Target: ${payload.target_branch}`,
-    `- Workspace: ${payload.workspace_summary ?? 'N/A'}`,
-    `- Risk: ${payload.risk_summary ?? 'N/A'}`,
-    `- Diff: ${payload.working_tree_diff_ref}`,
-    '',
-    'Conflict Candidates:',
-    conflictCandidates,
-  ].join('\n');
-}
-
-/**
- * 충돌 후보 하나를 읽기 쉬운 블록으로 풀어줍니다.
- * source / target / base 코드를 모두 노출해 두면, 어떤 변경이 실제로 충돌하는지
- * 팀원이 프롬프트를 검토할 때도 맥락을 따라가기 쉽습니다.
  */
 function formatConflictCandidate(candidate: ConflictCandidate, index: number): string {
   const location = `${candidate.file_path}:${candidate.line_start}-${candidate.line_end}`;
@@ -69,12 +47,12 @@ export function getConflictExplanationSystemPrompt(): string {
 }
 
 /**
- * merge_patch_draft는 실제 patch/code ref를 포함하는 초안 생성용 기능입니다.
- * 시스템 프롬프트에서 필요한 출력 필드를 고정해 두면 파서와 mock 계약을 유지하기 쉽습니다.
+ * merge_patch_draft는 충돌 블록을 대체할 최종 해결 코드 생성용 기능입니다.
+ * 시스템 프롬프트에서 출력 필드를 고정해 두면 파서와 mock 계약을 안정적으로 유지할 수 있습니다.
  */
 export function getMergePatchDraftSystemPrompt(): string {
   return [
-    'Task: Draft a merge patch to resolve conflicts between branches.',
+    'Task: Draft the final resolved code to replace a merge conflict block.',
     'Rules:',
     '- Preserve intent of both branches.',
     '- Prefer minimal changes; do not rewrite unrelated code.',
@@ -87,7 +65,7 @@ export function getMergePatchDraftSystemPrompt(): string {
       summary: "string",
       explanation: "string (short reasoning)",
       confidence_score: 0.9,
-      diff_patch: "string (unified diff)",
+      merged_code: "string (the final resolved code snippet to replace the conflict block)",
       validation_summary: "string (short)",
       applied_files: ["string"]
     }, null, 2)
@@ -112,12 +90,129 @@ export function getMergeMediationSystemPrompt(): string {
 }
 
 /**
+ * 병합 계열 feature가 공통으로 참고하는 컨텍스트를 문자열로 정리합니다.
+ * LLM이 구조화된 입력을 잃지 않도록 "프로젝트/브랜치/파일/충돌 후보" 순서로 고정합니다.
+ */
+async function buildSharedMergeContext(payload: MergeProposalInput, workspaceRoot?: string): Promise<string> {
+  const conflictCandidates = payload.conflict_candidates
+    .map((candidate, index) => formatConflictCandidate(candidate, index))
+    .join('\n\n');
+
+  let diffContent = payload.working_tree_diff_ref;
+  if (workspaceRoot && payload.working_tree_diff_ref) {
+    try {
+      const fullPath = path.resolve(workspaceRoot, payload.working_tree_diff_ref);
+      const fileContent = await fs.readFile(fullPath, 'utf8');
+      diffContent = `\n${fileContent}`;
+    } catch {
+      // Fallback: keep the ref string if file cannot be read
+    }
+  }
+
+  const runtimeContext = await readRuntimeContextBundle(payload.context_bundle_ref, workspaceRoot);
+
+  return [
+    `Context:`,
+    `- Feature: ${payload.feature_type}`,
+    `- Current: ${payload.current_branch}`,
+    `- Target: ${payload.target_branch}`,
+    `- Workspace: ${payload.workspace_summary ?? 'N/A'}`,
+    `- Risk: ${payload.risk_summary ?? 'N/A'}`,
+    `- Diff: ${diffContent}`,
+    '',
+    'Conflict Candidates:',
+    conflictCandidates,
+    '',
+    'Retrieved Runtime Context:',
+    runtimeContext,
+  ].join('\n');
+}
+
+async function readRuntimeContextBundle(
+  contextBundleRef: string | undefined,
+  workspaceRoot?: string,
+): Promise<string> {
+  if (!contextBundleRef) {
+    return 'N/A';
+  }
+
+  if (!workspaceRoot) {
+    return `ref=${contextBundleRef}`;
+  }
+
+  const normalizedRef = contextBundleRef.replace(/\\/g, '/');
+  if (path.isAbsolute(normalizedRef)) {
+    return `ref=${contextBundleRef}`;
+  }
+
+  const root = path.resolve(workspaceRoot);
+  const absolutePath = path.resolve(root, normalizedRef);
+  const isInsideWorkspace = absolutePath === root || absolutePath.startsWith(`${root}${path.sep}`);
+  if (!isInsideWorkspace) {
+    return `ref=${contextBundleRef}`;
+  }
+
+  try {
+    const fileContent = await fs.readFile(absolutePath, 'utf8');
+    const parsed = JSON.parse(fileContent) as {
+      ai_context_summary?: string;
+      budget?: { used_chars?: number; max_chars?: number; truncated?: boolean };
+      items?: Array<{
+        source_type?: string;
+        title?: string;
+        file_path?: string;
+        score?: number;
+        content?: string;
+      }>;
+      results?: Array<{
+        source_kind?: string;
+        source_type?: string;
+        title?: string;
+        file_path?: string;
+        score?: number;
+        recency_score?: number;
+        file_match_score?: number;
+        content?: string;
+        summary?: string;
+      }>;
+    };
+    const items = parsed.results ?? parsed.items ?? [];
+    if (items.length === 0) {
+      return 'No local history matches found.';
+    }
+
+    const header = [
+      `context_bundle_ref=${contextBundleRef}`,
+      `budget=${parsed.budget?.used_chars ?? 0}/${parsed.budget?.max_chars ?? 'N/A'} chars`,
+      `truncated=${parsed.budget?.truncated ? 'true' : 'false'}`,
+      parsed.ai_context_summary ? `summary:\n${parsed.ai_context_summary}` : undefined,
+    ].filter(Boolean).join('\n');
+    const formattedItems = items.map((item, index) => [
+      `Item ${index + 1}:`,
+      `- source_kind: ${'source_kind' in item ? item.source_kind ?? 'N/A' : 'N/A'}`,
+      `- source_type: ${item.source_type ?? 'unknown'}`,
+      `- title: ${item.title ?? 'N/A'}`,
+      `- file_path: ${item.file_path ?? 'N/A'}`,
+      `- score: ${item.score ?? 0}`,
+      `- recency_score: ${'recency_score' in item ? item.recency_score ?? 0 : 0}`,
+      `- file_match_score: ${'file_match_score' in item ? item.file_match_score ?? 0 : 0}`,
+      `- content:`,
+      item.content ?? ('summary' in item ? item.summary ?? '' : ''),
+    ].join('\n'));
+
+    return [header, ...formattedItems].join('\n\n');
+  } catch {
+    return `ref=${contextBundleRef}`;
+  }
+}
+
+/**
  * conflict_explanation용 user prompt를 생성합니다.
  * 같은 merge context를 쓰더라도 "원인 설명"에 집중하도록 마지막 지시문만 분리합니다.
  */
-export function buildConflictUserPrompt(payload: MergeProposalInput): string {
+export async function buildConflictUserPrompt(payload: MergeProposalInput, workspaceRoot?: string): Promise<string> {
   return [
-    buildSharedMergeContext(payload),
+    await buildSharedMergeContext(payload, workspaceRoot),
     '',
     'Task:',
     '- Explain the root cause of the conflict or integration risk.',
@@ -128,16 +223,15 @@ export function buildConflictUserPrompt(payload: MergeProposalInput): string {
 
 /**
  * merge_patch_draft용 user prompt를 생성합니다.
- * 실제 patch 본문은 아직 외부 artifact ref로 관리하므로, LLM에게는 "어떤 파일에 어떤 방향으로"
- * 초안을 만들어야 하는지만 명확히 전달합니다.
+ * LLM에게 "충돌 블록을 어떤 최종 코드로 대체해야 하는지"를 명확히 전달합니다.
  */
-export function buildMergePatchDraftUserPrompt(payload: MergeProposalInput): string {
+export async function buildMergePatchDraftUserPrompt(payload: MergeProposalInput, workspaceRoot?: string): Promise<string> {
   return [
-    buildSharedMergeContext(payload),
+    await buildSharedMergeContext(payload, workspaceRoot),
     '',
     'Task:',
     '- Propose a safe merge draft integrating source and target changes.',
-    '- Use diff_patch (unified diff) for the primary resolution.',
+    '- Return the EXACT resolved code snippet in the `merged_code` field to replace the conflict block.',
     '- Keep all explanations and summaries extremely concise.',
   ].join('\n');
 }
@@ -147,9 +241,9 @@ export function buildMergePatchDraftUserPrompt(payload: MergeProposalInput): str
  * 팀원이 나중에 다른 mediation 전략을 추가하더라도, 공통 컨텍스트는 유지하고
  * 마지막 작업 지시문만 바꾸면 되도록 구조를 맞춰 둡니다.
  */
-export function buildMergeMediationUserPrompt(payload: MergeProposalInput): string {
+export async function buildMergeMediationUserPrompt(payload: MergeProposalInput, workspaceRoot?: string): Promise<string> {
   return [
-    buildSharedMergeContext(payload),
+    await buildSharedMergeContext(payload, workspaceRoot),
     '',
     'Task:',
     '- Compare realistic resolution options for this merge situation.',

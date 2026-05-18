@@ -1,0 +1,184 @@
+"""
+generate_eval_report.py
+========================
+
+analyze_eval_results.py 가 생성한 분석 결과를 종합하여
+Base / SFT / DPO 세 모델의 성능을 한눈에 비교하는
+단일 Markdown 리포트(final_evaluation_report.md)를 자동 생성합니다.
+
+포함 내용:
+- 모델별 Accuracy / Clarity / Format 평균 (LLM-as-a-Judge)
+- 모델별 Pass@1
+- 팀원 B의 Similarity / JSON 구조 안정성 지표 연동
+- 종합 Final Average 점수
+"""
+import os
+import json
+import re
+from datetime import datetime
+
+BASE_DIR     = os.path.dirname(os.path.abspath(__file__))
+RESULTS_DIR  = os.path.join(BASE_DIR, "../trainer/eval/results")
+REPORTS_DIR  = os.path.join(BASE_DIR, "../trainer/eval/reports")
+MODELS       = ["base", "sft", "dpo"]
+
+# 팀원 B의 Similarity 보고서 파일명 매핑 (base는 없음)
+B_REPORT_FILES = {
+    "sft": "sft_performance_report.md",
+    "dpo": "dpo_performance_report.md",
+}
+
+def load_model_stats(model: str) -> dict | None:
+    """
+    analyze_eval_results.py 가 만든 analyzed_results 파일을 읽어
+    모델 전체 평균 지표를 계산합니다.
+    """
+    analyzed_file = os.path.join(RESULTS_DIR, f"{model}_analyzed_results.jsonl")
+
+    # 분석 파일이 없으면 judge score 파일로 폴백
+    source_file = analyzed_file
+    if not os.path.exists(analyzed_file):
+        source_file = os.path.join(RESULTS_DIR, f"{model}_llm_judge_scores.jsonl")
+        if not os.path.exists(source_file):
+            return None
+
+    totals = {"accuracy": 0, "clarity": 0, "format": 0, "pass_at_1": 0}
+    count = 0
+
+    with open(source_file, "r", encoding="utf-8") as f:
+        for line in f:
+            if not line.strip():
+                continue
+            data   = json.loads(line)
+            scores = data.get("llm_judge_scores", {})
+            totals["accuracy"]  += scores.get("accuracy", 0)
+            totals["clarity"]   += scores.get("clarity", 0)
+            totals["format"]    += scores.get("format", 0)
+            totals["pass_at_1"] += data.get("pass_at_1", 0)
+            count += 1
+
+    if count == 0:
+        return None
+
+    return {
+        "model":     model.upper(),
+        "count":     count,
+        "accuracy":  totals["accuracy"]  / count,
+        "clarity":   totals["clarity"]   / count,
+        "format":    totals["format"]    / count,
+        "pass_rate": (totals["pass_at_1"] / count) * 100,
+        "final_avg": (totals["accuracy"] + totals["clarity"] + totals["format"]) / (count * 3),
+    }
+
+def load_b_similarity_stats(model: str) -> dict | None:
+    """
+    팀원 B가 생성한 *_performance_report.md 파일을 파싱하여
+    Similarity, JSON parse success 등 핵심 지표를 추출합니다.
+    """
+    filename = B_REPORT_FILES.get(model)
+    if not filename:
+        return None
+
+    report_path = os.path.join(REPORTS_DIR, filename)
+    if not os.path.exists(report_path):
+        print(f"  [INFO] 팀원 B 보고서 없음 (건너뜀): {filename}")
+        return None
+
+    result = {}
+    with open(report_path, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    # Similarity to chosen 추출 (Baseline | Candidate)
+    sim_match = re.search(r"Similarity to chosen\s*\|\s*([\d.]+)%\s*\|\s*([\d.]+)%", content)
+    if sim_match:
+        result["baseline_similarity"] = float(sim_match.group(1))
+        result["candidate_similarity"] = float(sim_match.group(2))
+
+    # JSON parse success 추출
+    json_match = re.search(r"JSON parse success\s*\|\s*([\d.]+)%\s*\|\s*([\d.]+)%", content)
+    if json_match:
+        result["baseline_json_ok"] = float(json_match.group(1))
+        result["candidate_json_ok"] = float(json_match.group(2))
+
+    # Overlapped cases 추출
+    cases_match = re.search(r"Overlapped cases.*?`(\d+)`", content)
+    if cases_match:
+        result["overlapped_cases"] = int(cases_match.group(1))
+
+    return result if result else None
+
+
+def main():
+    output_file = os.path.join(REPORTS_DIR, "final_evaluation_report.md")
+    os.makedirs(REPORTS_DIR, exist_ok=True)
+
+    print("[START] Generating Final Evaluation Report...")
+
+    stats_list = []
+    for model in MODELS:
+        stats = load_model_stats(model)
+        if stats:
+            # 팀원 B의 Similarity 지표 연동
+            b_stats = load_b_similarity_stats(model)
+            stats["b_report"] = b_stats
+            stats_list.append(stats)
+            b_msg = " | B's similarity report loaded" if b_stats else ""
+            print(f"- [OK] {model.upper()} — {stats['count']} records{b_msg}")
+        else:
+            print(f"- [SKIP] No data found for '{model}' model.")
+
+    if not stats_list:
+        print("[ERROR] No evaluation data found. Aborting.")
+        return
+
+    with open(output_file, "w", encoding="utf-8") as f:
+        f.write("# 📊 GitCat AI Model Evaluation Report\n\n")
+        f.write(f"**Generated At:** {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+
+        # ── 1. LLM-as-a-Judge 비교표 ───────────────────────────────
+        f.write("## 🏆 LLM-as-a-Judge — Model Performance Comparison\n\n")
+        f.write("| Model | Accuracy /10 | Clarity /10 | Format /10 | **Final Avg** |\n")
+        f.write("| :--- | :---: | :---: | :---: | :---: |\n")
+        for s in stats_list:
+            f.write(f"| **{s['model']}** | {s['accuracy']:.2f} | "
+                    f"{s['clarity']:.2f} | {s['format']:.2f} | **{s['final_avg']:.2f}** |\n")
+
+        # ── 2. Pass@1 비교표 ─────────────────────────────────────────
+        f.write("\n## 📐 Pass@1 Metrics\n\n")
+        f.write("| Model | Samples | Pass@1 (%) |\n")
+        f.write("| :--- | :---: | :---: |\n")
+        for s in stats_list:
+            f.write(f"| **{s['model']}** | {s['count']} | {s['pass_rate']:.1f}% |\n")
+
+        # ── 3. 팀원 B 연동 — Similarity & JSON 구조 안정성 비교표 ─────
+        b_models = [s for s in stats_list if s.get("b_report")]
+        if b_models:
+            f.write("\n## 🔗 Similarity & JSON 구조 안정성 (팀원 B 보고서 연동)\n\n")
+            f.write("> *Baseline(LLM-GPT) 대비 각 모델의 정답 유사도 및 JSON 형식 준수율*\n\n")
+            f.write("| Model | 비교 케이스 수 | Similarity (Baseline) | Similarity (Model) | Diff | JSON OK (Model) |\n")
+            f.write("| :--- | :---: | :---: | :---: | :---: | :---: |\n")
+            for s in b_models:
+                b = s["b_report"]
+                diff = b.get("candidate_similarity", 0) - b.get("baseline_similarity", 0)
+                diff_str = f"+{diff:.1f}%" if diff >= 0 else f"{diff:.1f}%"
+                f.write(f"| **{s['model']}** | {b.get('overlapped_cases', 'N/A')} | "
+                        f"{b.get('baseline_similarity', 'N/A')}% | "
+                        f"{b.get('candidate_similarity', 'N/A')}% | "
+                        f"{diff_str} | "
+                        f"{b.get('candidate_json_ok', 'N/A')}% |\n")
+
+        # ── 4. 지표 설명 ────────────────────────────────────────────
+        f.write("\n---\n\n### 📌 Metrics Description\n")
+        f.write("- **Accuracy:** 충돌 원인 분석 및 해결 코드의 기술적 타당성\n")
+        f.write("- **Clarity:** 설명의 흐름 및 주니어 개발자 친화적인 명확성\n")
+        f.write("- **Format:** 마크다운 가독성 및 코드 블록 구조화 상태\n")
+        f.write("- **Pass@1:** LLM Judge accuracy ≥ 7 인 비율 (첫 시도 합격률)\n")
+        f.write("- **Similarity:** `chosen` 정답 대비 모델 응답의 문자열 유사도 (팀원 B 제공)\n")
+        f.write("- **JSON OK:** 응답이 유효한 JSON 형식으로 파싱되는 비율 (팀원 B 제공)\n")
+        f.write("\n> *This report is auto-generated by the GitCat AI evaluation pipeline.*\n")
+
+    print(f"\n[SUCCESS] Report saved to: {output_file}")
+
+
+if __name__ == "__main__":
+    main()

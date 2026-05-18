@@ -8,6 +8,7 @@ import { z } from 'zod';
  */
 export const InboundMessageTypeEnum = z.enum([
   'RESTORE_SNAPSHOT',
+  'CONFIRM_RESTORE_SNAPSHOT',
   'ANALYZE_CONFLICT',
   'ACCEPT_MERGE',
   'REJECT_MERGE',
@@ -28,7 +29,6 @@ export const InboundMessageTypeEnum = z.enum([
   'GIT_MERGE_ABORT',
   'GIT_MERGE_CONTINUE',
   'DELETE_SNAPSHOT',
-  'SET_CHECKPOINT',
   'REFRESH_STATUS',
   'GET_GIT_STATUS_SUMMARY',
   'GET_SNAPSHOT_LIST',
@@ -40,6 +40,9 @@ export const InboundMessageTypeEnum = z.enum([
   'RENAME_SNAPSHOT',
   'TOGGLE_SNAPSHOT_STAR',
   'GET_SNAPSHOT_FILES',
+  'GET_SNAPSHOT_DETAIL',
+  'GET_SNAPSHOT_FILE_DIFF',
+  'GET_RESTORE_HISTORY',
   'OPEN_FILE_DIFF',
   'OPEN_WORKSPACE_FILE',
   'EXECUTE_PULL',
@@ -51,7 +54,6 @@ export const InboundMessageTypeEnum = z.enum([
   'GIT_PUSH',
   'OPEN_MERGE_PANEL',
   'CHECKOUT_BRANCH',
-  'REJECT_AI_DRAFT',
   // stash 작업
   'GET_STASH_LIST',
   'STASH_SAVE',
@@ -70,8 +72,17 @@ export const InboundMessageTypeEnum = z.enum([
   'EXECUTE_BRANCH_CLEANUP',
   // PR 관련
   'GET_PR_TEMPLATES',
+  'GET_PR_FORM_METADATA',
   'CREATE_PR',
   'OPEN_PR_PANEL',
+  // PR 환경설정 — 사용자 기본 target 브랜치 (workspaceState에 영속)
+  'GET_PR_DEFAULT_BASE_BRANCH',
+  'SET_PR_DEFAULT_BASE_BRANCH',
+  'CLEAR_PR_DEFAULT_BASE_BRANCH',
+  // AI API Key 관리
+  'SAVE_AI_API_KEY',
+  'DELETE_AI_API_KEY',
+  'CHECK_AI_API_KEY',
 ]);
 export type InboundMessageType = z.infer<typeof InboundMessageTypeEnum>;
 
@@ -86,8 +97,15 @@ export const OutboundMessageTypeEnum = z.enum([
   'GIT_STATUS_SUMMARY',
   'SNAPSHOT_LIST',
   'SNAPSHOT_CREATED',
+  'SNAPSHOT_UPDATED',
+  'SNAPSHOT_DETAIL',
+  'SNAPSHOT_FILE_DIFF',
+  'RESTORE_HISTORY_LIST',
   'RESTORE_DONE',
+  'RESTORE_CONFIRM_REQUIRED',
   'CONFLICT_RESULT',
+  /** 병합 후보 수락/거절 — 모든 webview의 병합 위험 분석 목록 상태 동기화 */
+  'CANDIDATE_RESOLVED',
   'MERGE_PROPOSAL',
   'MERGE_COMPLETE',
   'COMMIT_SUGGESTIONS',
@@ -108,6 +126,11 @@ export const OutboundMessageTypeEnum = z.enum([
   'BRANCH_CLEANUP_RESULT',
   // GitHub PR 생성 성공 응답
   'PR_TEMPLATES',
+  'PR_FORM_METADATA',
   'PR_CREATED',
+  /** PR 환경설정 — 현재 저장된 기본 target 브랜치(또는 미지정) */
+  'PR_DEFAULT_BASE_BRANCH',
+  // AI API Key 상태 응답
+  'AI_API_KEY_STATUS',
 ]);
 export type OutboundMessageType = z.infer<typeof OutboundMessageTypeEnum>;

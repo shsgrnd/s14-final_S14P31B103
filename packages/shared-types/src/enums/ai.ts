@@ -31,14 +31,7 @@ export const RequestOriginEnum = z.enum([
 ]);
 export type RequestOrigin = z.infer<typeof RequestOriginEnum>;
 
-// work_sessions.session_type
-export const SessionTypeEnum = z.enum([
-  'ai_work',
-  'manual',
-  'pre_restore',
-  'pre_merge',
-]);
-export type SessionType = z.infer<typeof SessionTypeEnum>;
+
 
 // ai_requests.request_status
 export const RequestStatusEnum = z.enum([
@@ -69,14 +62,7 @@ export type MergeProposalStatus = z.infer<typeof MergeProposalStatusEnum>;
 export const ProposalStatusEnum = MergeProposalStatusEnum;
 export type ProposalStatus = MergeProposalStatus;
 
-// work_sessions.status
-export const WorkSessionStatusEnum = z.enum([
-  'active',
-  'completed',
-  'cancelled',
-  'failed',
-]);
-export type WorkSessionStatus = z.infer<typeof WorkSessionStatusEnum>;
+
 
 // proposal_feedbacks.selection_status
 export const SelectionStatusEnum = z.enum([
@@ -100,24 +86,6 @@ export type QualityTag = z.infer<typeof QualityTagEnum>;
 // ==========================================
 // 2. Git / Repository Enums
 // ==========================================
-
-// snapshots.reason
-export const SnapshotReasonEnum = z.enum([
-  'ai_work',
-  'manual',
-  'pre_restore',
-  'pre_merge',
-]);
-export type SnapshotReason = z.infer<typeof SnapshotReasonEnum>;
-
-// changed_files.change_type — ERD에 'renamed' 포함
-export const ChangeTypeEnum = z.enum([
-  'added',
-  'modified',
-  'deleted',
-  'renamed',
-]);
-export type ChangeType = z.infer<typeof ChangeTypeEnum>;
 
 // ==========================================
 // 3. Conflict / Merge Enums

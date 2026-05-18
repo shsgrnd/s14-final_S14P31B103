@@ -7,11 +7,14 @@ import {
   QualityTagEnum,
   RecommendationTypeEnum,
   SelectionStatusEnum,
-  SnapshotReasonEnum,
-  SessionTypeEnum,
-  WorkSessionStatusEnum,
-  ChangeTypeEnum,
 } from '../enums/ai';
+import {
+  SessionTypeEnum,
+  SessionStatusEnum,
+  SnapshotTypeEnum,
+  RestoreStatusEnum,
+  ChangedFileStatusEnum,
+} from '../enums/safety';
 
 // ==========================================
 // 1. Core Metadata Tables
@@ -94,7 +97,7 @@ export const WorkSessionRowSchema = z.object({
   session_type: SessionTypeEnum,
   base_snapshot_id: z.string().nullable(),
   description: z.string().nullable(),
-  status: WorkSessionStatusEnum,
+  status: SessionStatusEnum,
   started_at: z.string(),
   ended_at: z.string().nullable(),
 });
@@ -102,9 +105,12 @@ export const WorkSessionRowSchema = z.object({
 export const SnapshotRowSchema = z.object({
   snapshot_id: z.string(),
   session_id: z.string(),
-  reason: SnapshotReasonEnum,
-  is_checkpoint: z.number().int(),
-  label: z.string().nullable(),
+  type: SnapshotTypeEnum,
+  previous_snapshot_id: z.string().nullable(),
+  reason: z.string().nullable(),
+  summary: z.string().nullable(),
+  local_path: z.string().nullable(),
+  safety_warnings_json: z.string().nullable(),
   created_at: z.string(),
 });
 
@@ -130,7 +136,7 @@ export const ChangedFileRowSchema = z.object({
   changed_file_id: z.string(),
   record_id: z.string(),
   file_path: z.string(),
-  change_type: ChangeTypeEnum,
+  change_type: ChangedFileStatusEnum,
   location: z.string().nullable(),
   summary: z.string().nullable(),
   created_at: z.string(),
@@ -138,8 +144,13 @@ export const ChangedFileRowSchema = z.object({
 
 export const RestoreHistoryRowSchema = z.object({
   restore_history_id: z.string(),
+  from_snapshot_id: z.string(),
   target_snapshot_id: z.string(),
   pre_restore_snapshot_id: z.string().nullable(),
+  status: RestoreStatusEnum,
+  failure_reason: z.string().nullable(),
+  safety_warnings_before_json: z.string().nullable(),
+  safety_warnings_after_json: z.string().nullable(),
   restored_at: z.string(),
 });
 

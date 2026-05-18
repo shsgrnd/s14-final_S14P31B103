@@ -10,6 +10,14 @@ declare function acquireVsCodeApi(): WebviewApi;
 
 let vscodeApi: WebviewApi | undefined;
 
+/** Webview 상태(getState/setState) 등 메시지 외 API가 필요할 때 사용 */
+export function getVsCodeWebviewApi(): WebviewApi | undefined {
+  if (!vscodeApi && typeof acquireVsCodeApi === 'function') {
+    vscodeApi = acquireVsCodeApi();
+  }
+  return vscodeApi;
+}
+
 /**
  * 전역 vscodeApi 초기화 및 메시지 전송 함수
  */

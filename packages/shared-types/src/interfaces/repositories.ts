@@ -1,5 +1,7 @@
 import type {
   BranchRow,
+  ChangeRecordRow,
+  ChangedFileRow,
   ConflictCandidateRow,
   MergeAnalysisRow,
   MergeProposalRow,
@@ -7,6 +9,10 @@ import type {
   ProjectWorkspaceRow,
   ProposalFeedbackRow,
   RecommendationHistoryRow,
+  RestoreHistoryRow,
+  SnapshotFileRow,
+  SnapshotRow,
+  WorkSessionRow,
   WorktreeRow,
   WorktreeInstanceRow,
 } from '../dto/storage';
@@ -37,6 +43,7 @@ export interface CreateRecommendationHistoryInput {
  * 병합안 수락/수정/거절 시점에 메시지 핸들러/서비스가 이 타입으로 저장 요청합니다.
  */
 export interface CreateProposalFeedbackInput {
+  feedback_id?: string;
   proposal_id: string;
   project_id: string;
   merge_proposal_id?: string | null;
@@ -46,6 +53,7 @@ export interface CreateProposalFeedbackInput {
   final_explanation?: string | null;
   quality_tag?: ProposalFeedbackRow['quality_tag'];
   feedback_note?: string | null;
+  decided_at?: string;
 }
 
 /**
@@ -94,6 +102,115 @@ export interface ProposalFeedbackRepository {
   listByProposal(proposalId: string): Promise<ProposalFeedbackRow[]>;
 }
 
+export interface CreateWorkSessionInput {
+  session_id: string;
+  worktree_instance_id: string;
+  session_type: WorkSessionRow['session_type'];
+  base_snapshot_id?: string | null;
+  description?: string | null;
+  status?: WorkSessionRow['status'];
+  started_at?: string;
+}
+
+export interface WorkSessionRepository {
+  create(input: CreateWorkSessionInput): Promise<WorkSessionRow>;
+  findById(sessionId: string): Promise<WorkSessionRow | null>;
+  findActive(worktreeInstanceId: string, sessionType?: WorkSessionRow['session_type']): Promise<WorkSessionRow | null>;
+  complete(sessionId: string, endedAt?: string): Promise<WorkSessionRow | null>;
+  updateStatus(sessionId: string, status: WorkSessionRow['status'], endedAt?: string | null): Promise<WorkSessionRow | null>;
+  deleteById(sessionId: string): Promise<void>;
+}
+
+export interface CreateSnapshotInput {
+  snapshot_id: string;
+  session_id: string;
+  type: SnapshotRow['type'];
+  previous_snapshot_id?: string | null;
+  reason?: string | null;
+  summary?: string | null;
+  local_path?: string | null;
+  safety_warnings_json?: string | null;
+  created_at?: string;
+}
+
+export interface SnapshotRepository {
+  create(input: CreateSnapshotInput): Promise<SnapshotRow>;
+  findById(snapshotId: string): Promise<SnapshotRow | null>;
+  findLatestBySession(sessionId: string): Promise<SnapshotRow | null>;
+  findLatestByWorktreeInstance(worktreeInstanceId: string): Promise<SnapshotRow | null>;
+  listRecent(limit?: number): Promise<SnapshotRow[]>;
+  listByWorkspace(worktreeInstanceId: string, limit?: number): Promise<SnapshotRow[]>;
+  listAutoDeletionCandidates(worktreeInstanceId: string, keepRecent?: number, limit?: number): Promise<SnapshotRow[]>;
+  /**
+   * AI가 생성한 요약 제목을 해당 스냅샷의 summary 콸럼에 업데이트합니다.
+   * 스냅샷 생성 직후 백그라운드 AI 태스크가 완료되면 호출됩니다.
+   *
+   * @param snapshotId 업데이트할 스냅샷의 고유 ID
+   * @param summary AI가 생성한 한 줄 요약 제목 (예: "[Human] README 오타 수정")
+   */
+  updateSummary(snapshotId: string, summary: string): Promise<void>;
+  deleteById(snapshotId: string): Promise<void>;
+}
+
+export type CreateSnapshotFileInput = Omit<SnapshotFileRow, 'created_at'> & {
+  created_at?: string;
+};
+
+export interface SnapshotFileRepository {
+  createMany(files: CreateSnapshotFileInput[]): Promise<void>;
+  findById(snapshotFileId: string): Promise<SnapshotFileRow | null>;
+  listBySnapshotId(snapshotId: string): Promise<SnapshotFileRow[]>;
+  deleteById(snapshotFileId: string): Promise<void>;
+  deleteBySnapshotId(snapshotId: string): Promise<void>;
+}
+
+export interface CreateChangeRecordInput {
+  record_id: string;
+  session_id: string;
+  branch_name?: string | null;
+  description?: string | null;
+  created_at?: string;
+}
+
+export interface ChangeRecordRepository {
+  create(input: CreateChangeRecordInput): Promise<ChangeRecordRow>;
+  findById(recordId: string): Promise<ChangeRecordRow | null>;
+  listBySession(sessionId: string, limit?: number): Promise<ChangeRecordRow[]>;
+  deleteById(recordId: string): Promise<void>;
+}
+
+export type CreateChangedFileInput = Omit<ChangedFileRow, 'created_at'> & {
+  created_at?: string;
+};
+
+export interface ChangedFileRepository {
+  createMany(files: CreateChangedFileInput[]): Promise<void>;
+  findById(changedFileId: string): Promise<ChangedFileRow | null>;
+  listByRecordId(recordId: string): Promise<ChangedFileRow[]>;
+  deleteById(changedFileId: string): Promise<void>;
+  deleteByRecordId(recordId: string): Promise<void>;
+}
+
+export interface CreateRestoreHistoryInput {
+  restore_history_id: string;
+  from_snapshot_id: string;
+  target_snapshot_id: string;
+  pre_restore_snapshot_id?: string | null;
+  status?: 'success' | 'failed' | 'partial';
+  failure_reason?: string | null;
+  safety_warnings_before_json?: string | null;
+  safety_warnings_after_json?: string | null;
+  restored_at?: string;
+}
+
+export interface RestoreHistoryRepository {
+  create(input: CreateRestoreHistoryInput): Promise<RestoreHistoryRow>;
+  findById(restoreHistoryId: string): Promise<RestoreHistoryRow | null>;
+  listByWorkspace(worktreeInstanceId: string, limit?: number): Promise<RestoreHistoryRow[]>;
+  listBySnapshotId(snapshotId: string, limit?: number): Promise<RestoreHistoryRow[]>;
+  deleteById(restoreHistoryId: string): Promise<void>;
+}
+
 /**
  * merge_analyses 메타데이터 저장소 계약입니다.
  */
@@ -120,6 +237,7 @@ export interface ConflictCandidateRepository {
  */
 export interface MergeProposalRepository {
   insertMany(proposals: Array<Omit<MergeProposalRow, 'created_at'> & { created_at?: string }>): Promise<void>;
+  findById(proposalId: string): Promise<MergeProposalRow | null>;
   listByAnalysis(analysisId: string): Promise<MergeProposalRow[]>;
   updateStatus(proposalId: string, status: MergeProposalRow['status']): Promise<void>;
 }

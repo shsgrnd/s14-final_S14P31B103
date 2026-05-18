@@ -17,7 +17,19 @@
  * - packages/storage 최종 ownership을 가진 Core 담당자와 함께 repository 계층/호출 흐름에 맞춰
  *   컬럼명, nullable 여부, 인덱스, 마이그레이션 전략을 최종 확정해야 한다.
  */
+/**
+ * 스키마 버전
+ *
+ * 스키마 변경(DDL 수정) 시 이 값을 올링하면 기존 DB를 자동으로 DROP 후 재생성한다.
+ * MVP에서는 데이터 보존보다 완전한 스키마 동기화를 우선한다.
+ */
+export const SCHEMA_VERSION = 5;
+
 export const SCHEMAS = [
+  // 스키마 버전 관리 테이블 (가장 먼저 생성)
+  `CREATE TABLE IF NOT EXISTS gitcat_schema_version (
+    version INTEGER NOT NULL
+  );`,
   `CREATE TABLE IF NOT EXISTS users (
     user_id TEXT PRIMARY KEY,
     email TEXT,
@@ -101,11 +113,15 @@ export const SCHEMAS = [
   `CREATE TABLE IF NOT EXISTS snapshots (
     snapshot_id TEXT PRIMARY KEY,
     session_id TEXT NOT NULL,
-    reason TEXT NOT NULL,
-    is_checkpoint INTEGER NOT NULL DEFAULT 0,
-    label TEXT,
+    type TEXT NOT NULL,
+    previous_snapshot_id TEXT,
+    reason TEXT,
+    summary TEXT,
+    local_path TEXT,
+    safety_warnings_json TEXT,
     created_at TEXT NOT NULL,
-    FOREIGN KEY (session_id) REFERENCES work_sessions(session_id)
+    FOREIGN KEY (session_id) REFERENCES work_sessions(session_id),
+    FOREIGN KEY (previous_snapshot_id) REFERENCES snapshots(snapshot_id)
   );`,
   `CREATE TABLE IF NOT EXISTS snapshot_files (
     snapshot_file_id TEXT PRIMARY KEY,
@@ -137,9 +153,15 @@ export const SCHEMAS = [
   );`,
   `CREATE TABLE IF NOT EXISTS restore_histories (
     restore_history_id TEXT PRIMARY KEY,
+    from_snapshot_id TEXT NOT NULL,
     target_snapshot_id TEXT NOT NULL,
     pre_restore_snapshot_id TEXT,
+    status TEXT NOT NULL DEFAULT 'success',
+    failure_reason TEXT,
+    safety_warnings_before_json TEXT,
+    safety_warnings_after_json TEXT,
     restored_at TEXT NOT NULL,
+    FOREIGN KEY (from_snapshot_id) REFERENCES snapshots(snapshot_id),
     FOREIGN KEY (target_snapshot_id) REFERENCES snapshots(snapshot_id),
     FOREIGN KEY (pre_restore_snapshot_id) REFERENCES snapshots(snapshot_id)
   );`,
@@ -236,5 +258,17 @@ export const SCHEMAS = [
   `CREATE INDEX IF NOT EXISTS idx_merge_proposals_candidate_status
     ON merge_proposals(candidate_id, status);`,
   `CREATE INDEX IF NOT EXISTS idx_conflict_candidates_analysis
-    ON conflict_candidates(analysis_id);`
+    ON conflict_candidates(analysis_id);`,
+  `CREATE INDEX IF NOT EXISTS idx_work_sessions_instance_status_started
+    ON work_sessions(worktree_instance_id, status, started_at DESC);`,
+  `CREATE INDEX IF NOT EXISTS idx_snapshots_session_created
+    ON snapshots(session_id, created_at DESC);`,
+  `CREATE INDEX IF NOT EXISTS idx_snapshot_files_snapshot
+    ON snapshot_files(snapshot_id);`,
+  `CREATE INDEX IF NOT EXISTS idx_change_records_session_created
+    ON change_records(session_id, created_at DESC);`,
+  `CREATE INDEX IF NOT EXISTS idx_changed_files_record
+    ON changed_files(record_id);`,
+  `CREATE INDEX IF NOT EXISTS idx_restore_histories_target_restored
+    ON restore_histories(target_snapshot_id, restored_at DESC);`
 ];
