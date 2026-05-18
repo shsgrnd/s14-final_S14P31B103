@@ -1,6 +1,6 @@
-﻿import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { FileText, Rewind, ChevronRight, Crosshair, Sparkles, Layers, PencilLine, Plus, Edit2, Trash2, History, Bookmark, Archive, X } from 'lucide-react';
+import { FileText, Rewind, ChevronRight, Plus, Edit2, Trash2, History, X } from 'lucide-react';
 import { useGitCatStore } from '../../store/useGitCatStore';
 import { useVsCodeApi } from '../../hooks/useVsCodeApi';
 import { SnapshotMeta, type RestoreHistory } from '@gitcat/shared-types';
@@ -72,34 +72,20 @@ export const SnapshotTimeline: React.FC = () => {
 
   const getStatusLabel = (status: string) => {
     const u = status.toUpperCase();
-    if (u === 'MODIFIED') return '수정';
-    if (u === 'ADDED') return '추가';
-    if (u === 'DELETED') return '삭제';
-    if (u === 'RENAMED') return '이름 변경';
+    if (u === 'MODIFIED') return '\uC218\uC815\uB428';
+    if (u === 'ADDED') return '\uCD94\uAC00\uB428';
+    if (u === 'DELETED') return '\uC0AD\uC81C\uB428';
+    if (u === 'RENAMED') return '\uC774\uB984 \uBCC0\uACBD\uB428';
     return status;
   };
 
-  const getTypeIcon = (type: string) => {
-    const iconColor = (color: string): React.CSSProperties => ({
-      color,
-      flexShrink: 0,
-    });
-    switch (type) {
-      case 'ai_pre_action':
-        return <Crosshair size={14} style={iconColor('var(--vscode-charts-purple)')} aria-hidden />;
-      case 'ai_result':
-        return <Sparkles size={14} style={iconColor('var(--vscode-charts-purple)')} aria-hidden />;
-      case 'auto_dirty_before_ai':
-        return <Layers size={14} style={iconColor('var(--vscode-charts-blue)')} aria-hidden />;
-      case 'manual_edit_result':
-        return <PencilLine size={14} style={iconColor('var(--vscode-charts-green)')} aria-hidden />;
-      case 'savepoint':
-        return <Bookmark size={14} style={iconColor('var(--vscode-charts-yellow)')} aria-hidden />;
-      case 'pre_restore':
-        return <Archive size={14} style={iconColor('var(--vscode-charts-orange)')} aria-hidden />;
-      default:
-        return <FileText size={14} style={{ flexShrink: 0, opacity: 0.85 }} aria-hidden />;
-    }
+  const getSnapshotFileStatusLabel = (status: string) => {
+    const u = status.toUpperCase();
+    if (u === 'MODIFIED') return '\uC218\uC815\uB428';
+    if (u === 'ADDED') return '\uCD94\uAC00\uB428';
+    if (u === 'DELETED') return '\uC0AD\uC81C\uB428';
+    if (u === 'RENAMED') return '\uC774\uB984 \uBCC0\uACBD\uB428';
+    return status;
   };
 
   const handleRename = (snapshotId: string, currentTitle: string) => {
@@ -193,7 +179,7 @@ export const SnapshotTimeline: React.FC = () => {
                 className="snapshot-row"
                 title={String(title)}
                 style={{
-                  display: 'flex', alignItems: 'flex-start', gap: '8px',
+                  display: 'flex', alignItems: 'flex-start', gap: '10px',
                   padding: '8px 10px', cursor: 'pointer',
                   background: isExpanded ? 'var(--vscode-list-activeSelectionBackground)' : 'transparent',
                   color: isExpanded ? 'var(--vscode-list-activeSelectionForeground)' : 'inherit',
@@ -212,11 +198,6 @@ export const SnapshotTimeline: React.FC = () => {
                     transform: isExpanded ? 'rotate(90deg)' : 'none',
                   }}
                 />
-
-                {/* Type icon */}
-                <div style={{ marginTop: '3px' }}>
-                  {getTypeIcon(snapshot.type)}
-                </div>
 
                 {/* Info */}
                 <div style={{ flex: 1, minWidth: 0 }}>
@@ -261,7 +242,7 @@ export const SnapshotTimeline: React.FC = () => {
                     files.map((file: any, idx: number) => (
                       <div
                         key={idx}
-                        title={`스냅샷 diff 보기: ${file.path}`}
+                        title={`\uC2A4\uB0C5\uC0F7 \uBCC0\uACBD \uB0B4\uC6A9 \uBCF4\uAE30: ${file.path}`}
                         onClick={() =>
                           sendMessage('GET_SNAPSHOT_FILE_DIFF', {
                             snapshotId: snapshot.snapshotId,
@@ -289,7 +270,7 @@ export const SnapshotTimeline: React.FC = () => {
                             return 'var(--vscode-gitDecoration-deletedResourceForeground)';
                           })(),
                         }}>
-                          {getStatusLabel(String(file.status))}
+                          {getSnapshotFileStatusLabel(String(file.status))}
                         </span>
                       </div>
                     ))
@@ -395,7 +376,7 @@ export const SnapshotTimeline: React.FC = () => {
               }}
             >
               <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', minWidth: 0 }}>
-                Diff — {snapshotFileDiff.filePath}
+                {'변경 내용 - '}{snapshotFileDiff.filePath}
               </span>
               <button
                 type="button"
@@ -880,4 +861,3 @@ function formatRelativeTime(timestamp: number): string {
     return '';
   }
 }
-
