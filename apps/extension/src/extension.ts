@@ -23,6 +23,7 @@ import { WebviewProvider } from './webview/WebviewProvider';
 import { SidebarProvider } from './webview/SidebarProvider';
 import { MessageRouter } from './core/MessageRouter';
 import { registerGitCatOutputChannel } from './platform/GitCatLog';
+import { LiveLocalRuntimeManager } from './platform/LiveLocalRuntimeManager';
 import { AiSecretService } from './features/recommendation/AiSecretService';
 import { AiApiKeyMessageHandler } from './features/recommendation/AiApiKeyMessageHandler';
 import { GitService } from './features/git/GitService';
@@ -105,6 +106,8 @@ export async function activate(context: vscode.ExtensionContext) {
 
 
   const aiSecretService = new AiSecretService(context.secrets);
+  const liveLocalRuntimeManager = new LiveLocalRuntimeManager(context);
+  void liveLocalRuntimeManager.promptIfLiveLocalNeedsSetup();
   let clearAiCache = () => { };
   const aiApiKeyMessageHandler = new AiApiKeyMessageHandler(aiSecretService, () => clearAiCache());
 
@@ -138,11 +141,13 @@ export async function activate(context: vscode.ExtensionContext) {
 
   if (rootPath && projectId && gitService && dbInstance) {
     await initializeMergeConflictAnalysis(
+      context,
       gitService,
       dbInstance,
       messageRouter,
       rootPath,
       aiSecretService,
+      liveLocalRuntimeManager,
       gitMessageHandler,
       pullRequestHandler,
       prSettingsService,
@@ -187,13 +192,10 @@ export async function activate(context: vscode.ExtensionContext) {
       // [Task 45] AI 클라이언트 구성:
       // 기존 GitCat 익스텐션의 AI 설정값(모드, 로컬 모델 경로, API 키)을 그대로 가져와
       // 스냅샷 요약 기능에도 동일한 모델/설정이 적용되도록 합니다.
-      const { AiClient } = await import('@gitcat/ai-pipeline');
-      const aiConfig = vscode.workspace.getConfiguration('gitcat.ai');
-      const snapshotAiClient = new AiClient({
-        mode: aiConfig.get<string>('mode') as any,          // 로컬 모델 또는 원격 API 모드
-        localModelPath: aiConfig.get<string>('localModelPath'), // 로컬 GGUF 모델 경로 (Task 44에서 설정)
-        apiKeyProvider: async () => aiSecretService.getApiKey(), // GMS API 키 제공
-      });
+      const { AiClient } = await import('@gitcat/ai-pipeline/extension');
+      const snapshotAiClient = new AiClient(
+        createExtensionAiClientOptions(context, aiSecretService, liveLocalRuntimeManager)
+      );
 
       snapshotService = new SnapshotService(
         new SqliteSnapshotRepository(snapshotDbInstance),
@@ -268,12 +270,20 @@ export async function activate(context: vscode.ExtensionContext) {
 
   const sessionCoordinator = new SafetySessionCoordinator(snapshotService);
   messageRouter.setSafetySessionCoordinator(sessionCoordinator);
-  CommandRegistry.registerAll(context, webviewProvider, gitService);
+  CommandRegistry.registerAll(
+    context,
+    webviewProvider,
+    gitService,
+    sessionCoordinator,
+    liveLocalRuntimeManager,
+  );
   EventRegistry.registerAll(context, sessionCoordinator);
 
   if (rootPath && projectId && gitService) {
     void initializeRecommendationBackfill(
+      context,
       aiSecretService,
+      liveLocalRuntimeManager,
       rootPath,
       projectId,
       gitService,
@@ -285,11 +295,13 @@ export async function activate(context: vscode.ExtensionContext) {
 }
 
 async function initializeMergeConflictAnalysis(
+  context: vscode.ExtensionContext,
   gitService: GitService,
   dbInstance: SQLiteDatabase,
   messageRouter: MessageRouter,
   workspaceRoot: string,
   aiSecretService: AiSecretService,
+  liveLocalRuntimeManager: LiveLocalRuntimeManager,
   gitMessageHandler?: GitMessageHandler,
   pullRequestHandler?: PullRequestMessageHandler,
   prSettingsService?: PrSettingsService,
@@ -307,7 +319,7 @@ async function initializeMergeConflictAnalysis(
     artifactStore,
     workspaceRoot,
     gitService,
-    await createMergeProposalProvider(aiSecretService, workspaceRoot),
+    await createMergeProposalProvider(context, aiSecretService, liveLocalRuntimeManager, workspaceRoot),
   );
   const guardService = new MergeConflictGuardService(
     gitService,
@@ -323,20 +335,16 @@ async function initializeMergeConflictAnalysis(
 }
 
 async function createMergeProposalProvider(
+  context: vscode.ExtensionContext,
   aiSecretService: AiSecretService,
+  liveLocalRuntimeManager: LiveLocalRuntimeManager,
   workspaceRoot: string,
 ): Promise<MergeProposalProvider> {
   try {
-    const { MergeAiService, AiClient } = await import('@gitcat/ai-pipeline');
-    const config = vscode.workspace.getConfiguration('gitcat.ai');
-    const mode = config.get<string>('mode') as 'mock' | 'live' | 'live-remote' | 'live-local' | undefined;
-    const localModelPath = config.get<string>('localModelPath');
-
-    const aiClient = new AiClient({
-      mode,
-      localModelPath,
-      apiKeyProvider: async () => aiSecretService.getApiKey(),
-    });
+    const { MergeAiService, AiClient } = await import('@gitcat/ai-pipeline/extension');
+    const aiClient = new AiClient(
+      createExtensionAiClientOptions(context, aiSecretService, liveLocalRuntimeManager)
+    );
 
     return new AiPipelineMergeProposalProvider(
       new MergeAiService(aiClient),
@@ -350,7 +358,9 @@ async function createMergeProposalProvider(
 }
 
 async function initializeRecommendationBackfill(
+  context: vscode.ExtensionContext,
   aiSecretService: AiSecretService,
+  liveLocalRuntimeManager: LiveLocalRuntimeManager,
   rootPath: string,
   projectId: string,
   gitService: GitService,
@@ -360,17 +370,13 @@ async function initializeRecommendationBackfill(
 ): Promise<void> {
   try {
     const recommendationModule = await import('./features/recommendation');
-    const { MergeAiService, AiClient } = await import('@gitcat/ai-pipeline');
+    const { MergeAiService, AiClient } = await import('@gitcat/ai-pipeline/extension');
 
-    const config = vscode.workspace.getConfiguration('gitcat.ai');
-    const mode = config.get<string>('mode') as any;
-    const localModelPath = config.get<string>('localModelPath');
-
-    const aiClientOptions = {
-      mode,
-      localModelPath,
-      apiKeyProvider: async () => aiSecretService.getApiKey(),
-    };
+    const aiClientOptions = createExtensionAiClientOptions(
+      context,
+      aiSecretService,
+      liveLocalRuntimeManager,
+    );
     const aiClient = new AiClient(aiClientOptions);
     const recommendationAiService = new MergeAiService(aiClient);
     if (setClearAiCache) {
@@ -443,4 +449,19 @@ async function initializeRecommendationBackfill(
 
 export function deactivate() {
   console.log('GitCat Extension deactivated.');
+}
+
+function createExtensionAiClientOptions(
+  context: vscode.ExtensionContext,
+  aiSecretService: AiSecretService,
+  liveLocalRuntimeManager: LiveLocalRuntimeManager,
+) {
+  const config = vscode.workspace.getConfiguration('gitcat.ai');
+  return {
+    mode: config.get<string>('mode') as 'mock' | 'live' | 'live-remote' | 'live-local' | undefined,
+    localModelPath: config.get<string>('localModelPath'),
+    localRuntimeRoot: liveLocalRuntimeManager.getRuntimeRoot(),
+    allowBundledLocalRuntimeFallback: context.extensionMode !== vscode.ExtensionMode.Production,
+    apiKeyProvider: async () => aiSecretService.getApiKey(),
+  };
 }

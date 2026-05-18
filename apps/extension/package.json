@@ -2,9 +2,9 @@
   "name": "gitcat",
   "displayName": "GitCat",
   "description": "An AI-powered Git assistant for safer commits, conflict prevention, and smarter workflow guidance in VS Code.",
-  "publisher": "ssafy",
+  "publisher": "GitCat",
   "icon": "media/GitCat_icon.png",
-  "version": "0.0.1",
+  "version": "0.0.3",
   "license": "ISC",
   "repository": {
     "type": "git",
@@ -20,7 +20,9 @@
     "onStartupFinished",
     "onView:gitcat-sidebar-webview",
     "onCommand:gitcat.openPanel",
+    "onCommand:gitcat.createSnapshot",
     "onCommand:gitcat.getGitStatus",
+    "onCommand:gitcat.installLocalRuntime",
     "onCommand:gitcat.setGitHubToken",
     "onCommand:gitcat.clearGitHubToken"
   ],
@@ -34,6 +36,14 @@
       {
         "command": "gitcat.getGitStatus",
         "title": "GitCat: Refresh Status"
+      },
+      {
+        "command": "gitcat.createSnapshot",
+        "title": "GitCat: Create Snapshot"
+      },
+      {
+        "command": "gitcat.installLocalRuntime",
+        "title": "GitCat: Install Local Runtime"
       },
       {
         "command": "gitcat.setGitHubToken",
@@ -127,13 +137,15 @@
     }
   },
   "scripts": {
-    "vscode:prepublish": "pnpm run compile",
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./",
+    "vscode:prepublish": "pnpm run typecheck && pnpm run compile",
+    "compile": "node ./scripts/build-extension.cjs",
+    "typecheck": "tsc --noEmit -p ./",
+    "watch": "node ./scripts/build-extension.cjs --watch",
     "lint": "eslint src --ext ts",
     "package:vsix": "node ./scripts/package-vsix.cjs"
   },
   "devDependencies": {
+    "esbuild": "^0.25.12",
     "@types/vscode": "^1.80.0",
     "@types/node": "18.x",
     "typescript": "^5.0.0"

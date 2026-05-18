@@ -18,7 +18,9 @@
       "@gitcat/storage": ["../../packages/storage/dist"],
       "@gitcat/git-core": ["../../packages/git-core/dist"],
       "@gitcat/git-client-cli": ["../../packages/git-client-cli/dist"],
-      "@gitcat/ai-pipeline": ["../../packages/ai-pipeline/dist/ai-pipeline/src"]
+      "@gitcat/ai-pipeline": ["../../packages/ai-pipeline/dist/ai-pipeline/src"],
+      "@gitcat/ai-pipeline/extension": ["../../packages/ai-pipeline/dist/ai-pipeline/src/extension"],
+      "@gitcat/ai-pipeline/rag": ["../../packages/ai-pipeline/dist/ai-pipeline/src/rag-entry"]
     }
   },
   "exclude": [
