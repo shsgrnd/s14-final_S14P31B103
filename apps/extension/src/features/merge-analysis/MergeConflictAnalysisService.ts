@@ -74,10 +74,33 @@ export class MergeConflictAnalysisService {
     const existing = await this.repositories.mergeAnalyses.findById(context.analysisId);
     if (existing?.status === 'completed') {
       const rows = await this.repositories.conflictCandidates.listByAnalysis(context.analysisId);
+
+      // artifact JSON에서 excerpt 등 풍부한 데이터를 복원 (DB에는 최소 데이터만 저장되어 있음)
+      type ArtifactCandidate = {
+        candidate_id: string;
+        source_excerpt?: string;
+        target_excerpt?: string;
+        reason?: string;
+        suggestion?: string;
+      };
+      const artifactMap = new Map<string, ArtifactCandidate>();
+      try {
+        const artifact = await this.artifactStore.readAnalysis<{
+          candidates?: ArtifactCandidate[];
+        }>(context.repoRoot, context.analysisId);
+        for (const c of artifact.candidates ?? []) {
+          artifactMap.set(c.candidate_id, c);
+        }
+      } catch {
+        // artifact 파일이 없으면 DB 데이터만 사용
+      }
+
       return {
         analysisId: context.analysisId,
         artifactPath: existing.analysis_artifact_path,
-        candidates: rows.map((row) => this.toCandidateViewFromRow(row)),
+        candidates: rows.map((row) =>
+          this.toCandidateViewFromRow(row, artifactMap.get(row.candidate_id)),
+        ),
       };
     }
 
@@ -297,7 +320,15 @@ export class MergeConflictAnalysisService {
     };
   }
 
-  private toCandidateViewFromRow(row: ConflictCandidateRow): MergeConflictCandidateView {
+  private toCandidateViewFromRow(
+    row: ConflictCandidateRow,
+    artifact?: {
+      source_excerpt?: string;
+      target_excerpt?: string;
+      reason?: string;
+      suggestion?: string;
+    },
+  ): MergeConflictCandidateView {
     return {
       analysisId: row.analysis_id,
       candidateId: row.candidate_id,
@@ -305,7 +336,10 @@ export class MergeConflictAnalysisService {
       lineStart: row.line_start ?? 1,
       lineEnd: row.line_end ?? row.line_start ?? 1,
       severity: this.severityFromConfidence(row.confidence_score),
-      reason: '이미 저장된 병합 충돌 후보입니다.',
+      reason: artifact?.reason ?? '이미 저장된 병합 충돌 후보입니다.',
+      suggestion: artifact?.suggestion,
+      sourceExcerpt: artifact?.source_excerpt,
+      targetExcerpt: artifact?.target_excerpt,
       detectedBy: row.detected_by,
       riskLevel: this.riskFromConfidence(row.confidence_score),
     };

@@ -3,8 +3,8 @@ import { ParsedAiResult } from '@gitcat/shared-types';
 export type ParsedResultStorageTarget = 'merge_proposal' | 'recommendation_history';
 
 export interface LocalArtifactRefEntry {
-  field_name: 'diff_patch_ref' | 'merged_code_ref';
-  artifact_kind: 'patch' | 'code';
+  field_name: 'merged_code_ref';
+  artifact_kind: 'code';
   ref: string;
 }
 
@@ -60,26 +60,11 @@ function collectLocalArtifactRefs(result: ParsedAiResult): LocalArtifactRefEntry
   if (result.feature_type !== 'merge_patch_draft') {
     return [];
   }
-
-  const refs: LocalArtifactRefEntry[] = [];
-
-  if (result.diff_patch_ref) {
-    refs.push({
-      field_name: 'diff_patch_ref',
-      artifact_kind: 'patch',
-      ref: result.diff_patch_ref,
-    });
-  }
-
-  if (result.merged_code_ref) {
-    refs.push({
-      field_name: 'merged_code_ref',
-      artifact_kind: 'code',
-      ref: result.merged_code_ref,
-    });
-  }
-
-  return refs;
+  return [{
+    field_name: 'merged_code_ref',
+    artifact_kind: 'code',
+    ref: result.merged_code_ref,
+  }];
 }
 
 function buildMergeProposalStoragePlan(

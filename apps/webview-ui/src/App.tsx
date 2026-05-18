@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useGitCatStore } from './store/useGitCatStore';
-import { sendMessage } from './hooks/useVsCodeApi';
+import { getVsCodeWebviewApi, sendMessage } from './hooks/useVsCodeApi';
 import { useViewMode } from './app/ViewModeContext';
 import { SidebarLayout } from './components/layout/SidebarLayout';
 import { MainPanelLayout } from './components/layout/MainPanelLayout';
@@ -39,6 +39,18 @@ function App() {
     window.addEventListener('message', handleMessage);
     return () => window.removeEventListener('message', handleMessage);
   }, [handleMessage]);
+
+  // ── Extension에 마운트 완료 알림 (에디터 패널 CONFLICT_RESULT replay용) ──
+  useEffect(() => {
+    const api = getVsCodeWebviewApi();
+    if (!api) return;
+    const notifyReady = () => {
+      api.postMessage({ type: 'WEBVIEW_READY', payload: {} });
+    };
+    notifyReady();
+    const t = window.setTimeout(notifyReady, 400);
+    return () => window.clearTimeout(t);
+  }, []);
 
   // ── 초기 데이터 fetch (마운트 시 상태 확인 및 연결 시 데이터 fetch) ──
   useEffect(() => {

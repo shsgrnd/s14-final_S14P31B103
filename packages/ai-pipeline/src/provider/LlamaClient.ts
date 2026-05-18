@@ -3,6 +3,7 @@ import type {
   LlamaContext,
   LlamaChatSession,
   LLamaChatPromptOptions,
+// @ts-ignore
 } from 'node-llama-cpp';
 import { promises as fs } from 'node:fs';
 import type { PromptPayload } from './AiClient';

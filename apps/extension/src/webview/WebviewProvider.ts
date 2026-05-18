@@ -5,8 +5,10 @@ import { MessageRouter } from '../core/MessageRouter';
 import { resolveWebviewDistPath } from './webviewAssets';
 
 export class WebviewProvider {
-    private panel: vscode.WebviewPanel | undefined;
-    private panelMode: 'main' | 'pr' | undefined;
+    /** 병합 검토 / AI 탭 전용 메인 패널 */
+    private mainPanel: vscode.WebviewPanel | undefined;
+    /** PR 생성 전용 패널 */
+    private prPanel: vscode.WebviewPanel | undefined;
 
     constructor(
         private context: vscode.ExtensionContext,
@@ -14,25 +16,39 @@ export class WebviewProvider {
     ) { }
 
     public createOrShow(viewMode: 'main' | 'pr' = 'main') {
+        if (viewMode === 'pr') {
+            this.openPrPanel();
+        } else {
+            this.openMainPanel();
+        }
+    }
+
+    /** 병합 검토 메인 패널이 열려 있는지 여부 (CONFLICT_RESULT 판단용) */
+    public isMainPanelOpen(): boolean {
+        return this.mainPanel !== undefined;
+    }
+
+    /** PR 패널이 열려 있는지 여부 */
+    public isPrPanelOpen(): boolean {
+        return this.prPanel !== undefined;
+    }
+
+    private openMainPanel(): void {
         const column = vscode.window.activeTextEditor
             ? vscode.window.activeTextEditor.viewColumn
             : undefined;
 
-        if (this.panel) {
-            if (this.panelMode !== viewMode) {
-                this.panel.webview.html = this.getHtmlForWebview(this.panel.webview, viewMode);
-                this.panelMode = viewMode;
-            }
-            this.panel.reveal(column);
+        if (this.mainPanel) {
+            this.mainPanel.reveal(column);
             return;
         }
 
         const distPath = resolveWebviewDistPath(this.context.extensionPath);
 
-        this.panel = vscode.window.createWebviewPanel(
-            'gitcat',
+        this.mainPanel = vscode.window.createWebviewPanel(
+            'gitcat-main',
             'GitCat',
-            column || vscode.ViewColumn.One,
+            column || vscode.ViewColumn.Two,
             {
                 enableScripts: true,
                 retainContextWhenHidden: true,
@@ -40,23 +56,61 @@ export class WebviewProvider {
             }
         );
 
-        this.panelMode = viewMode;
-        this.panel.webview.html = this.getHtmlForWebview(this.panel.webview, viewMode);
-        const webviewRegistration = this.messageRouter.registerWebview(this.panel.webview);
+        this.mainPanel.webview.html = this.getHtmlForWebview(this.mainPanel.webview, 'main');
+        const reg = this.messageRouter.registerWebview(this.mainPanel.webview);
 
-        this.panel.webview.onDidReceiveMessage(
-            message => {
-                this.messageRouter.route(message, this.panel!.webview);
-            },
+        this.mainPanel.webview.onDidReceiveMessage(
+            message => this.messageRouter.route(message, this.mainPanel!.webview),
             null,
             this.context.subscriptions
         );
 
-        this.panel.onDidDispose(
+        this.mainPanel.onDidDispose(
             () => {
-                webviewRegistration.dispose();
-                this.panel = undefined;
-                this.panelMode = undefined;
+                reg.dispose();
+                this.mainPanel = undefined;
+            },
+            null,
+            this.context.subscriptions
+        );
+    }
+
+    private openPrPanel(): void {
+        const column = vscode.window.activeTextEditor
+            ? vscode.window.activeTextEditor.viewColumn
+            : undefined;
+
+        if (this.prPanel) {
+            this.prPanel.reveal(column);
+            return;
+        }
+
+        const distPath = resolveWebviewDistPath(this.context.extensionPath);
+
+        this.prPanel = vscode.window.createWebviewPanel(
+            'gitcat-pr',
+            'GitCat: PR',
+            column || vscode.ViewColumn.Two,
+            {
+                enableScripts: true,
+                retainContextWhenHidden: true,
+                localResourceRoots: [vscode.Uri.file(distPath)],
+            }
+        );
+
+        this.prPanel.webview.html = this.getHtmlForWebview(this.prPanel.webview, 'pr');
+        const reg = this.messageRouter.registerWebview(this.prPanel.webview);
+
+        this.prPanel.webview.onDidReceiveMessage(
+            message => this.messageRouter.route(message, this.prPanel!.webview),
+            null,
+            this.context.subscriptions
+        );
+
+        this.prPanel.onDidDispose(
+            () => {
+                reg.dispose();
+                this.prPanel = undefined;
             },
             null,
             this.context.subscriptions
@@ -64,8 +118,7 @@ export class WebviewProvider {
     }
 
     public closePrPanel(): void {
-        if (!this.panel || this.panelMode !== 'pr') return;
-        this.panel.dispose();
+        this.prPanel?.dispose();
     }
 
     private getHtmlForWebview(webview: vscode.Webview, viewMode: 'sidebar' | 'main' | 'pr'): string {

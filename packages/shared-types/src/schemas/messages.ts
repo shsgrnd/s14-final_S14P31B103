@@ -80,10 +80,11 @@ export const EnvelopeSchema = z.object({
  */
 export const InboundPayloadSchemaMap = {
   RESTORE_SNAPSHOT: z.object({ snapshotId: z.string() }),
+  CONFIRM_RESTORE_SNAPSHOT: z.object({ snapshotId: z.string(), confirmed: z.boolean() }),
   ANALYZE_CONFLICT: AnalyzeConflictRequestSchema,
   ACCEPT_MERGE: AcceptMergeRequestSchema,
   REJECT_MERGE: RejectMergeRequestSchema,
-  RUN_MERGE: z.object({ source: z.string(), target: z.string() }),
+  RUN_MERGE: z.object({ source: z.string(), target: z.string().optional(), skipGuard: z.boolean().optional() }),
   RECOMMEND_COMMIT: z.object({
     prompt: z.string().trim().optional(),
     diffText: z.string().trim().optional(),
@@ -126,13 +127,13 @@ export const InboundPayloadSchemaMap = {
   GET_RESTORE_HISTORY: z.object({}).strict(),
   OPEN_FILE_DIFF: z.object({ filePath: z.string(), snapshotId: z.string().optional() }),
   OPEN_WORKSPACE_FILE: z.object({ filePath: z.string(), status: z.string().optional() }),
-  EXECUTE_PULL: z.object({}).strict(),
+  EXECUTE_PULL: z.object({ skipGuard: z.boolean().optional() }),
   OPEN_DIFF_EDITOR: z.object({ filePath: z.string() }),
   SET_CONFIG: z.object({ config: z.any() }),
   GET_AI_DRAFT: GetAiDraftRequestSchema,
   EXECUTE_COMMIT: z.object({ message: z.string() }),
   GIT_ADD_ALL: z.object({}).strict(),
-  GIT_PUSH: z.object({}).strict(),
+  GIT_PUSH: z.object({ skipGuard: z.boolean().optional() }),
   OPEN_MERGE_PANEL: z.object({}).strict(),
   CHECKOUT_BRANCH: z.object({ name: z.string() }),
   // stash
@@ -172,8 +173,9 @@ export const InboundPayloadSchemaMap = {
     assignees: z.array(z.string()).optional(),
     labels: z.array(z.string()).optional(),
     milestone: z.number().int().optional(), // GitHub milestone 번호
+    skipGuard: z.boolean().optional(),    // 충돌 가드 건너뜀 (충돌 해결 후 재시도 시)
   }),
-  OPEN_PR_PANEL: z.object({}).strict(),
+  OPEN_PR_PANEL: z.object({ skipGuard: z.boolean().optional() }),
   // AI API Key 관리
   SAVE_AI_API_KEY: z.object({ apiKey: z.string().min(1) }),
   DELETE_AI_API_KEY: z.object({}).strict(),
@@ -217,11 +219,27 @@ export const OutboundPayloadSchemaMap = {
     beforeWarnings: z.array(SafetyWarningSchema).optional(),
     afterWarnings: z.array(SafetyWarningSchema).optional(),
   }),
+  RESTORE_CONFIRM_REQUIRED: z.object({
+    snapshotId: z.string(),
+    changedPathsCount: z.number().int().nonnegative(),
+    warningMessages: z.array(z.string()),
+  }),
   // 병합 화면 응답은 AI/DB 원본 DTO가 아닌 projection DTO로 고정합니다.
   CONFLICT_RESULT: z.object({
     analysisId: z.string().optional(),
     artifactPath: z.string().nullable().optional(),
     candidates: z.array(MergeConflictCandidateViewSchema),
+    /** 가드가 차단한 원래 Git 동작. 모든 충돌 후보 처리 후 이 동작을 재시도할 수 있습니다. */
+    triggeringAction: z.enum(['push', 'pull', 'pr', 'merge']).optional(),
+    mergeSource: z.string().optional(),
+    preserveResolvedCandidates: z.boolean().optional(),
+    resolvedCandidates: z.record(z.string(), z.enum(['accepted', 'rejected'])).optional(),
+    resolvedCandidatesByFilePath: z.record(z.string(), z.enum(['accepted', 'rejected'])).optional(),
+  }),
+  CANDIDATE_RESOLVED: z.object({
+    candidateId: z.string(),
+    filePath: z.string(),
+    status: z.enum(['accepted', 'rejected']),
   }),
   MERGE_PROPOSAL: z.object({ proposals: z.array(MergeProposalViewSchema) }),
   MERGE_COMPLETE: z.object({ merge: MergeCompleteViewSchema }),

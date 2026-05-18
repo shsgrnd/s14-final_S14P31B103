@@ -120,4 +120,10 @@ export interface IGitClient {
 
   /** 진행 중인 병합 취소 */
   runMergeAbort(): Promise<void>;
+
+  /** MERGING 중 충돌 파일을 현재 브랜치(ours) 버전으로 되돌린다 */
+  checkoutMergeOurs(filePaths: string[]): Promise<void>;
+
+  /** MERGING 중 인덱스 stage(2=ours, 3=theirs) 내용을 읽는다 */
+  readIndexStage(filePath: string, stage: 2 | 3): Promise<string>;
 }

@@ -2,7 +2,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import type { SafetyWarning, SnapshotFile } from '@gitcat/shared-types';
 
-const DEFAULT_LARGE_DELETION_THRESHOLD = 5;
+const DEFAULT_LARGE_DELETION_THRESHOLD = 50;
 
 type WarningSeverity = SafetyWarning['severity'];
 type WarningType = SafetyWarning['type'];
@@ -24,6 +24,7 @@ interface AnalyzeChangedFilesParams {
 
 interface AnalyzeRestorePlanParams {
   phase: 'before_restore' | 'after_restore';
+  changedFiles?: SnapshotFile[];
   fileStates: Iterable<{
     filePath: string;
     content: Uint8Array | null;
@@ -41,11 +42,7 @@ export class SafetyCheckService {
   }
 
   analyzeSnapshot(params: AnalyzeChangedFilesParams): SafetyWarning[] {
-    const deletedFiles = params.deletedFiles ?? params.changedFiles
-      .filter((file) => file.status === 'deleted')
-      .map((file) => file.filePath);
-
-    const warnings = this.buildLargeDeletionWarnings(deletedFiles);
+    const warnings = this.buildLargeDeletionWarnings(params.changedFiles);
 
     for (const file of params.changedFiles) {
       warnings.push(...this.buildRiskWarningsForPath(file.filePath, file.status));
@@ -59,14 +56,9 @@ export class SafetyCheckService {
 
   analyzeRestorePlan(params: AnalyzeRestorePlanParams): SafetyWarning[] {
     const warnings: SafetyWarning[] = [];
-    const deletedPaths: string[] = [];
 
     for (const state of params.fileStates) {
       const normalizedPath = this.normalizeRelativePath(state.filePath);
-      if (state.content === null) {
-        deletedPaths.push(normalizedPath);
-      }
-
       warnings.push(
         ...this.buildRiskWarningsForPath(
           normalizedPath,
@@ -76,7 +68,7 @@ export class SafetyCheckService {
       );
     }
 
-    warnings.push(...this.buildLargeDeletionWarnings(deletedPaths));
+    warnings.push(...this.buildLargeDeletionWarnings(params.changedFiles ?? []));
     return this.dedupeWarnings(warnings);
   }
 
@@ -103,24 +95,32 @@ export class SafetyCheckService {
     return Math.floor(value);
   }
 
-  private buildLargeDeletionWarnings(deletedFiles: string[]): SafetyWarning[] {
-    if (deletedFiles.length < this.largeDeletionThreshold) {
+  private buildLargeDeletionWarnings(changedFiles: SnapshotFile[]): SafetyWarning[] {
+    const deletedLineCount = changedFiles.reduce(
+      (total, file) => total + Math.max(0, file.deletions ?? 0),
+      0,
+    );
+    if (deletedLineCount < this.largeDeletionThreshold) {
       return [];
     }
 
+    const affectedPaths = changedFiles
+      .filter((file) => (file.deletions ?? 0) > 0 || file.status === 'deleted')
+      .map((file) => this.normalizeRelativePath(file.filePath));
     const severity: WarningSeverity =
-      deletedFiles.length >= this.largeDeletionThreshold * 2 ? 'high' : 'medium';
+      deletedLineCount >= this.largeDeletionThreshold * 2 ? 'high' : 'medium';
 
     return [
       this.createWarning({
         type: 'large_deletion',
-        code: 'large_file_deletion',
-        message: `${deletedFiles.length} files are scheduled for deletion.`,
+        code: 'large_line_deletion',
+        message: `${deletedLineCount} lines are scheduled for deletion.`,
         severity,
-        filePaths: deletedFiles,
+        filePaths: affectedPaths,
         metadata: {
           threshold: this.largeDeletionThreshold,
-          deletedFileCount: deletedFiles.length,
+          deletedLineCount,
+          affectedFileCount: affectedPaths.length,
         },
       }),
     ];

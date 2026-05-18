@@ -8,6 +8,7 @@ import { z } from 'zod';
  */
 export const InboundMessageTypeEnum = z.enum([
   'RESTORE_SNAPSHOT',
+  'CONFIRM_RESTORE_SNAPSHOT',
   'ANALYZE_CONFLICT',
   'ACCEPT_MERGE',
   'REJECT_MERGE',
@@ -101,7 +102,10 @@ export const OutboundMessageTypeEnum = z.enum([
   'SNAPSHOT_FILE_DIFF',
   'RESTORE_HISTORY_LIST',
   'RESTORE_DONE',
+  'RESTORE_CONFIRM_REQUIRED',
   'CONFLICT_RESULT',
+  /** 병합 후보 수락/거절 — 모든 webview의 병합 위험 분석 목록 상태 동기화 */
+  'CANDIDATE_RESOLVED',
   'MERGE_PROPOSAL',
   'MERGE_COMPLETE',
   'COMMIT_SUGGESTIONS',

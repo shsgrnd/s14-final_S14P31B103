@@ -47,12 +47,12 @@ export function getConflictExplanationSystemPrompt(): string {
 }
 
 /**
- * merge_patch_draft는 실제 patch/code ref를 포함하는 초안 생성용 기능입니다.
- * 시스템 프롬프트에서 필요한 출력 필드를 고정해 두면 파서와 mock 계약을 유지하기 쉽습니다.
+ * merge_patch_draft는 충돌 블록을 대체할 최종 해결 코드 생성용 기능입니다.
+ * 시스템 프롬프트에서 출력 필드를 고정해 두면 파서와 mock 계약을 안정적으로 유지할 수 있습니다.
  */
 export function getMergePatchDraftSystemPrompt(): string {
   return [
-    'Task: Draft a merge patch to resolve conflicts between branches.',
+    'Task: Draft the final resolved code to replace a merge conflict block.',
     'Rules:',
     '- Preserve intent of both branches.',
     '- Prefer minimal changes; do not rewrite unrelated code.',
@@ -65,7 +65,7 @@ export function getMergePatchDraftSystemPrompt(): string {
       summary: "string",
       explanation: "string (short reasoning)",
       confidence_score: 0.9,
-      diff_patch: "string (unified diff)",
+      merged_code: "string (the final resolved code snippet to replace the conflict block)",
       validation_summary: "string (short)",
       applied_files: ["string"]
     }, null, 2)
@@ -207,8 +207,7 @@ export async function buildConflictUserPrompt(payload: MergeProposalInput, works
 
 /**
  * merge_patch_draft용 user prompt를 생성합니다.
- * 실제 patch 본문은 아직 외부 artifact ref로 관리하므로, LLM에게는 "어떤 파일에 어떤 방향으로"
- * 초안을 만들어야 하는지만 명확히 전달합니다.
+ * LLM에게 "충돌 블록을 어떤 최종 코드로 대체해야 하는지"를 명확히 전달합니다.
  */
 export async function buildMergePatchDraftUserPrompt(payload: MergeProposalInput, workspaceRoot?: string): Promise<string> {
   return [
@@ -216,7 +215,7 @@ export async function buildMergePatchDraftUserPrompt(payload: MergeProposalInput
     '',
     'Task:',
     '- Propose a safe merge draft integrating source and target changes.',
-    '- Use diff_patch (unified diff) for the primary resolution.',
+    '- Return the EXACT resolved code snippet in the `merged_code` field to replace the conflict block.',
     '- Keep all explanations and summaries extremely concise.',
   ].join('\n');
 }
