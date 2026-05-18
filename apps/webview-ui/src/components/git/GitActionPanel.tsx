@@ -1382,7 +1382,7 @@ export const GitActionPanel: React.FC = () => {
                   {mergeResult.conflictedFiles.map((file) => (
                     <div
                       key={file}
-                      onClick={() => sendMessage('OPEN_FILE' as any, { path: file })}
+                      onClick={() => sendMessage('OPEN_WORKSPACE_FILE', { filePath: file })}
                       onMouseOver={e => {
                         e.currentTarget.style.background = 'var(--vscode-list-hoverBackground)';
                         e.currentTarget.style.color = 'var(--vscode-textLink-foreground)';

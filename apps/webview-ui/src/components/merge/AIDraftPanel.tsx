@@ -574,7 +574,16 @@ export const AIDraftPanel: React.FC = () => {
         }}>
           AI Mediation
         </span>
-        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
+        <button
+          type="button"
+          onClick={() => sendMessage('OPEN_WORKSPACE_FILE', { filePath: currentAIDraft.filePath })}
+          title="에디터에서 파일 열기"
+          style={{
+            flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1,
+            border: 'none', background: 'transparent', padding: 0, margin: 0,
+            textAlign: 'left', cursor: 'pointer', color: 'inherit',
+          }}
+        >
           <span style={{
             fontSize: 12, fontWeight: 600,
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
@@ -590,7 +599,7 @@ export const AIDraftPanel: React.FC = () => {
               ? currentAIDraft.filePath.substring(0, currentAIDraft.filePath.lastIndexOf('/'))
               : '/ (루트 디렉토리)'}
           </span>
-        </div>
+        </button>
         <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0 }}>
           {isFeedbackSubmitting ? (
             <span style={{ fontSize: 11, opacity: 0.75, color: 'var(--vscode-descriptionForeground)' }}>
@@ -791,6 +800,7 @@ const AppliedContentPreview: React.FC<{
   content: string;
   onBack: () => void;
 }> = ({ conflict, content, onBack }) => {
+  const { sendMessage } = useVsCodeApi();
   const fileName = conflict.filePath.split('/').pop() ?? conflict.filePath;
   const dirPath = conflict.filePath.includes('/')
     ? conflict.filePath.substring(0, conflict.filePath.lastIndexOf('/'))
@@ -818,10 +828,18 @@ const AppliedContentPreview: React.FC<{
         }}>
           반영 완료
         </span>
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <button
+          type="button"
+          onClick={() => sendMessage('OPEN_WORKSPACE_FILE', { filePath: conflict.filePath })}
+          title="에디터에서 파일 열기"
+          style={{
+            flex: 1, minWidth: 0, border: 'none', background: 'transparent', padding: 0, margin: 0,
+            textAlign: 'left', cursor: 'pointer', color: 'inherit',
+          }}
+        >
           <div style={{ fontSize: 12, fontWeight: 600 }}>{fileName}</div>
           <div style={{ fontSize: 10, opacity: 0.65, color: 'var(--vscode-descriptionForeground)' }}>{dirPath}</div>
-        </div>
+        </button>
       </div>
       <div style={{
         flexShrink: 0, padding: '6px 12px', fontSize: 11, lineHeight: 1.5,
@@ -857,6 +875,7 @@ const RejectedContentPreview: React.FC<{
   onBack: () => void;
   onRequestAI: (selectedHunks?: number[]) => void;
 }> = ({ conflict, onBack, onRequestAI }) => {
+  const { sendMessage } = useVsCodeApi();
   const fileName = conflict.filePath.split('/').pop() ?? conflict.filePath;
   const dirPath = conflict.filePath.includes('/')
     ? conflict.filePath.substring(0, conflict.filePath.lastIndexOf('/'))
@@ -884,10 +903,18 @@ const RejectedContentPreview: React.FC<{
         }}>
           반영 안 함
         </span>
-        <div style={{ flex: 1, minWidth: 0 }}>
+        <button
+          type="button"
+          onClick={() => sendMessage('OPEN_WORKSPACE_FILE', { filePath: conflict.filePath })}
+          title="에디터에서 파일 열기"
+          style={{
+            flex: 1, minWidth: 0, border: 'none', background: 'transparent', padding: 0, margin: 0,
+            textAlign: 'left', cursor: 'pointer', color: 'inherit',
+          }}
+        >
           <div style={{ fontSize: 12, fontWeight: 600 }}>{fileName}</div>
           <div style={{ fontSize: 10, opacity: 0.65, color: 'var(--vscode-descriptionForeground)' }}>{dirPath}</div>
-        </div>
+        </button>
       </div>
       <div style={{
         flexShrink: 0, padding: '10px 12px', borderTop: '1px solid var(--vscode-panel-border)',
@@ -923,10 +950,15 @@ const ConflictPreview: React.FC<{
   onRequestAI: (selectedHunks?: number[]) => void;
   onBack: () => void;
 }> = ({ conflict, isLoading = false, onRequestAI, onBack }) => {
+  const { sendMessage } = useVsCodeApi();
   const fileName = conflict.filePath.split('/').pop() ?? conflict.filePath;
   const dirPath = conflict.filePath.includes('/')
     ? conflict.filePath.substring(0, conflict.filePath.lastIndexOf('/'))
     : '/ (루트 디렉토리)';
+
+  const openWorkspaceFile = () => {
+    sendMessage('OPEN_WORKSPACE_FILE', { filePath: conflict.filePath });
+  };
 
   // 충돌 클러스터 수 파악 (targetExcerpt 기준)
   const excerpt = conflict.targetExcerpt ?? conflict.sourceExcerpt ?? '';
@@ -1008,14 +1040,23 @@ const ConflictPreview: React.FC<{
         }}>
           {SEVERITY_LABEL[conflict.severity] ?? '충돌'}
         </span>
-        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1 }}>
+        <button
+          type="button"
+          onClick={openWorkspaceFile}
+          title="에디터에서 파일 열기"
+          style={{
+            flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: 1,
+            border: 'none', background: 'transparent', padding: 0, margin: 0,
+            textAlign: 'left', cursor: 'pointer', color: 'inherit',
+          }}
+        >
           <span style={{ fontSize: 12, fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
             {fileName}
           </span>
           <span style={{ fontSize: 10, opacity: 0.65, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'var(--vscode-descriptionForeground)' }}>
             {dirPath} · L{conflict.lineStart}–{conflict.lineEnd}
           </span>
-        </div>
+        </button>
       </div>
 
       {/* 충돌 이유 */}
