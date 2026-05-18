@@ -7,3 +7,4 @@ export * from './MergeProposalService';
 export * from './MergeProposalMessageHandler';
 export * from './MergeConflictGuardService';
 export * from './AiPipelineMergeProposalProvider';
+export * from './RuntimeMergeRagService';

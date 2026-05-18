@@ -1,0 +1,928 @@
+import * as fs from 'fs/promises';
+import * as path from 'path';
+import type {
+  ChangeRecordRow,
+  ChangedFileRow,
+  ConflictCandidate,
+  MergeProposalRow,
+  ProposalFeedbackRow,
+  RecommendationHistoryRow,
+  SnapshotFileRow,
+  SnapshotRow,
+} from '@gitcat/shared-types';
+import type { MergeRepositoryBundle } from '../../storage/interfaces';
+import { MergeAnalysisArtifactStore } from './MergeAnalysisArtifactStore';
+
+export type RuntimeRagSourceType =
+  | 'merge_analysis_artifact'
+  | 'conflict_candidate'
+  | 'proposal_feedback'
+  | 'merge_proposal'
+  | 'recommendation_history'
+  | 'snapshot'
+  | 'snapshot_file'
+  | 'change_record'
+  | 'changed_file';
+
+export type RuntimeRagBundleSourceKind =
+  | 'snapshot'
+  | 'feedback'
+  | 'change_record'
+  | 'recommendation_history';
+
+export interface RuntimeRagSearchResult {
+  id: string;
+  source_type: RuntimeRagSourceType;
+  title: string;
+  content: string;
+  file_path?: string;
+  created_at?: string;
+  score: number;
+  metadata?: Record<string, unknown>;
+}
+
+export interface RuntimeRagContextBundleResult {
+  id: string;
+  source_kind: RuntimeRagBundleSourceKind;
+  source_type: RuntimeRagSourceType;
+  title: string;
+  content: string;
+  summary: string;
+  file_path?: string;
+  created_at?: string;
+  score: number;
+  recency_score: number;
+  file_match_score: number;
+  metadata?: Record<string, unknown>;
+}
+
+export interface RuntimeRagContextBundle {
+  schema_version: 'merge-context-bundle-v1';
+  metadata: {
+    generated_at: string;
+    analysis_id: string;
+    project_id: string;
+    session_id: string;
+    candidate_id: string;
+    source_count: number;
+    result_count: number;
+  };
+  query: RuntimeRagQuery;
+  query_summary: string;
+  budget: {
+    max_chars: number;
+    used_chars: number;
+    truncated: boolean;
+  };
+  ranking: {
+    top_k: number;
+    strategy: 'lexical-local-history';
+  };
+  results: RuntimeRagContextBundleResult[];
+  ai_context_summary: string;
+}
+
+export interface RuntimeRagQuery {
+  file_path: string;
+  source_branch?: string;
+  target_branch?: string;
+  reason_summary?: string;
+  risk_level?: string;
+  source_excerpt?: string;
+  target_excerpt?: string;
+  base_excerpt?: string;
+  working_diff_summary?: string;
+}
+
+interface MergeAnalysisArtifactCandidate {
+  candidate_id: string;
+  file_path: string;
+  line_start: number;
+  line_end: number;
+  detected_by: ConflictCandidate['detected_by'];
+  confidence_score?: number;
+  reason?: string;
+  suggestion?: string;
+  source_excerpt?: string;
+  target_excerpt?: string;
+  base_excerpt?: string;
+  risk_level?: ConflictCandidate['risk_level'];
+}
+
+export interface RuntimeRagMergeAnalysisArtifact {
+  analysis_id: string;
+  project_id: string;
+  session_id: string;
+  source_worktree_instance_id?: string;
+  target_worktree_instance_id?: string;
+  source_branch?: string;
+  target_branch?: string;
+  related_files?: string[];
+  branch_diff_text?: string;
+  source_diff_text?: string;
+  target_diff_text?: string;
+  candidates: MergeAnalysisArtifactCandidate[];
+}
+
+interface BuildContextBundleInput {
+  analysis: RuntimeRagMergeAnalysisArtifact;
+  candidate: ConflictCandidate;
+  previousFeedback: ProposalFeedbackRow[];
+  maxChars?: number;
+  topK?: number;
+}
+
+interface StoredProposalArtifactEntry {
+  proposal_id: string;
+  candidate_id: string;
+  analysis_id: string;
+  file_path: string;
+  feature_type: string;
+  title: string;
+  summary: string;
+  proposed_content: string;
+  explanation: string;
+  source_content?: string;
+  target_content?: string;
+  confidence_score?: number;
+  validation_required?: boolean;
+  validation_summary?: string;
+  status: string;
+  created_at: string;
+}
+
+interface StoredProposalsArtifact {
+  proposals?: StoredProposalArtifactEntry[];
+}
+
+export interface RuntimeRagEmbeddingRanker {
+  rank(
+    documents: RuntimeRagSearchResult[],
+    queryText: string,
+  ): Promise<Array<RuntimeRagSearchResult & { score: number }>>;
+}
+
+export class LocalEmbeddingRuntimeRagRanker implements RuntimeRagEmbeddingRanker {
+  async rank(
+    documents: RuntimeRagSearchResult[],
+    queryText: string,
+  ): Promise<Array<RuntimeRagSearchResult & { score: number }>> {
+    const { LocalVectorStore } = await import('@gitcat/ai-pipeline') as any;
+    const store = new LocalVectorStore();
+    await store.addDocuments(documents.map((document) => ({
+      id: document.id,
+      content: [
+        document.title,
+        document.file_path,
+        document.source_type,
+        document.content,
+      ].filter(Boolean).join('\n'),
+      metadata: { runtimeRagDocument: document },
+    })));
+
+    const results: Array<{ document: { metadata?: Record<string, unknown> }; score: number }> =
+      await store.search(queryText, documents.length);
+    return results.map((result) => ({
+      ...(result.document.metadata?.runtimeRagDocument as RuntimeRagSearchResult),
+      score: result.score,
+    }));
+  }
+}
+
+const DEFAULT_MAX_CHARS = 12000;
+const DEFAULT_TOP_K = 12;
+const MAX_ITEM_CHARS = 1800;
+
+export class RuntimeMergeContextBundleBuilder {
+  build(input: {
+    analysis: RuntimeRagMergeAnalysisArtifact;
+    candidate: ConflictCandidate;
+    query: RuntimeRagQuery;
+    rankedResults: RuntimeRagSearchResult[];
+    maxChars: number;
+    topK: number;
+  }): RuntimeRagContextBundle {
+    const selected = input.rankedResults.slice(0, input.topK);
+    const budgeted = this.applyBudget(selected, input.query, input.maxChars);
+    return {
+      schema_version: 'merge-context-bundle-v1',
+      metadata: {
+        generated_at: new Date().toISOString(),
+        analysis_id: input.analysis.analysis_id,
+        project_id: input.analysis.project_id,
+        session_id: input.analysis.session_id,
+        candidate_id: input.candidate.candidate_id,
+        source_count: input.rankedResults.length,
+        result_count: budgeted.results.length,
+      },
+      query: input.query,
+      query_summary: this.querySummary(input.query),
+      budget: budgeted.budget,
+      ranking: {
+        top_k: input.topK,
+        strategy: 'lexical-local-history',
+      },
+      results: budgeted.results,
+      ai_context_summary: this.aiContextSummary(budgeted.results),
+    };
+  }
+
+  private applyBudget(
+    items: RuntimeRagSearchResult[],
+    query: RuntimeRagQuery,
+    maxChars: number,
+  ): { results: RuntimeRagContextBundleResult[]; budget: RuntimeRagContextBundle['budget'] } {
+    let usedChars = 0;
+    let truncated = false;
+    const output: RuntimeRagContextBundleResult[] = [];
+
+    for (const item of items) {
+      const available = maxChars - usedChars;
+      if (available <= 0) {
+        truncated = true;
+        break;
+      }
+
+      const contentLimit = Math.min(MAX_ITEM_CHARS, available);
+      const content = item.content.length > contentLimit
+        ? `${item.content.slice(0, contentLimit)}\n[truncated]`
+        : item.content;
+      truncated = truncated || content.length < item.content.length;
+      usedChars += content.length;
+      output.push({
+        id: item.id,
+        source_kind: this.toBundleSourceKind(item.source_type),
+        source_type: item.source_type,
+        title: item.title,
+        content,
+        summary: this.itemSummary(item, content),
+        file_path: item.file_path,
+        created_at: item.created_at,
+        score: item.score,
+        recency_score: this.recencyScore(item.created_at),
+        file_match_score: this.fileMatchScore(item.file_path, query.file_path),
+        metadata: item.metadata,
+      });
+    }
+
+    return {
+      results: output,
+      budget: {
+        max_chars: maxChars,
+        used_chars: usedChars,
+        truncated,
+      },
+    };
+  }
+
+  private toBundleSourceKind(sourceType: RuntimeRagSourceType): RuntimeRagBundleSourceKind {
+    switch (sourceType) {
+      case 'proposal_feedback':
+        return 'feedback';
+      case 'recommendation_history':
+        return 'recommendation_history';
+      case 'snapshot':
+      case 'snapshot_file':
+        return 'snapshot';
+      case 'change_record':
+      case 'changed_file':
+      case 'merge_analysis_artifact':
+      case 'conflict_candidate':
+      case 'merge_proposal':
+        return 'change_record';
+    }
+  }
+
+  private querySummary(query: RuntimeRagQuery): string {
+    return [
+      `file=${query.file_path}`,
+      `source=${query.source_branch ?? 'N/A'}`,
+      `target=${query.target_branch ?? 'N/A'}`,
+      `risk=${query.risk_level ?? 'N/A'}`,
+      `reason=${query.reason_summary ?? 'N/A'}`,
+    ].join('; ');
+  }
+
+  private aiContextSummary(results: RuntimeRagContextBundleResult[]): string {
+    if (results.length === 0) {
+      return 'No relevant local history was found for this merge candidate.';
+    }
+
+    return results
+      .slice(0, 6)
+      .map((result, index) => [
+        `${index + 1}. [${result.source_kind}/${result.source_type}] ${result.title}`,
+        `score=${result.score}; recency=${result.recency_score}; file_match=${result.file_match_score}`,
+        result.summary,
+      ].join('\n'))
+      .join('\n\n');
+  }
+
+  private itemSummary(item: RuntimeRagSearchResult, content: string): string {
+    return content
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .slice(0, 3)
+      .join(' ');
+  }
+
+  private recencyScore(createdAt?: string): number {
+    if (!createdAt) {
+      return 0;
+    }
+    const time = Date.parse(createdAt);
+    if (Number.isNaN(time)) {
+      return 0;
+    }
+    const ageDays = Math.max(0, (Date.now() - time) / (24 * 60 * 60 * 1000));
+    return Number(Math.max(0, 12 - ageDays).toFixed(4));
+  }
+
+  private fileMatchScore(filePath: string | undefined, queryFilePath: string): number {
+    if (!filePath) {
+      return 0;
+    }
+    const normalizedFile = filePath.replace(/\\/g, '/');
+    const normalizedQuery = queryFilePath.replace(/\\/g, '/');
+    if (normalizedFile === normalizedQuery) {
+      return 40;
+    }
+    const fileName = path.posix.basename(normalizedFile);
+    const queryFileName = path.posix.basename(normalizedQuery);
+    return fileName && queryFileName && fileName === queryFileName ? 18 : 0;
+  }
+}
+
+export class RuntimeMergeRagService {
+  constructor(
+    private readonly repositories: Pick<
+      MergeRepositoryBundle,
+      | 'mergeProposals'
+      | 'proposalFeedbacks'
+      | 'recommendationHistories'
+      | 'snapshots'
+      | 'snapshotFiles'
+      | 'changeRecords'
+      | 'changedFiles'
+    >,
+    private readonly artifactStore: MergeAnalysisArtifactStore,
+    private readonly workspaceRoot: string,
+    private readonly embeddingRanker?: RuntimeRagEmbeddingRanker,
+    private readonly bundleBuilder: RuntimeMergeContextBundleBuilder = new RuntimeMergeContextBundleBuilder(),
+  ) {}
+
+  async buildAndStore(input: BuildContextBundleInput): Promise<{
+    bundle: RuntimeRagContextBundle;
+    relativePath: string;
+  }> {
+    const bundle = await this.build(input);
+    const artifact = await this.artifactStore.writeContextBundle(
+      this.workspaceRoot,
+      input.analysis.analysis_id,
+      bundle,
+    );
+    return { bundle, relativePath: artifact.relativePath };
+  }
+
+  async build(input: BuildContextBundleInput): Promise<RuntimeRagContextBundle> {
+    const query = this.toQuery(input.analysis, input.candidate);
+    const documents = await this.collectDocuments(input, query);
+    const ranked = await this.rank(documents, query);
+    return this.bundleBuilder.build({
+      analysis: input.analysis,
+      candidate: input.candidate,
+      query,
+      rankedResults: ranked,
+      maxChars: input.maxChars ?? DEFAULT_MAX_CHARS,
+      topK: input.topK ?? DEFAULT_TOP_K,
+    });
+  }
+
+  private async collectDocuments(
+    input: BuildContextBundleInput,
+    query: RuntimeRagQuery,
+  ): Promise<RuntimeRagSearchResult[]> {
+    const docs: RuntimeRagSearchResult[] = [];
+    docs.push(...this.analysisDocuments(input.analysis, query));
+    docs.push(...await this.feedbackDocuments(input.previousFeedback));
+    docs.push(...await this.proposalDocuments(input.analysis.analysis_id));
+    docs.push(...await this.recommendationDocuments(input.analysis.project_id));
+    docs.push(...await this.snapshotDocuments(input.analysis));
+    docs.push(...await this.changeRecordDocuments(input.analysis.session_id));
+    return docs.filter((doc) => doc.content.trim().length > 0);
+  }
+
+  private analysisDocuments(
+    analysis: RuntimeRagMergeAnalysisArtifact,
+    query: RuntimeRagQuery,
+  ): RuntimeRagSearchResult[] {
+    const docs: RuntimeRagSearchResult[] = [];
+    docs.push({
+      id: `${analysis.analysis_id}:summary`,
+      source_type: 'merge_analysis_artifact',
+      title: 'Current merge analysis summary',
+      content: [
+        `source_branch=${analysis.source_branch ?? 'N/A'}`,
+        `target_branch=${analysis.target_branch ?? 'N/A'}`,
+        `related_files=${(analysis.related_files ?? []).join(', ')}`,
+        `working_diff_summary=${query.working_diff_summary ?? 'N/A'}`,
+      ].join('\n'),
+      score: 0,
+    });
+
+    for (const candidate of analysis.candidates) {
+      docs.push({
+        id: candidate.candidate_id,
+        source_type: 'conflict_candidate',
+        title: `Conflict candidate ${candidate.file_path}`,
+        file_path: candidate.file_path,
+        content: [
+          `file_path=${candidate.file_path}`,
+          `lines=${candidate.line_start}-${candidate.line_end}`,
+          `reason=${candidate.reason ?? 'N/A'}`,
+          `risk_level=${candidate.risk_level ?? 'N/A'}`,
+          `source_excerpt:\n${candidate.source_excerpt ?? ''}`,
+          `target_excerpt:\n${candidate.target_excerpt ?? ''}`,
+          `base_excerpt:\n${candidate.base_excerpt ?? ''}`,
+        ].join('\n'),
+        score: 0,
+        metadata: {
+          detected_by: candidate.detected_by,
+          confidence_score: candidate.confidence_score,
+        },
+      });
+    }
+
+    return docs;
+  }
+
+  private async feedbackDocuments(feedbacks: ProposalFeedbackRow[]): Promise<RuntimeRagSearchResult[]> {
+    return Promise.all(feedbacks.map(async (feedback) => {
+      const finalCodeExcerpt = feedback.final_code_ref
+        ? await this.readWorkspaceRelativeFile(feedback.final_code_ref, 2200)
+        : undefined;
+
+      return {
+        id: feedback.feedback_id,
+        source_type: 'proposal_feedback',
+        title: `Proposal feedback ${feedback.selection_status}`,
+        content: [
+          `selection_status=${feedback.selection_status}`,
+          `quality_tag=${feedback.quality_tag ?? 'N/A'}`,
+          `final_text=${feedback.final_text ?? ''}`,
+          `final_explanation=${feedback.final_explanation ?? ''}`,
+          `feedback_note=${feedback.feedback_note ?? ''}`,
+          finalCodeExcerpt ? `final_code_excerpt:\n${finalCodeExcerpt}` : '',
+        ].filter(Boolean).join('\n'),
+        created_at: feedback.decided_at,
+        score: 0,
+        metadata: {
+          proposal_id: feedback.proposal_id,
+          merge_proposal_id: feedback.merge_proposal_id,
+          final_code_ref: feedback.final_code_ref,
+          selection_status: feedback.selection_status,
+          quality_tag: feedback.quality_tag,
+          has_final_code_excerpt: Boolean(finalCodeExcerpt),
+        },
+      };
+    }));
+  }
+
+  private async proposalDocuments(analysisId: string): Promise<RuntimeRagSearchResult[]> {
+    try {
+      const proposals = await this.repositories.mergeProposals.listByAnalysis(analysisId);
+      const artifactEntries = await this.proposalArtifactEntries(analysisId);
+      return proposals.map((proposal) =>
+        this.proposalDocument(
+          proposal,
+          artifactEntries.get(proposal.proposal_id),
+        ),
+      );
+    } catch (error) {
+      console.warn('GitCat runtime merge RAG proposal search failed:', error);
+      return [];
+    }
+  }
+
+  private async proposalArtifactEntries(analysisId: string): Promise<Map<string, StoredProposalArtifactEntry>> {
+    try {
+      const artifact = await this.artifactStore.readProposals<StoredProposalsArtifact>(
+        this.workspaceRoot,
+        analysisId,
+      );
+      return new Map(
+        (artifact?.proposals ?? []).map((entry) => [entry.proposal_id, entry]),
+      );
+    } catch (error) {
+      console.warn('GitCat runtime merge RAG proposal artifact read failed:', error);
+      return new Map();
+    }
+  }
+
+  private proposalDocument(
+    proposal: MergeProposalRow,
+    artifact?: StoredProposalArtifactEntry,
+  ): RuntimeRagSearchResult {
+    return {
+      id: proposal.proposal_id,
+      source_type: 'merge_proposal',
+      title: proposal.title,
+      file_path: proposal.file_path,
+      content: [
+        `file_path=${proposal.file_path}`,
+        `feature_type=${proposal.feature_type}`,
+        `title=${proposal.title}`,
+        `summary=${proposal.explanation_summary ?? ''}`,
+        `validation_summary=${proposal.validation_summary ?? ''}`,
+        `status=${proposal.status}`,
+        artifact?.explanation ? `artifact_explanation:\n${artifact.explanation}` : '',
+        artifact?.proposed_content ? `proposed_content_excerpt:\n${artifact.proposed_content.slice(0, 2200)}` : '',
+        artifact?.source_content ? `source_content_excerpt:\n${artifact.source_content.slice(0, 1000)}` : '',
+        artifact?.target_content ? `target_content_excerpt:\n${artifact.target_content.slice(0, 1000)}` : '',
+      ].join('\n'),
+      created_at: proposal.created_at,
+      score: 0,
+      metadata: {
+        candidate_id: proposal.candidate_id,
+        confidence_score: proposal.confidence_score,
+        artifact_status: artifact?.status,
+        has_proposed_content_excerpt: Boolean(artifact?.proposed_content),
+      },
+    };
+  }
+
+  private async recommendationDocuments(projectId: string): Promise<RuntimeRagSearchResult[]> {
+    try {
+      const histories = (await this.repositories.recommendationHistories?.listByProject(projectId, 20) ?? []) as RecommendationHistoryRow[];
+      return histories.map((history) => this.recommendationDocument(history));
+    } catch (error) {
+      console.warn('GitCat runtime merge RAG recommendation search failed:', error);
+      return [];
+    }
+  }
+
+  private recommendationDocument(history: RecommendationHistoryRow): RuntimeRagSearchResult {
+    return {
+      id: history.recommendation_id,
+      source_type: 'recommendation_history',
+      title: `Recommendation ${history.recommendation_type}`,
+      content: [
+        `type=${history.recommendation_type}`,
+        `input_summary=${history.input_summary ?? ''}`,
+        `result_text=${history.result_text}`,
+        `basis=${history.generation_basis_summary ?? ''}`,
+        `followup_notes=${history.followup_notes ?? ''}`,
+        `warnings=${history.warnings_json ?? ''}`,
+      ].join('\n'),
+      created_at: history.created_at,
+      score: 0,
+      metadata: {
+        session_id: history.session_id,
+        ai_request_id: history.ai_request_id,
+      },
+    };
+  }
+
+  private async snapshotDocuments(
+    analysis: RuntimeRagMergeAnalysisArtifact,
+  ): Promise<RuntimeRagSearchResult[]> {
+    const worktreeIds = [
+      analysis.source_worktree_instance_id,
+      analysis.target_worktree_instance_id,
+    ].filter((id): id is string => Boolean(id));
+
+    if (!this.repositories.snapshots || worktreeIds.length === 0) {
+      return [];
+    }
+
+    const docs: RuntimeRagSearchResult[] = [];
+    try {
+      for (const worktreeId of worktreeIds) {
+        const snapshots = await this.repositories.snapshots.listByWorkspace(worktreeId, 8) as SnapshotRow[];
+        for (const snapshot of snapshots) {
+          docs.push(this.snapshotDocument(snapshot));
+          docs.push(...await this.snapshotFileDocuments(snapshot.snapshot_id));
+        }
+      }
+    } catch (error) {
+      console.warn('GitCat runtime merge RAG snapshot search failed:', error);
+    }
+    return docs;
+  }
+
+  private snapshotDocument(snapshot: SnapshotRow): RuntimeRagSearchResult {
+    return {
+      id: snapshot.snapshot_id,
+      source_type: 'snapshot',
+      title: `Snapshot ${snapshot.type}`,
+      content: [
+        `type=${snapshot.type}`,
+        `reason=${snapshot.reason ?? ''}`,
+        `summary=${snapshot.summary ?? ''}`,
+        `safety_warnings=${(snapshot as SnapshotRow & { safety_warnings_json?: string | null }).safety_warnings_json ?? ''}`,
+      ].join('\n'),
+      created_at: snapshot.created_at,
+      score: 0,
+      metadata: {
+        session_id: snapshot.session_id,
+        local_path: snapshot.local_path,
+      },
+    };
+  }
+
+  private async snapshotFileDocuments(snapshotId: string): Promise<RuntimeRagSearchResult[]> {
+    try {
+      const files = (await this.repositories.snapshotFiles?.listBySnapshotId(snapshotId) ?? []) as SnapshotFileRow[];
+      return Promise.all(files.slice(0, 20).map((file) => this.snapshotFileDocument(file)));
+    } catch (error) {
+      console.warn('GitCat runtime merge RAG snapshot file search failed:', error);
+      return [];
+    }
+  }
+
+  private async snapshotFileDocument(file: SnapshotFileRow): Promise<RuntimeRagSearchResult> {
+    const storedExcerpt = await this.readWorkspaceRelativeFile(file.stored_path, 1000);
+    return {
+      id: file.snapshot_file_id,
+      source_type: 'snapshot_file',
+      title: `Snapshot file ${file.original_path}`,
+      file_path: this.normalizeFilePath(file.original_path),
+      content: [
+        `original_path=${file.original_path}`,
+        `file_name=${file.file_name}`,
+        `content_hash=${file.content_hash ?? ''}`,
+        storedExcerpt ? `stored_excerpt:\n${storedExcerpt}` : '',
+      ].filter(Boolean).join('\n'),
+      created_at: file.created_at,
+      score: 0,
+      metadata: {
+        snapshot_id: file.snapshot_id,
+        stored_path: file.stored_path,
+      },
+    };
+  }
+
+  private async changeRecordDocuments(sessionId: string): Promise<RuntimeRagSearchResult[]> {
+    if (!this.repositories.changeRecords) {
+      return [];
+    }
+
+    const docs: RuntimeRagSearchResult[] = [];
+    try {
+      const records = await this.repositories.changeRecords.listBySession(sessionId, 20) as ChangeRecordRow[];
+      for (const record of records) {
+        docs.push(this.changeRecordDocument(record));
+        const files = (await this.repositories.changedFiles?.listByRecordId(record.record_id) ?? []) as ChangedFileRow[];
+        docs.push(...files.map((file) => this.changedFileDocument(file, record.created_at)));
+      }
+    } catch (error) {
+      console.warn('GitCat runtime merge RAG change record search failed:', error);
+    }
+    return docs;
+  }
+
+  private changeRecordDocument(record: ChangeRecordRow): RuntimeRagSearchResult {
+    return {
+      id: record.record_id,
+      source_type: 'change_record',
+      title: `Change record ${record.branch_name ?? ''}`.trim(),
+      content: [
+        `branch_name=${record.branch_name ?? ''}`,
+        `description=${record.description ?? ''}`,
+      ].join('\n'),
+      created_at: record.created_at,
+      score: 0,
+      metadata: {
+        session_id: record.session_id,
+      },
+    };
+  }
+
+  private changedFileDocument(file: ChangedFileRow, recordCreatedAt?: string): RuntimeRagSearchResult {
+    return {
+      id: file.changed_file_id,
+      source_type: 'changed_file',
+      title: `Changed file ${file.file_path}`,
+      file_path: this.normalizeFilePath(file.file_path),
+      content: [
+        `file_path=${file.file_path}`,
+        `change_type=${file.change_type}`,
+        `location=${file.location ?? ''}`,
+        `summary=${file.summary ?? ''}`,
+      ].join('\n'),
+      created_at: file.created_at ?? recordCreatedAt,
+      score: 0,
+      metadata: {
+        record_id: file.record_id,
+      },
+    };
+  }
+
+  private async rank(
+    docs: RuntimeRagSearchResult[],
+    query: RuntimeRagQuery,
+  ): Promise<RuntimeRagSearchResult[]> {
+    const queryText = this.queryText(query);
+    if (this.embeddingRanker) {
+      try {
+        const embeddingRanked = await this.embeddingRanker.rank(docs, queryText);
+        return embeddingRanked.sort((a, b) => b.score - a.score);
+      } catch (error) {
+        console.warn('GitCat runtime merge RAG embedding search failed; using lexical fallback:', error);
+      }
+    }
+
+    return this.lexicalRank(docs, query, queryText);
+  }
+
+  private lexicalRank(
+    docs: RuntimeRagSearchResult[],
+    query: RuntimeRagQuery,
+    queryText: string,
+  ): RuntimeRagSearchResult[] {
+    const queryTerms = this.tokenize(queryText);
+    const queryFile = this.normalizeFilePath(query.file_path);
+
+    return docs
+      .map((doc) => {
+        const docFile = doc.file_path ? this.normalizeFilePath(doc.file_path) : '';
+        const fileScore = docFile === queryFile
+          ? 40
+          : docFile.endsWith(path.posix.basename(queryFile)) || queryFile.endsWith(path.posix.basename(docFile))
+            ? 18
+            : 0;
+        const lexicalScore = this.lexicalScore(queryTerms, doc);
+        const recencyScore = this.recencyScore(doc.created_at);
+        const sourceScore = this.sourcePriority(doc.source_type);
+        const feedbackScore = this.feedbackOutcomeScore(doc);
+
+        return {
+          ...doc,
+          score: Number((fileScore + lexicalScore + recencyScore + sourceScore + feedbackScore).toFixed(4)),
+        };
+      })
+      .sort((a, b) => b.score - a.score || a.source_type.localeCompare(b.source_type));
+  }
+
+  private queryText(query: RuntimeRagQuery): string {
+    const queryText = [
+      query.file_path,
+      query.source_branch,
+      query.target_branch,
+      query.reason_summary,
+      query.risk_level,
+      query.source_excerpt,
+      query.target_excerpt,
+      query.base_excerpt,
+      query.working_diff_summary,
+    ].filter(Boolean).join(' ');
+    return queryText;
+  }
+
+  private toQuery(
+    analysis: RuntimeRagMergeAnalysisArtifact,
+    candidate: ConflictCandidate,
+  ): RuntimeRagQuery {
+    return {
+      file_path: candidate.file_path,
+      source_branch: analysis.source_branch,
+      target_branch: analysis.target_branch,
+      reason_summary: candidate.reason_summary,
+      risk_level: candidate.risk_level,
+      source_excerpt: candidate.source_code,
+      target_excerpt: candidate.target_code,
+      base_excerpt: candidate.base_code,
+      working_diff_summary: this.diffSummaryForFile(analysis, candidate.file_path),
+    };
+  }
+
+  private diffSummaryForFile(
+    analysis: RuntimeRagMergeAnalysisArtifact,
+    filePath: string,
+  ): string | undefined {
+    const normalized = this.normalizeFilePath(filePath);
+    const diffText = [
+      analysis.branch_diff_text,
+      analysis.source_diff_text,
+      analysis.target_diff_text,
+    ].filter(Boolean).join('\n');
+    if (!diffText) {
+      return undefined;
+    }
+
+    const section = diffText
+      .split(/^diff --git /m)
+      .map((part, index) => index === 0 ? part : `diff --git ${part}`)
+      .find((part) => part.includes(` b/${normalized}`) || part.includes(` a/${normalized}`));
+
+    return (section ?? diffText).slice(0, 1200);
+  }
+
+  private lexicalScore(queryTerms: Set<string>, doc: RuntimeRagSearchResult): number {
+    if (queryTerms.size === 0) {
+      return 0;
+    }
+
+    const docTerms = this.tokenize([
+      doc.title,
+      doc.file_path,
+      doc.content,
+      doc.source_type,
+    ].filter(Boolean).join(' '));
+    let matches = 0;
+    for (const term of queryTerms) {
+      if (docTerms.has(term)) {
+        matches += 1;
+      }
+    }
+    return Math.min(30, matches * 2);
+  }
+
+  private tokenize(text: string): Set<string> {
+    return new Set(
+      text
+        .toLowerCase()
+        .split(/[^a-z0-9_./-]+/i)
+        .map((term) => term.trim())
+        .filter((term) => term.length >= 2),
+    );
+  }
+
+  private recencyScore(createdAt?: string): number {
+    if (!createdAt) {
+      return 0;
+    }
+    const time = Date.parse(createdAt);
+    if (Number.isNaN(time)) {
+      return 0;
+    }
+    const ageDays = Math.max(0, (Date.now() - time) / (24 * 60 * 60 * 1000));
+    return Math.max(0, 12 - ageDays);
+  }
+
+  private sourcePriority(sourceType: RuntimeRagSourceType): number {
+    switch (sourceType) {
+      case 'conflict_candidate':
+        return 20;
+      case 'merge_analysis_artifact':
+        return 16;
+      case 'proposal_feedback':
+        return 14;
+      case 'merge_proposal':
+        return 12;
+      case 'recommendation_history':
+        return 9;
+      case 'changed_file':
+        return 8;
+      case 'change_record':
+        return 7;
+      case 'snapshot_file':
+        return 6;
+      case 'snapshot':
+        return 5;
+    }
+  }
+
+  private feedbackOutcomeScore(doc: RuntimeRagSearchResult): number {
+    if (doc.source_type !== 'proposal_feedback') {
+      return 0;
+    }
+
+    const selectionStatus = doc.metadata?.selection_status;
+    const qualityTag = doc.metadata?.quality_tag;
+    if (selectionStatus === 'accepted' || qualityTag === 'useful') {
+      return 16;
+    }
+    if (selectionStatus === 'rejected' || qualityTag === 'not_useful') {
+      return 4;
+    }
+    return 0;
+  }
+
+  private async readWorkspaceRelativeFile(
+    relativePath: string,
+    maxChars: number,
+  ): Promise<string | undefined> {
+    const normalized = this.normalizeFilePath(relativePath);
+    if (path.isAbsolute(normalized)) {
+      return undefined;
+    }
+    const root = path.resolve(this.workspaceRoot);
+    const absolutePath = path.resolve(root, normalized);
+    if (absolutePath !== root && !absolutePath.startsWith(`${root}${path.sep}`)) {
+      return undefined;
+    }
+
+    try {
+      const content = await fs.readFile(absolutePath, 'utf8');
+      return content.slice(0, maxChars);
+    } catch {
+      return undefined;
+    }
+  }
+
+  private normalizeFilePath(filePath: string): string {
+    return filePath.replace(/\\/g, '/');
+  }
+}

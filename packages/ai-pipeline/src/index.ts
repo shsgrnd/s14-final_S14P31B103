@@ -25,3 +25,4 @@ export * from './feedback/result-display';
 export * from './feedback/proposal-lifecycle';
 export * from './feedback/result-storage-plan';
 export * from './feedback/result-repository-input';
+export * from './rag';
