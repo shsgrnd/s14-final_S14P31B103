@@ -20,6 +20,7 @@
     "onStartupFinished",
     "onView:gitcat-sidebar-webview",
     "onCommand:gitcat.openPanel",
+    "onCommand:gitcat.createSnapshot",
     "onCommand:gitcat.getGitStatus",
     "onCommand:gitcat.installLocalRuntime",
     "onCommand:gitcat.setGitHubToken",
@@ -35,6 +36,10 @@
       {
         "command": "gitcat.getGitStatus",
         "title": "GitCat: Refresh Status"
+      },
+      {
+        "command": "gitcat.createSnapshot",
+        "title": "GitCat: Create Snapshot"
       },
       {
         "command": "gitcat.installLocalRuntime",

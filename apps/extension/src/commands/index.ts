@@ -3,6 +3,7 @@ import { PanelCommandHandler } from './PanelCommandHandler';
 import { WebviewProvider } from '../webview/WebviewProvider';
 import { GitService } from '../features/git/GitService';
 import { GitHubTokenProvider } from '../integrations/github/GitHubTokenProvider';
+import { SafetySessionCoordinator } from '../features/safety/session/SafetySessionCoordinator';
 import { LiveLocalRuntimeManager } from '../platform/LiveLocalRuntimeManager';
 
 export class CommandRegistry {
@@ -10,6 +11,7 @@ export class CommandRegistry {
         context: vscode.ExtensionContext,
         webviewProvider: WebviewProvider,
         gitService?: GitService,
+        safetySessionCoordinator?: SafetySessionCoordinator,
         liveLocalRuntimeManager?: LiveLocalRuntimeManager,
     ) {
 
@@ -58,7 +60,10 @@ export class CommandRegistry {
         context.subscriptions.push(
             vscode.commands.registerCommand('gitcat.createSnapshot', async () => {
                 const { SnapshotCommandHandler } = await import('./SnapshotCommandHandler');
-                return await SnapshotCommandHandler.handleCreateSnapshot();
+                if (!safetySessionCoordinator) {
+                    throw new Error('SafetySessionCoordinator is not initialized.');
+                }
+                return await SnapshotCommandHandler.handleCreateSnapshot(safetySessionCoordinator);
             }),
             vscode.commands.registerCommand('gitcat.restoreSnapshot', async () => {
                 const { RestoreCommandHandler } = await import('./RestoreCommandHandler');
