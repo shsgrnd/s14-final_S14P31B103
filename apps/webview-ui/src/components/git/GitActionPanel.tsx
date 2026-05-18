@@ -5,6 +5,7 @@ import { useVsCodeApi } from '../../hooks/useVsCodeApi';
 import { btn, bigBtn, inlineBtn, vscodeSidebarViewTitleForeground, webviewBodyForeground, webviewDescriptionForeground } from '../../shared/styles';
 import { useSidebarSectionNotificationMode } from '../../app/SidebarSectionNotificationContext';
 import { SectionNotificationBanner } from '../common/SectionNotificationBanner';
+import { t } from '../../i18n';
 
 function toastCompletesPending(message: string, ok: boolean, pending: GitPanelPendingOperation | null): boolean {
   if (!ok) return true;
@@ -238,7 +239,7 @@ export const GitActionPanel: React.FC = () => {
     if (showCommitForm) {
       if (!commitMessage.trim()) return;
       if (stagedCount === 0) {
-        postGitSectionBanner({ type: 'warning', message: '먼저 변경 파일을 stage 한 뒤 커밋할 수 있습니다.' });
+        postGitSectionBanner({ type: 'warning', message: t('git.commit.stageRequired') });
         return;
       }
       lockGitPanel('commit');
@@ -264,7 +265,7 @@ export const GitActionPanel: React.FC = () => {
   const handleRunMerge = () => {
     if (!mergeSource || !mergeTarget) return;
     if (mergeSource === mergeTarget) {
-      postGitSectionBanner({ type: 'warning', message: '같은 브랜치는 머지할 수 없습니다.' });
+      postGitSectionBanner({ type: 'warning', message: t('git.merge.sameBranch') });
       return;
     }
     mergePendingCloseRef.current = true;
@@ -274,10 +275,10 @@ export const GitActionPanel: React.FC = () => {
   };
 
   const refreshStatusLabel = isRefreshingStatus
-    ? 'Refreshing Git status...'
+    ? t('git.refreshing')
     : lastStatusRefreshAt
-      ? `Updated ${formatRefreshTime(lastStatusRefreshAt)}`
-      : 'Not refreshed yet';
+      ? t('git.updatedAt', { time: formatRefreshTime(lastStatusRefreshAt) })
+      : t('git.notRefreshed');
 
   const isRefreshActive = isRefreshingStatus || isRefreshPressed;
   const handleRefreshStatus = (event: React.MouseEvent<HTMLButtonElement>) => {
@@ -291,7 +292,7 @@ export const GitActionPanel: React.FC = () => {
     const candidate = newBranchName.trim();
     if (!candidate) return;
     if (/\s/.test(candidate)) {
-      const message = '브랜치명에는 공백을 사용할 수 없습니다. 공백 없이 다시 입력해 주세요.';
+      const message = t('git.newBranch.invalidWhitespace');
       setBranchNameError(message);
       postGitSectionBanner({ type: 'error', message });
       return;
@@ -385,7 +386,7 @@ export const GitActionPanel: React.FC = () => {
               color: 'var(--vscode-input-foreground)',
               opacity: isGitConnected ? 1 : 0.72,
             }}>
-              {isGitConnected ? currentBranch : '저장소가 연결되지 않음'}
+              {isGitConnected ? currentBranch : t('git.currentBranchMissing')}
             </span>
             {isCheckoutPending && (
               <span
@@ -396,7 +397,7 @@ export const GitActionPanel: React.FC = () => {
                   flexShrink: 0,
                 }}
               >
-                전환 중...
+                {t('git.switching')}
               </span>
             )}
           </div>
@@ -462,10 +463,10 @@ export const GitActionPanel: React.FC = () => {
               }} />
             )}
             <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-              {isCheckoutPending ? `브랜치 전환 중... (${checkoutingBranch})` : refreshStatusLabel}
+              {isCheckoutPending ? `${t('git.switching')} (${checkoutingBranch})` : refreshStatusLabel}
             </span>
           </span>
-          <span style={{ color: 'var(--vscode-descriptionForeground)', opacity: 0.82 }}>Manual refresh</span>
+          <span style={{ color: 'var(--vscode-descriptionForeground)', opacity: 0.82 }}>{t('git.manualRefresh')}</span>
         </div>
       </div >
 
@@ -536,7 +537,7 @@ export const GitActionPanel: React.FC = () => {
                       color: isActive ? 'var(--vscode-list-activeSelectionForeground)' : 'var(--vscode-descriptionForeground)',
                       marginLeft: '2px',
                       opacity: isActive ? 0.92 : 1,
-                    }}>전환 중...</span>
+                    }}>{t('git.switching')}</span>
                   )}
                 </div>
                 <div style={{
@@ -563,7 +564,7 @@ export const GitActionPanel: React.FC = () => {
               marginBottom: '6px',
               textTransform: 'uppercase',
             }}>
-              Worktrees ({displayWorktrees.length})
+              {t('git.worktrees', { count: displayWorktrees.length })}
             </div>
             {displayWorktrees.length === 0 ? (
               <div style={{
@@ -572,7 +573,7 @@ export const GitActionPanel: React.FC = () => {
                 opacity: 0.72,
                 padding: '2px 0',
               }}>
-                추가 워크트리가 없습니다.
+                {t('git.worktrees.empty')}
               </div>
             ) : displayWorktrees.map((wt) => {
               const isCurrent = !!currentWorktreePath && wt.path === currentWorktreePath;
@@ -608,7 +609,7 @@ export const GitActionPanel: React.FC = () => {
                         overflow: 'hidden',
                         textOverflow: 'ellipsis',
                       }}>
-                        {wt.branch ?? '(detached)'}
+                        {wt.branch ?? t('git.detached')}
                       </span>
                     </div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '5px', flexShrink: 0 }}>
@@ -621,7 +622,7 @@ export const GitActionPanel: React.FC = () => {
                           color: 'var(--vscode-list-activeSelectionForeground)',
                           opacity: 0.95,
                         }}>
-                          current
+                          {t('git.current')}
                         </span>
                       )}
                       {wt.isLocked && <Lock size={10} style={{ color: 'var(--vscode-descriptionForeground)' }} />}
@@ -653,7 +654,7 @@ export const GitActionPanel: React.FC = () => {
               color: 'var(--vscode-descriptionForeground)',
               display: 'flex', alignItems: 'center', justifyContent: 'space-between',
             }}>
-              <span>Create New Branch</span>
+              <span>{t('git.newBranch.title')}</span>
               <button
                 type="button"
                 title="입력·초안을 바탕으로 브랜치 이름을 AI가 추천합니다"
@@ -672,11 +673,11 @@ export const GitActionPanel: React.FC = () => {
               >
                 {isBranchRecommendationLoading ? (
                   <>
-                    <RotateCw size={11} style={{ animation: 'gitcat-refresh-spin 0.9s linear infinite' }} /> 추천 중...
+                    <RotateCw size={11} style={{ animation: 'gitcat-refresh-spin 0.9s linear infinite' }} /> {t('git.ai.suggesting')}
                   </>
                 ) : (
                   <>
-                    <Sparkles size={11} /> AI 추천
+                    <Sparkles size={11} /> {t('git.ai.suggest')}
                   </>
                 )}
               </button>
@@ -704,7 +705,7 @@ export const GitActionPanel: React.FC = () => {
                 }
               }}
               onKeyDown={e => { if (e.key === 'Enter') handleCreateBranch(); if (e.key === 'Escape') closeBranchForm(); }}
-              placeholder="생성할 브랜치명을 작성해주세요"
+              placeholder={t('git.newBranch.placeholder')}
               maxLength={255}
               style={{
                 width: '100%', boxSizing: 'border-box',
@@ -787,7 +788,7 @@ export const GitActionPanel: React.FC = () => {
               <Check size={13} /> Create
             </button>
             <button type="button" title="새 브랜치 만들기 취소" onClick={closeBranchForm} style={btn('secondary')}>
-              <X size={13} /> Cancel
+              <X size={13} /> {t('git.newBranch.cancel')}
             </button>
           </div>
         )
@@ -821,11 +822,11 @@ export const GitActionPanel: React.FC = () => {
               >
                 {isCommitRecommendationLoading ? (
                   <>
-                    <RotateCw size={11} style={{ animation: 'gitcat-refresh-spin 0.9s linear infinite' }} /> 추천 중...
+                    <RotateCw size={11} style={{ animation: 'gitcat-refresh-spin 0.9s linear infinite' }} /> {t('git.ai.suggesting')}
                   </>
                 ) : (
                   <>
-                    <Sparkles size={11} /> AI 추천
+                    <Sparkles size={11} /> {t('git.ai.suggest')}
                   </>
                 )}
               </button>
@@ -932,7 +933,7 @@ export const GitActionPanel: React.FC = () => {
                 )}
               </button>
               <button type="button" title="커밋 입력 취소" onClick={closeCommitForm} style={btn('secondary')}>
-                <X size={13} /> Cancel
+                <X size={13} /> {t('git.cancel')}
               </button>
             </div>
           </div>
@@ -1023,11 +1024,11 @@ export const GitActionPanel: React.FC = () => {
               >
                 {isPushing ? (
                   <>
-                    <RotateCw size={13} style={{ animation: 'gitcat-refresh-spin 0.9s linear infinite' }} /> Pushing...
+                    <RotateCw size={13} style={{ animation: 'gitcat-refresh-spin 0.9s linear infinite' }} /> {t('git.pushing')}
                   </>
                 ) : (
                   <>
-                    <ArrowUp size={13} /> Git Push
+                    <ArrowUp size={13} /> {t('git.push')}
                   </>
                 )}
               </button>
@@ -1051,11 +1052,11 @@ export const GitActionPanel: React.FC = () => {
               >
                 {isOpeningPrPanel ? (
                   <>
-                    <RotateCw size={13} style={{ animation: 'gitcat-refresh-spin 0.9s linear infinite' }} /> Opening...
+                    <RotateCw size={13} style={{ animation: 'gitcat-refresh-spin 0.9s linear infinite' }} /> {t('git.pr.opening')}
                   </>
                 ) : (
                   <>
-                    <GitPullRequest size={13} /> Create PR
+                    <GitPullRequest size={13} /> {t('git.pr.create')}
                   </>
                 )}
               </button>
@@ -1071,7 +1072,7 @@ export const GitActionPanel: React.FC = () => {
                 style={{ ...bigBtn('secondary'), opacity: (isGitConnected && !isPulling && !gitPanelBusy) ? 1 : 0.5, cursor: (isGitConnected && !isPulling && !gitPanelBusy) ? 'pointer' : 'not-allowed' }}
               >
                 <RotateCw size={13} style={{ animation: isPulling ? 'gitcat-refresh-spin 0.9s linear infinite' : 'none' }} />
-                {isPulling ? 'Pulling...' : 'Git Pull'}
+                {isPulling ? t('git.pulling') : t('git.pull')}
               </button>
               <button
                 type="button"
@@ -1096,7 +1097,7 @@ export const GitActionPanel: React.FC = () => {
               >
                 {isMerging ? (
                   <>
-                    <RotateCw size={13} style={{ animation: 'gitcat-refresh-spin 0.9s linear infinite' }} /> Merging...
+                    <RotateCw size={13} style={{ animation: 'gitcat-refresh-spin 0.9s linear infinite' }} /> {t('git.merging')}
                   </>
                 ) : (
                   <>
@@ -1106,7 +1107,7 @@ export const GitActionPanel: React.FC = () => {
                         animation: isMergeGridPressed ? 'gitcat-refresh-spin 0.7s ease-in-out' : 'none',
                       }}
                     />{' '}
-                    Merge
+                    {t('git.merge')}
                   </>
                 )}
               </button>
@@ -1126,7 +1127,7 @@ export const GitActionPanel: React.FC = () => {
           }}>
             <AlertCircle size={24} style={{ color: webviewDescriptionForeground, marginBottom: '10px', opacity: 0.55 }} />
             <div style={{ fontSize: '13px', fontWeight: 600, marginBottom: '6px', color: webviewBodyForeground }}>
-              Git 저장소를 찾을 수 없습니다
+              {t('git.noRepository')}
             </div>
             <div style={{ fontSize: '11px', color: webviewDescriptionForeground, lineHeight: '1.5', opacity: 0.92 }}>
               .git 폴더가 포함된 프로젝트 폴더를<br />
@@ -1146,7 +1147,7 @@ export const GitActionPanel: React.FC = () => {
               display: 'flex', alignItems: 'center', gap: '6px',
             }}>
               <GitMerge size={14} style={{ color: 'var(--vscode-charts-blue)' }} />
-              Merge 브랜치 선택
+              {t('git.merge.title')}
             </div>
 
             {/* 병합할 브랜치 (source: FROM) */}
@@ -1196,7 +1197,7 @@ export const GitActionPanel: React.FC = () => {
                 {branches
                   .filter(b => !b.isRemote && b.name !== mergeSource)
                   .map(b => (
-                    <option key={b.name} value={b.name}>{b.name}{b.isCurrent ? ' (현재)' : ''}</option>
+                    <option key={b.name} value={b.name}>{b.name}{b.isCurrent ? ` (${t('git.current')})` : ''}</option>
                   ))
                 }
               </select>
@@ -1235,16 +1236,16 @@ export const GitActionPanel: React.FC = () => {
               >
                 {isMerging ? (
                   <>
-                    <RotateCw size={13} style={{ animation: 'gitcat-refresh-spin 0.9s linear infinite' }} /> Merging...
+                    <RotateCw size={13} style={{ animation: 'gitcat-refresh-spin 0.9s linear infinite' }} /> {t('git.merging')}
                   </>
                 ) : (
                   <>
-                    <GitMerge size={13} /> Merge 실행
+                    <GitMerge size={13} /> {t('git.merge.run')}
                   </>
                 )}
               </button>
               <button type="button" title="머지 취소" onClick={closeMergeForm} style={btn('secondary')}>
-                <X size={13} /> 취소
+                <X size={13} /> {t('git.cancel')}
               </button>
             </div>
           </div>
@@ -1321,7 +1322,7 @@ export const GitActionPanel: React.FC = () => {
               >
                 {isRecommendationLoading ? (
                   <>
-                    <RotateCw size={13} style={{ animation: 'gitcat-refresh-spin 0.9s linear infinite' }} /> 추천 중...
+                    <RotateCw size={13} style={{ animation: 'gitcat-refresh-spin 0.9s linear infinite' }} /> {t('git.ai.submitting')}
                   </>
                 ) : (
                   <>
@@ -1349,7 +1350,7 @@ export const GitActionPanel: React.FC = () => {
                   cursor: 'pointer'
                 }}
               >
-                <X size={13} /> Cancel
+                <X size={13} /> {t('git.ai.close')}
               </button>
             </div>
           </div>

@@ -9,6 +9,8 @@ import { useGitCatStore } from '../../store/useGitCatStore';
 import { SidebarSectionNotificationProvider } from '../../app/SidebarSectionNotificationContext';
 import { FooterSectionNotificationBalloon } from './FooterSectionNotificationBalloon';
 import { SidebarResizeHandle } from './SidebarResizeHandle';
+import { useVsCodeApi } from '../../hooks/useVsCodeApi';
+import { applyLanguageSetting, getLanguageSetting, getLocale, t } from '../../i18n';
 import {
   type SidebarSectionKey,
   useSidebarSectionWeights,
@@ -53,6 +55,7 @@ const SECTION_MIN_HEIGHT_PX = 80;
  * - 무거운 패널은 React.lazy로 분할 로드해 첫 페인트 이후 JS 파싱 부담을 줄임
  */
 export const SidebarLayout: React.FC = () => {
+  const { sendMessage } = useVsCodeApi();
   const snapshots = useGitCatStore((state) => state.snapshots);
   const snapshotTimelineBadgeCount = useMemo(
     () => snapshotsVisibleInSidebarTimeline(snapshots).length,
@@ -73,6 +76,7 @@ export const SidebarLayout: React.FC = () => {
   const mergeReviewActiveRef = useRef(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [prSettingsOpen, setPrSettingsOpen] = useState(false);
+  const [languageSetting, setLanguageSetting] = useState<'auto' | 'ko' | 'en'>(getLanguageSetting());
   const [notificationCenterOpen, setNotificationCenterOpen] = useState(false);
   const [clearAllLogsConfirmOpen, setClearAllLogsConfirmOpen] = useState(false);
   const [sectionBalloonOpen, setSectionBalloonOpen] = useState(false);
@@ -235,6 +239,19 @@ export const SidebarLayout: React.FC = () => {
     clearNotificationLogs();
     setLastReadAt(Date.now());
     setClearAllLogsConfirmOpen(false);
+  };
+
+  const currentLanguageLabel = getLocale() === 'ko' ? t('git.language.korean') : t('git.language.english');
+
+  const handleLanguageChange = (value: 'auto' | 'ko' | 'en') => {
+    setLanguageSetting(value);
+    applyLanguageSetting(value);
+    sendMessage('SET_CONFIG', {
+      config: {
+        key: 'gitcat.language',
+        value,
+      },
+    });
   };
 
   return (
@@ -405,6 +422,46 @@ export const SidebarLayout: React.FC = () => {
           paintVisible={sectionBalloonOpen && !notificationCenterOpen}
         />
         <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 'auto' }}>
+          <div
+            style={{
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'flex-end',
+              gap: 2,
+              marginRight: 6,
+            }}
+          >
+            <span
+              style={{
+                fontSize: '10px',
+                color: 'var(--vscode-descriptionForeground)',
+                lineHeight: 1.2,
+              }}
+            >
+              {t('git.language.current', { value: currentLanguageLabel })}
+            </span>
+            <select
+              aria-label={t('git.language.label')}
+              title={t('git.language.label')}
+              value={languageSetting}
+              onChange={(e) => handleLanguageChange(e.target.value as 'auto' | 'ko' | 'en')}
+              style={{
+                minWidth: '120px',
+                height: '26px',
+                padding: '0 8px',
+                borderRadius: '4px',
+                border: '1px solid var(--vscode-dropdown-border, var(--vscode-panel-border))',
+                background: 'var(--vscode-dropdown-background, var(--vscode-sideBar-background))',
+                color: 'var(--vscode-dropdown-foreground, var(--vscode-sideBar-foreground))',
+                fontSize: '11px',
+                cursor: 'pointer',
+              }}
+            >
+              <option value="auto">{t('git.language.auto')}</option>
+              <option value="en">{t('git.language.english')}</option>
+              <option value="ko">{t('git.language.korean')}</option>
+            </select>
+          </div>
           <button
             type="button"
             className="gitcat-icon-press"

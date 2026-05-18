@@ -446,6 +446,7 @@ export class MessageRouter {
 
         case 'SET_CONFIG':
           console.log('[GitCat] SET_CONFIG received', message.payload);
+          await this.handleSetConfig(message.payload as any);
           break;
 
         // ?�?�?� Git 관??(GitHandler가 ?�을 ?�의 기본 ?�답) ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�
@@ -474,6 +475,22 @@ export class MessageRouter {
 
   private async handleOpenFileDiff(payload: { filePath: string; snapshotId?: string }) {
     vscode.window.showInformationMessage(`GitCat: ?�일 비교 ?�청 ??${payload.filePath}`);
+  }
+
+  private async handleSetConfig(payload: { config?: { key?: string; value?: unknown } }): Promise<void> {
+    const key = payload?.config?.key;
+    if (typeof key !== 'string' || !key.startsWith('gitcat.')) {
+      return;
+    }
+
+    const settingPath = key.slice('gitcat.'.length);
+    if (!settingPath) {
+      return;
+    }
+
+    await vscode.workspace
+      .getConfiguration('gitcat')
+      .update(settingPath, payload.config?.value, vscode.ConfigurationTarget.Global);
   }
 
   private async handleGetSnapshotList(message: InboundMessage, webview: vscode.Webview): Promise<void> {
