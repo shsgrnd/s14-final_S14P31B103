@@ -219,6 +219,34 @@ export class GitCliClient implements IGitClient {
     return result.trim();
   }
 
+  async resolveRevision(ref: string): Promise<string> {
+    try {
+      return (await this.git.revparse([`${ref}^{commit}`])).trim();
+    } catch (err: unknown) {
+      const error = err as { message?: string; exitCode?: number; stderr?: string };
+      throw new GitError(
+        `Failed to resolve revision: ${ref}`,
+        `git rev-parse ${ref}^{commit}`,
+        error?.exitCode ?? 1,
+        error?.stderr ?? error?.message ?? String(err),
+      );
+    }
+  }
+
+  async showFileAtRevision(revision: string, filePath: string): Promise<string> {
+    try {
+      return await this.git.show([`${revision}:${filePath}`]);
+    } catch (err: unknown) {
+      const error = err as { message?: string; exitCode?: number; stderr?: string };
+      throw new GitError(
+        `Failed to read ${filePath} at ${revision}`,
+        `git show ${revision}:${filePath}`,
+        error?.exitCode ?? 1,
+        error?.stderr ?? error?.message ?? String(err),
+      );
+    }
+  }
+
   async getWorktrees(): Promise<WorktreeInfo[]> {
     const raw = await this.git.raw(['worktree', 'list', '--porcelain']);
     return parseWorktreeList(raw);

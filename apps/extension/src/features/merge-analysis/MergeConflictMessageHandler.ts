@@ -1,9 +1,11 @@
 import * as vscode from 'vscode';
 import {
   AnalyzeConflictRequestSchema,
+  GetMergeCompareContentRequestSchema,
   type OutboundMessage,
 } from '@gitcat/shared-types';
 import { MergeConflictAnalysisService } from './MergeConflictAnalysisService';
+import { sanitizeCompareContentPayload } from './mergeConflictWebviewPayload';
 import type { MessageRouter } from '../../core/MessageRouter';
 
 /**
@@ -18,6 +20,37 @@ export class MergeConflictMessageHandler {
   ) {}
 
   async handle(type: string, payload: unknown, _webview: vscode.Webview): Promise<boolean> {
+    if (type === 'GET_MERGE_COMPARE_CONTENT') {
+      try {
+        const request = GetMergeCompareContentRequestSchema.parse(payload);
+        const content = await this.service.getCandidateCompareContent(
+          request.analysisId,
+          request.candidateId,
+        );
+        if (!content) {
+          this.messageRouter.broadcast({
+            type: 'ERROR',
+            payload: {
+              code: 'NOT_FOUND',
+              message: '병합 비교 본문을 찾을 수 없습니다.',
+            },
+          } as OutboundMessage);
+          return true;
+        }
+        this.messageRouter.broadcast({
+          type: 'MERGE_COMPARE_CONTENT',
+          payload: sanitizeCompareContentPayload(content),
+        } as OutboundMessage);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        this.messageRouter.broadcast({
+          type: 'ERROR',
+          payload: { code: 'INTERNAL_ERROR', message },
+        } as OutboundMessage);
+      }
+      return true;
+    }
+
     if (type !== 'ANALYZE_CONFLICT') {
       return false;
     }

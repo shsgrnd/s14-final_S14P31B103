@@ -69,7 +69,7 @@ export const AiApiKeySettingsModal: React.FC<AiApiKeySettingsModalProps> = ({ op
     setError(null);
     clearKey();
     setInput('');
-    setFeedback({ tone: 'info', text: '저장된 키를 안전하게 삭제했습니다.' });
+    setFeedback({ tone: 'info', text: 'SecretStorage에 저장된 키를 삭제했습니다.' });
   };
 
   const onInputChange = (v: string) => {
