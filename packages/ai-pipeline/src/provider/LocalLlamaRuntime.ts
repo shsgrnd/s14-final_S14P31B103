@@ -11,6 +11,11 @@ interface LocalLlamaRunOptions {
   requestStartedAt: number;
 }
 
+interface LocalLlamaRuntimeOptions {
+  runtimeRoot?: string;
+  allowBundledRuntimeFallback?: boolean;
+}
+
 interface QueuedRequest {
   payload: PromptPayload;
   featureType: FeatureType;
@@ -50,28 +55,43 @@ export class LocalLlamaRuntime {
   private clientPromise?: Promise<GitCatLlamaClient>;
   private isRunning = false;
   private backgroundTimer?: NodeJS.Timeout;
+  private readonly runtimeRoot?: string;
+  private readonly allowBundledRuntimeFallback: boolean;
 
-  private constructor(private readonly modelPath: string) {
+  private constructor(
+    private readonly modelPath: string,
+    options: LocalLlamaRuntimeOptions = {},
+  ) {
     const configuredGraceMs = Number(process.env.GITCAT_AI_LOCAL_BACKGROUND_GRACE_MS);
     this.backgroundGraceMs = Number.isFinite(configuredGraceMs) && configuredGraceMs >= 0
       ? configuredGraceMs
       : DEFAULT_BACKGROUND_GRACE_MS;
+    this.runtimeRoot = options.runtimeRoot;
+    this.allowBundledRuntimeFallback = options.allowBundledRuntimeFallback ?? true;
   }
 
-  public static getShared(modelPath: string): LocalLlamaRuntime {
-    let runtime = this.runtimes.get(modelPath);
+  public static getShared(
+    modelPath: string,
+    options: LocalLlamaRuntimeOptions = {},
+  ): LocalLlamaRuntime {
+    const runtimeKey = this.getRuntimeKey(modelPath, options);
+    let runtime = this.runtimes.get(runtimeKey);
     if (!runtime) {
-      runtime = new LocalLlamaRuntime(modelPath);
-      this.runtimes.set(modelPath, runtime);
+      runtime = new LocalLlamaRuntime(modelPath, options);
+      this.runtimes.set(runtimeKey, runtime);
     }
     return runtime;
   }
 
   public static clearShared(modelPath?: string): void {
     if (modelPath) {
-      const runtime = this.runtimes.get(modelPath);
-      runtime?.dispose();
-      this.runtimes.delete(modelPath);
+      for (const [key, runtime] of this.runtimes.entries()) {
+        if (!key.startsWith(`${modelPath}::`)) {
+          continue;
+        }
+        runtime.dispose();
+        this.runtimes.delete(key);
+      }
       return;
     }
 
@@ -195,7 +215,11 @@ export class LocalLlamaRuntime {
     const initStartedAt = Date.now();
     if (!this.clientPromise) {
       this.clientPromise = (async () => {
-        const client = new GitCatLlamaClient({ modelPath: this.modelPath });
+        const client = new GitCatLlamaClient({
+          modelPath: this.modelPath,
+          runtimeRoot: this.runtimeRoot,
+          allowBundledRuntimeFallback: this.allowBundledRuntimeFallback,
+        });
         await client.ensureReady();
         return client;
       })();
@@ -217,5 +241,16 @@ export class LocalLlamaRuntime {
 
   private dispose(): void {
     this.clearBackgroundTimer();
+  }
+
+  private static getRuntimeKey(
+    modelPath: string,
+    options: LocalLlamaRuntimeOptions,
+  ): string {
+    return [
+      modelPath,
+      options.runtimeRoot ?? '',
+      options.allowBundledRuntimeFallback === false ? 'strict' : 'fallback',
+    ].join('::');
   }
 }
