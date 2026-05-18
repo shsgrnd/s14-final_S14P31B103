@@ -409,13 +409,22 @@ export class MergeProposalService {
     feedbackHistory: ProposalFeedbackRow[],
   ): Promise<MergeProposalInput> {
     try {
-      const { relativePath } = await this.runtimeRagService.buildAndStore({
+      const { bundle, relativePath } = await this.runtimeRagService.buildAndStore({
         analysis,
         candidate,
         previousFeedback: feedbackHistory,
       });
 
       analysis.context_bundle_ref = relativePath;
+      console.info('GitCat runtime merge RAG context attached:', {
+        analysisId: analysis.analysis_id,
+        candidateId: candidate.candidate_id,
+        contextBundleRef: relativePath,
+        resultCount: bundle.metadata.result_count,
+        sourceCount: bundle.metadata.source_count,
+        aiContextSummaryLength: bundle.ai_context_summary.length,
+        truncated: bundle.budget.truncated,
+      });
       return MergeProposalInputSchema.parse({
         ...aiInput,
         context_bundle_ref: relativePath,
