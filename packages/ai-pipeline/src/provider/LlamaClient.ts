@@ -22,6 +22,46 @@ export interface LlamaCallMetrics {
   promptInferMs: number;
 }
 
+function isWindowsAbsolutePath(targetPath: string): boolean {
+  return /^[A-Za-z]:[\\/]/.test(targetPath);
+}
+
+function convertWindowsPathToWsl(targetPath: string): string {
+  const match = /^([A-Za-z]):[\\/](.*)$/.exec(targetPath);
+  if (!match) {
+    return targetPath;
+  }
+
+  const [, driveLetter, rest] = match;
+  const normalizedRest = rest.replace(/\\/g, '/');
+  return path.posix.join('/mnt', driveLetter.toLowerCase(), normalizedRest);
+}
+
+function resolveConfiguredModelPath(configuredPath: string): string {
+  const trimmedPath = configuredPath.trim();
+  if (!trimmedPath) {
+    return trimmedPath;
+  }
+
+  if (
+    process.platform === 'linux' &&
+    isWindowsAbsolutePath(trimmedPath) &&
+    (process.env.WSL_DISTRO_NAME || process.env.WSL_INTEROP)
+  ) {
+    return convertWindowsPathToWsl(trimmedPath);
+  }
+
+  return trimmedPath;
+}
+
+function formatErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message.trim().length > 0) {
+    return error.message;
+  }
+
+  return String(error);
+}
+
 function isLocalAiDebugEnabled(): boolean {
   return process.env.GITCAT_AI_LOCAL_DEBUG === '1';
 }
@@ -37,7 +77,8 @@ function formatLocalAiSummary(fields: Record<string, string | number | boolean>)
  * 외부 서버(GMS, OpenAI) 의존 없이 완전 오프라인 환경에서 동작합니다.
  */
 export class GitCatLlamaClient {
-  private modelPath: string;
+  private readonly configuredModelPath: string;
+  private readonly modelPath: string;
   private readonly runtimeRoot?: string;
   private readonly allowBundledRuntimeFallback: boolean;
   private llamaModel: LlamaModel | null = null;
@@ -45,7 +86,8 @@ export class GitCatLlamaClient {
   private backendInfo = 'backend info unavailable';
 
   constructor(options: LlamaClientOptions) {
-    this.modelPath = options.modelPath;
+    this.configuredModelPath = options.modelPath;
+    this.modelPath = resolveConfiguredModelPath(options.modelPath);
     this.runtimeRoot = options.runtimeRoot;
     this.allowBundledRuntimeFallback = options.allowBundledRuntimeFallback ?? true;
   }
@@ -62,6 +104,8 @@ export class GitCatLlamaClient {
 
     const initStartedAt = Date.now();
     try {
+      await fs.access(this.modelPath);
+
       const nodeLlamaCpp = await this.loadNodeLlamaCpp();
       const getLlama = nodeLlamaCpp.getLlama;
 
@@ -99,7 +143,13 @@ export class GitCatLlamaClient {
       }
     } catch (error) {
       console.error('Failed to initialize Llama model:', error);
-      throw new Error(`Failed to load local model from ${this.modelPath}. Please check if the path is correct and the file is a valid GGUF model.`);
+      const resolvedInfo = this.modelPath === this.configuredModelPath
+        ? this.modelPath
+        : `${this.configuredModelPath} (resolved to ${this.modelPath})`;
+
+      throw new Error(
+        `Failed to load local model from ${resolvedInfo}. ${formatErrorMessage(error)}`
+      );
     }
   }
 

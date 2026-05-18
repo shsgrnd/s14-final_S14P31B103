@@ -35,7 +35,7 @@ VS Code에서 Command Palette(`Ctrl+Shift+P`, macOS는 `Cmd+Shift+P`)를 열면 
 
 설정 순서:
 1. VS Code에서 `Gitcat > Ai: Mode`를 `live-local`로 변경합니다.
-2. `Gitcat > Ai: Local Model Path`에 다운로드한 GGUF 파일의 절대 경로를 입력합니다.
+2. `Gitcat > Ai: Local Model Path`에 다운로드한 GGUF 파일의 절대 경로를 입력합니다. Windows에서는 `C:\...`를 입력하면 되고, WSL에서는 같은 값을 입력해도 내부에서 `/mnt/c/...`로 자동 변환됩니다. 일반 Remote Linux/SSH 환경에서는 원격 서버 기준 절대 경로를 입력해야 합니다.
 3. VS Code에서 Command Palette(`Ctrl+Shift+P`, macOS는 `Cmd+Shift+P`)를 연 뒤 `GitCat: Install Local Runtime`을 실행해 로컬 추론 런타임 설치를 시작합니다.
 4. branch recommendation, commit recommendation, PR recommendation을 로컬 추론으로 실행합니다.
 
