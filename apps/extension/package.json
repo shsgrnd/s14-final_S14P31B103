@@ -120,7 +120,7 @@
         "gitcat.ai.localModelPath": {
           "type": "string",
           "default": "",
-          "description": "로컬 추론(live-local) 시 사용할 GGUF 모델 파일의 절대 경로를 지정합니다. (예: C:\\Models\\Qwen2.5-Coder-7B-Instruct.gguf)"
+          "description": "로컬 추론(live-local) 시 사용할 GGUF 모델 파일의 절대 경로를 지정합니다. Windows에서는 C:\\... 형식을 입력하고, WSL에서는 C:\\... 입력 시 /mnt/c/...로 자동 변환됩니다. 일반 Remote Linux/SSH 환경에서는 서버의 실제 절대 경로를 입력하세요."
         },
         "gitcat.safety.largeDeletionThreshold": {
           "type": "number",

@@ -97,6 +97,8 @@ GitCat은 VS Code Marketplace에서 바로 설치하거나, GitHub Releases 등�
 
 사용 시에는 VS Code 설정에서 `Gitcat > Ai: Mode`를 `live-local`로 변경한 뒤,
 `Gitcat > Ai: Local Model Path`에 다운로드한 GGUF 파일의 절대 경로를 입력하면 됩니다.
+WSL 환경에서는 Windows의 `C:\...` 경로를 입력해도 내부에서 `/mnt/c/...`로 자동 변환됩니다.
+일반 Remote Linux/SSH 환경에서는 자동 변환되지 않으므로, 원격 서버 기준 실제 절대 경로를 입력해야 합니다.
 
 ## 📦 AI 런타임 배포 정책
 GitCat VSIX는 **멀티플랫폼 단일 패키지** 정책을 따릅니다. 따라서 최종 VSIX에는 플랫폼별 `node-llama-cpp` 네이티브 런타임을 동봉하지 않습니다.
@@ -114,7 +116,7 @@ GitCat VSIX는 **멀티플랫폼 단일 패키지** 정책을 따릅니다. 따�
 `live-local` 사용 시 준비 순서:
 1. GGUF 모델 파일을 Hugging Face에서 다운로드합니다.
 2. VS Code 설정에서 `Gitcat > Ai: Mode`를 `live-local`로 변경합니다.
-3. `Gitcat > Ai: Local Model Path`에 GGUF 절대 경로를 입력합니다.
+3. `Gitcat > Ai: Local Model Path`에 GGUF 절대 경로를 입력합니다. Windows에서는 `C:\...`를 입력하면 되고, WSL에서는 같은 값을 입력해도 내부에서 `/mnt/c/...`로 자동 변환됩니다. 일반 Remote Linux/SSH 환경에서는 원격 서버 기준 절대 경로를 입력합니다.
 4. VS Code에서 Command Palette(`Ctrl+Shift+P`, macOS는 `Cmd+Shift+P`)를 연 뒤 `GitCat: Install Local Runtime`을 실행해 `node-llama-cpp` 런타임 설치를 시작합니다.
 5. 설치가 끝나면 브랜치 추천, 커밋 추천, PR 추천 같은 AI 기능을 다시 실행합니다.
 
