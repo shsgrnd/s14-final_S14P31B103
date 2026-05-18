@@ -97,6 +97,48 @@ export class MergeAnalysisArtifactStore {
     }
   }
 
+  async writeContextBundle(
+    workspaceRoot: string,
+    analysisId: string,
+    data: unknown,
+  ): Promise<MergeAnalysisArtifactWriteResult> {
+    const safeAnalysisId = this.validateAnalysisId(analysisId);
+    const relativePath = path.posix.join(
+      MERGE_SESSIONS_DIR,
+      safeAnalysisId,
+      'context-bundle.json',
+    );
+    const absolutePath = this.resolveInsideWorkspace(workspaceRoot, relativePath);
+
+    await fs.mkdir(path.dirname(absolutePath), { recursive: true });
+    await fs.writeFile(absolutePath, JSON.stringify(data, null, 2), 'utf8');
+
+    return { relativePath, absolutePath };
+  }
+
+  async readContextBundle<T = unknown>(
+    workspaceRoot: string,
+    analysisId: string,
+  ): Promise<T | null> {
+    const safeAnalysisId = this.validateAnalysisId(analysisId);
+    const relativePath = path.posix.join(
+      MERGE_SESSIONS_DIR,
+      safeAnalysisId,
+      'context-bundle.json',
+    );
+    const absolutePath = this.resolveInsideWorkspace(workspaceRoot, relativePath);
+
+    try {
+      const text = await fs.readFile(absolutePath, 'utf8');
+      return JSON.parse(text) as T;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+        return null;
+      }
+      throw error;
+    }
+  }
+
   async writeFeedbackFinalCode(
     workspaceRoot: string,
     analysisId: string,

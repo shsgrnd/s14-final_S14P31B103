@@ -43,4 +43,19 @@ export interface MergeRepositoryBundle {
   conflictCandidates: ConflictCandidateRepository;
   mergeProposals: MergeProposalRepository;
   proposalFeedbacks: ProposalFeedbackRepository;
+  recommendationHistories?: {
+    listByProject(projectId: string, limit?: number): Promise<unknown[]>;
+  };
+  snapshots?: {
+    listByWorkspace(worktreeInstanceId: string, limit?: number): Promise<unknown[]>;
+  };
+  snapshotFiles?: {
+    listBySnapshotId(snapshotId: string): Promise<unknown[]>;
+  };
+  changeRecords?: {
+    listBySession(sessionId: string, limit?: number): Promise<unknown[]>;
+  };
+  changedFiles?: {
+    listByRecordId(recordId: string): Promise<unknown[]>;
+  };
 }
