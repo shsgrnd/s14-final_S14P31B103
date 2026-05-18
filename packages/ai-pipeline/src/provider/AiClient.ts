@@ -24,6 +24,8 @@ export interface AiClientOptions {
   timeoutMs?: number;
   baseURL?: string;
   localModelPath?: string;
+  localRuntimeRoot?: string;
+  allowBundledLocalRuntimeFallback?: boolean;
 }
 
 export interface AiRequestOptions {
@@ -105,7 +107,10 @@ export class AiClient {
     }
 
     if (!this.localRuntime) {
-      this.localRuntime = LocalLlamaRuntime.getShared(this.options.localModelPath);
+      this.localRuntime = LocalLlamaRuntime.getShared(this.options.localModelPath, {
+        runtimeRoot: this.options.localRuntimeRoot,
+        allowBundledRuntimeFallback: this.options.allowBundledLocalRuntimeFallback ?? true,
+      });
     }
 
     const response = await this.localRuntime.run(payload, {

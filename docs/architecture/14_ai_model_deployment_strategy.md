@@ -27,8 +27,8 @@
 - https://huggingface.co/shsgrnd/SSAFY_gitcat-local-llm
 
 권장 다운로드 파일:
-- `gitcat-v2-sft-merged-Q4_K_M.gguf`
-- `gitcat-v2-dpo-merged-Q4_K_M.gguf`
+- `gitcat-v3-sft-merged-Q4_K_M.gguf`
+- `gitcat-v3-dpo-merged-Q4_K_M.gguf`
 
 ---
 
@@ -51,6 +51,7 @@ LoRA 어댑터는 Base 모델 전체 가중치를 포함하지 않는다. Base �
 | 로컬 추론용 GGUF 파일 | GitCat Hugging Face 저장소(`shsgrnd/SSAFY_gitcat-local-llm`)에서 직접 다운로드 |
 | LoRA 어댑터 파일 | 팀 GitHub Releases에서 다운로드 |
 | 로컬 저장 경로 설정 | Extension 설정에서 모델 파일 경로 지정 |
+| 로컬 추론 런타임 설치 | VS Code Command Palette에서 `GitCat: Install Local Runtime` 실행 |
 
 ---
 
@@ -76,11 +77,12 @@ LoRA 어댑터는 Base 모델 전체 가중치를 포함하지 않는다. Base �
 
 ## 3. 로컬 추론 구조
 
-Extension은 외부 API 서버 없이 사용자 로컬 PC에서 완전히 동작하는 서버리스(Serverless) 구조를 사용한다.
+Extension은 외부 API 서버 없이 사용자 로컬 PC에서 완전히 동작하는 서버리스(Serverless) 구조를 사용한다. 다만 최종 VSIX는 멀티플랫폼 단일 패키지 정책을 따르므로, `node-llama-cpp` 네이티브 런타임은 배포본에 직접 동봉하지 않고 사용 시점에 별도로 설치한다.
 
 ```
 [사용자 로컬 PC]
 ├── Base 모델 (GGUF 형식)         ← 사용자가 직접 다운로드
+├── 로컬 추론 런타임              ← `GitCat: Install Local Runtime`으로 설치
 ├── LoRA 어댑터 가중치             ← 팀 GitHub에서 다운로드
 └── VS Code Extension (GitCat)
       └── node-llama-cpp
@@ -128,6 +130,7 @@ RAG 파이프라인은 용도에 따라 두 계층으로 분리 운영한다.
 - 임베딩 모델: ONNX 기반 경량 모델 (`all-MiniLM-L6-v2` 등, CPU 동작)
 - 벡터 스토어: In-memory 배열 (1차 MVP) -> SQLite (2차) (별도 DB 서버 띄우지 않음)
 - 실행 위치: `packages/ai-pipeline/src/rag/`
+- 배포 메모: 최종 VSIX에는 `@xenova/transformers`를 동봉하지 않으므로, packaged build에서는 로컬 임베딩 경로가 준비되지 않으면 lexical fallback으로 동작한다.
 
 #### RAG 성능 최적화 전략 (Performance Optimization)
 VS Code Extension 환경에서 RAG 동작 시 사용자 PC의 성능 저하를 방지하기 위해 다음 아키텍처 전략을 적용한다.
@@ -160,6 +163,7 @@ RAG 비교 실험 → 최종 성능 검증
 아래 항목은 본 문서 기준 현재 MVP 범위 밖이다.
 
 - Extension 최초 실행 시 자동 모델 다운로드 기능
+- Extension 최초 실행 시 자동 `node-llama-cpp` runtime 설치 기능
 - 모델 버전 관리 및 자동 업데이트
 - 클라우드 API 서버 운영 방식 배포
 - 멀티 GPU 추론 최적화
@@ -170,6 +174,7 @@ RAG 비교 실험 → 최종 성능 검증
 
 - 팀은 LoRA 어댑터 가중치만 GitHub/HuggingFace에 배포한다.
 - 사용자는 Base 모델(GGUF)을 직접 다운로드하고 Extension 설정에서 경로를 지정한다.
+- `live-local` 사용 시 사용자는 `GitCat: Install Local Runtime`으로 로컬 추론 런타임도 별도 설치한다.
 - Extension은 `node-llama-cpp`를 사용해 서버 없이 로컬에서 추론한다.
 - RAG는 학습용(GPU 서버)과 Extension 내장용(로컬 CPU)으로 계층을 분리한다.
 - Base 모델은 `Qwen2.5-Coder-7B-Instruct` (GGUF Q4_K_M)를 기준으로 한다.
