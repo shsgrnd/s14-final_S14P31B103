@@ -1,8 +1,13 @@
 import {
+  SqliteChangedFileRepository,
+  SqliteChangeRecordRepository,
   SqliteConflictCandidateRepository,
   SqliteMergeAnalysisRepository,
   SqliteMergeProposalRepository,
   SqliteProposalFeedbackRepository,
+  SqliteRecommendationHistoryRepository,
+  SqliteSnapshotFileRepository,
+  SqliteSnapshotRepository,
   type SQLiteDatabase,
 } from '@gitcat/storage';
 import type { MergeRepositoryBundle } from '../../storage/interfaces';
@@ -19,5 +24,10 @@ export function createMergeRepositories(db: SQLiteDatabase): MergeRepositoryBund
     conflictCandidates: new SqliteConflictCandidateRepository(db),
     mergeProposals: new SqliteMergeProposalRepository(db),
     proposalFeedbacks: new SqliteProposalFeedbackRepository(db),
+    recommendationHistories: new SqliteRecommendationHistoryRepository(db),
+    snapshots: new SqliteSnapshotRepository(db),
+    snapshotFiles: new SqliteSnapshotFileRepository(db),
+    changeRecords: new SqliteChangeRecordRepository(db),
+    changedFiles: new SqliteChangedFileRepository(db),
   };
 }

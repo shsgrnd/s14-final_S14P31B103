@@ -19,6 +19,10 @@ import {
 import type { MergeRepositoryBundle } from '../../storage/interfaces';
 import type { GitService, GitStatusResponse } from '../git/GitService';
 import { MergeAnalysisArtifactStore } from './MergeAnalysisArtifactStore';
+import {
+  LocalEmbeddingRuntimeRagRanker,
+  RuntimeMergeRagService,
+} from './RuntimeMergeRagService';
 
 type MergeProposalFeatureType = Extract<
   MergeProposalInput['feature_type'],
@@ -45,6 +49,8 @@ interface MergeAnalysisArtifact {
   analysis_id: string;
   project_id: string;
   session_id: string;
+  source_worktree_instance_id?: string;
+  target_worktree_instance_id?: string;
   source_branch: string;
   target_branch: string;
   related_files: string[];
@@ -169,12 +175,25 @@ export class MergeProposalService {
   constructor(
     private readonly repositories: Pick<
       MergeRepositoryBundle,
-      'mergeAnalyses' | 'mergeProposals' | 'proposalFeedbacks'
+      | 'mergeAnalyses'
+      | 'mergeProposals'
+      | 'proposalFeedbacks'
+      | 'recommendationHistories'
+      | 'snapshots'
+      | 'snapshotFiles'
+      | 'changeRecords'
+      | 'changedFiles'
     >,
     private readonly artifactStore: MergeAnalysisArtifactStore,
     private readonly workspaceRoot: string,
     private readonly gitService: GitService,
     private readonly provider: MergeProposalProvider = new LocalMergeProposalDraftProvider(),
+    private readonly runtimeRagService: RuntimeMergeRagService = new RuntimeMergeRagService(
+      repositories,
+      artifactStore,
+      workspaceRoot,
+      new LocalEmbeddingRuntimeRagRanker(),
+    ),
   ) {}
 
   async getDraft(request: GetAiDraftRequest): Promise<MergeProposalResult> {
@@ -199,7 +218,7 @@ export class MergeProposalService {
     }
 
     const candidate = this.toAiConflictCandidate(analysis, candidateArtifact);
-    const aiInput = this.buildAiInput(
+    let aiInput = this.buildAiInput(
       analysis,
       [candidate],
       request.featureType ?? 'merge_patch_draft',
@@ -208,6 +227,7 @@ export class MergeProposalService {
       analysis.project_id,
       10,
     );
+    aiInput = await this.attachRuntimeRagContext(analysis, candidate, aiInput, feedbackHistory);
     const proposalRef = this.proposalRef(request.analysisId, request.candidateId);
     const generated = await this.provider.generate({
       aiInput,
@@ -356,6 +376,30 @@ export class MergeProposalService {
       risk_summary: this.riskSummary(analysis.candidates),
       schema_version: 'merge-input-v1',
     });
+  }
+
+  private async attachRuntimeRagContext(
+    analysis: MergeAnalysisArtifact,
+    candidate: ConflictCandidate,
+    aiInput: MergeProposalInput,
+    feedbackHistory: ProposalFeedbackRow[],
+  ): Promise<MergeProposalInput> {
+    try {
+      const { relativePath } = await this.runtimeRagService.buildAndStore({
+        analysis,
+        candidate,
+        previousFeedback: feedbackHistory,
+      });
+
+      analysis.context_bundle_ref = relativePath;
+      return MergeProposalInputSchema.parse({
+        ...aiInput,
+        context_bundle_ref: relativePath,
+      });
+    } catch (error) {
+      console.warn('GitCat runtime merge RAG context build failed:', error);
+      return aiInput;
+    }
   }
 
   private toAiConflictCandidate(

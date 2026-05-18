@@ -109,6 +109,8 @@ async function buildSharedMergeContext(payload: MergeProposalInput, workspaceRoo
     }
   }
 
+  const runtimeContext = await readRuntimeContextBundle(payload.context_bundle_ref, workspaceRoot);
+
   return [
     `Context:`,
     `- Feature: ${payload.feature_type}`,
@@ -120,7 +122,72 @@ async function buildSharedMergeContext(payload: MergeProposalInput, workspaceRoo
     '',
     'Conflict Candidates:',
     conflictCandidates,
+    '',
+    'Retrieved Runtime Context:',
+    runtimeContext,
   ].join('\n');
+}
+
+async function readRuntimeContextBundle(
+  contextBundleRef: string | undefined,
+  workspaceRoot?: string,
+): Promise<string> {
+  if (!contextBundleRef) {
+    return 'N/A';
+  }
+
+  if (!workspaceRoot) {
+    return `ref=${contextBundleRef}`;
+  }
+
+  const normalizedRef = contextBundleRef.replace(/\\/g, '/');
+  if (path.isAbsolute(normalizedRef)) {
+    return `ref=${contextBundleRef}`;
+  }
+
+  const root = path.resolve(workspaceRoot);
+  const absolutePath = path.resolve(root, normalizedRef);
+  const isInsideWorkspace = absolutePath === root || absolutePath.startsWith(`${root}${path.sep}`);
+  if (!isInsideWorkspace) {
+    return `ref=${contextBundleRef}`;
+  }
+
+  try {
+    const fileContent = await fs.readFile(absolutePath, 'utf8');
+    const parsed = JSON.parse(fileContent) as {
+      budget?: { used_chars?: number; max_chars?: number; truncated?: boolean };
+      items?: Array<{
+        source_type?: string;
+        title?: string;
+        file_path?: string;
+        score?: number;
+        content?: string;
+      }>;
+    };
+    const items = parsed.items ?? [];
+    if (items.length === 0) {
+      return 'No local history matches found.';
+    }
+
+    const header = [
+      `context_bundle_ref=${contextBundleRef}`,
+      `budget=${parsed.budget?.used_chars ?? 0}/${parsed.budget?.max_chars ?? 'N/A'} chars`,
+      `truncated=${parsed.budget?.truncated ? 'true' : 'false'}`,
+    ].join('\n');
+    const formattedItems = items.map((item, index) => [
+      `Item ${index + 1}:`,
+      `- source_type: ${item.source_type ?? 'unknown'}`,
+      `- title: ${item.title ?? 'N/A'}`,
+      `- file_path: ${item.file_path ?? 'N/A'}`,
+      `- score: ${item.score ?? 0}`,
+      `- content:`,
+      item.content ?? '',
+    ].join('\n'));
+
+    return [header, ...formattedItems].join('\n\n');
+  } catch {
+    return `ref=${contextBundleRef}`;
+  }
 }
 
 /**
