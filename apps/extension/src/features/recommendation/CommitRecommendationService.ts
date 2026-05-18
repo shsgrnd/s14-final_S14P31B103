@@ -5,7 +5,7 @@ import type {
   RecommendationHistoryRepository,
   RecommendationResult,
 } from '@gitcat/shared-types';
-import { MergeAiService } from '@gitcat/ai-pipeline';
+import { MergeAiService } from '@gitcat/ai-pipeline/extension';
 import { CommitRecommendationRawDataService } from './CommitRecommendationRawDataService';
 import {
   CommitRecommendationRawDataDto,

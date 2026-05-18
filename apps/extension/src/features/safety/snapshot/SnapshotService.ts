@@ -11,8 +11,8 @@ import type {
 import {
   getSnapshotSummarySystemPrompt,
   buildSnapshotSummaryUserPrompt,
-} from '@gitcat/ai-pipeline';
-import type { AiClient } from '@gitcat/ai-pipeline';
+} from '@gitcat/ai-pipeline/extension';
+import type { AiClient } from '@gitcat/ai-pipeline/extension';
 import { ISnapshotService, SnapshotCreationType, CreateSnapshotOptions } from './ISnapshotService';
 import { SnapshotDiffService, SnapshotFileInput } from './SnapshotDiffService';
 import { SnapshotFullStateEntry, SnapshotLocalStore } from './SnapshotLocalStore';
