@@ -270,8 +270,13 @@ export async function activate(context: vscode.ExtensionContext) {
 
   const sessionCoordinator = new SafetySessionCoordinator(snapshotService);
   messageRouter.setSafetySessionCoordinator(sessionCoordinator);
-  CommandRegistry.registerAll(context, webviewProvider, gitService, sessionCoordinator);
-  CommandRegistry.registerAll(context, webviewProvider, gitService, liveLocalRuntimeManager);
+  CommandRegistry.registerAll(
+    context,
+    webviewProvider,
+    gitService,
+    sessionCoordinator,
+    liveLocalRuntimeManager,
+  );
   EventRegistry.registerAll(context, sessionCoordinator);
 
   if (rootPath && projectId && gitService) {

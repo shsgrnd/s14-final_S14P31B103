@@ -65,6 +65,28 @@ GitCat은 생성형 AI 코딩 환경에서 흔히 발생하는 예기치 않은 
 
 ---
 
+## 📥 설치 및 첫 실행
+GitCat은 VS Code Marketplace에서 바로 설치하거나, GitHub Releases 등으로 받은 `.vsix` 파일로 직접 설치할 수 있습니다.
+
+### Marketplace에서 설치
+1. VS Code의 Extensions 탭을 엽니다.
+2. `GitCat`을 검색합니다.
+3. `Install`을 누른 뒤 VS Code를 다시 로드하거나 재시작합니다.
+
+### VSIX 파일로 설치
+
+1. VS Code에서 Command Palette(`Ctrl+Shift+P`, macOS는 `Cmd+Shift+P`)를 엽니다.
+2. `Extensions: Install from VSIX...`를 실행합니다.
+3. 받은 `gitcat-0.0.3.vsix` 파일을 선택합니다.
+4. 설치가 끝나면 VS Code를 다시 로드하거나 재시작합니다.
+
+처음 사용할 때 권장 순서:
+1. Command Palette에서 `GitCat: Open Panel`을 실행해 GitCat 패널이 열리는지 확인합니다.
+2. VS Code 설정에서 `Gitcat > Ai: Mode`를 `mock`, `live-remote`, `live-local` 중 하나로 선택합니다.
+3. `mock` 모드로 먼저 동작을 확인한 뒤, 필요하면 `live-remote` 또는 `live-local` 설정을 이어서 진행합니다.
+
+---
+
 ## 🤗 로컬 모델 다운로드
 `live-local` 모드에서 사용하는 로컬 GGUF 모델은 아래 Hugging Face 저장소에서 받을 수 있습니다.
 
@@ -80,18 +102,39 @@ GitCat은 생성형 AI 코딩 환경에서 흔히 발생하는 예기치 않은 
 GitCat VSIX는 **멀티플랫폼 단일 패키지** 정책을 따릅니다. 따라서 최종 VSIX에는 플랫폼별 `node-llama-cpp` 네이티브 런타임을 동봉하지 않습니다.
 
 - `mock`: 추가 설치 없이 바로 사용할 수 있습니다.
-- `live-remote`: GMS API 키만 준비하면 사용할 수 있습니다.
+- `live-remote`: GMS API 키가 필요합니다. 키가 없으면 첫 AI 추천 실행 시 입력창이 뜨고, 입력한 값은 VS Code SecretStorage에 안전하게 저장됩니다.
 - `live-local`: GGUF 모델 파일과 별도로 로컬 추론 런타임 초기 설치가 필요할 수 있습니다.
+
+`live-remote` 사용 시 준비 순서:
+1. VS Code 설정에서 `Gitcat > Ai: Mode`를 `live-remote`로 변경합니다.
+2. 브랜치 추천, 커밋 추천, PR 추천 같은 AI 기능을 처음 실행합니다.
+3. `GMS_KEY`가 환경 변수에 없으면 API 키 입력창이 뜹니다.
+4. 입력한 키는 VS Code SecretStorage에 저장되며, 이후 같은 VS Code 프로필에서는 다시 입력하지 않아도 됩니다.
 
 `live-local` 사용 시 준비 순서:
 1. GGUF 모델 파일을 Hugging Face에서 다운로드합니다.
 2. VS Code 설정에서 `Gitcat > Ai: Mode`를 `live-local`로 변경합니다.
 3. `Gitcat > Ai: Local Model Path`에 GGUF 절대 경로를 입력합니다.
 4. VS Code에서 Command Palette(`Ctrl+Shift+P`, macOS는 `Cmd+Shift+P`)를 연 뒤 `GitCat: Install Local Runtime`을 실행해 `node-llama-cpp` 런타임 설치를 시작합니다.
+5. 설치가 끝나면 브랜치 추천, 커밋 추천, PR 추천 같은 AI 기능을 다시 실행합니다.
 
 참고:
 - 이 저장소에서 실험적으로 측정한 `host-only` 최적화본은 최종 배포 정책이 아닙니다.
 - 최종 배포본은 특정 OS/아키텍처에 고정하지 않습니다.
+- `live-local` 준비가 끝나지 않았더라도 `mock` 모드와 `live-remote` 모드는 계속 사용할 수 있습니다.
+
+## 🔐 토큰과 API 키 안내
+- `GitCat: Set GitHub Token`: GitHub PR 관련 기능에 사용할 GitHub Personal Access Token을 저장합니다.
+- `live-remote`용 AI API 키는 GitHub 토큰과 별개입니다.
+- `live-remote`는 `GMS_KEY` 환경 변수 또는 첫 실행 시 입력한 API 키를 사용합니다.
+
+## ⌨️ 주요 명령어
+VS Code에서 Command Palette(`Ctrl+Shift+P`, macOS는 `Cmd+Shift+P`)를 열면 아래 GitCat 명령어를 직접 실행할 수 있습니다.
+
+- `GitCat: Open Panel`: 메인 GitCat 패널을 엽니다.
+- `GitCat: Create Snapshot`: 현재 작업 상태를 수동 스냅샷으로 저장합니다.
+- `GitCat: Install Local Runtime`: `live-local`용 `node-llama-cpp` 런타임 설치를 시작합니다.
+- `GitCat: Set GitHub Token`: GitHub PR 기능용 토큰을 저장합니다.
 
 ---
 
