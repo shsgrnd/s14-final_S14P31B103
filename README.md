@@ -77,7 +77,7 @@ GitCat은 VS Code Marketplace에서 바로 설치하거나, GitHub Releases 등�
 
 1. VS Code에서 Command Palette(`Ctrl+Shift+P`, macOS는 `Cmd+Shift+P`)를 엽니다.
 2. `Extensions: Install from VSIX...`를 실행합니다.
-3. 받은 `gitcat-0.0.3.vsix` 파일을 선택합니다.
+3. 받은 `gitcat-0.0.4.vsix` 파일을 선택합니다.
 4. 설치가 끝나면 VS Code를 다시 로드하거나 재시작합니다.
 
 처음 사용할 때 권장 순서:
@@ -134,9 +134,11 @@ GitCat VSIX는 **멀티플랫폼 단일 패키지** 정책을 따릅니다. 따�
 VS Code에서 Command Palette(`Ctrl+Shift+P`, macOS는 `Cmd+Shift+P`)를 열면 아래 GitCat 명령어를 직접 실행할 수 있습니다.
 
 - `GitCat: Open Panel`: 메인 GitCat 패널을 엽니다.
+- `GitCat: Refresh Status`: 현재 워크스페이스의 Git 상태를 다시 조회합니다.
 - `GitCat: Create Snapshot`: 현재 작업 상태를 수동 스냅샷으로 저장합니다.
 - `GitCat: Install Local Runtime`: `live-local`용 `node-llama-cpp` 런타임 설치를 시작합니다.
 - `GitCat: Set GitHub Token`: GitHub PR 기능용 토큰을 저장합니다.
+- `GitCat: Clear GitHub Token`: 저장된 GitHub PR 기능용 토큰을 제거합니다.
 
 ---
 

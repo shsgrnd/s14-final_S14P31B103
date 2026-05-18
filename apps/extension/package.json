@@ -4,7 +4,7 @@
   "description": "An AI-powered Git assistant for safer commits, conflict prevention, and smarter workflow guidance in VS Code.",
   "publisher": "GitCat",
   "icon": "media/GitCat_icon.png",
-  "version": "0.0.3",
+  "version": "0.0.4",
   "license": "ISC",
   "repository": {
     "type": "git",
