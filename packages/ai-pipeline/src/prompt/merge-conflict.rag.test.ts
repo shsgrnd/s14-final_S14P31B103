@@ -3,7 +3,7 @@ import * as fs from 'node:fs/promises';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import type { MergeProposalInput } from '@gitcat/shared-types';
-import { buildMergePatchDraftUserPrompt } from './merge-conflict';
+import { buildMergePatchDraftUserPrompt, getMergePatchDraftSystemPrompt } from './merge-conflict';
 
 function createPayload(contextBundleRef?: string): MergeProposalInput {
   return {
@@ -46,8 +46,13 @@ async function withTempWorkspace(
 }
 
 async function run(): Promise<void> {
+  const systemPrompt = getMergePatchDraftSystemPrompt();
+  assert.equal(systemPrompt.includes('current Conflict Candidates source_code, target_code, and base_code as the primary truth'), true);
+  assert.equal(systemPrompt.includes('Use Retrieved Runtime Context only as supporting local history'), true);
+
   await withTempWorkspace({
     schema_version: 'merge-context-bundle-v1',
+    metadata: { source_count: 3, result_count: 1 },
     budget: { used_chars: 96, max_chars: 12000, truncated: false },
     ai_context_summary: 'Previous accepted feedback kept source validation and target error handling.',
     results: [{
@@ -63,22 +68,32 @@ async function run(): Promise<void> {
   }, async (workspaceRoot, ref) => {
     const prompt = await buildMergePatchDraftUserPrompt(createPayload(ref), workspaceRoot);
     assert.equal(prompt.includes('Retrieved Runtime Context:'), true);
+    assert.equal(prompt.includes('rag_executed=true'), true);
+    assert.equal(prompt.includes('source_count=3'), true);
+    assert.equal(prompt.includes('result_count=1'), true);
+    assert.match(prompt, /injected_chars=\d+/);
+    assert.equal(prompt.includes('prompt_truncated=false'), true);
     assert.equal(prompt.includes('proposal_feedback'), true);
     assert.equal(prompt.includes('Previous accepted feedback'), true);
+    assert.equal(prompt.includes('Use Retrieved Runtime Context to infer local project conventions'), true);
     assert.equal(prompt.includes('synthetic_dataset'), false);
   });
 
   await withTempWorkspace({
     schema_version: 'merge-context-bundle-v1',
+    metadata: { source_count: 0, result_count: 0 },
     budget: { used_chars: 0, max_chars: 12000, truncated: false },
     results: [],
   }, async (workspaceRoot, ref) => {
     const prompt = await buildMergePatchDraftUserPrompt(createPayload(ref), workspaceRoot);
+    assert.equal(prompt.includes('rag_executed=true'), true);
+    assert.equal(prompt.includes('result_count=0'), true);
     assert.equal(prompt.includes('No local history matches found.'), true);
   });
 
   await withTempWorkspace({
     schema_version: 'merge-context-bundle-v1',
+    metadata: { source_count: 9, result_count: 1 },
     budget: { used_chars: 12000, max_chars: 12000, truncated: true },
     results: [{
       source_kind: 'change_record',
@@ -92,8 +107,33 @@ async function run(): Promise<void> {
     }],
   }, async (workspaceRoot, ref) => {
     const prompt = await buildMergePatchDraftUserPrompt(createPayload(ref), workspaceRoot);
-    assert.equal(prompt.includes('truncated=true'), true);
+    assert.equal(prompt.includes('bundle_truncated=true'), true);
     assert.equal(prompt.includes('[truncated]'), true);
+  });
+
+  await withTempWorkspace({
+    schema_version: 'merge-context-bundle-v1',
+    metadata: { source_count: 10, result_count: 8 },
+    budget: { used_chars: 12000, max_chars: 12000, truncated: false },
+    ai_context_summary: 'Top local history should be injected before lower-ranked items.',
+    results: Array.from({ length: 8 }, (_, index) => ({
+      source_kind: 'feedback',
+      source_type: 'proposal_feedback',
+      title: `Ranked item ${index + 1}`,
+      file_path: 'src/conflict.ts',
+      score: 100 - index,
+      recency_score: 10,
+      file_match_score: 40,
+      content: `content for ranked item ${index + 1}`,
+    })),
+  }, async (workspaceRoot, ref) => {
+    const prompt = await buildMergePatchDraftUserPrompt(createPayload(ref), workspaceRoot);
+    assert.equal(prompt.includes('result_count=8'), true);
+    assert.equal(prompt.includes('prompt_truncated=true'), true);
+    assert.equal(prompt.includes('omitted_results=2'), true);
+    assert.equal(prompt.includes('Ranked item 1'), true);
+    assert.equal(prompt.includes('Ranked item 6'), true);
+    assert.equal(prompt.includes('Ranked item 7'), false);
   });
 
   const promptWithoutBundle = await buildMergePatchDraftUserPrompt(createPayload(), undefined);
