@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+## v0.1.0 - 2026-05-19
+
+### Improved
+- `live-remote` 모드에서 AI API Key만이 아니라 `Remote Base URL`, `Remote Model`도 같은 키 아이콘 설정 UI에서 함께 저장·관리할 수 있도록 개선했습니다.
+- `live-remote` 실행 경로가 VS Code 설정(`gitcat.ai.remoteBaseUrl`, `gitcat.ai.remoteModel`)을 우선 사용하고, 값이 비어 있으면 `.env`의 `GMS_BASE_URL`, `GMS_MODEL`로 fallback하도록 정리했습니다.
+- AI 설정 모달이 현재 AI 모드에 따라 표시 항목을 달리 보여주도록 보완해, `live-local`에서는 불필요한 remote 필드가 노출되지 않도록 정리했습니다.
+- 최종 배포 마감 기준으로 루트 `README.md`, `apps/extension/README.md`, extension manifest 버전을 `0.1.0` 기준으로 갱신했습니다.
+
+## v0.0.8 - 2026-05-19
+
+### Improved
+- 새로 생성되는 AI 스냅샷 요약 제목이 GitCat 언어 설정(`auto`/`ko`/`en`)을 따르도록 개선했습니다.
+- 기존 스냅샷 제목과 시스템 fallback/특수 스냅샷 제목은 그대로 유지하도록 언어 적용 범위를 정리했습니다.
+- PR recommendation에서 template의 마크다운 섹션 heading 줄은 유지하되, heading이 아닌 본문/체크리스트/placeholder 문구는 GitCat 언어 설정을 따르도록 개선했습니다.
+- README와 VSIX 설치 가이드를 `0.0.8` 패키징 기준으로 갱신했습니다.
+
 ## v0.0.6 - 2026-05-19
 
 ### Added

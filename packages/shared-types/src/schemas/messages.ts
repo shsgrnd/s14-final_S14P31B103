@@ -180,8 +180,12 @@ export const InboundPayloadSchemaMap = {
     skipGuard: z.boolean().optional(),    // 충돌 가드 건너뜀 (충돌 해결 후 재시도 시)
   }),
   OPEN_PR_PANEL: z.object({ skipGuard: z.boolean().optional() }),
-  // AI API Key 관리
-  SAVE_AI_API_KEY: z.object({ apiKey: z.string().min(1) }),
+  // AI remote 설정 관리
+  SAVE_AI_API_KEY: z.object({
+    apiKey: z.string().min(1).optional(),
+    remoteBaseUrl: z.string().min(1).optional(),
+    remoteModel: z.string().min(1).optional(),
+  }).strict(),
   DELETE_AI_API_KEY: z.object({}).strict(),
   CHECK_AI_API_KEY: z.object({}).strict(),
 } as const;
@@ -308,8 +312,14 @@ export const OutboundPayloadSchemaMap = {
     /** PR은 생성됐지만 reviewers/assignees/labels/milestone 등 일부 설정이 실패한 경우의 안내 메시지 목록 */
     metadataWarnings: z.array(z.string()).optional(),
   }),
-  // AI API Key 상태 응답
-  AI_API_KEY_STATUS: z.object({ hasKey: z.boolean() }),
+  // AI remote 설정 상태 응답
+  AI_API_KEY_STATUS: z.object({
+    hasKey: z.boolean(),
+    hasStoredKey: z.boolean(),
+    remoteBaseUrl: z.string(),
+    remoteModel: z.string(),
+    aiMode: z.enum(['live-local', 'live-remote']),
+  }),
 } as const;
 
 /**

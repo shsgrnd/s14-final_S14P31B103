@@ -204,14 +204,26 @@ function getPrDescriptionLanguageInstructions(
       ? [
         '- Write both title and primary_text in English.',
         hasTemplate
-          ? '- Even if the template uses another language, preserve its section order, structure, and placeholder intent while rewriting headings and body content in English.'
+          ? '- If a template is provided, preserve markdown section heading lines exactly as written in the template.'
           : '- If no template is provided, use English section headings, body text, and bullets.',
+        hasTemplate
+          ? '- Rewrite every non-heading visible text in English while preserving the template section order, structure, and intent.'
+          : '- If no template is provided, use English section headings, body text, and bullets.',
+        hasTemplate
+          ? '- This includes checklist items, bullet text, placeholder text, helper notes, and prose. Do not leave Korean text unless it is a code identifier, branch name, file path, command, or URL.'
+          : '- Keep visible prose in English throughout the draft.',
       ]
       : [
         '- 제목(title)과 primary_text(PR 본문)는 모두 영어로 작성한다.',
         hasTemplate
-          ? '- template가 다른 언어를 사용하더라도 섹션 순서, 구조, placeholder intent는 유지하고, 섹션 제목과 본문은 영어로 다시 작성한다.'
+          ? '- template가 제공되면 마크다운 섹션 heading 줄 자체는 template 원문 그대로 유지한다.'
           : '- template가 없다면 섹션 제목, 본문, 불릿도 영어로 작성한다.',
+        hasTemplate
+          ? '- 섹션 순서, 구조, placeholder intent는 유지하되, heading이 아닌 모든 visible text는 영어로 다시 작성한다.'
+          : '- 본문과 불릿도 모두 영어로 유지한다.',
+        hasTemplate
+          ? '- checklist 항목, bullet text, placeholder text, helper note, 일반 설명문까지 모두 영어로 작성하고, code identifier / branch name / file path / command / URL만 원문을 유지한다.'
+          : '- 눈에 보이는 일반 텍스트는 모두 영어로 작성한다.',
       ];
   }
 
@@ -220,14 +232,26 @@ function getPrDescriptionLanguageInstructions(
       ? [
         '- Write both title and primary_text in Korean.',
         hasTemplate
-          ? '- Even if the template uses another language, preserve its section order, structure, and placeholder intent while rewriting headings and body content in Korean.'
+          ? '- If a template is provided, preserve markdown section heading lines exactly as written in the template.'
           : '- If no template is provided, use Korean section headings, body text, and bullets.',
+        hasTemplate
+          ? '- Rewrite every non-heading visible text in Korean while preserving the template section order, structure, and intent.'
+          : '- If no template is provided, use Korean section headings, body text, and bullets.',
+        hasTemplate
+          ? '- This includes checklist items, bullet text, placeholder text, helper notes, and prose. Do not leave English text unless it is a code identifier, branch name, file path, command, or URL.'
+          : '- Keep visible prose in Korean throughout the draft.',
       ]
       : [
         '- 제목(title)과 primary_text(PR 본문)는 모두 한국어로 작성한다.',
         hasTemplate
-          ? '- template가 다른 언어를 사용하더라도 섹션 순서, 구조, placeholder intent는 유지하고, 섹션 제목과 본문은 한국어로 다시 작성한다.'
+          ? '- template가 제공되면 마크다운 섹션 heading 줄 자체는 template 원문 그대로 유지한다.'
           : '- template가 없다면 섹션 제목, 본문, 불릿도 한국어로 작성한다.',
+        hasTemplate
+          ? '- 섹션 순서, 구조, placeholder intent는 유지하되, heading이 아닌 모든 visible text는 한국어로 다시 작성한다.'
+          : '- 본문과 불릿도 모두 한국어로 유지한다.',
+        hasTemplate
+          ? '- checklist 항목, bullet text, placeholder text, helper note, 일반 설명문까지 모두 한국어로 작성하고, code identifier / branch name / file path / command / URL만 원문을 유지한다.'
+          : '- 눈에 보이는 일반 텍스트는 모두 한국어로 작성한다.',
       ];
   }
 
@@ -237,11 +261,11 @@ function getPrDescriptionLanguageInstructions(
     return variant === 'local-fast'
       ? [
         '- The provided PR template strongly signals English, so write both title and primary_text in English.',
-        '- Preserve the template heading language, section order, and placeholder intent as closely as possible.',
+        '- Preserve markdown section heading lines exactly as written in the template, but keep newly written non-heading text in English.',
       ]
       : [
         '- Provided Template Markdown strongly suggests English usage, so both title and primary_text must stay in English.',
-        '- Preserve the template heading language, section order, and placeholder intent as closely as possible.',
+        '- template의 마크다운 섹션 heading 줄은 그대로 유지하되, 새로 작성하는 heading 외 visible text는 영어로 유지한다.',
       ];
   }
 
@@ -398,7 +422,8 @@ export function buildRecommendationUserPrompt(
         instructions.push(
           'Task:',
           '- Identify the PR purpose from change_summary, work_intent, diff_summary, and branch_context.',
-          '- If template is provided, preserve its section headings and order as closely as possible.',
+          '- If template is provided, preserve markdown section heading lines and section order exactly as closely as possible.',
+          '- Do not preserve non-heading template text verbatim unless it is a code identifier, branch name, file path, command, or URL.',
           ...prLanguageInstructions,
           '- Write concrete markdown content reviewers can scan quickly.',
           '- primary_text must be the full PR description markdown.',
@@ -416,8 +441,9 @@ export function buildRecommendationUserPrompt(
           'Additional Instructions:',
           '- Use readability-focused markdown formatting.',
           '- primary_text will be the full markdown string.',
-          '- If Template Markdown is provided, preserve its section headings and order as closely as possible.',
+          '- If Template Markdown is provided, preserve its markdown section heading lines and order as closely as possible.',
           '- Fill the template with concrete PR content rather than repeating empty placeholders.',
+          '- Rewrite non-heading template text into the requested output language unless it is a code identifier, branch name, file path, command, or URL.',
           '- Do not add new top-level sections unless they are necessary to complete the template intent.'
         );
       }

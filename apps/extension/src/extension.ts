@@ -30,6 +30,7 @@ import {
 } from './platform/aiModeConfig';
 import { AiSecretService } from './features/recommendation/AiSecretService';
 import { AiApiKeyMessageHandler } from './features/recommendation/AiApiKeyMessageHandler';
+import { AiRemoteSettingsService } from './features/recommendation/AiRemoteSettingsService';
 import { GitService } from './features/git/GitService';
 import { GitMessageHandler } from './features/git/GitMessageHandler';
 import { GitStatusRefreshController } from './features/git/GitStatusRefreshController';
@@ -40,7 +41,7 @@ import { PullRequestService } from './features/pull-request/PullRequestService';
 import { PullRequestMessageHandler } from './features/pull-request/PullRequestMessageHandler';
 import { PrSettingsService } from './features/settings/PrSettingsService';
 import { PrSettingsMessageHandler } from './features/settings/PrSettingsMessageHandler';
-import { t } from './i18n';
+import { resolveLocale, t } from './i18n';
 import {
   createMergeRepositories,
   MergeAnalysisArtifactStore,
@@ -111,6 +112,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
 
   const aiSecretService = new AiSecretService(context.secrets);
+  const aiRemoteSettingsService = new AiRemoteSettingsService();
   const liveLocalRuntimeManager = new LiveLocalRuntimeManager(context);
   const aiModeMigrationNotice = await migrateLegacyAiModeSettingIfNeeded(context);
   if (aiModeMigrationNotice) {
@@ -118,7 +120,11 @@ export async function activate(context: vscode.ExtensionContext) {
   }
   void liveLocalRuntimeManager.promptIfLiveLocalNeedsSetup();
   let clearAiCache = () => { };
-  const aiApiKeyMessageHandler = new AiApiKeyMessageHandler(aiSecretService, () => clearAiCache());
+  const aiApiKeyMessageHandler = new AiApiKeyMessageHandler(
+    aiSecretService,
+    aiRemoteSettingsService,
+    () => clearAiCache(),
+  );
 
   const messageRouter = new MessageRouter(
     null,
@@ -216,6 +222,7 @@ export async function activate(context: vscode.ExtensionContext) {
           workspaceRoot: rootPath,
           // [Task 45] AI 클라이언트를 주입하면 스냅샷 생성 직후 백그라운드에서 자동 요약이 실행됩니다.
           aiClient: snapshotAiClient,
+          snapshotSummaryLanguageResolver: () => resolveLocale(),
           // 스냅샷 생성 직후 즉시 브로드캐스트하여 UI가 늦게 뜨는 현상을 방지합니다.
           onSnapshotCreated: (row) => {
             messageRouter.broadcast({
@@ -477,11 +484,38 @@ function createExtensionAiClientOptions(
     void vscode.window.showWarningMessage(normalizedMode.warningMessage);
   }
 
+  const remoteBaseUrl = normalizeConfiguredValue(config.get<string>('remoteBaseUrl'));
+  const remoteModel = normalizeConfiguredValue(config.get<string>('remoteModel'));
+
   return {
     mode: normalizedMode.mode,
     localModelPath: config.get<string>('localModelPath'),
     localRuntimeRoot: liveLocalRuntimeManager.getRuntimeRoot(),
     allowBundledLocalRuntimeFallback: context.extensionMode !== vscode.ExtensionMode.Production,
     apiKeyProvider: async () => aiSecretService.getApiKey(),
+    baseURL: remoteBaseUrl ? resolveConfiguredRemoteBaseUrl(remoteBaseUrl) : undefined,
+    model: remoteModel || undefined,
   };
+}
+
+function normalizeConfiguredValue(value: string | undefined): string {
+  return typeof value === 'string' ? value.trim() : '';
+}
+
+function resolveConfiguredRemoteBaseUrl(baseUrl: string): string {
+  try {
+    const parsed = new URL(baseUrl);
+    const normalizedPath = parsed.pathname.replace(/\/+$/, '');
+    const hasOpenAiCompatiblePath = parsed.href.includes('api.openai.com/')
+      || normalizedPath.endsWith('/v1');
+
+    if (hasOpenAiCompatiblePath) {
+      return baseUrl.replace(/\/+$/, '');
+    }
+  } catch {
+    return baseUrl;
+  }
+
+  const normalized = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+  return `${normalized}api.openai.com/v1`;
 }

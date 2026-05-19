@@ -6,13 +6,30 @@
  * 반환된 요약은 SnapshotService에서 별도 태그 없이 그대로 스냅샷 제목으로 저장합니다.
  */
 
+export type SnapshotSummaryLanguage = 'ko' | 'en';
+
 /**
  * 스냅샷 요약 AI의 역할과 응답 규칙을 지정하는 시스템 프롬프트를 반환합니다.
  *
  * - JSON 포맷이나 마크다운 없이 순수 텍스트 한 줄만 반환하도록 유도합니다.
- * - 50자 이내의 짧은 한국어 제목 형식을 기본으로 합니다.
+ * - 50자 이내의 짧은 제목 형식을 기본으로 합니다.
  */
-export function getSnapshotSummarySystemPrompt(): string {
+export function getSnapshotSummarySystemPrompt(
+  language: SnapshotSummaryLanguage = 'ko',
+): string {
+  const languageInstruction = language === 'en'
+    ? 'Write the summary in English.'
+    : 'Write the summary in Korean.';
+  const examples = language === 'en'
+    ? [
+      'Example: "Fix README getting started typos"',
+      'Example: "Improve login UI and fix validation bug"',
+    ]
+    : [
+      'Example: "README 시작 가이드 오타 수정"',
+      'Example: "로그인 화면 UI 개선 및 버그 수정"',
+    ];
+
   return [
     'You are an expert developer assistant summarizing code changes.',
     'Your task is to generate a very short, single-line title that summarizes the provided git diff.',
@@ -20,9 +37,8 @@ export function getSnapshotSummarySystemPrompt(): string {
     'Do not use any markdown formatting like bolding or code blocks.',
     'Do not end with a period.',
     'Keep it under 50 characters if possible.',
-    'Write the summary in Korean.',
-    'Example: "README 시작 가이드 오타 수정"',
-    'Example: "로그인 화면 UI 개선 및 버그 수정"',
+    languageInstruction,
+    ...examples,
   ].join('\n');
 }
 

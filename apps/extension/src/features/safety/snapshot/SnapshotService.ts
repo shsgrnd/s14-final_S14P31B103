@@ -39,6 +39,7 @@ export const SNAPSHOT_KEEP_RECENT_PRE_RESTORE_COUNT = 3;
  */
 export const SNAPSHOT_MIN_CHANGED_LINES = 5;
 const LOCAL_AI_SUMMARY_DELAY_MS = 300;
+type SnapshotSummaryLanguage = 'ko' | 'en';
 
 /**
  * SnapshotService ?앹꽦 ?듭뀡
@@ -68,6 +69,12 @@ export interface SnapshotServiceOptions {
    * ?쒓났?섏? ?딆쑝硫??ㅻ깄???대쫫 ?먮룞 ?앹꽦??鍮꾪솢?깊솕?쒕떎.
    */
   aiClient?: AiClient;
+
+  /**
+   * 새로 생성되는 AI 스냅샷 요약 제목의 언어를 매번 조회합니다.
+   * 기존 저장된 스냅샷 제목은 그대로 유지됩니다.
+   */
+  snapshotSummaryLanguageResolver?: () => SnapshotSummaryLanguage;
 
   /**
    * ?ㅻ깄?룹씠 ?앹꽦??吏곹썑 UI??利됱떆 ?뚮━湲??꾪븳 釉뚮줈?쒖틦?ㅽ듃 肄쒕갚.
@@ -105,6 +112,7 @@ export class SnapshotService implements ISnapshotService {
   private readonly safetyCheckService: SafetyCheckService;
   /** AI ?붿빟 ?몄텧???ъ슜?섎뒗 AiClient ?몄뒪?댁뒪. ?쒓났?섏? ?딆쑝硫?AI ?붿빟 湲곕뒫??鍮꾪솢?깊솕??*/
   private readonly aiClient?: AiClient;
+  private readonly snapshotSummaryLanguageResolver: () => SnapshotSummaryLanguage;
   /** ?ㅻ깄???앹꽦 吏곹썑 ?밸럭???대깽?몃? ?꾩넚?섍린 ?꾪븳 肄쒕갚 */
   private readonly onSnapshotCreated?: (row: SnapshotRow) => void;
   /** AI ?붿빟 ?꾨즺 ???밸럭??SNAPSHOT_UPDATED ?대깽?몃? ?꾩넚?섍린 ?꾪븳 肄쒕갚 */
@@ -124,6 +132,7 @@ export class SnapshotService implements ISnapshotService {
     this.keepRecentCount = options.keepRecentCount ?? SNAPSHOT_KEEP_RECENT_COUNT;
     this.safetyCheckService = new SafetyCheckService(this.workspaceRoot);
     this.aiClient = options.aiClient;
+    this.snapshotSummaryLanguageResolver = options.snapshotSummaryLanguageResolver ?? (() => 'ko');
     this.onSnapshotCreated = options.onSnapshotCreated;
     this.onSnapshotUpdated = options.onSnapshotUpdated;
     this.keepRecentPreRestoreCount =
@@ -616,9 +625,10 @@ export class SnapshotService implements ISnapshotService {
       try {
         // diff媛 ?덈Т 湲몃㈃ ?욌?遺꾨쭔 ?섎씪???꾨떖 (?좏겙 ?덉빟)
         const trimmedDiff = patchText.length > 4000 ? patchText.slice(0, 4000) + '\n...(truncated)' : patchText;
+        const summaryLanguage = this.resolveSnapshotSummaryLanguage();
 
         const rawSummary = await aiClient.generateResponse('recommendation', {
-          systemPrompt: getSnapshotSummarySystemPrompt(),
+          systemPrompt: getSnapshotSummarySystemPrompt(summaryLanguage),
           userPrompt: buildSnapshotSummaryUserPrompt(trimmedDiff),
         }, {
           priority: 'background',
@@ -667,6 +677,11 @@ export class SnapshotService implements ISnapshotService {
     }, 0);
   }
 
+  private resolveSnapshotSummaryLanguage(): SnapshotSummaryLanguage {
+    const resolved = this.snapshotSummaryLanguageResolver();
+    return resolved === 'en' ? 'en' : 'ko';
+  }
+
   private normalizeWorkspacePath(filePath: string): string {
     return this.localStore.toWorkspaceRelativePath(filePath);
   }
@@ -684,5 +699,4 @@ export class SnapshotService implements ISnapshotService {
     }
   }
 }
-
 
