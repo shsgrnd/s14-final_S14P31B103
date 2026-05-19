@@ -425,21 +425,10 @@ export const SidebarLayout: React.FC = () => {
           <div
             style={{
               display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'flex-end',
-              gap: 2,
+              alignItems: 'center',
               marginRight: 6,
             }}
           >
-            <span
-              style={{
-                fontSize: '10px',
-                color: 'var(--vscode-descriptionForeground)',
-                lineHeight: 1.2,
-              }}
-            >
-              {t('git.language.current', { value: currentLanguageLabel })}
-            </span>
             <select
               aria-label={t('git.language.label')}
               title={t('git.language.label')}
@@ -466,8 +455,8 @@ export const SidebarLayout: React.FC = () => {
             type="button"
             className="gitcat-icon-press"
             style={{ ...footerIconBtn, position: 'relative' }}
-            title="오류/알림 기록 보기"
-            aria-label="오류/알림 기록 보기"
+            title={t('sidebar.alerts.viewLogs')}
+            aria-label={t('sidebar.alerts.viewLogs')}
             onClick={handleFooterAlertClick}
           >
             <AlertTriangle size={15} />
@@ -504,8 +493,8 @@ export const SidebarLayout: React.FC = () => {
             type="button"
             className="gitcat-icon-press"
             style={footerIconBtn}
-            title="AI API 키 설정"
-            aria-label="AI API 키 설정"
+            title={t('sidebar.settings.aiApiKey')}
+            aria-label={t('sidebar.settings.aiApiKey')}
             onClick={() => setSettingsOpen(true)}
           >
             <KeyRound size={15} />
@@ -514,8 +503,8 @@ export const SidebarLayout: React.FC = () => {
             type="button"
             className="gitcat-icon-press"
             style={footerIconBtn}
-            title="환경설정"
-            aria-label="환경설정 (PR 기본 target 브랜치 등)"
+            title={t('sidebar.settings.pr')}
+            aria-label={t('sidebar.settings.pr')}
             onClick={() => setPrSettingsOpen(true)}
           >
             <SlidersHorizontal size={15} />
@@ -595,7 +584,7 @@ export const SidebarLayout: React.FC = () => {
                     id="gitcat-clear-logs-title"
                     style={{ fontSize: '13px', lineHeight: 1.5, marginBottom: '14px' }}
                   >
-                    오류/알림 기록을 전체 다 삭제하시겠습니까?
+                    {t('sidebar.notificationCenter.clearAllConfirm')}
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
                     <button
@@ -610,9 +599,7 @@ export const SidebarLayout: React.FC = () => {
                         color: 'var(--vscode-button-secondaryForeground)',
                         cursor: 'pointer',
                       }}
-                    >
-                      아니요
-                    </button>
+                    >{t('git.cancel')}</button>
                     <button
                       type="button"
                       onClick={handleConfirmClearAllLogs}
@@ -625,9 +612,7 @@ export const SidebarLayout: React.FC = () => {
                         color: 'var(--vscode-button-foreground)',
                         cursor: 'pointer',
                       }}
-                    >
-                      예
-                    </button>
+                    >{t('sidebar.notificationCenter.clearAll')}</button>
                   </div>
                 </div>
               </div>
@@ -642,15 +627,15 @@ export const SidebarLayout: React.FC = () => {
               }}
             >
               <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--vscode-editor-foreground)' }}>
-                오류/알림 기록
+                {t('sidebar.notificationCenter.title')}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <button
                   type="button"
                   className="gitcat-icon-press"
                   style={{ ...footerIconBtn, color: 'var(--vscode-editor-foreground)', opacity: 0.9 }}
-                  title="기록 비우기"
-                  aria-label="기록 비우기"
+                  title={t('sidebar.notificationCenter.clearAll')}
+                  aria-label={t('sidebar.notificationCenter.clearAll')}
                   disabled={notificationLogs.length === 0}
                   onClick={handleTrashClearAllClick}
                 >
@@ -660,8 +645,8 @@ export const SidebarLayout: React.FC = () => {
                   type="button"
                   className="gitcat-icon-press"
                   style={{ ...footerIconBtn, color: 'var(--vscode-editor-foreground)', opacity: 0.9 }}
-                  title="닫기"
-                  aria-label="닫기"
+                  title={t('sidebar.notificationCenter.close')}
+                  aria-label={t('sidebar.notificationCenter.close')}
                   onClick={() => setNotificationCenterOpen(false)}
                 >
                   <X size={14} />
@@ -678,7 +663,7 @@ export const SidebarLayout: React.FC = () => {
             >
               {notificationLogs.length === 0 ? (
                 <div style={{ fontSize: '12px', color: 'var(--vscode-editor-foreground)', opacity: 0.78, padding: '8px 0' }}>
-                  아직 기록된 알림이 없습니다.
+                  {t('sidebar.notificationCenter.empty')}
                 </div>
               ) : (
                 <div
@@ -708,8 +693,8 @@ export const SidebarLayout: React.FC = () => {
                         <button
                           type="button"
                           className="gitcat-icon-press"
-                          title="이 항목만 삭제"
-                          aria-label="이 알림 삭제"
+                          title={t('sidebar.notificationCenter.removeOne')}
+                          aria-label={t('sidebar.notificationCenter.removeOne')}
                           onClick={() => handleDismissOneLog(log.id)}
                           style={{
                             position: 'absolute',

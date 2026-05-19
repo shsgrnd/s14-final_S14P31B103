@@ -89,7 +89,10 @@
         },
         "gitcat.branchCleanup.olderThanUnit": {
           "type": "string",
-          "enum": ["week", "month"],
+          "enum": [
+            "week",
+            "month"
+          ],
           "default": "month",
           "description": "%config.branchCleanup.olderThanUnit.description%"
         },
@@ -108,18 +111,32 @@
           "items": {
             "type": "string"
           },
-          "default": ["main", "master", "develop", "dev", "release"],
+          "default": [
+            "main",
+            "master",
+            "develop",
+            "dev",
+            "release"
+          ],
           "description": "%config.branchCleanup.protectedBranches.description%"
         },
         "gitcat.language": {
           "type": "string",
-          "enum": ["auto", "ko", "en"],
+          "enum": [
+            "auto",
+            "ko",
+            "en"
+          ],
           "default": "auto",
           "description": "%config.language.description%"
         },
         "gitcat.ai.mode": {
           "type": "string",
-          "enum": ["live-remote", "live-local", "mock"],
+          "enum": [
+            "live-remote",
+            "live-local",
+            "mock"
+          ],
           "default": "live-local",
           "description": "%config.ai.mode.description%"
         },

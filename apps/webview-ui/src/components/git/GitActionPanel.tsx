@@ -1272,7 +1272,7 @@ export const GitActionPanel: React.FC = () => {
           }}>
             <div style={{ display: 'flex', alignItems: 'center', marginBottom: '10px', fontSize: '12px' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: 'var(--vscode-charts-purple)', fontWeight: 600 }}>
-                <Sparkles size={14} /> AI 텍스트 추천
+                <Sparkles size={14} /> {t('git.ai.panelTitle')}
               </div>
             </div>
             <textarea
