@@ -4,7 +4,7 @@ import {
   LEGACY_MOCK_MODE_WARNING,
   normalizeExtensionAiMode,
   shouldMigrateStoredAiMode,
-} from './aiModeConfig';
+} from './aiModeNormalization';
 
 function run(): void {
   assert.equal(LEGACY_AI_MODE_MIGRATION_NOTICE.includes('live-local'), true);

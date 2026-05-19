@@ -480,7 +480,8 @@ export class SnapshotService implements ISnapshotService {
 
     try {
       const fileInputs = changedFiles.map((file) => {
-        // stored_path: ?뚯씪 寃쎈줈瑜??щ옒??援щ텇?먮줈 ?뺢퇋??        const normalizedPath = file.filePath.replace(/\\/g, '/');
+        // stored_path uses a normalized workspace-relative path with forward slashes.
+        const normalizedPath = file.filePath.replace(/\\/g, '/');
         // file_name: 寃쎈줈??留덉?留?而댄룷?뚰듃
         const fileName = normalizedPath.split('/').at(-1) ?? normalizedPath;
 
@@ -683,6 +684,5 @@ export class SnapshotService implements ISnapshotService {
     }
   }
 }
-
 
 
