@@ -167,18 +167,22 @@ export class LocalEmbeddingRuntimeRagRanker implements RuntimeRagEmbeddingRanker
     documents: RuntimeRagSearchResult[],
     queryText: string,
   ): Promise<Array<RuntimeRagSearchResult & { score: number }>> {
-    const { LocalVectorStore } = await import('@gitcat/ai-pipeline/rag') as any;
-    const store = new LocalVectorStore();
-    await store.addDocuments(documents.map((document) => ({
+    const ragRuntime = await import('@gitcat/ai-pipeline/rag') as any;
+    const store = new ragRuntime.LocalVectorStore();
+    const documentsForSearch = documents.map((document) => ({
       id: document.id,
       content: [
         document.title,
         document.file_path,
         document.source_type,
         document.content,
-      ].filter(Boolean).join('\n'),
+      ]
+        .filter((part): part is string => Boolean(part))
+        .join('\n'),
       metadata: { runtimeRagDocument: document },
-    })));
+    }));
+
+    await store.addDocuments(documentsForSearch);
 
     const results: Array<{ document: { metadata?: Record<string, unknown> }; score: number }> =
       await store.search(queryText, documents.length);
