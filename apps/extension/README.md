@@ -39,6 +39,10 @@ VS Code에서 Command Palette(`Ctrl+Shift+P`, macOS는 `Cmd+Shift+P`)를 열면 
 3. VS Code에서 Command Palette(`Ctrl+Shift+P`, macOS는 `Cmd+Shift+P`)를 연 뒤 `GitCat: Install Local Runtime`을 실행해 로컬 추론 런타임 설치를 시작합니다.
 4. branch recommendation, commit recommendation, PR recommendation을 로컬 추론으로 실행합니다.
 
+PR recommendation 동작 메모:
+- template가 없으면 PR 제목과 본문을 한국어 기본값으로 생성합니다.
+- 영어 template를 선택한 경우에는 template의 heading / placeholder 언어를 따라 영어 제목과 본문을 유지합니다.
+
 설치 요구사항 요약:
 - `mock`: 추가 준비 없음
 - `live-remote`: GMS API 키 필요. 첫 AI 기능 실행 시 입력창이 뜨면 입력한 값이 VS Code SecretStorage에 저장됩니다.
