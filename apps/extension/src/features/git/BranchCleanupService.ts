@@ -11,6 +11,16 @@ import {
 
 const exec = util.promisify(cp.exec);
 
+export interface BranchCleanupSummary {
+  totalCandidates: number;
+  deletableCount: number;
+  skippedCount: number;
+  protectedCount: number;
+  currentBranchName: string | null;
+  deletionReasonCounts: Record<string, number>;
+  protectedBranchNames: string[];
+}
+
 export class BranchCleanupService {
   private readonly configKey = 'gitcat.branchCleanup';
 
@@ -121,6 +131,41 @@ export class BranchCleanupService {
       candidates,
       deletableCount,
       skippedCount,
+    };
+  }
+
+  public async getCandidateSummary(): Promise<BranchCleanupSummary> {
+    const preview = await this.getCandidates();
+    const deletionReasonCounts: Record<string, number> = {};
+    const protectedBranchNames: string[] = [];
+    let currentBranchName: string | null = null;
+    let protectedCount = 0;
+
+    for (const candidate of preview.candidates) {
+      if (candidate.isCurrent) {
+        currentBranchName = candidate.branchName;
+      }
+
+      if (candidate.isProtected) {
+        protectedCount++;
+        protectedBranchNames.push(candidate.branchName);
+      }
+
+      if (!candidate.shouldDelete) continue;
+
+      for (const reason of candidate.reasons) {
+        deletionReasonCounts[reason] = (deletionReasonCounts[reason] ?? 0) + 1;
+      }
+    }
+
+    return {
+      totalCandidates: preview.candidates.length,
+      deletableCount: preview.deletableCount,
+      skippedCount: preview.skippedCount,
+      protectedCount,
+      currentBranchName,
+      deletionReasonCounts,
+      protectedBranchNames,
     };
   }
 
