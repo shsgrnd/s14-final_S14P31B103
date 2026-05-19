@@ -113,7 +113,7 @@
         },
         "gitcat.ai.mode": {
           "type": "string",
-          "enum": ["live-remote", "live-local", "mock"],
+          "enum": ["live-remote", "live-local"],
           "default": "live-local",
           "description": "AI 추론 모드를 설정합니다. 'live-local'은 로컬 GGUF 모델을 사용하고, 'live-remote'는 원격 GMS API를 사용합니다."
         },

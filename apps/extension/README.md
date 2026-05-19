@@ -44,7 +44,6 @@ PR recommendation 동작 메모:
 - 영어 template를 선택한 경우에는 template의 heading / placeholder 언어를 따라 영어 제목과 본문을 유지합니다.
 
 설치 요구사항 요약:
-- `mock`: 추가 준비 없음
 - `live-remote`: GMS API 키 필요. 첫 AI 기능 실행 시 입력창이 뜨면 입력한 값이 VS Code SecretStorage에 저장됩니다.
 - `live-local`: GGUF 모델 파일 + local runtime 설치 필요
 
@@ -52,7 +51,7 @@ PR recommendation 동작 메모:
 - GGUF 파일 경로가 비어 있거나 잘못된 경우
 - `node-llama-cpp` local runtime 설치가 아직 끝나지 않은 경우
 
-이 경우에도 extension 자체와 `mock`, `live-remote` 같은 non-local 경로는 계속 사용할 수 있습니다.
+이 경우에도 extension 자체와 `live-remote` 경로는 계속 사용할 수 있습니다.
 
 추가 참고:
 - merge analysis의 로컬 RAG 임베딩 경로는 선택적 런타임이 준비되지 않으면 자동으로 lexical fallback을 사용합니다.
