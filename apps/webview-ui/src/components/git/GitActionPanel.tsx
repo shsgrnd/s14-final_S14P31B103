@@ -5,6 +5,7 @@ import { useVsCodeApi } from '../../hooks/useVsCodeApi';
 import { btn, bigBtn, inlineBtn, vscodeSidebarViewTitleForeground, webviewBodyForeground, webviewDescriptionForeground } from '../../shared/styles';
 import { useSidebarSectionNotificationMode } from '../../app/SidebarSectionNotificationContext';
 import { SectionNotificationBanner } from '../common/SectionNotificationBanner';
+import { GitWorkflowStepper } from './GitWorkflowStepper';
 import { t } from '../../i18n';
 
 function toastCompletesPending(message: string, ok: boolean, pending: GitPanelPendingOperation | null): boolean {
@@ -43,6 +44,8 @@ export const GitActionPanel: React.FC = () => {
     isMerging,
     lastStatusRefreshAt,
     stagedCount,
+    statusSummary,
+    isLoadingStatusSummary,
     mergeResult,
     clearMergeResult,
     aiBranchSuggestions,
@@ -151,6 +154,16 @@ export const GitActionPanel: React.FC = () => {
     sendMessage('GET_WORKTREE_LIST', {});
   }, [sendMessage, lastStatusRefreshAt]);
 
+  const requestStatusSummary = useCallback((fetchRemote = false) => {
+    sendMessage('GET_GIT_STATUS_SUMMARY', { fetchRemote });
+  }, [sendMessage]);
+
+  useEffect(() => {
+    if (!currentBranch) return;
+    const t = window.setTimeout(() => requestStatusSummary(false), 150);
+    return () => window.clearTimeout(t);
+  }, [currentBranch, lastStatusRefreshAt, requestStatusSummary]);
+
   const closeAIPrompt = () => {
     setShowBranchAI(false);
     setAiPrompt('');
@@ -208,8 +221,9 @@ export const GitActionPanel: React.FC = () => {
       const op = pendingGitOpRef.current;
       if (op) clearGitPanelOperationLoading(op);
       unlockGitPanel();
+      if (ok) requestStatusSummary(true);
     }
-  }, [sectionNotifications.git, clearGitPanelOperationLoading, unlockGitPanel]);
+  }, [sectionNotifications.git, clearGitPanelOperationLoading, unlockGitPanel, requestStatusSummary]);
 
   useEffect(() => {
     if (!showCommitForm) return;
@@ -285,6 +299,7 @@ export const GitActionPanel: React.FC = () => {
     event.stopPropagation();
     setIsRefreshPressed(true);
     sendMessage('REFRESH_STATUS', { fetchRemote: true });
+    requestStatusSummary(true);
     window.setTimeout(() => setIsRefreshPressed(false), 700);
   };
 
@@ -354,6 +369,17 @@ export const GitActionPanel: React.FC = () => {
       className="animate-fade-in"
       style={{ padding: '8px 4px', color: webviewBodyForeground }}
     >
+      {isGitConnected && (
+        <GitWorkflowStepper
+          statusSummary={statusSummary}
+          isLoading={isRefreshingStatus && !statusSummary}
+          isLoadingSummary={isLoadingStatusSummary}
+          isStaging={isStaging}
+          isCommitting={isCommitting}
+          isPushing={isPushing}
+        />
+      )}
+
       {/* ── Branch Selector Accordion Header ── */}
       <div>
         <div
@@ -468,7 +494,7 @@ export const GitActionPanel: React.FC = () => {
           </span>
           <span style={{ color: 'var(--vscode-descriptionForeground)', opacity: 0.82 }}>{t('git.manualRefresh')}</span>
         </div>
-      </div >
+      </div>
 
       {/* ── Branch List Accordion Content ── */}
       < div
