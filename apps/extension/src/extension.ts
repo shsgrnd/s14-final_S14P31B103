@@ -40,7 +40,7 @@ import { PullRequestService } from './features/pull-request/PullRequestService';
 import { PullRequestMessageHandler } from './features/pull-request/PullRequestMessageHandler';
 import { PrSettingsService } from './features/settings/PrSettingsService';
 import { PrSettingsMessageHandler } from './features/settings/PrSettingsMessageHandler';
-import { t } from './i18n';
+import { resolveLocale, t } from './i18n';
 import {
   createMergeRepositories,
   MergeAnalysisArtifactStore,
@@ -216,6 +216,7 @@ export async function activate(context: vscode.ExtensionContext) {
           workspaceRoot: rootPath,
           // [Task 45] AI 클라이언트를 주입하면 스냅샷 생성 직후 백그라운드에서 자동 요약이 실행됩니다.
           aiClient: snapshotAiClient,
+          snapshotSummaryLanguageResolver: () => resolveLocale(),
           // 스냅샷 생성 직후 즉시 브로드캐스트하여 UI가 늦게 뜨는 현상을 방지합니다.
           onSnapshotCreated: (row) => {
             messageRouter.broadcast({
