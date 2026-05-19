@@ -168,17 +168,21 @@ function run(): void {
 
   const localEnglishTemplateKoreanOutputPrompt = buildRecommendationUserPrompt(createEnglishTemplateKoreanOutputPrPayload(), 'local-fast');
   assert.equal(localEnglishTemplateKoreanOutputPrompt.includes('Write both title and primary_text in Korean.'), true);
-  assert.equal(localEnglishTemplateKoreanOutputPrompt.includes('headings and body content in Korean.'), true);
+  assert.equal(localEnglishTemplateKoreanOutputPrompt.includes('preserve markdown section heading lines exactly as written in the template'), true);
+  assert.equal(localEnglishTemplateKoreanOutputPrompt.includes('Rewrite every non-heading visible text in Korean'), true);
+  assert.equal(localEnglishTemplateKoreanOutputPrompt.includes('checklist items, bullet text, placeholder text, helper notes, and prose'), true);
   assert.equal(localEnglishTemplateKoreanOutputPrompt.includes('write both title and primary_text in English.'), false);
 
   const remoteEnglishTemplateKoreanOutputPrompt = buildRecommendationUserPrompt(createEnglishTemplateKoreanOutputPrPayload(), 'default');
   assert.equal(remoteEnglishTemplateKoreanOutputPrompt.includes('제목(title)과 primary_text(PR 본문)는 모두 한국어로 작성한다.'), true);
-  assert.equal(remoteEnglishTemplateKoreanOutputPrompt.includes('섹션 제목과 본문은 한국어로 다시 작성한다.'), true);
+  assert.equal(remoteEnglishTemplateKoreanOutputPrompt.includes('마크다운 섹션 heading 줄 자체는 template 원문 그대로 유지한다.'), true);
+  assert.equal(remoteEnglishTemplateKoreanOutputPrompt.includes('heading이 아닌 모든 visible text는 한국어로 다시 작성한다.'), true);
   assert.equal(remoteEnglishTemplateKoreanOutputPrompt.includes('both title and primary_text must stay in English.'), false);
 
   const localEnglishTemplatePrPrompt = buildRecommendationUserPrompt(createEnglishTemplatePrPayload(), 'local-fast');
   assert.equal(localEnglishTemplatePrPrompt.includes('write both title and primary_text in English.'), true);
-  assert.equal(localEnglishTemplatePrPrompt.includes('Preserve the template heading language, section order, and placeholder intent as closely as possible.'), true);
+  assert.equal(localEnglishTemplatePrPrompt.includes('Preserve markdown section heading lines exactly as written in the template'), true);
+  assert.equal(localEnglishTemplatePrPrompt.includes('keep newly written non-heading text in English'), true);
   assert.equal(localEnglishTemplatePrPrompt.includes('Write both title and primary_text in Korean by default.'), false);
 
   const remoteEnglishTemplatePrPrompt = buildRecommendationUserPrompt(createEnglishTemplatePrPayload(), 'default');
