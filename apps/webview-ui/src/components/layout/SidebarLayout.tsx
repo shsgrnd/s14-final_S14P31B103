@@ -188,6 +188,21 @@ export const SidebarLayout: React.FC = () => {
     el.scrollTop = el.scrollHeight;
   }, [notificationCenterOpen, notificationLogs.length]);
 
+  useEffect(() => {
+    if (!notificationCenterOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (clearAllLogsConfirmOpen) {
+          setClearAllLogsConfirmOpen(false);
+        } else {
+          setNotificationCenterOpen(false);
+        }
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [notificationCenterOpen, clearAllLogsConfirmOpen]);
+
   const formatTime = (timestamp: number): string =>
     new Date(timestamp).toLocaleTimeString([], {
       hour: '2-digit',
