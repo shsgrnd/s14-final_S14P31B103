@@ -452,6 +452,8 @@ function stageExtensionPackage(workspacePackages) {
   );
   copyIfExists('media');
   copyIfExists('icon.png');
+  copyIfExists('package.nls.json');
+  copyIfExists('package.nls.ko.json');
   copyIfExists('README.md');
   copyIfExists('LICENSE');
   copyIfExists('.vscodeignore');
