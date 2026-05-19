@@ -434,51 +434,51 @@ export const SidebarLayout: React.FC = () => {
           position: 'relative',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'flex-end',
+          justifyContent: 'flex-start',
           gap: 4,
           padding: '6px 10px',
           borderTop: '1px solid var(--vscode-panel-border)',
           background: 'var(--vscode-sideBar-background)',
           flexShrink: 0,
+          minWidth: 0,
         }}
       >
         <FooterSectionNotificationBalloon
           paintVisible={sectionBalloonOpen && !notificationCenterOpen}
         />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 'auto' }}>
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              marginRight: 6,
-            }}
-          >
-            <select
-              aria-label={t('git.language.label')}
-              title={t('git.language.label')}
-              value={languageSetting}
-              onChange={(e) => handleLanguageChange(e.target.value as 'auto' | 'ko' | 'en')}
-              style={{
-                minWidth: '120px',
-                height: '26px',
-                padding: '0 8px',
-                borderRadius: '4px',
-                border: '1px solid var(--vscode-dropdown-border, var(--vscode-panel-border))',
-                background: 'var(--vscode-dropdown-background, var(--vscode-sideBar-background))',
-                color: 'var(--vscode-dropdown-foreground, var(--vscode-sideBar-foreground))',
-                fontSize: '11px',
-                cursor: 'pointer',
-              }}
-            >
-              <option value="auto">{t('git.language.auto')}</option>
-              <option value="en">{t('git.language.english')}</option>
-              <option value="ko">{t('git.language.korean')}</option>
-            </select>
-          </div>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            flex: 1,
+            minWidth: 0,
+          }}
+        >
           <button
             type="button"
             className="gitcat-icon-press"
-            style={{ ...footerIconBtn, position: 'relative' }}
+            style={{ ...footerIconBtn, flexShrink: 0 }}
+            title={t('sidebar.settings.pr')}
+            aria-label={t('sidebar.settings.pr')}
+            onClick={() => setPrSettingsOpen(true)}
+          >
+            <SlidersHorizontal size={15} />
+          </button>
+          <button
+            type="button"
+            className="gitcat-icon-press"
+            style={{ ...footerIconBtn, flexShrink: 0 }}
+            title={t('sidebar.settings.aiApiKey')}
+            aria-label={t('sidebar.settings.aiApiKey')}
+            onClick={() => setSettingsOpen(true)}
+          >
+            <KeyRound size={15} />
+          </button>
+          <button
+            type="button"
+            className="gitcat-icon-press"
+            style={{ ...footerIconBtn, position: 'relative', flexShrink: 0 }}
             title={t('sidebar.alerts.viewLogs')}
             aria-label={t('sidebar.alerts.viewLogs')}
             onClick={handleFooterAlertClick}
@@ -513,26 +513,39 @@ export const SidebarLayout: React.FC = () => {
               </span>
             )}
           </button>
-          <button
-            type="button"
-            className="gitcat-icon-press"
-            style={footerIconBtn}
-            title={t('sidebar.settings.aiApiKey')}
-            aria-label={t('sidebar.settings.aiApiKey')}
-            onClick={() => setSettingsOpen(true)}
+          <div
+            style={{
+              flex: '1 1 0',
+              minWidth: 0,
+              maxWidth: 160,
+              display: 'flex',
+            }}
           >
-            <KeyRound size={15} />
-          </button>
-          <button
-            type="button"
-            className="gitcat-icon-press"
-            style={footerIconBtn}
-            title={t('sidebar.settings.pr')}
-            aria-label={t('sidebar.settings.pr')}
-            onClick={() => setPrSettingsOpen(true)}
-          >
-            <SlidersHorizontal size={15} />
-          </button>
+            <select
+              aria-label={t('git.language.label')}
+              title={t('git.language.label')}
+              value={languageSetting}
+              onChange={(e) => handleLanguageChange(e.target.value as 'auto' | 'ko' | 'en')}
+              style={{
+                width: '100%',
+                minWidth: 0,
+                maxWidth: '100%',
+                height: '26px',
+                padding: '0 8px',
+                borderRadius: '4px',
+                border: '1px solid var(--vscode-dropdown-border, var(--vscode-panel-border))',
+                background: 'var(--vscode-dropdown-background, var(--vscode-sideBar-background))',
+                color: 'var(--vscode-dropdown-foreground, var(--vscode-sideBar-foreground))',
+                fontSize: '11px',
+                cursor: 'pointer',
+                boxSizing: 'border-box',
+              }}
+            >
+              <option value="auto">{t('git.language.auto')}</option>
+              <option value="en">{t('git.language.english')}</option>
+              <option value="ko">{t('git.language.korean')}</option>
+            </select>
+          </div>
         </div>
       </footer>
 

@@ -59,6 +59,7 @@ export const GitActionPanel: React.FC = () => {
     branchRecommendationError,
     commitRecommendationError,
     clearBranchSuggestions,
+    clearCommitSuggestions,
     clearGitPanelOperationLoading,
     postGitSectionBanner,
     beginRecommendationRequest,
@@ -173,6 +174,7 @@ export const GitActionPanel: React.FC = () => {
     setShowNewBranch(false);
     setNewBranchName('');
     setBranchNameError(null);
+    clearBranchSuggestions();
     clearBranchRecommendationError();
     closeAIPrompt();
   };
@@ -180,6 +182,7 @@ export const GitActionPanel: React.FC = () => {
   const closeCommitForm = () => {
     setShowCommitForm(false);
     setCommitMessage('');
+    clearCommitSuggestions();
     clearCommitRecommendationError();
     closeAIPrompt();
   };
