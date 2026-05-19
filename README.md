@@ -138,7 +138,8 @@ GitCat VSIX는 **멀티플랫폼 단일 패키지** 정책을 따릅니다. 따�
 ## 📝 PR 추천 언어 정책
 - `PR recommendation`은 기본적으로 **한국어 제목과 본문**을 생성합니다.
 - PR template를 함께 사용하는 경우에는 template의 섹션 구조와 순서를 최대한 유지합니다.
-- template가 영어 heading / placeholder 중심으로 작성된 경우에는 제목과 본문도 해당 template 언어에 맞춰 **영어로 유지**합니다.
+- `gitcat.language`가 `en`이면 PR 제목과 본문은 영어로 생성되고, `ko`이면 한국어로 생성됩니다.
+- 영어 template를 사용하는 경우에도 template의 **마크다운 섹션 heading 줄은 그대로 유지**하고, heading이 아닌 본문/체크리스트/placeholder/helper text는 현재 GitCat 언어 설정에 맞춰 다시 작성합니다.
 
 참고:
 - 이 저장소에서 실험적으로 측정한 `host-only` 최적화본은 최종 배포 정책이 아닙니다.
