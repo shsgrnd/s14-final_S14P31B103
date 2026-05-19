@@ -155,8 +155,9 @@ export async function activate(context: vscode.ExtensionContext) {
     );
   }
 
+  let gitStatusRefreshController: GitStatusRefreshController | undefined;
   if (gitService) {
-    const gitStatusRefreshController = new GitStatusRefreshController(gitService, messageRouter);
+    gitStatusRefreshController = new GitStatusRefreshController(gitService, messageRouter);
     gitStatusRefreshController.start();
     context.subscriptions.push(gitStatusRefreshController);
   }
@@ -278,7 +279,7 @@ export async function activate(context: vscode.ExtensionContext) {
     sessionCoordinator,
     liveLocalRuntimeManager,
   );
-  EventRegistry.registerAll(context, sessionCoordinator);
+  EventRegistry.registerAll(context, sessionCoordinator, gitStatusRefreshController);
 
   if (rootPath && projectId && gitService) {
     void initializeRecommendationBackfill(

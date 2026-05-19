@@ -6,6 +6,7 @@ import {
 import { useGitCatStore } from '../../store/useGitCatStore';
 import { useVsCodeApi } from '../../hooks/useVsCodeApi';
 import type { WorkspaceFileTreeNode } from '@gitcat/shared-types';
+import { getFileTreeNextActionHint } from '../../shared/gitWorkflowCopy';
 
 // ── VS Code 스타일 인라인 SVG 아이콘 ─────────────────────────────────────────
 
@@ -184,24 +185,21 @@ const StatusSummaryPopup: React.FC<StatusSummaryPopupProps> = ({ onClose, trigge
           })}
 
           {/* 다음 액션 가이드 */}
-          {statusSummary.nextAction && statusSummary.nextAction !== 'UP_TO_DATE' && (
-            <div style={{
-              margin: '6px 10px 2px 10px', padding: '5px 8px',
-              background: 'rgba(86, 156, 214, 0.1)',
-              border: '1px solid rgba(86, 156, 214, 0.3)',
-              borderRadius: '4px', fontSize: '10px', color: '#569cd6',
-            }}>
-              💡 {
-                ({
-                  RESOLVE_CONFLICTS: '충돌 해결이 필요합니다',
-                  ADD_CHANGES: '변경사항을 스테이징하세요',
-                  COMMIT_CHANGES: '커밋할 준비가 됐습니다',
-                  PULL_CHANGES: '원격 변경사항을 Pull하세요',
-                  PUSH_COMMITS: 'Push할 커밋이 있습니다',
-                } as Record<string, string>)[statusSummary.nextAction]
-              }
-            </div>
-          )}
+          {(() => {
+            const hint = getFileTreeNextActionHint(statusSummary.nextAction);
+            return hint ? (
+              
+                <div style={{
+                  margin: '6px 10px 2px 10px', padding: '5px 8px',
+                  background: 'rgba(86, 156, 214, 0.1)',
+                  border: '1px solid rgba(86, 156, 214, 0.3)',
+                  borderRadius: '4px', fontSize: '10px', color: '#569cd6',
+                }}>
+                  💡 {hint}
+                </div>
+              
+            ) : null;
+          })()}
         </div>
       )}
     </div>

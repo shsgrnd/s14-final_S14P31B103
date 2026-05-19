@@ -3,6 +3,10 @@ import react from '@vitejs/plugin-react';
 
 export default defineConfig({
   plugins: [react()],
+  test: {
+    environment: 'node',
+    include: ['src/**/*.test.ts'],
+  },
   base: './', // 빌드된 자산이 상대 경로를 사용하도록 설정
   build: {
     outDir: 'dist',

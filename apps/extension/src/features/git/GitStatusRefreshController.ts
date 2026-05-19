@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import { GitService, GitStatusResponse } from './GitService';
 import { MessageRouter } from '../../core/MessageRouter';
 
-const DEFAULT_POLL_INTERVAL_MS = 20_000;
+const DEFAULT_POLL_INTERVAL_MS = 10_000;
 
 /**
  * Polls Git state and pushes status heartbeats to active Webviews.
@@ -25,14 +25,16 @@ export class GitStatusRefreshController implements vscode.Disposable {
     }, this.intervalMs);
   }
 
-  async refresh(options: { force: boolean }): Promise<void> {
+  async refresh(options: { force: boolean; fetchRemote?: boolean }): Promise<void> {
     if (this.isRefreshing) {
       return;
     }
 
     this.isRefreshing = true;
     try {
-      await this.gitService.fetchAllPrune();
+      if (options.fetchRemote !== false) {
+        await this.gitService.fetchAllPrune();
+      }
       const [status, branches] = await Promise.all([
         this.gitService.getStatusWithWorktrees(),
         this.gitService.getBranches(),

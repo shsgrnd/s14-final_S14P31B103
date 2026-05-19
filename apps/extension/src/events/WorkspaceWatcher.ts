@@ -1,8 +1,13 @@
 import * as vscode from 'vscode';
 import { SafetySessionCoordinator } from '../features/safety/session/SafetySessionCoordinator';
+import type { GitStatusRefreshController } from '../features/git/GitStatusRefreshController';
 
 export class WorkspaceWatcher {
-    static register(context: vscode.ExtensionContext, sessionCoordinator?: SafetySessionCoordinator) {
+    static register(
+        context: vscode.ExtensionContext,
+        sessionCoordinator?: SafetySessionCoordinator,
+        gitStatusRefresh?: GitStatusRefreshController,
+    ) {
         // 파일 저장 감지
         context.subscriptions.push(
             vscode.workspace.onDidSaveTextDocument((doc) => {
@@ -10,7 +15,7 @@ export class WorkspaceWatcher {
                 if (sessionCoordinator) {
                     sessionCoordinator.handleDocumentSave(doc);
                 }
-                // GitStatus 갱신 이벤트 발생 -> Tree View 업데이트 알림
+                void gitStatusRefresh?.refresh({ force: true, fetchRemote: false });
             })
         );
 
