@@ -19,11 +19,13 @@ VS Code에서 Command Palette(`Ctrl+Shift+P`, macOS는 `Cmd+Shift+P`)를 열면 
 
 ## 로컬 VSIX 패키징
 - Windows 기준으로 `pnpm --dir apps/extension run package:vsix`를 실행하면 `.artifacts/` 아래에 VSIX 파일이 생성됩니다.
+- 현재 기본 파일명은 `gitcat-vscode-<version>.vsix`입니다.
 - 이 스크립트는 `vsce package`를 호출하며, 내부적으로 `typecheck + esbuild 번들 빌드`를 함께 수행합니다.
 - GitHub Actions에서는 `.github/workflows/package-vsix.yml`로 동일한 패키징 절차를 수동 실행하거나 태그 푸시 기준으로 재사용할 수 있습니다.
 - 최종 산출물은 VS Code Marketplace 배포와 `.vsix` 직접 배포에 모두 사용할 수 있습니다.
 - 최종 VSIX는 **멀티플랫폼 단일 패키지** 정책을 따르며, 플랫폼별 `node-llama-cpp` 네이티브 런타임은 동봉하지 않습니다.
 - 저장소에서 용량 측정을 위해 만들었던 `host-only` 최적화본은 최종 배포 정책이 아닙니다.
+- Marketplace 확장 ID는 `GitCat.gitcat-vscode`입니다. 기존 `GitCat.gitcat` 설치본과는 별도 확장으로 취급되므로 `live-local` 런타임과 SecretStorage 기반 키/토큰을 다시 설정해야 할 수 있습니다.
 
 ## 로컬 모델 설정 (`live-local`)
 로컬 추론용 GGUF 모델은 아래 Hugging Face 저장소에서 다운로드할 수 있습니다.

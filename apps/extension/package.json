@@ -1,6 +1,6 @@
 {
-  "name": "gitcat",
-  "displayName": "GitCat",
+  "name": "gitcat-vscode",
+  "displayName": "GitCat for VS Code",
   "description": "%extension.description%",
   "publisher": "GitCat",
   "icon": "media/GitCat_icon.png",

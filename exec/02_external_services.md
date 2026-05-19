@@ -124,8 +124,12 @@ pnpm --dir apps/extension run package:vsix
 | 항목 | 내용 |
 | --- | --- |
 | 시연 설치 방식 | VSIX / Marketplace 중 택1 |
-| 최종 사용 VSIX 파일명 | gitcat-0.0.5.visx |
+| 최종 사용 VSIX 파일명 | gitcat-vscode-0.0.5.vsix |
 | 배포 위치 | Marketplace |
+
+추가 참고:
+- 현재 Marketplace / VSIX 확장 ID는 `GitCat.gitcat-vscode` 기준으로 관리한다.
+- 기존 `GitCat.gitcat` 설치본과는 다른 확장으로 취급되므로, `live-local` 런타임과 VS Code `SecretStorage` 기반 토큰/API 키 재설정 여부를 최종 시연 전 점검한다.
 
 ## 6. 서비스별 체크리스트
 
