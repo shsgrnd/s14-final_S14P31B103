@@ -1,0 +1,20 @@
+{
+  "extension.description": "An AI-powered Git assistant for safer commits, conflict prevention, and smarter workflow guidance in VS Code.",
+  "command.openPanel.title": "GitCat: Open Panel",
+  "command.getGitStatus.title": "GitCat: Refresh Status",
+  "command.createSnapshot.title": "GitCat: Create Snapshot",
+  "command.installLocalRuntime.title": "GitCat: Install Local Runtime",
+  "command.setGitHubToken.title": "GitCat: Set GitHub Token",
+  "command.clearGitHubToken.title": "GitCat: Clear GitHub Token",
+  "config.branchCleanup.enabled.description": "Enable or disable Branch Cleanup features.",
+  "config.branchCleanup.olderThanValue.description": "Treat branches older than this value as cleanup candidates.",
+  "config.branchCleanup.olderThanUnit.description": "Time unit for olderThanValue (week or month).",
+  "config.branchCleanup.deleteMergedBranches.description": "Include already merged local branches in deletion candidates.",
+  "config.branchCleanup.deleteGoneRemoteBranches.description": "Include local branches whose tracked remote branch is gone in deletion candidates.",
+  "config.branchCleanup.protectedBranches.description": "Protected branches that should never be deleted.",
+  "config.language.description": "Controls the language used for GitCat UI text. 'auto' follows the VS Code display language.",
+  "config.ai.mode.description": "Configure the AI inference mode. 'live-local' uses a local GGUF model, and 'live-remote' uses the remote GMS API.",
+  "config.ai.localModelPath.description": "Absolute path to the GGUF model file used for live-local inference. On Windows, use a path such as C:\\Models\\Qwen2.5-Coder-7B-Instruct.gguf.",
+  "config.safety.largeDeletionThreshold.description": "Threshold for the number of deleted files before the Safety Layer raises a large deletion warning.",
+  "config.merge.openMainPanelOnConflict.description": "Automatically open the GitCat main panel when Push/Pull/PR guards or merge analysis detect a conflict."
+}

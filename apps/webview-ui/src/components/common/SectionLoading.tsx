@@ -1,7 +1,7 @@
 import React from 'react';
+import { t } from '../../i18n';
 
-/** 지연 로드되는 패널용 최소 높이 스켈레톤 */
-export const SectionLoading: React.FC<{ label?: string }> = ({ label = '불러오는 중…' }) => (
+export const SectionLoading: React.FC<{ label?: string }> = ({ label = t('loading.panel') }) => (
   <div
     style={{
       padding: '12px 14px',

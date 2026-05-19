@@ -2,6 +2,7 @@ import React from 'react';
 import { AlertTriangle, GitMerge, X, RefreshCw } from 'lucide-react';
 import { useGitCatStore } from '../../store/useGitCatStore';
 import { getVsCodeWebviewApi } from '../../hooks/useVsCodeApi';
+import { t } from '../../i18n';
 
 /**
  * 사이드바 전용 소형 알림 배너.
@@ -21,10 +22,10 @@ export const MergeConflictNotice: React.FC = () => {
   if (!visible) return null;
 
   const label = isMergeAnalysisLoading
-    ? '충돌 후보 분석 중…'
+    ? t('merge.notice.analysis')
     : isMergeProposalLoading
-      ? 'AI 초안 생성 중…'
-      : `병합 충돌 후보 ${conflicts.length}개 감지됨`;
+      ? t('merge.notice.proposal')
+      : t('merge.notice.detected', { count: conflicts.length });
 
   return (
     <div
@@ -91,11 +92,11 @@ export const MergeConflictNotice: React.FC = () => {
           }}
         >
           <GitMerge size={11} />
-          에디터에서 검토
+          {t('merge.notice.reviewInEditor')}
         </button>
         <button
           onClick={clearMergeReviewUi}
-          title="닫기"
+          title={t('sidebar.notificationCenter.close')}
           style={{
             flexShrink: 0,
             display: 'flex',
