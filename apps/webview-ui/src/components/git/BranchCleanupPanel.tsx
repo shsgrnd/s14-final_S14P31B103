@@ -33,14 +33,44 @@ const STATUS_BG: Record<BranchStatus, string> = {
   protected: 'rgba(197,134,192,0.12)',
 };
 
+/** 기본 보호 브랜치 — 설정에서 제거 가능(확인 후), UI에서 노란 자물쇠로 표시 */
+const DEFAULT_SYSTEM_PROTECTED_BRANCHES = ['main', 'master'] as const;
+
+const isDefaultSystemProtectedBranch = (name: string): boolean =>
+  DEFAULT_SYSTEM_PROTECTED_BRANCHES.includes(
+    name.trim().toLowerCase() as (typeof DEFAULT_SYSTEM_PROTECTED_BRANCHES)[number],
+  );
+
 const DEFAULT_CLEANUP_SETTINGS: BranchCleanupSettings = {
   enabled: true,
   olderThanValue: 1,
   olderThanUnit: 'month',
   deleteMergedBranches: true,
   deleteGoneRemoteBranches: false,
-  protectedBranches: ['main', 'master'],
+  protectedBranches: [...DEFAULT_SYSTEM_PROTECTED_BRANCHES],
 };
+
+/** 기본 보호 브랜치용 노란 자물쇠 (검은 얇은 테두리) */
+const SystemProtectedLockIcon: React.FC = () => (
+  <span
+    title="기본 보호 브랜치 (삭제 시 확인 필요)"
+    style={{
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      flexShrink: 0,
+      width: '14px',
+      height: '14px',
+      borderRadius: '3px',
+      border: '1px solid #1a1a1a',
+      background: '#f5c842',
+      boxSizing: 'border-box',
+    }}
+    aria-hidden
+  >
+    <Lock size={9} strokeWidth={2.5} style={{ color: '#1a1a1a' }} />
+  </span>
+);
 
 /**
  * 두 BranchCleanupSettings 가 동일한지 비교 (draft vs cleanupSettings 의 dirty 판정용).
@@ -82,6 +112,8 @@ export const BranchCleanupPanel: React.FC = () => {
 
   const [newProtectedBranch, setNewProtectedBranch] = useState('');
   const [showConfirmModal, setShowConfirmModal] = useState(false); // 삭제 확인 모달 상태
+  /** 기본 보호 브랜치(main/master)를 보호 목록에서 제거할 때 확인 */
+  const [systemProtectedRemovalTarget, setSystemProtectedRemovalTarget] = useState<string | null>(null);
   /**
    * 자동 정리 구성 화면의 임시(draft) 상태.
    * - 외부 cleanupSettings 와 분리되어, 사용자가 [저장] 버튼을 누를 때만 백엔드로 반영된다.
@@ -299,11 +331,25 @@ export const BranchCleanupPanel: React.FC = () => {
     setNewProtectedBranch('');
   };
 
-  // 보호 브랜치 삭제 (master, main 제외; draft 에만 반영)
   const removeProtectedBranch = (name: string) => {
-    if (!draftSettings || ['master', 'main'].includes(name)) return;
-    const updated = draftSettings.protectedBranches.filter(b => b !== name);
+    if (!draftSettings) return;
+    const updated = draftSettings.protectedBranches.filter((b) => b !== name);
     updateDraft({ protectedBranches: updated });
+  };
+
+  const requestRemoveProtectedBranch = (name: string) => {
+    if (!draftSettings) return;
+    if (isDefaultSystemProtectedBranch(name)) {
+      setSystemProtectedRemovalTarget(name);
+      return;
+    }
+    removeProtectedBranch(name);
+  };
+
+  const confirmRemoveSystemProtectedBranch = () => {
+    if (!systemProtectedRemovalTarget) return;
+    removeProtectedBranch(systemProtectedRemovalTarget);
+    setSystemProtectedRemovalTarget(null);
   };
 
   const isDirty = Boolean(draftSettings && cleanupSettings && !settingsEqual(draftSettings, cleanupSettings));
@@ -555,7 +601,7 @@ export const BranchCleanupPanel: React.FC = () => {
                       <div style={{ padding: '12px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
                           {draftSettings.protectedBranches.map(name => {
-                            const isSystem = ['master', 'main'].includes(name);
+                            const isSystem = isDefaultSystemProtectedBranch(name);
                             return (
                               <div
                                 key={name}
@@ -567,30 +613,36 @@ export const BranchCleanupPanel: React.FC = () => {
                                   fontSize: '11px',
                                   maxWidth: '100%', minWidth: 0,
                                   color: 'var(--vscode-editor-foreground)',
-                                  opacity: isSystem ? 0.76 : 1,
                                 }}
-                                title={name}
+                                title={
+                                  isSystem
+                                    ? `${name} — 기본 보호 브랜치 (제거 시 확인)`
+                                    : name
+                                }
                               >
-                                {isSystem ? <Lock size={10} style={{ flexShrink: 0 }} /> : <ShieldCheck size={10} style={{ flexShrink: 0 }} />}
+                                {isSystem ? (
+                                  <SystemProtectedLockIcon />
+                                ) : (
+                                  <ShieldCheck size={10} style={{ flexShrink: 0 }} />
+                                )}
                                 <span style={{
                                   overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
                                   maxWidth: '120px',
                                 }}>
                                   {name}
                                 </span>
-                                {!isSystem && (
-                                  <button
-                                    onClick={() => removeProtectedBranch(name)}
-                                    aria-label={`${name} 보호 해제`}
-                                    style={{
-                                      background: 'none', border: 'none', padding: 0, cursor: 'pointer',
-                                      display: 'flex', color: 'var(--vscode-editor-foreground)', opacity: 0.85,
-                                      flexShrink: 0,
-                                    }}
-                                  >
-                                    <X size={12} />
-                                  </button>
-                                )}
+                                <button
+                                  type="button"
+                                  onClick={() => requestRemoveProtectedBranch(name)}
+                                  aria-label={`${name} 보호 해제`}
+                                  style={{
+                                    background: 'none', border: 'none', padding: 0, cursor: 'pointer',
+                                    display: 'flex', color: 'var(--vscode-editor-foreground)', opacity: 0.85,
+                                    flexShrink: 0,
+                                  }}
+                                >
+                                  <X size={12} />
+                                </button>
                               </div>
                             );
                           })}
@@ -836,6 +888,62 @@ export const BranchCleanupPanel: React.FC = () => {
           </>
         )}
       </div>
+
+      {/* ── 기본 보호 브랜치(main/master) 보호 목록 제거 확인 ── */}
+      {systemProtectedRemovalTarget && (
+        <div
+          style={{
+            position: 'absolute', top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(0,0,0,0.45)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 100, padding: '20px',
+          }}
+        >
+          <div
+            style={{
+              width: '100%', background: 'var(--vscode-editor-background)',
+              borderRadius: '12px', border: '1px solid var(--vscode-panel-border)',
+              boxShadow: '0 6px 20px rgba(0,0,0,0.25)',
+              display: 'flex', flexDirection: 'column', overflow: 'hidden',
+            }}
+          >
+            <div style={{ padding: '16px', borderBottom: '1px solid var(--vscode-panel-border)' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: 'var(--vscode-errorForeground)', marginBottom: '8px' }}>
+                <AlertTriangle size={18} />
+                <span style={{ fontWeight: 700, fontSize: '14px' }}>기본 보호 브랜치 제거</span>
+              </div>
+              <p style={{ fontSize: '12px', color: webviewBodyForeground, opacity: 0.92, margin: 0, lineHeight: 1.5 }}>
+                <strong>{systemProtectedRemovalTarget}</strong> 은(는) GitCat 기본 보호 브랜치입니다.
+                보호 목록에서 제거하면 자동 정리·수동 삭제 대상에 포함될 수 있습니다.
+                정말 보호 목록에서 제거하시겠습니까?
+              </p>
+            </div>
+            <div style={{ padding: '12px 16px', display: 'flex', gap: '8px' }}>
+              <button
+                type="button"
+                onClick={() => setSystemProtectedRemovalTarget(null)}
+                style={{
+                  flex: 1, padding: '8px', borderRadius: '6px', border: '1px solid var(--vscode-panel-border)',
+                  background: 'transparent', color: webviewBodyForeground, cursor: 'pointer', fontSize: '12px',
+                }}
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={confirmRemoveSystemProtectedBranch}
+                style={{
+                  flex: 1, padding: '8px', borderRadius: '6px', border: 'none',
+                  background: 'var(--vscode-button-background)', color: 'var(--vscode-button-foreground)',
+                  cursor: 'pointer', fontSize: '12px', fontWeight: 600,
+                }}
+              >
+                제거
+              </button>
+            </div>
+            </div>
+          </div>
+      )}
 
       {/* ── Confirmation Modal Overlay ── */}
       {showConfirmModal && (

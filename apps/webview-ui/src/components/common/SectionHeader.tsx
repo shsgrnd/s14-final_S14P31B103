@@ -19,7 +19,7 @@ export const SectionHeader: React.FC<SectionHeaderProps> = ({ label, expanded, b
     onClick={onToggle}
     style={{
       display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-      padding: '5px 8px', cursor: 'pointer', userSelect: 'none',
+      padding: '3px 8px', cursor: 'pointer', userSelect: 'none',
       borderBottom: '1px solid var(--vscode-panel-border)',
       // flex 컨테이너 내에서 헤더가 줄어들지 않도록 고정
       flexShrink: 0,
@@ -31,7 +31,7 @@ export const SectionHeader: React.FC<SectionHeaderProps> = ({ label, expanded, b
       {expanded
         ? (
           <ChevronDown
-            size={14}
+            size={10}
             style={{
               color: vscodeSidebarViewTitleForeground,
               opacity: 0.82,
@@ -41,7 +41,7 @@ export const SectionHeader: React.FC<SectionHeaderProps> = ({ label, expanded, b
         )
         : (
           <ChevronRight
-            size={14}
+            size={10}
             style={{
               color: vscodeSidebarViewTitleForeground,
               opacity: 0.82,
@@ -59,9 +59,9 @@ export const SectionHeader: React.FC<SectionHeaderProps> = ({ label, expanded, b
     </div>
     {badge !== undefined && (
       <span style={{
-        fontSize: '10px', fontWeight: 700, minWidth: '16px', height: '16px',
+        fontSize: '9px', fontWeight: 700, minWidth: '12px', height: '12px',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
-        borderRadius: '8px', padding: '0 4px',
+        borderRadius: '6px', padding: '0 3px',
         background: 'var(--vscode-badge-background)',
         color: 'var(--vscode-badge-foreground)',
       }}>
