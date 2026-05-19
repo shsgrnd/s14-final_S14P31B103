@@ -28,6 +28,8 @@ export const SnapshotTimeline: React.FC = () => {
   const { showSectionBannersInline } = useSidebarSectionNotificationMode();
   const [restoreHistoryOpen, setRestoreHistoryOpen] = useState(false);
   const [deleteConfirmSnapshotId, setDeleteConfirmSnapshotId] = useState<string | null>(null);
+  const [editingSnapshotId, setEditingSnapshotId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState('');
 
   const visibleSnapshots = useMemo(() => snapshotsVisibleInSidebarTimeline(snapshots), [snapshots]);
 
@@ -90,10 +92,23 @@ export const SnapshotTimeline: React.FC = () => {
   };
 
   const handleRename = (snapshotId: string, currentTitle: string) => {
+    setEditingSnapshotId(snapshotId);
+    setEditingTitle(currentTitle);
+  };
+
+  const commitRename = (snapshotId: string, originalTitle: string) => {
+    const nextTitle = editingTitle.trim();
+    setEditingSnapshotId(null);
+    if (!nextTitle || nextTitle === originalTitle) return;
     sendMessage('RENAME_SNAPSHOT', {
       snapshotId,
-      newTitle: `${currentTitle} (${t('snapshots.renameSuffix')})`,
+      newTitle: nextTitle,
     });
+  };
+
+  const cancelRename = () => {
+    setEditingSnapshotId(null);
+    setEditingTitle('');
   };
 
   const requestDeleteSnapshot = (snapshotId: string) => {
@@ -194,6 +209,7 @@ export const SnapshotTimeline: React.FC = () => {
           const addedLines = files.reduce((acc, file) => acc + (file.added || 0), 0);
           const removedLines = files.reduce((acc, file) => acc + (file.removed || 0), 0);
           const title = snapshot.summary || snapshot.type;
+          const isEditing = editingSnapshotId === snapshot.snapshotId;
 
           return (
             <div key={snapshot.snapshotId}>
@@ -229,19 +245,50 @@ export const SnapshotTimeline: React.FC = () => {
                 />
 
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <div
-                    style={{
-                      fontSize: '13px',
-                      fontWeight: 500,
-                      overflow: 'hidden',
-                      textOverflow: 'ellipsis',
-                      whiteSpace: 'nowrap',
-                      fontStyle: snapshot.type === 'pre_restore' ? 'italic' : 'normal',
-                      opacity: snapshot.type === 'pre_restore' ? 0.85 : 1,
-                    }}
-                  >
-                    {title}
-                  </div>
+                  {isEditing ? (
+                    <input
+                      autoFocus
+                      value={editingTitle}
+                      onChange={(e) => setEditingTitle(e.currentTarget.value)}
+                      onClick={(e) => e.stopPropagation()}
+                      onBlur={() => commitRename(snapshot.snapshotId, title)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault();
+                          commitRename(snapshot.snapshotId, title);
+                        }
+                        if (e.key === 'Escape') {
+                          e.preventDefault();
+                          cancelRename();
+                        }
+                      }}
+                      style={{
+                        width: '100%',
+                        fontSize: '13px',
+                        fontWeight: 500,
+                        background: 'var(--vscode-input-background)',
+                        color: 'var(--vscode-input-foreground)',
+                        border: '1px solid var(--vscode-focusBorder)',
+                        borderRadius: '4px',
+                        padding: '2px 6px',
+                        boxSizing: 'border-box',
+                      }}
+                    />
+                  ) : (
+                    <div
+                      style={{
+                        fontSize: '13px',
+                        fontWeight: 500,
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        fontStyle: snapshot.type === 'pre_restore' ? 'italic' : 'normal',
+                        opacity: snapshot.type === 'pre_restore' ? 0.85 : 1,
+                      }}
+                    >
+                      {title}
+                    </div>
+                  )}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', fontSize: '11px', color: 'var(--vscode-descriptionForeground)', overflow: 'hidden' }}>
                     <span style={{ fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 }}>
                       {t('snapshots.files', { count: files.length })}
