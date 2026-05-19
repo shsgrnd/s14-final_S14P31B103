@@ -77,7 +77,7 @@ GitCat은 VS Code Marketplace에서 바로 설치하거나, GitHub Releases 등�
 
 1. VS Code에서 Command Palette(`Ctrl+Shift+P`, macOS는 `Cmd+Shift+P`)를 엽니다.
 2. `Extensions: Install from VSIX...`를 실행합니다.
-3. 받은 `gitcat-0.0.4.vsix` 파일을 선택합니다.
+3. 받은 `gitcat-0.0.5.vsix` 파일을 선택합니다.
 4. 설치가 끝나면 VS Code를 다시 로드하거나 재시작합니다.
 
 처음 사용할 때 권장 순서:
