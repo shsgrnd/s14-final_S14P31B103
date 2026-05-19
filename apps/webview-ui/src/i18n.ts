@@ -147,6 +147,10 @@ const messages: Record<Locale, Record<string, MessageValue>> = {
     'snapshots.renameTitle': 'Rename snapshot',
     'snapshots.renameNotAvailable': 'Snapshot rename is not available yet.',
     'snapshots.deleteTitle': 'Delete snapshot',
+    'snapshots.deleteConfirm.title': 'Delete Snapshot',
+    'snapshots.deleteConfirm.body': 'Are you sure you want to delete this snapshot? The local backup data will be removed and this action cannot be undone.',
+    'snapshots.deleteConfirm.cancel': 'Cancel',
+    'snapshots.deleteConfirm.confirm': 'Delete',
     'snapshots.fileDiffTitle': (params) => `View snapshot diff: ${params?.path ?? ''}`,
     'snapshots.restore': 'Restore to this snapshot',
     'snapshots.restoreTitle': 'Restore the working tree to this snapshot.',
@@ -208,6 +212,10 @@ const messages: Record<Locale, Record<string, MessageValue>> = {
       `Branch '${params?.name ?? ''}' is protected and cannot be deleted.`,
     'branchCleanup.warning.settingsMissing': 'Cleanup settings are not ready yet. Please try again in a moment.',
     'branchCleanup.warning.protectedExists': 'That protected branch is already in the list.',
+    'branchCleanup.removeSystemProtected.title': 'Remove Default Protected Branch',
+    'branchCleanup.removeSystemProtected.body': (params) =>
+      `'${params?.name ?? ''}' is a GitCat default protected branch. If you remove it from the protection list, it may be subject to automatic cleanup or manual deletion. Are you sure you want to remove it?`,
+    'branchCleanup.removeSystemProtected.confirm': 'Remove',
 
     'stash.save': 'Save Stash',
     'stash.saveDescription': 'Save the current changes into a stash entry.',
@@ -357,6 +365,10 @@ const messages: Record<Locale, Record<string, MessageValue>> = {
     'snapshots.renameTitle': '스냅샷 이름 바꾸기',
     'snapshots.renameNotAvailable': '스냅샷 이름 변경은 아직 지원되지 않습니다.',
     'snapshots.deleteTitle': '스냅샷 삭제',
+    'snapshots.deleteConfirm.title': '스냅샷 삭제',
+    'snapshots.deleteConfirm.body': '이 스냅샷을 삭제하시겠습니까? 로컬 백업 데이터도 함께 제거되며 되돌릴 수 없습니다.',
+    'snapshots.deleteConfirm.cancel': '취소',
+    'snapshots.deleteConfirm.confirm': '삭제',
     'snapshots.fileDiffTitle': (params) => `스냅샷 diff 보기: ${params?.path ?? ''}`,
     'snapshots.restore': '이 시점으로 원복',
     'snapshots.restoreTitle': '작업 트리를 이 스냅샷 시점으로 되돌립니다.',
@@ -418,6 +430,10 @@ const messages: Record<Locale, Record<string, MessageValue>> = {
       `'${params?.name ?? ''}' 브랜치는 보호 상태이므로 삭제할 수 없습니다.`,
     'branchCleanup.warning.settingsMissing': '정리 설정이 아직 준비되지 않았습니다. 잠시 후 다시 시도해 주세요.',
     'branchCleanup.warning.protectedExists': '이미 보호 브랜치 목록에 있는 이름입니다.',
+    'branchCleanup.removeSystemProtected.title': '기본 보호 브랜치 제거',
+    'branchCleanup.removeSystemProtected.body': (params) =>
+      `'${params?.name ?? ''}'은(는) GitCat 기본 보호 브랜치입니다. 보호 목록에서 제거하면 자동 정리·수동 삭제 대상에 포함될 수 있습니다. 정말 보호 목록에서 제거하시겠습니까?`,
+    'branchCleanup.removeSystemProtected.confirm': '제거',
 
     'stash.save': 'Stash 저장',
     'stash.saveDescription': '현재 변경 사항을 stash 항목으로 저장합니다.',

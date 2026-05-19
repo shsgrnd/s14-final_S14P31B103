@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { FileText, Rewind, ChevronRight, Plus, Edit2, Trash2, History, X } from 'lucide-react';
+import { FileText, Rewind, ChevronRight, Plus, Edit2, Trash2, History, X, AlertTriangle } from 'lucide-react';
 import { useGitCatStore } from '../../store/useGitCatStore';
 import { useVsCodeApi } from '../../hooks/useVsCodeApi';
 import { SnapshotMeta, type RestoreHistory } from '@gitcat/shared-types';
@@ -27,6 +27,7 @@ export const SnapshotTimeline: React.FC = () => {
   const dismissSnapshotsNotification = useCallback(() => clearSectionNotification('snapshots'), [clearSectionNotification]);
   const { showSectionBannersInline } = useSidebarSectionNotificationMode();
   const [restoreHistoryOpen, setRestoreHistoryOpen] = useState(false);
+  const [deleteConfirmSnapshotId, setDeleteConfirmSnapshotId] = useState<string | null>(null);
 
   const visibleSnapshots = useMemo(() => snapshotsVisibleInSidebarTimeline(snapshots), [snapshots]);
 
@@ -63,6 +64,22 @@ export const SnapshotTimeline: React.FC = () => {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [snapshotFileDiff, restoreHistoryOpen, restoreConfirmDialog, clearSnapshotFileDiff, clearRestoreConfirmDialog, sendMessage]);
 
+  useEffect(() => {
+    if (!deleteConfirmSnapshotId) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      setDeleteConfirmSnapshotId(null);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [deleteConfirmSnapshotId]);
+
+  const deleteConfirmSnapshot = useMemo(
+    () => visibleSnapshots.find((s) => s.snapshotId === deleteConfirmSnapshotId) ?? null,
+    [visibleSnapshots, deleteConfirmSnapshotId],
+  );
+
   const getStatusLabel = (status: string) => {
     const normalized = status.toUpperCase();
     if (normalized === 'MODIFIED') return t('snapshot.status.modified');
@@ -78,6 +95,28 @@ export const SnapshotTimeline: React.FC = () => {
       newTitle: `${currentTitle} (${t('snapshots.renameSuffix')})`,
     });
   };
+
+  const requestDeleteSnapshot = (snapshotId: string) => {
+    setDeleteConfirmSnapshotId(snapshotId);
+  };
+
+  const handleConfirmDeleteSnapshot = () => {
+    if (!deleteConfirmSnapshotId) return;
+    sendMessage('DELETE_SNAPSHOT', { snapshotId: deleteConfirmSnapshotId });
+    if (expandedSnapshotId === deleteConfirmSnapshotId) {
+      setExpandedSnapshotId(null);
+    }
+    setDeleteConfirmSnapshotId(null);
+  };
+
+  const handleCancelDeleteSnapshot = () => {
+    setDeleteConfirmSnapshotId(null);
+  };
+
+  const handleRestore = (snapshot: SnapshotMeta) => {
+    sendMessage('RESTORE_SNAPSHOT', { snapshotId: snapshot.snapshotId });
+  };
+
 
   const handleCancelRestore = () => {
     if (!restoreConfirmDialog) return;
@@ -219,137 +258,139 @@ export const SnapshotTimeline: React.FC = () => {
                   <button type="button" onClick={() => handleRename(snapshot.snapshotId, title)} title={t('snapshots.renameTitle')} style={iconBtn}>
                     <Edit2 size={12} />
                   </button>
-                  <button type="button" onClick={() => sendMessage('DELETE_SNAPSHOT', { snapshotId: snapshot.snapshotId })} title={t('snapshots.deleteTitle')} style={{ ...iconBtn, color: 'var(--vscode-errorForeground)' }}>
+                  <button type="button" onClick={() => requestDeleteSnapshot(snapshot.snapshotId)} title={t('snapshots.deleteTitle')} style={{ ...iconBtn, color: 'var(--vscode-errorForeground)' }}>
                     <Trash2 size={12} />
                   </button>
                 </div>
               </div>
 
-              {isExpanded && (
-                <div
-                  style={{
-                    marginLeft: '26px',
-                    paddingLeft: '12px',
-                    paddingRight: '10px',
-                    borderLeft: '1px solid var(--vscode-panel-border)',
-                    marginBottom: '8px',
-                    paddingBottom: '4px',
-                    paddingTop: '4px',
-                  }}
-                >
-                  {files.length > 0 ? (
-                    files.map((file, index) => (
-                      <div
-                        key={`${file.path}-${index}`}
-                        title={t('snapshots.fileDiffTitle', { path: file.path })}
-                        onClick={() =>
-                          sendMessage('GET_SNAPSHOT_FILE_DIFF', {
-                            snapshotId: snapshot.snapshotId,
-                            filePath: file.path,
-                          })
-                        }
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px',
-                          padding: '4px 8px',
-                          borderRadius: '4px',
-                          cursor: 'pointer',
-                          fontSize: '12px',
-                        }}
-                        onMouseOver={(e) => (e.currentTarget.style.background = 'var(--vscode-list-hoverBackground)')}
-                        onMouseOut={(e) => (e.currentTarget.style.background = 'transparent')}
-                      >
-                        <FileText size={12} style={{ opacity: 0.7, flexShrink: 0 }} />
-                        <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {file.path.split('/').pop()}
-                        </span>
-                        <span
-                          style={{
-                            fontSize: '11px',
-                            fontWeight: 700,
-                            flexShrink: 0,
-                            color: diffStatusColor(String(file.status)),
-                          }}
-                        >
-                          {getStatusLabel(String(file.status))}
-                        </span>
-                      </div>
-                    ))
-                  ) : (
-                    <div style={{ padding: '6px 8px', fontSize: '11px', color: 'var(--vscode-descriptionForeground)', fontStyle: 'italic' }}>
-                      {t('snapshots.changedFilesEmpty')}
-                    </div>
-                  )}
-
-                  <button
-                    type="button"
-                    title={t('snapshots.restoreTitle')}
-                    onClick={() => sendMessage('RESTORE_SNAPSHOT', { snapshotId: snapshot.snapshotId })}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '6px',
-                      width: '100%',
-                      marginTop: '10px',
-                      padding: '6px',
-                      background: 'var(--vscode-button-background)',
-                      color: 'var(--vscode-button-foreground)',
-                      border: 'none',
-                      borderRadius: '3px',
-                      cursor: 'pointer',
-                      fontSize: '12px',
-                      fontWeight: 600,
-                    }}
-                  >
-                    <Rewind size={13} />
-                    {t('snapshots.restore')}
-                  </button>
-                </div>
-              )}
-            </div>
-          );
-        })}
-      </div>
-
-      {visibleSnapshots.length > 0 && (
-        <div style={{ padding: '12px 10px 4px 10px' }}>
-          <button
+  { isExpanded && (
+    <div
+      style={{
+        marginLeft: '26px',
+        paddingLeft: '12px',
+        paddingRight: '10px',
+        borderLeft: '1px solid var(--vscode-panel-border)',
+        marginBottom: '8px',
+        paddingBottom: '4px',
+        paddingTop: '4px',
+      }}
+    >
+      {files.length > 0 ? (
+        files.map((file, index) => (
+          <div
+            key={`${file.path}-${index}`}
+            title={t('snapshots.fileDiffTitle', { path: file.path })}
+            onClick={() =>
+              sendMessage('GET_SNAPSHOT_FILE_DIFF', {
+                snapshotId: snapshot.snapshotId,
+                filePath: file.path,
+              })
+            }
             style={{
-              width: '100%',
-              padding: '6px',
-              fontSize: '12px',
-              color: 'var(--vscode-descriptionForeground)',
-              background: 'transparent',
-              border: '1px solid transparent',
-              borderRadius: '4px',
-              cursor: 'pointer',
               display: 'flex',
               alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px',
+              gap: '8px',
+              padding: '4px 8px',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '12px',
             }}
-            type="button"
-            title={t('snapshots.viewAllTitle')}
-            onClick={() => {
-              sendMessage('GET_RESTORE_HISTORY', {});
-              setRestoreHistoryOpen(true);
-            }}
-            onMouseOver={(e) => {
-              e.currentTarget.style.background = 'var(--vscode-list-hoverBackground)';
-              e.currentTarget.style.color = 'var(--vscode-foreground)';
-            }}
-            onMouseOut={(e) => {
-              e.currentTarget.style.background = 'transparent';
-              e.currentTarget.style.color = 'var(--vscode-descriptionForeground)';
-            }}
+            onMouseOver={(e) => (e.currentTarget.style.background = 'var(--vscode-list-hoverBackground)')}
+            onMouseOut={(e) => (e.currentTarget.style.background = 'transparent')}
           >
-            <History size={14} />
-            {t('snapshots.viewAll')}
-          </button>
+            <FileText size={12} style={{ opacity: 0.7, flexShrink: 0 }} />
+            <span style={{ flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              {file.path.split('/').pop()}
+            </span>
+            <span
+              style={{
+                fontSize: '11px',
+                fontWeight: 700,
+                flexShrink: 0,
+                color: diffStatusColor(String(file.status)),
+              }}
+            >
+              {getStatusLabel(String(file.status))}
+            </span>
+          </div>
+        ))
+      ) : (
+        <div style={{ padding: '6px 8px', fontSize: '11px', color: 'var(--vscode-descriptionForeground)', fontStyle: 'italic' }}>
+          {t('snapshots.changedFilesEmpty')}
         </div>
       )}
+
+      <button
+        type="button"
+        title={t('snapshots.restoreTitle')}
+        onClick={() => sendMessage('RESTORE_SNAPSHOT', { snapshotId: snapshot.snapshotId })}
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '6px',
+          width: '100%',
+          marginTop: '10px',
+          padding: '6px',
+          background: 'var(--vscode-button-background)',
+          color: 'var(--vscode-button-foreground)',
+          border: 'none',
+          borderRadius: '3px',
+          cursor: 'pointer',
+          fontSize: '12px',
+          fontWeight: 600,
+        }}
+      >
+        <Rewind size={13} />
+        {t('snapshots.restore')}
+      </button>
+    </div>
+  )}
+            </div >
+          );
+        })}
+      </div >
+
+{
+  visibleSnapshots.length > 0 && (
+    <div style={{ padding: '12px 10px 4px 10px' }}>
+      <button
+        style={{
+          width: '100%',
+          padding: '6px',
+          fontSize: '12px',
+          color: 'var(--vscode-descriptionForeground)',
+          background: 'transparent',
+          border: '1px solid transparent',
+          borderRadius: '4px',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: '6px',
+        }}
+        type="button"
+        title={t('snapshots.viewAllTitle')}
+        onClick={() => {
+          sendMessage('GET_RESTORE_HISTORY', {});
+          setRestoreHistoryOpen(true);
+        }}
+        onMouseOver={(e) => {
+          e.currentTarget.style.background = 'var(--vscode-list-hoverBackground)';
+          e.currentTarget.style.color = 'var(--vscode-foreground)';
+        }}
+        onMouseOut={(e) => {
+          e.currentTarget.style.background = 'transparent';
+          e.currentTarget.style.color = 'var(--vscode-descriptionForeground)';
+        }}
+      >
+        <History size={14} />
+        {t('snapshots.viewAll')}
+      </button>
+    </div>
+  )
+}
 
       <DiffDialog snapshotFileDiff={snapshotFileDiff} onClose={clearSnapshotFileDiff} />
       <RestoreHistoryDialog histories={restoreHistories} open={restoreHistoryOpen} onClose={() => setRestoreHistoryOpen(false)} />
@@ -358,9 +399,123 @@ export const SnapshotTimeline: React.FC = () => {
         onCancel={handleCancelRestore}
         onConfirm={handleConfirmRestore}
       />
-    </div>
+      <DeleteConfirmDialog
+        open={!!deleteConfirmSnapshotId}
+        snapshot={deleteConfirmSnapshot}
+        onCancel={handleCancelDeleteSnapshot}
+        onConfirm={handleConfirmDeleteSnapshot}
+      />
+    </div >
   );
 };
+
+/**
+ * 스냅샷 삭제 여부를 한 번 더 확인하는 모달 다이얼로그 컴포넌트입니다.
+ * 사용자가 실수로 스냅샷을 삭제하여 로컬 백업이 유실되는 것을 방지하기 위해 생성되었습니다.
+ * 다국어(i18n) 시스템인 t() 함수를 통해 다국어 메시지를 동적으로 렌더링합니다.
+ */
+function DeleteConfirmDialog({
+  open,
+  snapshot,
+  onCancel,
+  onConfirm,
+}: {
+  open: boolean;
+  snapshot: SnapshotMeta | null;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  // 모달이 열려있지 않거나 대상 스냅샷이 없으면 렌더링하지 않습니다.
+  if (!open || !snapshot) return null;
+
+  return createPortal(
+    <div
+      role="dialog"
+      aria-modal="true"
+      aria-label={t('snapshots.deleteConfirm.title')}
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 60000,
+        background: 'rgba(0, 0, 0, 0.5)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: '16px',
+      }}
+      onClick={onCancel}
+    >
+      <div
+        style={{
+          width: '100%',
+          maxWidth: '420px',
+          background: 'var(--vscode-editor-background)',
+          color: 'var(--vscode-editor-foreground)',
+          border: '1px solid var(--vscode-panel-border)',
+          borderRadius: '8px',
+          boxShadow: '0 12px 36px rgba(0, 0, 0, 0.4)',
+          padding: '16px',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', color: 'var(--vscode-errorForeground)' }}>
+          <AlertTriangle size={18} />
+          <span style={{ fontSize: '14px', fontWeight: 700 }}>{t('snapshots.deleteConfirm.title')}</span>
+        </div>
+        <p style={{ fontSize: '12px', color: 'var(--vscode-descriptionForeground)', lineHeight: 1.5, margin: '0 0 8px 0' }}>
+          {t('snapshots.deleteConfirm.body')}
+        </p>
+        <p style={{
+          fontSize: '12px',
+          margin: 0,
+          padding: '8px 10px',
+          borderRadius: '6px',
+          border: '1px solid var(--vscode-panel-border)',
+          background: 'var(--vscode-editorWidget-background)',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}>
+          {snapshot.summary || snapshot.type}
+        </p>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '14px' }}>
+          <button
+            type="button"
+            onClick={onCancel}
+            style={{
+              border: '1px solid var(--vscode-panel-border)',
+              background: 'transparent',
+              color: 'var(--vscode-foreground)',
+              borderRadius: '4px',
+              padding: '6px 12px',
+              cursor: 'pointer',
+              fontSize: '12px',
+            }}
+          >
+            {t('snapshots.deleteConfirm.cancel')}
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            style={{
+              border: 'none',
+              background: 'var(--vscode-button-background)',
+              color: 'var(--vscode-button-foreground)',
+              borderRadius: '4px',
+              padding: '6px 12px',
+              cursor: 'pointer',
+              fontSize: '12px',
+              fontWeight: 600,
+            }}
+          >
+            {t('snapshots.deleteConfirm.confirm')}
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
 
 function DiffDialog({
   snapshotFileDiff,
@@ -707,19 +862,19 @@ function renderColoredDiffText(diffText: string): React.ReactNode {
     const style: React.CSSProperties =
       kind === 'add'
         ? {
-            color: 'var(--vscode-gitDecoration-addedResourceForeground)',
-            background: 'var(--vscode-diffEditor-insertedTextBackground)',
-          }
+          color: 'var(--vscode-gitDecoration-addedResourceForeground)',
+          background: 'var(--vscode-diffEditor-insertedTextBackground)',
+        }
         : kind === 'del'
           ? {
-              color: 'var(--vscode-gitDecoration-deletedResourceForeground)',
-              background: 'var(--vscode-diffEditor-removedTextBackground)',
-            }
+            color: 'var(--vscode-gitDecoration-deletedResourceForeground)',
+            background: 'var(--vscode-diffEditor-removedTextBackground)',
+          }
           : kind === 'meta'
             ? {
-                color: 'var(--vscode-descriptionForeground)',
-                opacity: 0.8,
-              }
+              color: 'var(--vscode-descriptionForeground)',
+              opacity: 0.8,
+            }
             : {};
     return (
       <div key={`${index}-${line}`} style={style}>

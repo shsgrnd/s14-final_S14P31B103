@@ -8,15 +8,15 @@ export type SidebarSectionKey = 'git' | 'filetree' | 'safety' | 'branch' | 'stas
 
 /**
  * 각 섹션의 flex-grow 가중치.
- * - 기본값은 Files 2, 나머지 1 (Files 영역이 다른 섹션이 펼쳐졌을 때도 우선적으로 공간 확보)
- * - 사용자가 리사이즈 핸들을 드래그하면 인접한 두 섹션의 가중치가 재분배된다.
- * - 합산값은 유지되지 않을 수 있으며(개별 페어 합 보존), 실제 비율은 펼친 섹션의 가중치 합 기준으로 계산된다.
+ * - 기본값은 모두 1 → 펼쳐진 섹션만 flex에 참여하므로 화면상 1/N 균등 분할
+ * - 사용자가 리사이즈 핸들을 드래그하면 (화면에 보이는) 두 섹션의 가중치만 재분배된다.
+ * - 접힌 섹션은 flex:none 이라 분배에서 제외되며, 저장된 weight는 다시 열 때 복원된다.
  */
 export type SidebarSectionWeights = Record<SidebarSectionKey, number>;
 
 export const DEFAULT_SIDEBAR_SECTION_WEIGHTS: SidebarSectionWeights = {
   git: 1,
-  filetree: 2,
+  filetree: 1,
   safety: 1,
   branch: 1,
   stash: 1,

@@ -147,6 +147,19 @@ export class SnapshotService implements ISnapshotService {
     console.log(`[SnapshotService] ?ㅻ깄????젣 ?꾨즺: ${snapshotId}`);
   }
 
+  async renameSnapshot(snapshotId: string, newTitle: string): Promise<void> {
+    const existing = await this.snapshotRepository.findById(snapshotId);
+    if (!existing) {
+      throw new Error(`Snapshot not found: ${snapshotId}`);
+    }
+    const trimmed = newTitle.trim();
+    if (!trimmed) {
+      throw new Error('Snapshot title cannot be empty');
+    }
+    await this.snapshotRepository.updateSummary(snapshotId, trimmed);
+    console.log(`[SnapshotService] 스냅샷 표시 이름 변경 완료: ${snapshotId}`);
+  }
+
   /**
    * 吏?뺥븳 ??낆쓽 Snapshot???앹꽦?쒕떎.
    *

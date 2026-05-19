@@ -2,9 +2,7 @@ import React, { useCallback, useRef, useState } from 'react';
 
 export interface SidebarResizeHandleProps {
   /**
-   * 인접한 두 섹션이 모두 펼쳐졌을 때만 핸들이 동작하도록 외부에서 제어.
-   * - true: 4px 핸들 + 1px 분리선 렌더, 드래그/키보드 입력 가능
-   * - false: 렌더하지 않음 (한 쪽이 접혀 있으면 리사이즈 의미가 없음)
+   * false 이면 렌더하지 않음. SidebarLayout 은 열린 섹션 쌍에만 마운트하므로 보통 true.
    */
   visible: boolean;
   /** 드래그 시작 시 위/아래 섹션의 현재 픽셀 높이를 얻기 위한 콜백 */
