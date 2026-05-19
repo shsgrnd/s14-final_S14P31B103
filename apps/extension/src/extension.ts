@@ -24,6 +24,10 @@ import { SidebarProvider } from './webview/SidebarProvider';
 import { MessageRouter } from './core/MessageRouter';
 import { registerGitCatOutputChannel } from './platform/GitCatLog';
 import { LiveLocalRuntimeManager } from './platform/LiveLocalRuntimeManager';
+import {
+  migrateLegacyAiModeSettingIfNeeded,
+  normalizeExtensionAiMode,
+} from './platform/aiModeConfig';
 import { AiSecretService } from './features/recommendation/AiSecretService';
 import { AiApiKeyMessageHandler } from './features/recommendation/AiApiKeyMessageHandler';
 import { GitService } from './features/git/GitService';
@@ -108,6 +112,10 @@ export async function activate(context: vscode.ExtensionContext) {
 
   const aiSecretService = new AiSecretService(context.secrets);
   const liveLocalRuntimeManager = new LiveLocalRuntimeManager(context);
+  const aiModeMigrationNotice = await migrateLegacyAiModeSettingIfNeeded(context);
+  if (aiModeMigrationNotice) {
+    void vscode.window.showWarningMessage(aiModeMigrationNotice);
+  }
   void liveLocalRuntimeManager.promptIfLiveLocalNeedsSetup();
   let clearAiCache = () => { };
   const aiApiKeyMessageHandler = new AiApiKeyMessageHandler(aiSecretService, () => clearAiCache());
@@ -454,14 +462,22 @@ export function deactivate() {
   console.log('GitCat Extension deactivated.');
 }
 
+let hasShownLegacyMockModeWarning = false;
+
 function createExtensionAiClientOptions(
   context: vscode.ExtensionContext,
   aiSecretService: AiSecretService,
   liveLocalRuntimeManager: LiveLocalRuntimeManager,
 ) {
   const config = vscode.workspace.getConfiguration('gitcat.ai');
+  const normalizedMode = normalizeExtensionAiMode(config.get<string>('mode'));
+  if (normalizedMode.warningMessage && !hasShownLegacyMockModeWarning) {
+    hasShownLegacyMockModeWarning = true;
+    void vscode.window.showWarningMessage(normalizedMode.warningMessage);
+  }
+
   return {
-    mode: config.get<string>('mode') as 'mock' | 'live' | 'live-remote' | 'live-local' | undefined,
+    mode: normalizedMode.mode,
     localModelPath: config.get<string>('localModelPath'),
     localRuntimeRoot: liveLocalRuntimeManager.getRuntimeRoot(),
     allowBundledLocalRuntimeFallback: context.extensionMode !== vscode.ExtensionMode.Production,

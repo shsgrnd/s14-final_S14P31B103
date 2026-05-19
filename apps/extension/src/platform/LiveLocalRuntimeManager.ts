@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
+import { normalizeExtensionAiMode } from './aiModeConfig';
 import { t } from '../i18n';
 
 const NODE_LLAMA_CPP_VERSION = '3.18.1';
@@ -42,7 +43,8 @@ export class LiveLocalRuntimeManager {
     }
 
     const config = vscode.workspace.getConfiguration('gitcat.ai');
-    if (config.get<string>('mode') !== 'live-local') {
+    const normalizedMode = normalizeExtensionAiMode(config.get<string>('mode'));
+    if (normalizedMode.mode !== 'live-local') {
       return;
     }
 

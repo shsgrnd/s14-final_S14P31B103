@@ -173,6 +173,7 @@ export const PrRecommendationInputSchema = RecommendationBaseSchema.extend({
   diff_summary: z.string().optional(),
   branch_context: z.string(),
   template: z.string().optional(),
+  output_language: z.enum(['ko', 'en']).optional(),
 });
 export type PrRecommendationInput = z.infer<typeof PrRecommendationInputSchema>;
 

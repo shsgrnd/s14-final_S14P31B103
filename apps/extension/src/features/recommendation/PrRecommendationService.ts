@@ -10,6 +10,11 @@ import { MergeAiService } from '@gitcat/ai-pipeline/extension';
 import { GitService } from '../git/GitService';
 import { RecommendationHistoryQueryService } from './RecommendationHistoryQueryService';
 import type { PrRecommendationRawDataDto, PrRecommendationResultDto } from './PrRecommendationDto';
+import { resolveLocale } from '../../i18n';
+import {
+  createPrRecommendationAiPayload,
+  type PrRecommendationOutputLanguage,
+} from './prRecommendationPayload';
 
 interface PrRecommendationAiResponse {
   title: string;
@@ -31,6 +36,7 @@ export class PrRecommendationService {
     private readonly projectId: string,
     /** 추천 이력 참고 Query 서비스 */
     private readonly historyQueryService: RecommendationHistoryQueryService,
+    private readonly resolveOutputLanguage: () => PrRecommendationOutputLanguage = resolveLocale,
   ) { }
 
   /**
@@ -142,26 +148,12 @@ export class PrRecommendationService {
     }
 
     const historyContext = await this.buildHistoryContext(this.projectId, 'pr_description', 5);
-
-    return {
-      project_id: this.projectId,
-      session_id: null,
-      feature_type: 'recommendation',
-      recommendation_type: 'pr_description',
-      current_branch: rawData.currentBranch,
-      change_summary: `PR from ${rawData.currentBranch} to ${rawData.baseBranch}`,
-      changed_files: rawData.changedFiles,
-      work_intent: `Create PR description for changes between ${rawData.baseBranch} and ${rawData.currentBranch}`,
-      diff_summary: rawData.diffText,
-      branch_context: [
-        `Base branch: ${rawData.baseBranch}`,
-        `Current branch: ${rawData.currentBranch}`,
-        `Commits:\n${rawData.commits.map((commit) => `- ${commit.shortHash} ${commit.message}`).join('\n')}`,
-        `Recent PR recommendation count: ${historyContext.length}`,
-      ].join('\n'),
-      schema_version: '1.0',
-      template: rawData.template,
-    };
+    return createPrRecommendationAiPayload({
+      projectId: this.projectId,
+      rawData,
+      historyContext,
+      outputLanguage: this.resolveOutputLanguage(),
+    });
   }
 
   private async requestPrSuggestion(

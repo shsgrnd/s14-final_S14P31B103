@@ -12,7 +12,7 @@ GitCat은 생성형 AI 코딩 환경에서 흔히 발생하는 예기치 않은 
 3. **병합 전 충돌 설명**: 병합 전에 발생할 수 있는 충돌 지점을 미리 분석하여 이해하기 쉽게 설명
 4. **중재 방향 제안**: 충돌 해결을 위한 논리적 중재 방향 제시
 5. **diff/patch 기반 병합 초안 생성**: AI가 제안하는 병합 초안을 diff/patch 형태로 제공
-6. **Git 편의성 향상**: 커밋 메시지, 브랜치명, 작업 설명 자동 추천
+6. **Git 편의성 향상**: 커밋 메시지, 브랜치명, PR 제목/본문, 작업 설명 자동 추천
 
 ---
 
@@ -119,6 +119,11 @@ GitCat VSIX는 **멀티플랫폼 단일 패키지** 정책을 따릅니다. 따�
 3. `Gitcat > Ai: Local Model Path`에 GGUF 절대 경로를 입력합니다. Windows에서는 `C:\...`를 입력하면 되고, WSL에서는 같은 값을 입력해도 내부에서 `/mnt/c/...`로 자동 변환됩니다. 일반 Remote Linux/SSH 환경에서는 원격 서버 기준 절대 경로를 입력합니다.
 4. VS Code에서 Command Palette(`Ctrl+Shift+P`, macOS는 `Cmd+Shift+P`)를 연 뒤 `GitCat: Install Local Runtime`을 실행해 `node-llama-cpp` 런타임 설치를 시작합니다.
 5. 설치가 끝나면 브랜치 추천, 커밋 추천, PR 추천 같은 AI 기능을 다시 실행합니다.
+
+## 📝 PR 추천 언어 정책
+- `PR recommendation`은 기본적으로 **한국어 제목과 본문**을 생성합니다.
+- PR template를 함께 사용하는 경우에는 template의 섹션 구조와 순서를 최대한 유지합니다.
+- template가 영어 heading / placeholder 중심으로 작성된 경우에는 제목과 본문도 해당 template 언어에 맞춰 **영어로 유지**합니다.
 
 참고:
 - 이 저장소에서 실험적으로 측정한 `host-only` 최적화본은 최종 배포 정책이 아닙니다.

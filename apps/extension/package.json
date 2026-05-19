@@ -134,8 +134,7 @@
           "type": "string",
           "enum": [
             "live-remote",
-            "live-local",
-            "mock"
+            "live-local"
           ],
           "default": "live-local",
           "description": "%config.ai.mode.description%"

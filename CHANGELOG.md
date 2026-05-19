@@ -1,5 +1,14 @@
 # Release Notes
 
+## Unreleased
+
+### Improved
+- PR recommendation이 template가 없을 때 제목과 본문을 한국어 기본값으로 생성하도록 개선했습니다.
+- 영어 PR template를 사용하는 경우에는 template의 heading / placeholder 언어를 유지하도록 recommendation 언어 정책을 보완했습니다.
+
+### Fixed
+- VSIX 설치본의 `live-local` 모드에서 local runtime이 이미 설치되어 있어도 번들 환경 때문에 로딩이 실패하던 문제를 수정했습니다.
+
 ## v0.0.4 - 2026-05-18
 
 ### Improved
