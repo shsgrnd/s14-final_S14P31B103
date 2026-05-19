@@ -15,7 +15,12 @@ export class WorkspaceWatcher {
                 if (sessionCoordinator) {
                     sessionCoordinator.handleDocumentSave(doc);
                 }
-                void gitStatusRefresh?.refresh({ force: true, fetchRemote: false });
+                const saveFolder = vscode.workspace.getWorkspaceFolder(doc.uri)?.uri.fsPath;
+                void gitStatusRefresh?.refresh({
+                    force: true,
+                    fetchRemote: false,
+                    cwd: saveFolder,
+                });
             })
         );
 

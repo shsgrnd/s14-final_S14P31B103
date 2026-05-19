@@ -1,6 +1,7 @@
 import React, { useMemo } from 'react';
-import { AlertTriangle, Check } from 'lucide-react';
+import { AlertTriangle, Check, ChevronRight } from 'lucide-react';
 import type { GitStatusSummary } from '@gitcat/shared-types';
+import { getLocale, t } from '../../i18n';
 import { computeWorkflowProgress, type WorkflowStep } from '../../shared/gitWorkflowSteps';
 
 export interface GitWorkflowStepperProps {
@@ -12,6 +13,8 @@ export interface GitWorkflowStepperProps {
   isPushing?: boolean;
 }
 
+const WORKFLOW_GRID_COLUMNS = '13px 1fr 13px 1fr 13px 1fr 13px';
+
 export const GitWorkflowStepper: React.FC<GitWorkflowStepperProps> = ({
   statusSummary,
   isLoading = false,
@@ -20,68 +23,97 @@ export const GitWorkflowStepper: React.FC<GitWorkflowStepperProps> = ({
   isCommitting = false,
   isPushing = false,
 }) => {
+  const locale = getLocale();
   const progress = useMemo(
     () => computeWorkflowProgress(statusSummary, { isStaging, isCommitting, isPushing }),
-    [statusSummary, isStaging, isCommitting, isPushing],
+    [statusSummary, isStaging, isCommitting, isPushing, locale],
   );
 
   const showLoading = (isLoading || isLoadingSummary) && !progress;
 
   return (
-    <div className="gitcat-workflow-stepper" style={{ margin: '0 8px 8px 8px' }}>
+    <div className="gitcat-workflow-stepper">
       {showLoading ? (
-        <div
-          className="gitcat-workflow-loading"
-          aria-live="polite"
-          style={{ fontSize: '10px', color: 'var(--vscode-descriptionForeground)', opacity: 0.75 }}
-        >
-          워크플로 상태 불러오는 중…
+        <div className="gitcat-workflow-loading" aria-live="polite">
+          {t('git.workflow.loading')}
         </div>
       ) : progress ? (
         <>
-          
-            <div
-              role="list"
-              aria-label="Git 워크플로 진행"
-              style={{
-                display: 'flex',
-                alignItems: 'flex-start',
-                justifyContent: 'space-between',
-                gap: '1px',
-              }}
-            >
-              {progress.steps.map((step, index) => (
+          <div
+            className="gitcat-workflow-track"
+            role="list"
+            aria-label="Git 워크플로 진행"
+            style={{ gridTemplateColumns: WORKFLOW_GRID_COLUMNS }}
+          >
+            {progress.steps.map((step, index) => {
+              const dotCol = index * 2 + 1;
+              const connCol = index * 2 + 2;
+              const nextStep = index < progress.steps.length - 1 ? progress.steps[index + 1] : null;
+
+              return (
                 <React.Fragment key={step.id}>
-                  <StepNode
-                    step={step}
-                    conflict={progress.hasConflicts && step.id === 'changes'}
-                    pullBlocked={progress.awaitingPull && step.id === 'push'}
-                  />
+                  <div
+                    className="gitcat-workflow-step-node"
+                    role="listitem"
+                    style={{ gridColumn: dotCol, gridRow: 1 }}
+                    aria-current={step.state === 'current' ? 'step' : undefined}
+                    aria-busy={step.state === 'indeterminate' || undefined}
+                  >
+                    <StepDot
+                      step={step}
+                      conflict={progress.hasConflicts && step.id === 'changes'}
+                      pullBlocked={progress.awaitingPull && step.id === 'push'}
+                    />
+                  </div>
+                  <span
+                    className={`gitcat-workflow-step-label${step.state === 'current' || step.state === 'done' ? ' gitcat-workflow-step-label--active' : ''}`}
+                    style={{
+                      gridColumn: dotCol,
+                      gridRow: 2,
+                      color:
+                        progress.hasConflicts && step.id === 'changes'
+                          ? 'var(--vscode-errorForeground)'
+                          : progress.awaitingPull && step.id === 'push'
+                            ? 'var(--vscode-charts-orange, #cca700)'
+                            : step.state === 'done' || step.state === 'current'
+                              ? 'var(--vscode-editor-foreground)'
+                              : 'var(--vscode-descriptionForeground)',
+                      opacity:
+                        step.state === 'blocked'
+                          ? 0.5
+                          : step.state === 'done' || step.state === 'current'
+                            ? 1
+                            : 0.7,
+                    }}
+                  >
+                    {step.label}
+                  </span>
                   {index < progress.steps.length - 1 && (
-                    <Connector done={step.state === 'done'} muted={step.state === 'blocked'} />
+                    <Connector
+                      style={{ gridColumn: connCol, gridRow: 1 }}
+                      done={step.state === 'done' && nextStep?.state === 'done'}
+                      muted={
+                        step.state === 'blocked' ||
+                        nextStep?.state === 'blocked' ||
+                        (progress.hasConflicts &&
+                          (step.id === 'changes' || nextStep?.id === 'changes'))
+                      }
+                    />
                   )}
                 </React.Fragment>
-              ))}
-            </div>
+              );
+            })}
+          </div>
           {progress.nextHint && (
             <div
               role="status"
-              style={{
-                marginTop: '6px',
-                fontSize: '10px',
-                lineHeight: 1.35,
-                color: progress.hasConflicts
-                  ? 'var(--vscode-errorForeground)'
+              className={`gitcat-workflow-hint${
+                progress.hasConflicts
+                  ? ' gitcat-workflow-hint--error'
                   : progress.awaitingPull
-                    ? 'var(--vscode-charts-orange, #cca700)'
-                    : 'var(--vscode-descriptionForeground)',
-                opacity: 0.95,
-                overflow: 'hidden',
-                textOverflow: 'ellipsis',
-                display: '-webkit-box',
-                WebkitLineClamp: 2,
-                WebkitBoxOrient: 'vertical',
-              }}
+                    ? ' gitcat-workflow-hint--pull'
+                    : ''
+              }`}
             >
               {progress.nextHint}
             </div>
@@ -92,7 +124,7 @@ export const GitWorkflowStepper: React.FC<GitWorkflowStepperProps> = ({
   );
 };
 
-const StepNode: React.FC<{
+const StepDot: React.FC<{
   step: WorkflowStep;
   conflict?: boolean;
   pullBlocked?: boolean;
@@ -102,92 +134,55 @@ const StepNode: React.FC<{
   const isIndeterminate = step.state === 'indeterminate';
   const isBlocked = step.state === 'blocked';
 
-  const dotColor = conflict
-    ? 'var(--vscode-errorForeground)'
-    : pullBlocked
-      ? 'var(--vscode-charts-orange, #cca700)'
-      : isDone
-        ? 'var(--vscode-charts-green, #89d185)'
-        : isCurrent
-          ? 'var(--vscode-focusBorder)'
-          : 'var(--vscode-panel-border)';
-
-  const labelColor = conflict
-    ? 'var(--vscode-errorForeground)'
-    : pullBlocked
-      ? 'var(--vscode-charts-orange, #cca700)'
-      : isDone || isCurrent
-        ? 'var(--vscode-editor-foreground)'
-        : 'var(--vscode-descriptionForeground)';
+  const dotStyle: React.CSSProperties = {
+    borderColor: conflict
+      ? 'var(--vscode-errorForeground)'
+      : pullBlocked
+        ? 'var(--vscode-charts-orange, #cca700)'
+        : isDone
+          ? 'var(--vscode-charts-green, #89d185)'
+          : isCurrent
+            ? 'var(--vscode-focusBorder)'
+            : 'var(--vscode-panel-border)',
+    background: isDone
+      ? 'var(--vscode-charts-green, #89d185)'
+      : isCurrent || isIndeterminate
+        ? 'rgba(0, 122, 204, 0.1)'
+        : isBlocked
+          ? 'rgba(204, 167, 0, 0.08)'
+          : 'transparent',
+  };
 
   return (
     <div
-      role="listitem"
-      aria-current={isCurrent ? 'step' : undefined}
-      aria-busy={isIndeterminate || undefined}
-      style={{
-        flex: '1 1 0',
-        minWidth: 0,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        gap: '3px',
-      }}
+      className={`gitcat-workflow-dot${isIndeterminate ? ' gitcat-workflow-dot--spinning' : ''}`}
+      style={isIndeterminate ? { ...dotStyle, borderColor: 'transparent' } : dotStyle}
     >
-      <div
-        style={{
-          width: '16px',
-          height: '16px',
-          borderRadius: '50%',
-          border: `2px solid ${dotColor}`,
-          background: isDone
-            ? 'var(--vscode-charts-green, #89d185)'
-            : isCurrent || isIndeterminate
-              ? 'rgba(0, 122, 204, 0.12)'
-              : isBlocked
-                ? 'rgba(204, 167, 0, 0.1)'
-                : 'transparent',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          position: 'relative',
-          boxSizing: 'border-box',
-        }}
-      >
-        {conflict && !isDone && (
-          <AlertTriangle size={9} strokeWidth={2.5} color="var(--vscode-errorForeground)" />
-        )}
-        {isDone && !conflict && (
-          <Check size={9} strokeWidth={3} color="var(--vscode-editor-background, #1e1e1e)" />
-        )}
-        {isIndeterminate && <div className="gitcat-workflow-indeterminate-bar" />}
-      </div>
-      <span
-        className="gitcat-workflow-step-label"
-        style={{
-          fontWeight: isCurrent || isDone ? 600 : 500,
-          color: labelColor,
-          opacity: isBlocked ? 0.55 : isDone || isCurrent || conflict || pullBlocked ? 1 : 0.72,
-        }}
-      >
-        {step.label}
-      </span>
+      {isIndeterminate && <span className="gitcat-workflow-dot-ring" aria-hidden />}
+      {conflict && !isDone && !isIndeterminate && (
+        <AlertTriangle size={8} strokeWidth={2.5} color="var(--vscode-errorForeground)" />
+      )}
+      {isDone && !conflict && (
+        <Check size={8} strokeWidth={3} color="var(--vscode-editor-background, #1e1e1e)" />
+      )}
     </div>
   );
 };
 
-const Connector: React.FC<{ done: boolean; muted?: boolean }> = ({ done, muted }) => (
+const Connector: React.FC<{
+  done: boolean;
+  muted?: boolean;
+  style?: React.CSSProperties;
+}> = ({ done, muted, style }) => (
   <div
     aria-hidden
-    style={{
-      flex: '0 0 8px',
-      height: '2px',
-      marginTop: '8px',
-      borderRadius: '1px',
-      background: done
-        ? 'var(--vscode-charts-green, #89d185)'
-        : 'var(--vscode-panel-border)',
-      opacity: muted ? 0.35 : done ? 0.9 : 0.55,
-    }}
-  />
+    style={style}
+    className={`gitcat-workflow-connector${done ? ' gitcat-workflow-connector--done' : ''}${
+      muted ? ' gitcat-workflow-connector--muted' : ''
+    }`}
+  >
+    <span className="gitcat-workflow-connector-arrow">
+      <ChevronRight size={12} strokeWidth={2.75} aria-hidden />
+    </span>
+  </div>
 );

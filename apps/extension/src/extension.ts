@@ -70,7 +70,7 @@ export async function activate(context: vscode.ExtensionContext) {
   if (rootPath && projectId) {
     try {
       const gitClient = new GitCliClient(rootPath);
-      gitService = new GitService(gitClient);
+      gitService = new GitService(gitClient, undefined, rootPath);
 
       const branchCleanupService = new BranchCleanupService(gitService);
       gitMessageHandler = new GitMessageHandler(gitService, branchCleanupService);

@@ -1,5 +1,5 @@
 import type { GitStatusSummary } from '@gitcat/shared-types';
-import { getWorkflowStepperHint } from './gitWorkflowCopy';
+import { getWorkflowStepLabel, getWorkflowStepperHint } from './gitWorkflowCopy';
 
 export type WorkflowStepId = 'changes' | 'staging' | 'commit' | 'push';
 
@@ -18,13 +18,6 @@ export interface WorkflowProgress {
   /** 원격 Pull이 필요해 Push 단계와 분리된 동기화 구간 */
   awaitingPull: boolean;
 }
-
-const STEP_LABELS: Record<WorkflowStepId, string> = {
-  changes: '변경',
-  staging: '스테이징',
-  commit: '커밋',
-  push: '푸시',
-};
 
 /** extension nextAction → 스텝퍼 현재 단계 (단일 출처) */
 const NEXT_ACTION_CURRENT_STEP: Record<GitStatusSummary['nextAction'], number> = {
@@ -49,7 +42,14 @@ function resolveCurrentStepIndex(input: {
   let currentIdx = NEXT_ACTION_CURRENT_STEP[input.nextAction];
 
   if (input.nextAction === 'ADD_CHANGES') {
-    currentIdx = input.needsStage && input.hasStaged ? 1 : 0;
+    // 다음 액션이 Git Add → 스테이징 단계가 current, 변경은 감지 완료(done)
+    if (input.needsStage) {
+      currentIdx = 1;
+    } else if (input.hasStaged) {
+      currentIdx = 2;
+    } else {
+      currentIdx = 0;
+    }
   }
 
   return currentIdx;
@@ -140,7 +140,7 @@ export function computeWorkflowProgress(
 
   const steps: WorkflowStep[] = (['changes', 'staging', 'commit', 'push'] as WorkflowStepId[]).map((id, idx) => ({
     id,
-    label: STEP_LABELS[id],
+    label: getWorkflowStepLabel(id),
     state: resolveStepState(
       idx,
       currentIdx,

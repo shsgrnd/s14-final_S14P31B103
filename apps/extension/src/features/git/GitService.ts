@@ -9,6 +9,7 @@
  */
 
 import type { IGitClient, BranchInfo, LogEntry, MergeResult, FileStatusEntry, DiffResult } from '@gitcat/git-core';
+import { GitCliClient } from '@gitcat/git-client-cli';
 import type { GitFileStatus, GitStatusSummary, GitFileStatusType, WorktreeInfo } from '@gitcat/shared-types';
 import type { GitMetadataSyncService } from './GitMetadataSyncService';
 import * as vscode from 'vscode';
@@ -87,11 +88,30 @@ export interface GitCommandResult {
 export class GitService {
   private cachedDefaultBranch: string | null = null;
   private hasCachedDefaultBranch = false;
+  private readonly clientsByPath = new Map<string, IGitClient>();
 
   constructor(
     private readonly gitClient: IGitClient,
     private readonly metadataSync?: GitMetadataSyncService,
-  ) { }
+    private readonly defaultRepoPath?: string,
+  ) {
+    if (defaultRepoPath) {
+      this.clientsByPath.set(defaultRepoPath, gitClient);
+    }
+  }
+
+  private resolveClient(cwd?: string): IGitClient {
+    const path = cwd ?? this.defaultRepoPath;
+    if (!path || path === this.defaultRepoPath) {
+      return this.gitClient;
+    }
+    let client = this.clientsByPath.get(path);
+    if (!client) {
+      client = new GitCliClient(path);
+      this.clientsByPath.set(path, client);
+    }
+    return client;
+  }
 
   private async getDefaultBranch(): Promise<string | null> {
     if (!this.hasCachedDefaultBranch) {
@@ -103,8 +123,9 @@ export class GitService {
 
   // ─── Status & Branch ─────────────────────────────────────────────────────
 
-  async getStatus(): Promise<GitStatusResponse> {
-    const status = await this.gitClient.getStatus();
+  async getStatus(cwd?: string): Promise<GitStatusResponse> {
+    const client = this.resolveClient(cwd);
+    const status = await client.getStatus();
     return {
       repoRoot: status.repoRoot,
       currentWorktreePath: status.currentWorktreePath,
@@ -129,13 +150,16 @@ export class GitService {
     return { success: true, message: 'Fetch completed.' };
   }
 
-  async getStatusWithWorktrees(options: { fetchRemote?: boolean } = {}): Promise<GitStatusResponse> {
+  async getStatusWithWorktrees(
+    options: { fetchRemote?: boolean; cwd?: string } = {},
+  ): Promise<GitStatusResponse> {
+    const client = this.resolveClient(options.cwd);
     if (options.fetchRemote) {
-      await this.gitClient.fetchAllPrune();
+      await client.fetchAllPrune();
     }
 
     const [status, worktrees] = await Promise.all([
-      this.getStatus(),
+      this.getStatus(options.cwd),
       this.getWorktrees(),
     ]);
 
@@ -145,8 +169,19 @@ export class GitService {
     };
   }
 
-  async getStatusSummary(options: { fetchRemote?: boolean } = {}): Promise<GitStatusSummary> {
+  async getStatusSummary(
+    options: { fetchRemote?: boolean; cwd?: string } = {},
+  ): Promise<GitStatusSummary> {
     const status = await this.getStatusWithWorktrees(options);
+    return this.buildStatusSummaryFromStatus(status, options.cwd);
+  }
+
+  /** GIT_STATUS_UPDATED 직후 스텝퍼용 요약 — git status 재호출 없이 생성 */
+  async buildStatusSummaryFromStatus(
+    status: GitStatusResponse,
+    cwd?: string,
+  ): Promise<GitStatusSummary> {
+    const client = this.resolveClient(cwd);
     const unstagedCount = status.unstaged.length;
     const stagedCount = status.staged.length;
     const untrackedCount = status.untracked.length;
@@ -157,7 +192,7 @@ export class GitService {
     const canPull = status.behind > 0 && totalChangedCount === 0 && !hasConflicts;
     const canPush = status.ahead > 0 && status.behind === 0 && totalChangedCount === 0 && !hasConflicts;
     const pushable = status.ahead > 0
-      ? (await this.gitClient.getUnpushedFiles()).map((entry) => this.toGitFileStatusFromDiff(entry))
+      ? (await client.getUnpushedFiles()).map((entry) => this.toGitFileStatusFromDiff(entry))
       : [];
 
     return {

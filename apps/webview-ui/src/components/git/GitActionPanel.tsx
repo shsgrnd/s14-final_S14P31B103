@@ -369,6 +369,17 @@ export const GitActionPanel: React.FC = () => {
       className="animate-fade-in"
       style={{ padding: '8px 4px', color: webviewBodyForeground }}
     >
+      {isGitConnected && (
+        <GitWorkflowStepper
+          statusSummary={statusSummary}
+          isLoading={isRefreshingStatus && !statusSummary}
+          isLoadingSummary={isLoadingStatusSummary}
+          isStaging={isStaging}
+          isCommitting={isCommitting}
+          isPushing={isPushing}
+        />
+      )}
+
       {/* ── Branch Selector Accordion Header ── */}
       <div>
         <div
@@ -484,17 +495,6 @@ export const GitActionPanel: React.FC = () => {
           <span style={{ color: 'var(--vscode-descriptionForeground)', opacity: 0.82 }}>{t('git.manualRefresh')}</span>
         </div>
       </div>
-
-      {isGitConnected && (
-        <GitWorkflowStepper
-          statusSummary={statusSummary}
-          isLoading={isRefreshingStatus && !statusSummary}
-          isLoadingSummary={isLoadingStatusSummary}
-          isStaging={isStaging}
-          isCommitting={isCommitting}
-          isPushing={isPushing}
-        />
-      )}
 
       {/* ── Branch List Accordion Content ── */}
       < div

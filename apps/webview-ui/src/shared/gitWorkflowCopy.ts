@@ -1,32 +1,42 @@
 import type { GitStatusSummary } from '@gitcat/shared-types';
+import { t } from '../i18n';
 
-/** Git & AI 스텝퍼 하단 한 줄 */
-export const GIT_NEXT_ACTION_STEPPER_HINT: Record<GitStatusSummary['nextAction'], string | null> = {
-  RESOLVE_CONFLICTS: '충돌 해결이 필요합니다',
-  ADD_CHANGES: '다음: Git Add',
-  COMMIT_CHANGES: '다음: Git Commit',
-  PULL_CHANGES: '다음: Git Pull (원격 동기화)',
-  PUSH_COMMITS: '다음: Git Push',
-  UP_TO_DATE: '이 브랜치는 최신 상태입니다',
+const STEPPER_HINT_KEY: Record<GitStatusSummary['nextAction'], string | null> = {
+  RESOLVE_CONFLICTS: 'git.workflow.hint.resolveConflicts',
+  ADD_CHANGES: 'git.workflow.hint.addChanges',
+  COMMIT_CHANGES: 'git.workflow.hint.commitChanges',
+  PULL_CHANGES: 'git.workflow.hint.pullChanges',
+  PUSH_COMMITS: 'git.workflow.hint.pushCommits',
+  UP_TO_DATE: null,
 };
 
-/** Files 패널 다음 액션 배너 */
-export const GIT_NEXT_ACTION_FILE_TREE_HINT: Record<
-  Exclude<GitStatusSummary['nextAction'], 'UP_TO_DATE'>,
-  string
-> = {
-  RESOLVE_CONFLICTS: '충돌 해결이 필요합니다',
-  ADD_CHANGES: '변경사항을 스테이징하세요',
-  COMMIT_CHANGES: '커밋할 준비가 됐습니다',
-  PULL_CHANGES: '원격 변경사항을 Pull하세요',
-  PUSH_COMMITS: 'Push할 커밋이 있습니다',
+const FILE_TREE_HINT_KEY: Record<Exclude<GitStatusSummary['nextAction'], 'UP_TO_DATE'>, string> = {
+  RESOLVE_CONFLICTS: 'git.workflow.fileTree.resolveConflicts',
+  ADD_CHANGES: 'git.workflow.fileTree.addChanges',
+  COMMIT_CHANGES: 'git.workflow.fileTree.commitChanges',
+  PULL_CHANGES: 'git.workflow.fileTree.pullChanges',
+  PUSH_COMMITS: 'git.workflow.fileTree.pushCommits',
 };
+
+const STEP_LABEL_KEY = {
+  changes: 'git.workflow.step.changes',
+  staging: 'git.workflow.step.staging',
+  commit: 'git.workflow.step.commit',
+  push: 'git.workflow.step.push',
+} as const;
+
+export type WorkflowStepLabelId = keyof typeof STEP_LABEL_KEY;
+
+export function getWorkflowStepLabel(stepId: WorkflowStepLabelId): string {
+  return t(STEP_LABEL_KEY[stepId]);
+}
 
 export function getWorkflowStepperHint(nextAction: GitStatusSummary['nextAction']): string | null {
   if (nextAction === 'UP_TO_DATE') {
     return null;
   }
-  return GIT_NEXT_ACTION_STEPPER_HINT[nextAction] ?? null;
+  const key = STEPPER_HINT_KEY[nextAction];
+  return key ? t(key) : null;
 }
 
 export function getFileTreeNextActionHint(
@@ -35,5 +45,5 @@ export function getFileTreeNextActionHint(
   if (nextAction === 'UP_TO_DATE') {
     return null;
   }
-  return GIT_NEXT_ACTION_FILE_TREE_HINT[nextAction] ?? null;
+  return t(FILE_TREE_HINT_KEY[nextAction]);
 }
