@@ -10,3 +10,27 @@ export function validateAiApiKeyInput(raw: string): string | null {
   if (/[\r\n]/.test(t)) return '키에 줄바꿈이 들어가 있습니다.';
   return null;
 }
+
+export function validateAiRemoteBaseUrlInput(raw: string): string | null {
+  const value = raw.trim();
+  if (!value) return 'Remote Base URL을 입력해 주세요.';
+
+  try {
+    const parsed = new URL(value);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return 'Remote Base URL은 http 또는 https URL이어야 합니다.';
+    }
+  } catch {
+    return 'Remote Base URL 형식이 올바르지 않습니다.';
+  }
+
+  return null;
+}
+
+export function validateAiRemoteModelInput(raw: string): string | null {
+  const value = raw.trim();
+  if (!value) return 'Remote Model을 입력해 주세요.';
+  if (value.length > 200) return 'Remote Model 값이 너무 깁니다.';
+  if (/[\r\n]/.test(value)) return 'Remote Model에 줄바꿈이 들어가 있습니다.';
+  return null;
+}

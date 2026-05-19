@@ -5,6 +5,7 @@ import {
   type OutboundMessage,
 } from '@gitcat/shared-types';
 import { AiSecretService } from './AiSecretService';
+import { AiRemoteSettingsService } from './AiRemoteSettingsService';
 import type { MessageRouter } from '../../core/MessageRouter';
 
 export class AiApiKeyMessageHandler {
@@ -12,6 +13,7 @@ export class AiApiKeyMessageHandler {
 
   constructor(
     private readonly aiSecretService: AiSecretService,
+    private readonly aiRemoteSettingsService: AiRemoteSettingsService,
     private readonly onKeyChanged?: () => void,
   ) {}
 
@@ -47,7 +49,21 @@ export class AiApiKeyMessageHandler {
     }
 
     try {
-      await this.aiSecretService.saveApiKey(parseResult.data.apiKey);
+      const { apiKey, remoteBaseUrl, remoteModel } = parseResult.data;
+      if (!apiKey && remoteBaseUrl === undefined && remoteModel === undefined) {
+        this.sendError(webview, 'INVALID_PARAMETER', '저장할 AI 설정이 없습니다.');
+        return;
+      }
+
+      if (apiKey) {
+        await this.aiSecretService.saveApiKey(apiKey);
+      }
+      if (remoteBaseUrl !== undefined || remoteModel !== undefined) {
+        await this.aiRemoteSettingsService.saveSettings({
+          remoteBaseUrl,
+          remoteModel,
+        });
+      }
       this.onKeyChanged?.();
       await this.sendStatus(webview);
     } catch (error) {
@@ -77,10 +93,20 @@ export class AiApiKeyMessageHandler {
   }
 
   private async sendStatus(webview: vscode.Webview): Promise<void> {
-    const hasKey = await this.aiSecretService.hasStoredApiKey();
+    const [hasKey, hasStoredKey] = await Promise.all([
+      this.aiSecretService.hasApiKey(),
+      this.aiSecretService.hasStoredApiKey(),
+    ]);
+    const remoteSettings = this.aiRemoteSettingsService.getState();
     const message = {
       type: 'AI_API_KEY_STATUS',
-      payload: { hasKey },
+      payload: {
+        hasKey,
+        hasStoredKey,
+        remoteBaseUrl: remoteSettings.remoteBaseUrl,
+        remoteModel: remoteSettings.remoteModel,
+        aiMode: remoteSettings.aiMode,
+      },
     } as OutboundMessage;
     if (this.messageRouter) {
       this.messageRouter.broadcast(message);

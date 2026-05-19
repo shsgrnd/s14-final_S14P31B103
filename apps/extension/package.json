@@ -4,7 +4,7 @@
   "description": "%extension.description%",
   "publisher": "GitCat",
   "icon": "media/GitCat_icon.png",
-  "version": "0.0.8",
+  "version": "0.1.0",
   "license": "ISC",
   "repository": {
     "type": "git",
@@ -17,14 +17,7 @@
     "Other"
   ],
   "activationEvents": [
-    "onStartupFinished",
-    "onView:gitcat-sidebar-webview",
-    "onCommand:gitcat.openPanel",
-    "onCommand:gitcat.createSnapshot",
-    "onCommand:gitcat.getGitStatus",
-    "onCommand:gitcat.installLocalRuntime",
-    "onCommand:gitcat.setGitHubToken",
-    "onCommand:gitcat.clearGitHubToken"
+    "onStartupFinished"
   ],
   "main": "./dist/extension.js",
   "contributes": {
@@ -143,6 +136,16 @@
           "type": "string",
           "default": "",
           "description": "%config.ai.localModelPath.description%"
+        },
+        "gitcat.ai.remoteBaseUrl": {
+          "type": "string",
+          "default": "",
+          "description": "%config.ai.remoteBaseUrl.description%"
+        },
+        "gitcat.ai.remoteModel": {
+          "type": "string",
+          "default": "",
+          "description": "%config.ai.remoteModel.description%"
         },
         "gitcat.safety.largeDeletionThreshold": {
           "type": "number",

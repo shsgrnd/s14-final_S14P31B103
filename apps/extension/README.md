@@ -25,7 +25,7 @@ VS Code에서 Command Palette(`Ctrl+Shift+P`, macOS는 `Cmd+Shift+P`)를 열면 
 ## 로컬 VSIX 패키징
 - Windows 기준으로 `pnpm --dir apps/extension run package:vsix`를 실행하면 `.artifacts/` 아래에 VSIX 파일이 생성됩니다.
 - 현재 기본 파일명은 `gitcat-vscode-<version>.vsix`입니다.
-- `0.0.8` 배포본 기준 예상 출력 파일명은 `gitcat-vscode-0.0.8.vsix`입니다.
+- `0.1.0` 배포본 기준 예상 출력 파일명은 `gitcat-vscode-0.1.0.vsix`입니다.
 - 이 스크립트는 `vsce package`를 호출하며, 내부적으로 `typecheck + esbuild 번들 빌드`를 함께 수행합니다.
 - GitHub Actions에서는 `.github/workflows/package-vsix.yml`로 동일한 패키징 절차를 수동 실행하거나 태그 푸시 기준으로 재사용할 수 있습니다.
 - 최종 산출물은 VS Code Marketplace 배포와 `.vsix` 직접 배포에 모두 사용할 수 있습니다.
@@ -53,7 +53,7 @@ PR recommendation 동작 메모:
 - template가 있으면 마크다운 섹션 heading 줄은 그대로 유지하고, heading이 아닌 본문/체크리스트/placeholder/helper text는 현재 GitCat 언어 설정에 맞춰 다시 작성합니다.
 
 설치 요구사항 요약:
-- `live-remote`: GMS API 키 필요. 첫 AI 기능 실행 시 입력창이 뜨면 입력한 값이 VS Code SecretStorage에 저장됩니다.
+- `live-remote`: AI API 키와 remote base URL/model 필요. 키 아이콘 설정 UI에서 함께 저장할 수 있습니다.
 - `live-local`: GGUF 모델 파일 + local runtime 설치 필요
 
 다음 경우 `live-local`이 바로 동작하지 않을 수 있습니다.
@@ -65,3 +65,4 @@ PR recommendation 동작 메모:
 추가 참고:
 - merge analysis의 로컬 RAG 임베딩 경로는 선택적 런타임이 준비되지 않으면 자동으로 lexical fallback을 사용합니다.
 - `GitCat: Set GitHub Token`은 GitHub PR 관련 기능용 토큰 저장 명령이며, `live-remote`용 AI API 키와는 별개입니다.
+- `live-remote`는 UI에 저장한 API 키/base URL/model을 우선 사용하고, 값이 없으면 `.env`의 `GMS_KEY`, `GMS_BASE_URL`, `GMS_MODEL`로 fallback합니다.

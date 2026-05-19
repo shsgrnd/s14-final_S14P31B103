@@ -15,6 +15,8 @@
   "config.language.description": "Controls the language used for GitCat UI text. 'auto' follows the VS Code display language.",
   "config.ai.mode.description": "Configure the AI inference mode. 'live-local' uses a local GGUF model, and 'live-remote' uses the remote GMS API.",
   "config.ai.localModelPath.description": "Absolute path to the GGUF model file used for live-local inference. On Windows, use a path such as C:\\Models\\Qwen2.5-Coder-7B-Instruct.gguf.",
+  "config.ai.remoteBaseUrl.description": "Gateway base URL or OpenAI-compatible base URL used for live-remote inference. Example: https://gms.ssafy.io/gmsapi/ or https://example.com/v1",
+  "config.ai.remoteModel.description": "Model name used for live-remote inference. Example: gpt-4o-mini",
   "config.safety.largeDeletionThreshold.description": "Threshold for the number of deleted files before the Safety Layer raises a large deletion warning.",
   "config.merge.openMainPanelOnConflict.description": "Automatically open the GitCat main panel when Push/Pull/PR guards or merge analysis detect a conflict."
 }
