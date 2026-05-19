@@ -10,6 +10,11 @@ import { SidebarSectionNotificationProvider } from '../../app/SidebarSectionNoti
 import { FooterSectionNotificationBalloon } from './FooterSectionNotificationBalloon';
 import { SidebarResizeHandle } from './SidebarResizeHandle';
 import {
+  getNextExpandedSection,
+  SIDEBAR_SECTION_LABEL,
+} from '../../hooks/sidebarSectionLayout';
+import { useSidebarSectionExpanded } from '../../hooks/useSidebarSectionExpanded';
+import {
   type SidebarSectionKey,
   useSidebarSectionWeights,
 } from '../../hooks/useSidebarSectionWeights';
@@ -37,8 +42,8 @@ const StashPanel = lazy(() => import('../git/StashPanel').then((m) => ({ default
  * 합산 검증: SECTION_MIN_HEIGHT(80) × 4 + FILES_MIN_HEIGHT(120) = 440px
  *   → 일반적인 VS Code 사이드바 높이(~600-900px) 범위 내에서 5개 섹션 모두 펼쳐도 잘리지 않음
  *
- * 각 섹션의 flex-grow 가중치는 useSidebarSectionWeights 훅으로 관리되며 (기본 Files=2, 그 외 1),
- * 인접 섹션 사이 SidebarResizeHandle 을 드래그해 사용자가 조정한다.
+ * flex-grow 가중치는 useSidebarSectionWeights 로 관리(기본 모두 1 → 펼친 섹션끼리 1/N).
+ * 리사이즈 핸들은 접힌 섹션을 건너뛰고, 화면에 보이는 열린 패널 사이에만 표시된다.
  */
 const SECTION_MIN_HEIGHT = '80px';
 const FILES_MIN_HEIGHT = '120px';
@@ -139,13 +144,7 @@ export const SidebarLayout: React.FC = () => {
     openNotificationCenter();
   }, [openNotificationCenter]);
 
-  const [expanded, setExpanded] = useState({
-    filetree: true,
-    git: true,
-    safety: false,
-    branch: false,
-    stash: false,
-  });
+  const { expanded, setExpanded, toggleSection } = useSidebarSectionExpanded();
 
   // 세로 리사이즈: 각 섹션의 현재 렌더 높이를 측정하기 위한 refs
   // (RefObject<HTMLElement> 형식이어야 <section ref={...}> 의 LegacyRef 와 호환됨)
@@ -159,20 +158,31 @@ export const SidebarLayout: React.FC = () => {
   const { weights, setPairWeights } = useSidebarSectionWeights();
 
   /**
-   * 두 인접 섹션 사이에 들어갈 리사이즈 핸들에 필요한 props 를 생성.
-   * - visible: 두 섹션이 모두 펼쳐졌을 때만 노출 (한쪽이 접혀 있으면 리사이즈 의미가 없음)
-   * - getHeight: 드래그 시작 시점의 실제 렌더 높이를 측정
+   * 열린 섹션 `above` 바로 아래에 붙는 리사이즈 핸들.
+   * 아래쪽에서 다음으로 펼쳐진 섹션(접힌 섹션은 건너뜀)과 높이 비율을 조절한다.
    */
   const makeHandleProps = (above: SidebarSectionKey, below: SidebarSectionKey) => ({
-    visible: expanded[above] && expanded[below],
+    visible: true,
     getAboveHeight: () => sectionRefs[above].current?.getBoundingClientRect().height ?? 0,
     getBelowHeight: () => sectionRefs[below].current?.getBoundingClientRect().height ?? 0,
     getAboveWeight: () => weights[above],
     getBelowWeight: () => weights[below],
     onWeightsChange: (newAbove: number, newBelow: number) => setPairWeights(above, below, newAbove, newBelow),
     minSectionPx: SECTION_MIN_HEIGHT_PX,
-    ariaLabel: `${above}와 ${below} 섹션 높이 조절`,
+    ariaLabel: `${SIDEBAR_SECTION_LABEL[above]}와 ${SIDEBAR_SECTION_LABEL[below]} 섹션 높이 조절`,
   });
+
+  const renderSectionResizeHandle = (above: SidebarSectionKey) => {
+    if (!expanded[above]) return null;
+    const below = getNextExpandedSection(above, expanded);
+    if (!below) return null;
+    return (
+      <SidebarResizeHandle
+        key={`resize-${above}-${below}`}
+        {...makeHandleProps(above, below)}
+      />
+    );
+  };
 
   useEffect(() => {
     if (!notificationCenterOpen) {
@@ -269,7 +279,7 @@ export const SidebarLayout: React.FC = () => {
           <SectionHeader
             label="Git & AI"
             expanded={expanded.git}
-            onToggle={() => setExpanded((p) => ({ ...p, git: !p.git }))}
+            onToggle={() => toggleSection('git')}
           />
           {expanded.git && (
             <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
@@ -280,14 +290,13 @@ export const SidebarLayout: React.FC = () => {
           )}
         </section>
 
-        <SidebarResizeHandle {...makeHandleProps('git', 'filetree')} />
+        {renderSectionResizeHandle('git')}
 
         <section
           ref={sectionRefs.filetree}
           style={{
             display: 'flex',
             flexDirection: 'column',
-            // Files 영역은 기본 가중치가 2배(useSidebarSectionWeights 기본값)라 다른 섹션이 펼쳐져도 트리 가독성을 우선 확보
             flex: expanded.filetree ? `${weights.filetree} 1 0` : 'none',
             minHeight: expanded.filetree ? FILES_MIN_HEIGHT : 'auto',
             overflow: 'hidden',
@@ -296,7 +305,7 @@ export const SidebarLayout: React.FC = () => {
           <SectionHeader
             label="Files"
             expanded={expanded.filetree}
-            onToggle={() => setExpanded((p) => ({ ...p, filetree: !p.filetree }))}
+            onToggle={() => toggleSection('filetree')}
           />
           {expanded.filetree && (
             <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
@@ -307,7 +316,7 @@ export const SidebarLayout: React.FC = () => {
           )}
         </section>
 
-        <SidebarResizeHandle {...makeHandleProps('filetree', 'safety')} />
+        {renderSectionResizeHandle('filetree')}
 
         <section
           ref={sectionRefs.safety}
@@ -323,7 +332,7 @@ export const SidebarLayout: React.FC = () => {
             label="Snapshots"
             expanded={expanded.safety}
             badge={snapshotTimelineBadgeCount > 0 ? snapshotTimelineBadgeCount : undefined}
-            onToggle={() => setExpanded((p) => ({ ...p, safety: !p.safety }))}
+            onToggle={() => toggleSection('safety')}
           />
           {expanded.safety && (
             <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
@@ -334,7 +343,7 @@ export const SidebarLayout: React.FC = () => {
           )}
         </section>
 
-        <SidebarResizeHandle {...makeHandleProps('safety', 'branch')} />
+        {renderSectionResizeHandle('safety')}
 
         <section
           ref={sectionRefs.branch}
@@ -349,7 +358,7 @@ export const SidebarLayout: React.FC = () => {
           <SectionHeader
             label="Branch Cleanup"
             expanded={expanded.branch}
-            onToggle={() => setExpanded((p) => ({ ...p, branch: !p.branch }))}
+            onToggle={() => toggleSection('branch')}
           />
           {expanded.branch && (
             <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
@@ -360,7 +369,7 @@ export const SidebarLayout: React.FC = () => {
           )}
         </section>
 
-        <SidebarResizeHandle {...makeHandleProps('branch', 'stash')} />
+        {renderSectionResizeHandle('branch')}
 
         <section
           ref={sectionRefs.stash}
@@ -376,7 +385,7 @@ export const SidebarLayout: React.FC = () => {
             label="Git Stash"
             expanded={expanded.stash}
             badge={stashes.length > 0 ? stashes.length : undefined}
-            onToggle={() => setExpanded((p) => ({ ...p, stash: !p.stash }))}
+            onToggle={() => toggleSection('stash')}
           />
           {expanded.stash && (
             <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>

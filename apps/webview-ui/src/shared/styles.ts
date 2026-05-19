@@ -36,6 +36,20 @@ export const webviewDescriptionForeground =
 
 type BtnVariant = 'primary' | 'secondary';
 
+/**
+ * Dark Modern 등 일부 테마에서 secondary 배경/전경이 사이드바와 거의 같아 버튼이 안 보이는 문제 방지.
+ */
+const primaryBtnBackground =
+  'var(--vscode-button-background, var(--vscode-focusBorder))';
+const primaryBtnForeground =
+  'var(--vscode-button-foreground, var(--vscode-editor-foreground, var(--vscode-foreground)))';
+const secondaryBtnBackground =
+  'var(--vscode-button-secondaryBackground, var(--vscode-input-background, var(--vscode-list-hoverBackground)))';
+const secondaryBtnForeground =
+  'var(--vscode-button-secondaryForeground, var(--vscode-foreground, var(--vscode-editor-foreground)))';
+const secondaryBtnBorder =
+  '1px solid var(--vscode-panel-border, var(--vscode-contrastBorder, rgba(128, 128, 128, 0.45)))';
+
 /** 일반 버튼 (flex: 1, 작은 패딩) — GitActionPanel Create/Cancel 등 */
 export const btn = (variant: BtnVariant): React.CSSProperties => ({
   display: 'flex',
@@ -47,16 +61,10 @@ export const btn = (variant: BtnVariant): React.CSSProperties => ({
   padding: '6px 12px',
   borderRadius: '3px',
   cursor: 'pointer',
-  border: 'none',
+  border: variant === 'secondary' ? secondaryBtnBorder : 'none',
   flex: 1,
-  background:
-    variant === 'primary'
-      ? 'var(--vscode-button-background)'
-      : 'var(--vscode-button-secondaryBackground)',
-  color:
-    variant === 'primary'
-      ? 'var(--vscode-button-foreground)'
-      : 'var(--vscode-button-secondaryForeground)',
+  background: variant === 'primary' ? primaryBtnBackground : secondaryBtnBackground,
+  color: variant === 'primary' ? primaryBtnForeground : secondaryBtnForeground,
 });
 
 /** 넓은 버튼 (width: 100%, 큰 패딩) — GitActionPanel 메인 액션 그리드 등 */
@@ -72,17 +80,11 @@ export const bigBtn = (variant: BtnVariant): React.CSSProperties => ({
   boxSizing: 'border-box',
   borderRadius: '3px',
   cursor: 'pointer',
-  border: 'none',
+  border: variant === 'secondary' ? secondaryBtnBorder : 'none',
   width: '100%',
   transition: 'background 0.2s',
-  background:
-    variant === 'primary'
-      ? 'var(--vscode-button-background)'
-      : 'var(--vscode-button-secondaryBackground)',
-  color:
-    variant === 'primary'
-      ? 'var(--vscode-button-foreground)'
-      : 'var(--vscode-button-secondaryForeground)',
+  background: variant === 'primary' ? primaryBtnBackground : secondaryBtnBackground,
+  color: variant === 'primary' ? primaryBtnForeground : secondaryBtnForeground,
 });
 
 /** 인라인 소형 버튼 — AI 추천, 설정 등 */
@@ -93,9 +95,9 @@ export const inlineBtn: React.CSSProperties = {
   fontSize: '11px',
   fontWeight: 600,
   padding: '4px 8px',
-  background: 'var(--vscode-button-secondaryBackground)',
-  color: 'var(--vscode-button-secondaryForeground)',
-  border: 'none',
+  background: secondaryBtnBackground,
+  color: secondaryBtnForeground,
+  border: secondaryBtnBorder,
   borderRadius: '3px',
   cursor: 'pointer',
 };

@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { FileText, Rewind, ChevronRight, Plus, Edit2, Trash2, History, X } from 'lucide-react';
+import { FileText, Rewind, ChevronRight, Plus, Edit2, Trash2, History, X, AlertTriangle } from 'lucide-react';
 import { useGitCatStore } from '../../store/useGitCatStore';
 import { useVsCodeApi } from '../../hooks/useVsCodeApi';
 import { SnapshotMeta, type RestoreHistory } from '@gitcat/shared-types';
@@ -26,6 +26,7 @@ export const SnapshotTimeline: React.FC = () => {
   const dismissSnapshotsNotification = useCallback(() => clearSectionNotification('snapshots'), [clearSectionNotification]);
   const { showSectionBannersInline } = useSidebarSectionNotificationMode();
   const [restoreHistoryOpen, setRestoreHistoryOpen] = useState(false);
+  const [deleteConfirmSnapshotId, setDeleteConfirmSnapshotId] = useState<string | null>(null);
 
   const visibleSnapshots = useMemo(() => snapshotsVisibleInSidebarTimeline(snapshots), [snapshots]);
 
@@ -70,6 +71,22 @@ export const SnapshotTimeline: React.FC = () => {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [restoreConfirmDialog, clearRestoreConfirmDialog, sendMessage]);
 
+  useEffect(() => {
+    if (!deleteConfirmSnapshotId) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      e.preventDefault();
+      setDeleteConfirmSnapshotId(null);
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, [deleteConfirmSnapshotId]);
+
+  const deleteConfirmSnapshot = useMemo(
+    () => visibleSnapshots.find((s) => s.snapshotId === deleteConfirmSnapshotId) ?? null,
+    [visibleSnapshots, deleteConfirmSnapshotId],
+  );
+
   const getStatusLabel = (status: string) => {
     const u = status.toUpperCase();
     if (u === 'MODIFIED') return '\uC218\uC815\uB428';
@@ -93,8 +110,21 @@ export const SnapshotTimeline: React.FC = () => {
     sendMessage('RENAME_SNAPSHOT', { snapshotId, newTitle });
   };
 
-  const handleDelete = (snapshotId: string) => {
-    sendMessage('DELETE_SNAPSHOT', { snapshotId });
+  const requestDeleteSnapshot = (snapshotId: string) => {
+    setDeleteConfirmSnapshotId(snapshotId);
+  };
+
+  const handleConfirmDeleteSnapshot = () => {
+    if (!deleteConfirmSnapshotId) return;
+    sendMessage('DELETE_SNAPSHOT', { snapshotId: deleteConfirmSnapshotId });
+    if (expandedSnapshotId === deleteConfirmSnapshotId) {
+      setExpandedSnapshotId(null);
+    }
+    setDeleteConfirmSnapshotId(null);
+  };
+
+  const handleCancelDeleteSnapshot = () => {
+    setDeleteConfirmSnapshotId(null);
   };
 
   const handleRestore = (snapshot: SnapshotMeta) => {
@@ -225,7 +255,7 @@ export const SnapshotTimeline: React.FC = () => {
                   <button type="button" onClick={() => handleRename(snapshot.snapshotId, title)} title="스냅샷 표시 이름 변경 요청 (익스텐션 연동 시)" style={iconBtn}>
                     <Edit2 size={12} />
                   </button>
-                  <button type="button" onClick={() => handleDelete(snapshot.snapshotId)} title="이 스냅샷과 로컬 백업을 삭제합니다" style={{ ...iconBtn, color: 'var(--vscode-errorForeground)' }}>
+                  <button type="button" onClick={() => requestDeleteSnapshot(snapshot.snapshotId)} title="이 스냅샷과 로컬 백업을 삭제합니다" style={{ ...iconBtn, color: 'var(--vscode-errorForeground)' }}>
                     <Trash2 size={12} />
                   </button>
                 </div>
@@ -537,6 +567,96 @@ export const SnapshotTimeline: React.FC = () => {
                   );
                 })
               )}
+            </div>
+          </div>
+        </div>,
+        document.body,
+        )
+        : null}
+
+      {deleteConfirmSnapshotId && deleteConfirmSnapshot
+        ? createPortal(
+        <div
+          role="dialog"
+          aria-modal="true"
+          aria-label="스냅샷 삭제 확인"
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 60_000,
+            background: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            padding: '16px',
+          }}
+          onClick={handleCancelDeleteSnapshot}
+        >
+          <div
+            style={{
+              width: '100%',
+              maxWidth: '420px',
+              background: 'var(--vscode-editor-background)',
+              color: 'var(--vscode-editor-foreground)',
+              border: '1px solid var(--vscode-panel-border)',
+              borderRadius: '8px',
+              boxShadow: '0 12px 36px rgba(0, 0, 0, 0.4)',
+              padding: '16px',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', color: 'var(--vscode-errorForeground)' }}>
+              <AlertTriangle size={18} />
+              <span style={{ fontSize: '14px', fontWeight: 700 }}>스냅샷 삭제</span>
+            </div>
+            <p style={{ fontSize: '12px', color: 'var(--vscode-descriptionForeground)', lineHeight: 1.5, margin: '0 0 8px 0' }}>
+              이 스냅샷을 삭제하시겠습니까? 로컬 백업 데이터도 함께 제거되며 되돌릴 수 없습니다.
+            </p>
+            <p style={{
+              fontSize: '12px',
+              margin: 0,
+              padding: '8px 10px',
+              borderRadius: '6px',
+              border: '1px solid var(--vscode-panel-border)',
+              background: 'var(--vscode-editorWidget-background)',
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}>
+              {deleteConfirmSnapshot.summary || deleteConfirmSnapshot.type}
+            </p>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '14px' }}>
+              <button
+                type="button"
+                onClick={handleCancelDeleteSnapshot}
+                style={{
+                  border: '1px solid var(--vscode-panel-border)',
+                  background: 'transparent',
+                  color: 'var(--vscode-foreground)',
+                  borderRadius: '4px',
+                  padding: '6px 12px',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                }}
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteSnapshot}
+                style={{
+                  border: 'none',
+                  background: 'var(--vscode-button-background)',
+                  color: 'var(--vscode-button-foreground)',
+                  borderRadius: '4px',
+                  padding: '6px 12px',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                }}
+              >
+                삭제
+              </button>
             </div>
           </div>
         </div>,

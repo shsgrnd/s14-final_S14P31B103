@@ -154,6 +154,19 @@ export class SnapshotService implements ISnapshotService {
     console.log(`[SnapshotService] 스냅샷 삭제 완료: ${snapshotId}`);
   }
 
+  async renameSnapshot(snapshotId: string, newTitle: string): Promise<void> {
+    const existing = await this.snapshotRepository.findById(snapshotId);
+    if (!existing) {
+      throw new Error(`Snapshot not found: ${snapshotId}`);
+    }
+    const trimmed = newTitle.trim();
+    if (!trimmed) {
+      throw new Error('Snapshot title cannot be empty');
+    }
+    await this.snapshotRepository.updateSummary(snapshotId, trimmed);
+    console.log(`[SnapshotService] 스냅샷 표시 이름 변경 완료: ${snapshotId}`);
+  }
+
   /**
    * 지정한 타입의 Snapshot을 생성한다.
    *
