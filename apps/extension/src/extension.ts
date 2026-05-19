@@ -36,6 +36,7 @@ import { PullRequestService } from './features/pull-request/PullRequestService';
 import { PullRequestMessageHandler } from './features/pull-request/PullRequestMessageHandler';
 import { PrSettingsService } from './features/settings/PrSettingsService';
 import { PrSettingsMessageHandler } from './features/settings/PrSettingsMessageHandler';
+import { t } from './i18n';
 import {
   createMergeRepositories,
   MergeAnalysisArtifactStore,
@@ -56,7 +57,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
   const workspaceFolders = vscode.workspace.workspaceFolders;
   if (!workspaceFolders || workspaceFolders.length === 0) {
-    vscode.window.showInformationMessage('GitCat: 작업할 폴더를 먼저 열어주세요.');
+    vscode.window.showInformationMessage(t('workspace.openFolderFirst'));
   }
 
   const rootPath = workspaceFolders?.[0]?.uri.fsPath ?? '';
@@ -77,7 +78,7 @@ export async function activate(context: vscode.ExtensionContext) {
       console.log('GitCat Git layer initialized at:', rootPath);
     } catch (error) {
       console.error('Failed to initialize GitCat Git layer:', error);
-      vscode.window.showWarningMessage('GitCat Git 기능 초기화에 실패했습니다. Git 기능을 사용할 수 없습니다.');
+      vscode.window.showWarningMessage(t('git.init.failed'));
     }
   }
 
@@ -99,7 +100,7 @@ export async function activate(context: vscode.ExtensionContext) {
       console.log('GitCat GitHub PR layer initialized');
     } catch (error) {
       console.error('Failed to initialize GitCat GitHub PR layer:', error);
-      vscode.window.showWarningMessage('GitCat GitHub PR 기능 초기화에 실패했습니다.');
+      vscode.window.showWarningMessage(t('github.pr.init.failed'));
     }
   }
 
@@ -136,7 +137,7 @@ export async function activate(context: vscode.ExtensionContext) {
       console.log('GitCat Database initialized successfully at:', GitCatDatabase.getDatabasePath(rootPath));
     } catch (error) {
       console.error('Failed to initialize GitCat database:', error);
-      vscode.window.showWarningMessage('GitCat 로컬 데이터베이스를 초기화하지 못했습니다.');
+      vscode.window.showWarningMessage(t('database.init.failed'));
     }
   }
 
@@ -178,7 +179,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
   context.subscriptions.push(
     vscode.workspace.onDidChangeWorkspaceFolders(() => {
-      vscode.window.showInformationMessage('GitCat: 작업 폴더가 변경되었습니다. 창을 다시 로드해주세요.');
+      vscode.window.showInformationMessage(t('workspace.changedReloadRequired'));
     })
   );
 
@@ -265,7 +266,7 @@ export async function activate(context: vscode.ExtensionContext) {
       console.log('GitCat Safety Layer (SnapshotService) initialized at:', rootPath);
     } catch (snapshotInitError) {
       console.error('GitCat Safety Layer 초기화 실패, FallbackSnapshotService로 폴백합니다:', snapshotInitError);
-      vscode.window.showWarningMessage('GitCat Safety Layer 초기화에 실패했습니다. 스냅샷 기능이 제한됩니다.');
+      vscode.window.showWarningMessage(t('safety.init.failed'));
     }
   }
 
@@ -439,12 +440,12 @@ async function initializeRecommendationBackfill(
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     console.error('Failed to initialize GitCat recommendation layer:', error);
-    void vscode.window.showWarningMessage(`GitCat 추천 기능 초기화가 지연되거나 실패했습니다: ${message}`);
+    void vscode.window.showWarningMessage(t('recommendation.init.failed', { message }));
     void messageRouter.broadcast({
       type: 'NOTIFICATION',
       payload: {
         type: 'warning',
-        message: 'GitCat 추천 기능이 아직 준비되지 않아 일부 AI 기능이 제한됩니다.',
+        message: t('recommendation.init.banner'),
       },
     });
   }

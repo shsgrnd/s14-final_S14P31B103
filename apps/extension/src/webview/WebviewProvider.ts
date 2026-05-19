@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { MessageRouter } from '../core/MessageRouter';
 import { resolveWebviewDistPath } from './webviewAssets';
+import { getWebviewLocaleBootstrapScript } from '../i18n';
 
 export class WebviewProvider {
     /** 병합 검토 / AI 탭 전용 메인 패널 */
@@ -138,10 +139,7 @@ export class WebviewProvider {
         }
 
         let html = fs.readFileSync(indexPath, 'utf-8');
-        html = html.replace(
-            /<head>/,
-            `<head><script>window.VIEW_MODE = "${viewMode}";</script>`
-        );
+        html = html.replace(/<head>/, `<head>${getWebviewLocaleBootstrapScript(viewMode)}`);
         html = html.replace(/(href|src)="(?:\.\/)?assets\/([^"]+)"/g, (_match, attr, assetName) => {
             const assetUri = webview.asWebviewUri(
                 vscode.Uri.file(path.join(distPath.fsPath, 'assets', assetName))

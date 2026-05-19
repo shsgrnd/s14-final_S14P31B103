@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import { useGitCatStore } from '../../store/useGitCatStore';
 import { useVsCodeApi } from '../../hooks/useVsCodeApi';
+import { t } from '../../i18n';
 import type { WorkspaceFileTreeNode } from '@gitcat/shared-types';
 import { getFileTreeNextActionHint } from '../../shared/gitWorkflowCopy';
 
@@ -112,7 +113,7 @@ const StatusSummaryPopup: React.FC<StatusSummaryPopupProps> = ({ onClose, trigge
       {!statusSummary ? (
         <div style={{ padding: '16px', textAlign: 'center', fontSize: '11px', color: 'var(--vscode-descriptionForeground)' }}>
           <RefreshCw size={14} style={{ animation: 'gitcat-refresh-spin 1s linear infinite', marginBottom: '6px' }} />
-          <div>불러오는 중...</div>
+          <div>{t('loading.panel')}</div>
         </div>
       ) : (
         <div style={{ padding: '8px 0' }}>
@@ -351,6 +352,7 @@ export const FileTreePanel: React.FC = () => {
   // WORKSPACE_TREE 메시지 수신
   useEffect(() => {
     const handler = (event: MessageEvent) => {
+      if (event.data?.type === 'ERROR') { console.error('Received ERROR:', event.data.payload); setIsLoading(false); }
       if (event.data?.type === 'WORKSPACE_TREE') {
         const { tree } = event.data.payload;
         setWorkspaceTree(tree.nodes ?? []);
@@ -556,7 +558,7 @@ export const FileTreePanel: React.FC = () => {
         {isLoading ? (
           <div style={{ textAlign: 'center', padding: '20px', color: 'var(--vscode-descriptionForeground)', fontSize: '12px' }}>
             <RefreshCw size={16} style={{ animation: 'gitcat-refresh-spin 1s linear infinite', marginBottom: '8px' }} />
-            <div>로딩 중...</div>
+            <div>{t('loading.fileTree')}</div>
           </div>
         ) : tab === 'changed' ? (
           changedFiles.length === 0 ? (

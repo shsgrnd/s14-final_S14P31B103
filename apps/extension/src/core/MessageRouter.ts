@@ -1,8 +1,9 @@
 /**
- * MessageRouter ??Webview ??Extension Host 메시지 ?�우?? *
- * Webview?�서 ?�신??InboundMessage�?type�??�들?�로 분기?�다.
- * 1?�계: Git 관??메시지??GitMessageHandler가 ?�당?�다.
- * 미구???�들??추천, ?�냅?? 병합 분석)??stub ?�답??반환?�다.
+ * MessageRouter — Webview ↔ Extension Host 메시지 라우터
+ * 
+ * Webview에서 수신한 InboundMessage를 type별 핸들러로 분기한다.
+ * 1단계: Git 관련 메시지는 GitMessageHandler가 담당한다.
+ * 미구현 핸들러(추천, 스냅샷, 병합 분석)는 stub 응답을 반환한다.
  */
 
 import * as vscode from 'vscode';
@@ -32,20 +33,20 @@ import {
 } from '@gitcat/shared-types';
 
 /**
- * Webview?�서 ?�는 모든 메시지�?중앙?�서 검증하�?�??�들?�로 분기?�는 ?�우?�입?�다.
+ * Webview에서 오는 모든 메시지를 중앙에서 검증하고 각 핸들러로 분기하는 라우터입니다.
  */
 export class MessageRouter {
   private readonly gitHandler: GitMessageHandler | null;
   private branchRecommendationHandler: BranchRecommendationMessageHandler | null;
   private commitRecommendationHandler: CommitRecommendationMessageHandler | null;
   private prRecommendationHandler: PrRecommendationHandler | null;
-  /** GitHub PR ?�성 ?�들??(CREATE_PR, OPEN_PR_PANEL) */
+  /** GitHub PR 생성 핸들러 (CREATE_PR, OPEN_PR_PANEL) */
   private readonly pullRequestHandler: PullRequestMessageHandler | null;
-  /** PR ?�경?�정 (기본 target 브랜�??�??조회) */
+  /** PR 환경설정 (기본 target 브랜치 저장/조회) */
   private prSettingsHandler: PrSettingsMessageHandler | null;
-  /** 병합 충돌 분석 메시지 ?�들??*/
+  /** 병합 충돌 분석 메시지 핸들러 */
   private mergeConflictHandler: MergeConflictMessageHandler | null;
-  /** AI 병합 ?�안/?�드�?메시지 ?�들??*/
+  /** AI 병합 제안/피드백 메시지 핸들러 */
   private mergeProposalHandler: MergeProposalMessageHandler | null;
   private readonly aiApiKeyMessageHandler: AiApiKeyMessageHandler | null;
   private snapshotQueryService: SnapshotQueryService | null = null;
@@ -55,14 +56,14 @@ export class MessageRouter {
   private safetySessionCoordinator: SafetySessionCoordinator | null = null;
   private readonly webviews = new Set<vscode.Webview>();
 
-  /** 사이드바 외 에디터 패널을 연다 (GitCat WebviewProvider.createOrShow('main')). */
+  /** 사이드바 또는 에디터 패널을 연다 (GitCat WebviewProvider.createOrShow('main')). */
   private openMainPanel: (() => void) | null = null;
-  /** PR 패널이 현재 열려 있는지 확인 (충돌 시 main 패널 대신 PR 패널 유지 판단용). */
+  /** PR 패널이 현재 열려 있는지 확인 (충돌 시 main 패널 또는 PR 패널을 열지 판단). */
   private isPrPanelOpen: (() => boolean) | null = null;
 
   /**
-   * 에디터 패널이 나중에 열려도 동기화되도록 마지막 병합 검토 응답을 보관합니다.
-   * (registerWebview 시 단일 웹뷰로 재전송)
+   * 에디터 패널이 도중에 열려도 복구되도록 마지막 병합 충돌 페이로드를 저장합니다.
+   * (registerWebview 시 새 웹뷰에 재전송)
    */
   private mergeReviewConflictPayload: {
     analysisId?: string;
@@ -163,7 +164,7 @@ export class MessageRouter {
   }
 
   /**
-   * CONFLICT_RESULT — 모든 GitCat 웹뷰에 브로드캐스트하고, 옵션이 켜져 있으면 에디터 패널을 연다.
+   * CONFLICT_RESULT를 모든 GitCat 웹뷰에 브로드캐스트하고, 옵션이 켜져 있으면 메인 패널을 연다.
    */
   public publishConflictResult(payload: {
     analysisId?: string;
@@ -171,7 +172,7 @@ export class MessageRouter {
     candidates: unknown[];
     triggeringAction?: 'push' | 'pull' | 'pr' | 'merge';
     mergeSource?: string;
-    /** @deprecated extension 스냅샷은 clearMergeReviewSnapshot()에서만 초기화 */
+    /** @deprecated extension 스냅샷은 clearMergeReviewSnapshot()에서 초기화 */
     preserveResolvedCandidates?: boolean;
   }): void {
     const hasResolved =
@@ -188,7 +189,7 @@ export class MessageRouter {
     };
     this.mergeReviewConflictPayload = enriched;
     this.mergeReviewProposalPayload = null;
-    // 이미 떠 있는 웹뷰(사이드바 + 열린 패널)에 즉시 반영
+    // 현재 열려 있는 웹뷰(사이드바 + 열린 패널)에 즉시 반영
     this.broadcast({ type: 'CONFLICT_RESULT', payload: enriched });
     if (this.shouldOpenMainPanelOnMergeConflict()) {
       try {
@@ -276,7 +277,7 @@ export class MessageRouter {
   }
 
   public async route(rawMessage: any, webview: vscode.Webview) {
-    // 웹뷰 React 마운트 전 registerWebview/replay가 유실되는 경우를 보완합니다.
+    // 웹뷰 React 마운트 시 registerWebview/replay를 유실하는 경우를 보완합니다.
     if (rawMessage?.type === 'WEBVIEW_READY') {
       this.replayMergeReviewSnapshotTo(webview);
       return;
@@ -301,12 +302,12 @@ export class MessageRouter {
       return;
     }
 
-    // 1. Zod를 이용한 메시지 규격 검증
+
     const parseResult = InboundMessageSchema.safeParse(rawMessage);
 
     if (!parseResult.success) {
       console.error('[GitCat] Invalid inbound message:', parseResult.error);
-      this.postError(webview, 'INVALID_PARAMETER', `메시지 규격???�바르�? ?�습?�다: ${parseResult.error.message}`);
+      this.postError(webview, 'INVALID_PARAMETER', `메시지 규격이 올바르지 않습니다: ${parseResult.error.message}`);
       return;
     }
 
@@ -314,55 +315,55 @@ export class MessageRouter {
     // console.log(`[GitCat] Processing message: ${message.type}`, message.payload);
 
     try {
-      // Git ?�들?�에 ?�선 ?�임
+      // Git 핸들러에 우선 위임
       if (this.gitHandler) {
         const handled = await this.gitHandler.handle(message.type, message.payload, webview);
         if (handled) return;
       }
-      // branch 추천 ?�들???�임
+      // branch 추천 핸들러에 위임
       if (this.branchRecommendationHandler) {
         const handled = await this.branchRecommendationHandler.handle(message.type, message.payload, webview);
         if (handled) return;
       }
-      // commit 추천 ?�들???�임
+      // commit 추천 핸들러에 위임
       if (this.commitRecommendationHandler) {
         const handled = await this.commitRecommendationHandler.handle(message.type, message.payload, webview);
         if (handled) return;
       }
-      // PR 추천 ?�들???�임
+      // PR 추천 핸들러에 위임
       if (this.prRecommendationHandler) {
         const handled = await this.prRecommendationHandler.handle(message.type, message.payload, webview);
         if (handled) return;
       }
-      // GitHub PR ?�성 ?�들???�임 (CREATE_PR, OPEN_PR_PANEL)
+      // GitHub PR 생성 핸들러에 위임 (CREATE_PR, OPEN_PR_PANEL)
       if (this.pullRequestHandler) {
         const handled = await this.pullRequestHandler.handle(message.type, message.payload, webview);
         if (handled) return;
       }
-      // PR ?�경?�정 ?�들???�임 (GET/SET/CLEAR_PR_DEFAULT_BASE_BRANCH)
+      // PR 환경설정 핸들러에 위임 (GET/SET/CLEAR_PR_DEFAULT_BASE_BRANCH)
       if (this.prSettingsHandler) {
         const handled = await this.prSettingsHandler.handle(message.type, message.payload, webview);
         if (handled) return;
       }
-      // 병합 충돌 분석 ?�들???�임
+      // 병합 충돌 분석 핸들러에 위임
       if (this.mergeConflictHandler) {
         const handled = await this.mergeConflictHandler.handle(message.type, message.payload, webview);
         if (handled) return;
       }
-      // AI 병합 ?�안/?�드�??�들???�임
+      // AI 병합 제안/피드백 핸들러에 위임
       if (this.mergeProposalHandler) {
         const handled = await this.mergeProposalHandler.handle(message.type, message.payload, webview);
         if (handled) return;
       }
-      // AI API Key ?�들???�임
+      // AI API Key 핸들러에 위임
       if (this.aiApiKeyMessageHandler) {
         const handled = await this.aiApiKeyMessageHandler.handle(message.type, message.payload, webview);
         if (handled) return;
       }
 
-      // ?�들?��? ?�거??처리 �???메시지 ??type�?분기
+      // 핸들러가 처리하지 못한 메시지 type별 분기
       switch (message.type) {
-        // ?�?�?� ?�냅??관??(3?�계 구현) ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�
+        // 스냅샷 관리 (3단계 구현)
         case 'GET_SNAPSHOT_LIST':
           await this.handleGetSnapshotList(message, webview);
           break;
@@ -383,11 +384,11 @@ export class MessageRouter {
           break;
 
         case 'RENAME_SNAPSHOT':
-          this.sendNotImplemented(webview, 'RENAME_SNAPSHOT', '?�냅???�름 변�?(3?�계 구현 ?�정)');
+          await this.handleRenameSnapshot(message, webview);
           break;
 
         case 'TOGGLE_SNAPSHOT_STAR':
-          this.sendNotImplemented(webview, 'TOGGLE_SNAPSHOT_STAR', '체크?�인??지??(3?�계 구현 ?�정)');
+          this.sendNotImplemented(webview, 'TOGGLE_SNAPSHOT_STAR', '즐겨찾기 기능 (3단계 구현 예정)');
           break;
 
         case 'GET_SNAPSHOT_FILES':
@@ -406,26 +407,25 @@ export class MessageRouter {
           await this.handleGetRestoreHistory(message, webview);
           break;
 
-        // ?�?�?� 추천 관??(2?�계 구현) ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�
+        // ================= 추천 기능 (2단계 구현) =================
         case 'RECOMMEND_COMMIT':
-          this.sendNotImplemented(webview, 'RECOMMEND_COMMIT', '커밋 메시지 추천 (2?�계 구현 ?�정)');
+          this.sendNotImplemented(webview, 'RECOMMEND_COMMIT', '커밋 메시지 추천 (2단계 구현 예정)');
           break;
 
         case 'RECOMMEND_BRANCH':
-          this.postError(webview, 'INTERNAL_ERROR', '브랜�?추천 ?�들?��? 초기?�되지 ?�았?�니??');
+          this.postError(webview, 'INTERNAL_ERROR', '브랜치 추천 핸들러가 초기화되지 않았습니다.');
           break;
 
         case 'RECOMMEND_PR':
-          this.sendNotImplemented(webview, 'RECOMMEND_PR', 'PR ?�명 추천 ?�들?��? ?�록?��? ?�았?�니??');
+          this.sendNotImplemented(webview, 'RECOMMEND_PR', 'PR 설명 추천 핸들러가 등록되지 않았습니다.');
           break;
 
         case 'APPLY_COMMIT':
-          this.sendNotImplemented(webview, 'APPLY_COMMIT', '추천 커밋 ?�용 (Git ?�들???�음)');
+          this.sendNotImplemented(webview, 'APPLY_COMMIT', '추천 커밋 적용 (Git 핸들러가 담당)');
           break;
 
-        // ?�?�?� 병합 분석 관??(4?�계 구현) ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�
-
-        // ?�?�?� ?�틸리티 ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�
+        // ================= 병합 분석 기능 (4단계 구현) =================
+        // ================= 유틸리티 =================
         case 'OPEN_FILE_DIFF':
           await this.handleOpenFileDiff((message.payload as any));
           break;
@@ -440,15 +440,16 @@ export class MessageRouter {
 
         case 'OPEN_DIFF_EDITOR':
           vscode.window.showInformationMessage(
-            `GitCat: Diff ?�디???�기 ??${(message.payload as any).filePath}`,
+            `GitCat: Diff 에디터 열기 대상: ${(message.payload as any).filePath}`,
           );
           break;
 
         case 'SET_CONFIG':
           console.log('[GitCat] SET_CONFIG received', message.payload);
+          await this.handleSetConfig(message.payload as any);
           break;
 
-        // ?�?�?� Git 관??(GitHandler가 ?�을 ?�의 기본 ?�답) ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�
+        // ================= Git 기능 (GitHandler가 없을 때의 기본 응답) =================
         case 'GET_BRANCH_LIST':
           webview.postMessage({ type: 'BRANCH_LIST', payload: { branches: [] } });
           break;
@@ -470,10 +471,25 @@ export class MessageRouter {
     }
   }
 
-  // ?�?�?� Helpers ?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�?�
-
+  // ================= Helpers =================
   private async handleOpenFileDiff(payload: { filePath: string; snapshotId?: string }) {
-    vscode.window.showInformationMessage(`GitCat: ?�일 비교 ?�청 ??${payload.filePath}`);
+    vscode.window.showInformationMessage(`GitCat: 파일 비교 요청 대상: ${payload.filePath}`);
+  }
+
+  private async handleSetConfig(payload: { config?: { key?: string; value?: unknown } }): Promise<void> {
+    const key = payload?.config?.key;
+    if (typeof key !== 'string' || !key.startsWith('gitcat.')) {
+      return;
+    }
+
+    const settingPath = key.slice('gitcat.'.length);
+    if (!settingPath) {
+      return;
+    }
+
+    await vscode.workspace
+      .getConfiguration('gitcat')
+      .update(settingPath, payload.config?.value, vscode.ConfigurationTarget.Global);
   }
 
   private async handleGetSnapshotList(message: InboundMessage, webview: vscode.Webview): Promise<void> {
@@ -693,6 +709,31 @@ export class MessageRouter {
     } as OutboundMessage);
   }
 
+  private async handleRenameSnapshot(message: InboundMessage, webview: vscode.Webview): Promise<void> {
+    const queryService = this.requireSnapshotQueryService();
+    const payload = message.payload as { snapshotId?: string; newTitle?: string };
+    const snapshotId = payload.snapshotId?.trim();
+    const newTitle = payload.newTitle?.trim();
+
+    if (!snapshotId || !newTitle) {
+      this.postError(webview, 'INVALID_PARAMETER', 'Snapshot id and title are required.');
+      return;
+    }
+
+    const snapshotService = this.requireSnapshotService() as any;
+    await snapshotService.snapshotRepository.updateSummary(snapshotId, newTitle);
+    const detail = await queryService.getSnapshotDetail(snapshotId);
+    webview.postMessage({
+      type: 'SNAPSHOT_UPDATED',
+      payload: { snapshot: detail.meta },
+      requestId: message.requestId,
+    } as OutboundMessage);
+    webview.postMessage({
+      type: 'NOTIFICATION',
+      payload: { type: 'success', message: `Snapshot renamed: ${newTitle}` },
+    } as OutboundMessage);
+  }
+
   private formatPathListForLog(paths: readonly string[], maxCount = 5): string {
     if (paths.length === 0) {
       return 'none';
@@ -895,7 +936,7 @@ export class MessageRouter {
   }
 
   private sendNotImplemented(webview: vscode.Webview, type: string, description: string) {
-    console.log(`[GitCat] Not implemented yet: ${type} ??${description}`);
+    console.log(`[GitCat] Not implemented yet: ${type} (${description})`);
     webview.postMessage({
       type: 'NOTIFICATION',
       payload: { type: 'info', message: `${description}` },
@@ -941,3 +982,5 @@ export class MessageRouter {
     return this.restoreHistoryQueryService;
   }
 }
+
+

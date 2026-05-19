@@ -1,0 +1,20 @@
+{
+  "extension.description": "더 안전한 커밋, 충돌 예방, 더 똑똑한 Git 워크플로 안내를 제공하는 AI 기반 Git 어시스턴트입니다.",
+  "command.openPanel.title": "GitCat: 패널 열기",
+  "command.getGitStatus.title": "GitCat: 상태 새로고침",
+  "command.createSnapshot.title": "GitCat: 스냅샷 생성",
+  "command.installLocalRuntime.title": "GitCat: 로컬 런타임 설치",
+  "command.setGitHubToken.title": "GitCat: GitHub 토큰 설정",
+  "command.clearGitHubToken.title": "GitCat: GitHub 토큰 삭제",
+  "config.branchCleanup.enabled.description": "Branch Cleanup 기능의 활성화 여부입니다.",
+  "config.branchCleanup.olderThanValue.description": "이 값보다 오래된 브랜치를 정리 후보로 간주합니다.",
+  "config.branchCleanup.olderThanUnit.description": "olderThanValue의 시간 단위입니다. (week 또는 month)",
+  "config.branchCleanup.deleteMergedBranches.description": "이미 머지된 로컬 브랜치를 삭제 후보에 포함할지 여부입니다.",
+  "config.branchCleanup.deleteGoneRemoteBranches.description": "원격 추적 브랜치가 사라진 로컬 브랜치를 삭제 후보에 포함할지 여부입니다.",
+  "config.branchCleanup.protectedBranches.description": "절대 삭제하지 않을 보호 브랜치 목록입니다.",
+  "config.language.description": "GitCat UI 문구의 언어를 설정합니다. 'auto'는 VS Code 표시 언어를 따릅니다.",
+  "config.ai.mode.description": "AI 추론 모드를 설정합니다. 'live-local'은 로컬 GGUF 모델을 사용하고, 'live-remote'는 원격 GMS API를 사용합니다.",
+  "config.ai.localModelPath.description": "live-local 추론에 사용할 GGUF 모델 파일의 절대 경로입니다. Windows에서는 C:\\Models\\Qwen2.5-Coder-7B-Instruct.gguf 같은 경로를 사용하세요.",
+  "config.safety.largeDeletionThreshold.description": "Safety Layer가 대량 삭제 경고를 발생시키는 삭제 파일 수 임계치입니다.",
+  "config.merge.openMainPanelOnConflict.description": "Push/Pull/PR 가드 또는 병합 분석이 충돌을 감지하면 GitCat 메인 패널을 자동으로 엽니다."
+}
