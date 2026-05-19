@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { Sparkles, Check, RefreshCw, GitPullRequest, ChevronDown, CheckCircle2, AlertTriangle, ExternalLink, X, Info } from 'lucide-react';
+import { Sparkles, Check, RefreshCw, GitPullRequest, ChevronDown, ChevronRight, CheckCircle2, AlertTriangle, ExternalLink, X, Info } from 'lucide-react';
 import { useGitCatStore } from '../../store/useGitCatStore';
 import { useVsCodeApi } from '../../hooks/useVsCodeApi';
 import { resolvePullRequestBaseBranch } from '../../features/pull-request/resolvePullRequestBaseBranch';
@@ -8,12 +8,17 @@ import { PrCreateMetadataSidebar } from './PrCreateMetadataSidebar';
 import { MarkdownPreview } from '../common/MarkdownPreview';
 
 type DescriptionMode = 'write' | 'preview';
+type PrPanelStep = 'pick-base' | 'compose';
 
 /** Extension `PullRequestService` / GitHubClient와 동일한 인식 경로 */
 const GITCAT_PR_TEMPLATE_PATHS = [
   '.github/pull_request_template.md',
   '.github/PULL_REQUEST_TEMPLATE.md',
 ] as const;
+
+/** compose 단계 본문·사이드바와 동일한 가로 폭 (헤더·배너 정렬용) */
+const PR_PANEL_COMPOSE_MAX_WIDTH = 1180;
+const PR_PANEL_PICK_BASE_MAX_WIDTH = 560;
 
 function inferTitleFromMarkdown(markdown: string): string {
   const firstLine = markdown.split(/\r?\n/).map((line) => line.trim()).find(Boolean) ?? '';
@@ -58,11 +63,11 @@ export const PrPanelLayout: React.FC = () => {
   const [prLabels, setPrLabels] = useState<string[]>([]);
   const [prMilestone, setPrMilestone] = useState<number | null>(null);
   const [descriptionMode, setDescriptionMode] = useState<DescriptionMode>('write');
-  const [hasRequestedInitialRecommendation, setHasRequestedInitialRecommendation] = useState(false);
+  const [prPanelStep, setPrPanelStep] = useState<PrPanelStep>('pick-base');
   // 선택된 PR 템플릿 경로. 빈 문자열이면 "선택 안 함"(미사용).
   const [selectedTemplatePath, setSelectedTemplatePath] = useState<string>('');
   const [prTemplatePathGuideOpen, setPrTemplatePathGuideOpen] = useState(false);
-  const isRecommendationInProgress = isPrLoading;
+  const isFormLocked = isPrLoading || isCreatingPr;
 
   const prTemplateDetectStatus = useMemo(() => {
     if (isPrTemplatesLoading) return 'loading' as const;
@@ -73,21 +78,26 @@ export const PrPanelLayout: React.FC = () => {
 
   const canCreatePr = Boolean(prTitle.trim() && prDescription.trim() && baseBranch && currentBranch);
 
+  const panelContentMaxWidth =
+    prPanelStep === 'pick-base' ? PR_PANEL_PICK_BASE_MAX_WIDTH : PR_PANEL_COMPOSE_MAX_WIDTH;
+  const panelContentShellStyle: React.CSSProperties = {
+    maxWidth: panelContentMaxWidth,
+    margin: '0 auto',
+    width: '100%',
+    boxSizing: 'border-box',
+  };
+
   // 선택된 template content를 RECOMMEND_PR payload에 함께 보내기 위해 미리 계산한다.
   // 비어 있거나 "선택 안 함"이면 undefined를 전송해 백엔드가 기본 동작을 유지하도록 한다.
   const selectedTemplateContent =
     prTemplates?.find((t) => t.path === selectedTemplatePath)?.content;
 
+  // Step 2(compose) 진입 시에만 메타데이터·템플릿을 요청한다.
   useEffect(() => {
+    if (prPanelStep !== 'compose') return;
     sendMessage('GET_PR_FORM_METADATA', {});
-  }, [sendMessage]);
-
-  // PR 패널 진입 시 한 번 PR 템플릿 목록을 요청한다.
-  // base에 따라 결과가 달라질 수 있지만(.github/PULL_REQUEST_TEMPLATE/*.md 등),
-  // 현재 백엔드는 base 옵션 없이 로컬 PR 템플릿을 우선 노출하므로 단일 요청으로 충분하다.
-  useEffect(() => {
     sendMessage('GET_PR_TEMPLATES', {});
-  }, [sendMessage]);
+  }, [prPanelStep, sendMessage]);
 
   // 템플릿이 도착하면 첫 번째 항목을 기본 선택해 사용자가 별도 클릭 없이도
   // RECOMMEND_PR에 PR 가이드라인을 반영할 수 있도록 한다.
@@ -126,28 +136,7 @@ export const PrPanelLayout: React.FC = () => {
     if (resolvedBaseBranch) setBaseBranch(resolvedBaseBranch);
   }, [baseBranch, branches, currentBranch, userDefaultBaseBranch]);
 
-  useEffect(() => {
-    setHasRequestedInitialRecommendation(false);
-  }, [baseBranch]);
-
-  useEffect(() => {
-    if (hasRequestedInitialRecommendation || !baseBranch || !currentBranch) return;
-    beginRecommendationRequest('pr');
-    sendMessage('RECOMMEND_PR', {
-      base: baseBranch,
-      ...(selectedTemplateContent ? { template: selectedTemplateContent } : {}),
-    });
-    setHasRequestedInitialRecommendation(true);
-  }, [
-    baseBranch,
-    currentBranch,
-    hasRequestedInitialRecommendation,
-    selectedTemplateContent,
-    sendMessage,
-    beginRecommendationRequest,
-  ]);
-
-  // AI 추천 결과 수신 시 폼 자동 입력 (항상 최신 추천으로 덮어씀)
+  // AI 추천 결과 수신 시 폼 자동 입력 (수동 추천 요청 후에만 도착)
   useEffect(() => {
     if (prSuggestion) {
       setPrTitle(prSuggestion.title?.trim() ? prSuggestion.title : inferTitleFromMarkdown(prSuggestion.markdown));
@@ -156,8 +145,23 @@ export const PrPanelLayout: React.FC = () => {
     }
   }, [prSuggestion, clearPrSuggestion]);
 
+  const handleRecommendPr = () => {
+    if (!baseBranch || !currentBranch || isFormLocked) return;
+    clearPrRecommendationError();
+    beginRecommendationRequest('pr');
+    sendMessage('RECOMMEND_PR', {
+      base: baseBranch,
+      ...(selectedTemplateContent ? { template: selectedTemplateContent } : {}),
+    });
+  };
+
+  const handleProceedToCompose = () => {
+    if (!baseBranch) return;
+    setPrPanelStep('compose');
+  };
+
   const handleSubmit = () => {
-    if (!canCreatePr) return;
+    if (!canCreatePr || isFormLocked) return;
     clearLastCreatedPr();
     clearSectionNotification('git');
     sendMessage('CREATE_PR', {
@@ -173,52 +177,77 @@ export const PrPanelLayout: React.FC = () => {
     });
   };
 
+  const renderTargetBranchSelect = (disabled: boolean) => (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+      <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--vscode-foreground)' }}>Target Branch (Base)</label>
+      <div style={{ position: 'relative', width: '100%' }}>
+        <select
+          value={baseBranch}
+          onChange={(e) => setBaseBranch(e.target.value)}
+          disabled={disabled}
+          style={{
+            width: '100%',
+            boxSizing: 'border-box',
+            appearance: 'none',
+            WebkitAppearance: 'none',
+            MozAppearance: 'none',
+            padding: '8px 40px 8px 12px',
+            background: 'var(--vscode-dropdown-background, var(--vscode-input-background))',
+            color: 'var(--vscode-dropdown-foreground, var(--vscode-input-foreground))',
+            border: `1px solid ${baseBranch ? 'var(--vscode-input-border, var(--vscode-panel-border))' : 'var(--vscode-focusBorder)'}`,
+            borderRadius: '6px',
+            outline: 'none',
+            fontSize: '13px',
+            cursor: disabled ? 'not-allowed' : 'pointer',
+            opacity: disabled ? 0.75 : 1,
+          }}
+        >
+          <option value="" disabled>타겟 브랜치를 선택하세요</option>
+          {branches
+            .filter((b) => !b.isRemote && b.name !== currentBranch)
+            .map((b) => (
+              <option key={b.name} value={b.name}>
+                {b.name}
+              </option>
+            ))}
+        </select>
+        <ChevronDown
+          size={16}
+          aria-hidden
+          style={{
+            position: 'absolute',
+            right: '12px',
+            top: '50%',
+            transform: 'translateY(-50%)',
+            pointerEvents: 'none',
+            color: 'var(--vscode-dropdown-foreground, var(--vscode-input-foreground))',
+            opacity: 0.72,
+          }}
+        />
+      </div>
+    </div>
+  );
+
   return (
     <div style={{
       height: '100%', minHeight: 0, width: '100%', display: 'flex', flexDirection: 'column',
       background: 'var(--vscode-editor-background)', color: 'var(--vscode-editor-foreground)',
       padding: '20px', boxSizing: 'border-box', overflowY: 'auto',
     }}>
-      <header style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '20px', paddingBottom: '16px', borderBottom: '1px solid var(--vscode-panel-border)' }}>
+      <header
+        style={{
+          ...panelContentShellStyle,
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          marginBottom: '20px',
+          paddingBottom: '16px',
+          borderBottom: '1px solid var(--vscode-panel-border)',
+        }}
+      >
         <GitPullRequest size={24} style={{ color: 'var(--vscode-charts-blue)' }} />
         <h1 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>Create Pull Request</h1>
 
-        <div style={{ flex: 1 }} />
-        {prRecommendationError && (
-          <div style={{
-            marginRight: '12px',
-            maxWidth: '320px',
-            fontSize: '11px',
-            color: 'var(--vscode-errorForeground)',
-            lineHeight: 1.4,
-            textAlign: 'right',
-          }}>
-            {prRecommendationError}
-          </div>
-        )}
-
-        <button
-          onClick={() => {
-            clearPrRecommendationError();
-            beginRecommendationRequest('pr');
-            sendMessage('RECOMMEND_PR', {
-              base: baseBranch,
-              ...(selectedTemplateContent ? { template: selectedTemplateContent } : {}),
-            });
-          }}
-          disabled={isPrLoading || !baseBranch}
-          style={{
-            display: 'flex', alignItems: 'center', gap: '6px',
-            background: 'var(--vscode-button-secondaryBackground)',
-            color: 'var(--vscode-button-secondaryForeground)',
-            border: 'none', padding: '6px 12px', borderRadius: '4px',
-            cursor: (isPrLoading || !baseBranch) ? 'not-allowed' : 'pointer', opacity: (isPrLoading || !baseBranch) ? 0.7 : 1,
-            fontWeight: 500, fontSize: '12px'
-          }}
-        >
-          {isPrLoading ? <RefreshCw size={14} style={{ animation: 'gitcat-refresh-spin 1s linear infinite' }} /> : <Sparkles size={14} />}
-          AI 설명 추천
-        </button>
       </header>
 
       {prResultBanner && (
@@ -226,10 +255,8 @@ export const PrPanelLayout: React.FC = () => {
           role="status"
           aria-live="polite"
           style={{
-            maxWidth: '1180px',
-            margin: '0 auto 12px auto',
-            width: '100%',
-            boxSizing: 'border-box',
+            ...panelContentShellStyle,
+            marginBottom: 12,
             borderRadius: 8,
             border: `1px solid ${
               (prResultBanner.metadataWarnings?.length ?? 0) > 0
@@ -293,10 +320,8 @@ export const PrPanelLayout: React.FC = () => {
         <div
           role="alert"
           style={{
-            maxWidth: '1180px',
-            margin: '0 auto 12px auto',
-            width: '100%',
-            boxSizing: 'border-box',
+            ...panelContentShellStyle,
+            marginBottom: 12,
             borderRadius: 8,
             border: '1px solid var(--vscode-inputValidation-errorBorder)',
             background: 'var(--vscode-inputValidation-errorBackground)',
@@ -329,13 +354,11 @@ export const PrPanelLayout: React.FC = () => {
         </div>
       )}
 
-      {isRecommendationInProgress && (
+      {prPanelStep === 'compose' && isPrLoading && (
         <div
           style={{
-            maxWidth: '1180px',
-            margin: '0 auto 12px auto',
-            width: '100%',
-            boxSizing: 'border-box',
+            ...panelContentShellStyle,
+            marginBottom: 12,
             borderRadius: '8px',
             border: '1px solid var(--vscode-focusBorder)',
             overflow: 'hidden',
@@ -369,96 +392,94 @@ export const PrPanelLayout: React.FC = () => {
         </div>
       )}
 
+      {prPanelStep === 'pick-base' && (
+        <div
+          style={{
+            ...panelContentShellStyle,
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 24,
+            paddingTop: 8,
+          }}
+        >
+          {renderTargetBranchSelect(false)}
+          <div style={{ display: 'flex', justifyContent: 'flex-end' }}>
+            <button
+              type="button"
+              onClick={handleProceedToCompose}
+              disabled={!baseBranch}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: 6,
+                background: 'var(--vscode-button-background)',
+                color: 'var(--vscode-button-foreground)',
+                border: 'none',
+                padding: '8px 16px',
+                borderRadius: '4px',
+                cursor: !baseBranch ? 'not-allowed' : 'pointer',
+                opacity: !baseBranch ? 0.5 : 1,
+                fontWeight: 600,
+                fontSize: '13px',
+              }}
+            >
+              다음
+              <ChevronRight size={16} aria-hidden />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {prPanelStep === 'compose' && (
       <div style={{
+        ...panelContentShellStyle,
         display: 'flex',
         flexDirection: 'row',
         flexWrap: 'wrap',
         gap: 24,
         alignItems: 'flex-start',
         justifyContent: 'center',
-        maxWidth: 1180,
-        margin: '0 auto',
-        width: '100%',
         flex: 1,
         minHeight: 0,
+        position: 'relative',
       }}>
-        <div style={{ flex: '1 1 420px', minWidth: 280, maxWidth: 800, position: 'relative', width: '100%' }}>
-        {isRecommendationInProgress && (
-          <div style={{
-            position: 'absolute',
-            inset: 0,
-            zIndex: 3,
-            background: 'rgba(0, 0, 0, 0.08)',
-            borderRadius: '6px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            pointerEvents: 'auto',
-            cursor: 'wait',
-          }}>
-            <div style={{
-              display: 'inline-flex',
+        {isFormLocked && (
+          <div
+            style={{
+              position: 'absolute',
+              inset: 0,
+              zIndex: 5,
+              background: 'rgba(0, 0, 0, 0.08)',
+              borderRadius: '6px',
+              display: 'flex',
               alignItems: 'center',
-              gap: '8px',
-              fontSize: '12px',
-              color: 'var(--vscode-foreground)',
-              padding: '8px 10px',
-              borderRadius: '4px',
-              border: '1px solid var(--vscode-panel-border)',
-              background: 'var(--vscode-editor-background)',
-            }}>
+              justifyContent: 'center',
+              pointerEvents: 'auto',
+              cursor: 'wait',
+            }}
+          >
+            <div
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '8px',
+                fontSize: '12px',
+                color: 'var(--vscode-foreground)',
+                padding: '8px 10px',
+                borderRadius: '4px',
+                border: '1px solid var(--vscode-panel-border)',
+                background: 'var(--vscode-editor-background)',
+              }}
+            >
               <RefreshCw size={14} style={{ animation: 'gitcat-refresh-spin 1s linear infinite' }} />
-              추천 생성 중...
+              {isPrLoading ? '추천 생성 중...' : 'PR 생성 중...'}
             </div>
           </div>
         )}
+        <div style={{ flex: '1 1 420px', minWidth: 280, maxWidth: 800, position: 'relative', width: '100%' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-          <label style={{ fontSize: '12px', fontWeight: 600, color: 'var(--vscode-foreground)' }}>Target Branch (Base)</label>
-          <div style={{ position: 'relative', width: '100%' }}>
-            <select
-              value={baseBranch}
-              onChange={e => setBaseBranch(e.target.value)}
-              disabled={isRecommendationInProgress}
-              style={{
-                width: '100%',
-                boxSizing: 'border-box',
-                appearance: 'none',
-                WebkitAppearance: 'none',
-                MozAppearance: 'none',
-                padding: '8px 40px 8px 12px',
-                background: 'var(--vscode-dropdown-background, var(--vscode-input-background))',
-                color: 'var(--vscode-dropdown-foreground, var(--vscode-input-foreground))',
-                border: `1px solid ${baseBranch ? 'var(--vscode-input-border, var(--vscode-panel-border))' : 'var(--vscode-focusBorder)'}`,
-                borderRadius: '6px',
-                outline: 'none',
-                fontSize: '13px',
-                cursor: isRecommendationInProgress ? 'not-allowed' : 'pointer',
-                opacity: isRecommendationInProgress ? 0.75 : 1,
-              }}
-            >
-              <option value="" disabled>타겟 브랜치를 선택하세요</option>
-              {branches
-                .filter(b => !b.isRemote && b.name !== currentBranch)
-                .map(b => (
-                  <option key={b.name} value={b.name}>{b.name}</option>
-                ))}
-            </select>
-            <ChevronDown
-              size={16}
-              aria-hidden
-              style={{
-                position: 'absolute',
-                right: '12px',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                pointerEvents: 'none',
-                color: 'var(--vscode-dropdown-foreground, var(--vscode-input-foreground))',
-                opacity: 0.72,
-              }}
-            />
-          </div>
-        </div>
+        {renderTargetBranchSelect(isFormLocked)}
 
         {/*
           PR 템플릿 선택 UI
@@ -570,7 +591,7 @@ export const PrPanelLayout: React.FC = () => {
               <select
                 value={selectedTemplatePath}
                 onChange={(e) => setSelectedTemplatePath(e.target.value)}
-                disabled={isRecommendationInProgress}
+                disabled={isFormLocked}
                 style={{
                   width: '100%',
                   boxSizing: 'border-box',
@@ -584,8 +605,8 @@ export const PrPanelLayout: React.FC = () => {
                   borderRadius: '6px',
                   outline: 'none',
                   fontSize: '13px',
-                  cursor: isRecommendationInProgress ? 'not-allowed' : 'pointer',
-                  opacity: isRecommendationInProgress ? 0.75 : 1,
+                  cursor: isFormLocked ? 'not-allowed' : 'pointer',
+                  opacity: isFormLocked ? 0.75 : 1,
                 }}
               >
                 <option value="">(선택 안 함 — 자유 형식 추천)</option>
@@ -653,7 +674,7 @@ export const PrPanelLayout: React.FC = () => {
                 <button
                   type="button"
                   onClick={() => sendMessage('GET_PR_TEMPLATES', {})}
-                  disabled={isPrTemplatesLoading || isRecommendationInProgress}
+                  disabled={isPrTemplatesLoading || isFormLocked}
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
@@ -663,8 +684,8 @@ export const PrPanelLayout: React.FC = () => {
                     fontWeight: 600,
                     borderRadius: 4,
                     cursor:
-                      isPrTemplatesLoading || isRecommendationInProgress ? 'not-allowed' : 'pointer',
-                    opacity: isPrTemplatesLoading || isRecommendationInProgress ? 0.55 : 1,
+                      isPrTemplatesLoading || isFormLocked ? 'not-allowed' : 'pointer',
+                    opacity: isPrTemplatesLoading || isFormLocked ? 0.55 : 1,
                     border: '1px solid var(--vscode-button-secondaryBorder, var(--vscode-contrastBorder))',
                     background: 'var(--vscode-button-secondaryBackground)',
                     color: 'var(--vscode-button-secondaryForeground)',
@@ -753,13 +774,13 @@ export const PrPanelLayout: React.FC = () => {
             autoFocus
             value={prTitle}
             onChange={e => setPrTitle(e.target.value)}
-            disabled={isRecommendationInProgress}
+            disabled={isFormLocked}
             placeholder="PR 제목을 입력하세요"
             maxLength={256}
             style={{
               padding: '8px 12px', background: 'var(--vscode-input-background)', color: 'var(--vscode-input-foreground)',
               border: '1px solid var(--vscode-input-border, var(--vscode-panel-border))', borderRadius: '4px',
-              outline: 'none', fontSize: '13px', opacity: isRecommendationInProgress ? 0.75 : 1,
+              outline: 'none', fontSize: '13px', opacity: isFormLocked ? 0.75 : 1,
             }}
           />
         </div>
@@ -787,14 +808,14 @@ export const PrPanelLayout: React.FC = () => {
                     role="tab"
                     aria-selected={active}
                     onClick={() => setDescriptionMode(mode)}
-                    disabled={isRecommendationInProgress}
+                    disabled={isFormLocked}
                     style={{
                       border: 'none',
                       padding: '4px 12px',
                       fontSize: 12,
                       fontWeight: 600,
                       borderRadius: 4,
-                      cursor: isRecommendationInProgress ? 'not-allowed' : 'pointer',
+                      cursor: isFormLocked ? 'not-allowed' : 'pointer',
                       background: active ? 'var(--vscode-button-secondaryBackground)' : 'transparent',
                       color: active
                         ? 'var(--vscode-button-secondaryForeground)'
@@ -811,14 +832,14 @@ export const PrPanelLayout: React.FC = () => {
             <textarea
               value={prDescription}
               onChange={e => setPrDescription(e.target.value)}
-              disabled={isRecommendationInProgress}
+              disabled={isFormLocked}
               placeholder="이 PR에서 변경된 내용, 해결된 이슈 등을 상세히 적어주세요."
               maxLength={65536}
               style={{
                 padding: '12px', background: 'var(--vscode-input-background)', color: 'var(--vscode-input-foreground)',
                 border: '1px solid var(--vscode-input-border, var(--vscode-panel-border))', borderRadius: '4px',
                 outline: 'none', fontSize: '13px', minHeight: '300px', resize: 'vertical', fontFamily: 'var(--vscode-editor-font-family, monospace)',
-                lineHeight: '1.5', opacity: isRecommendationInProgress ? 0.75 : 1,
+                lineHeight: '1.5', opacity: isFormLocked ? 0.75 : 1,
               }}
             />
           ) : (
@@ -833,7 +854,7 @@ export const PrPanelLayout: React.FC = () => {
                 minHeight: '300px',
                 maxHeight: '60vh',
                 overflowY: 'auto',
-                opacity: isRecommendationInProgress ? 0.75 : 1,
+                opacity: isFormLocked ? 0.75 : 1,
               }}
             >
               <MarkdownPreview
@@ -844,16 +865,59 @@ export const PrPanelLayout: React.FC = () => {
           )}
         </div>
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '10px' }}>
+        {prRecommendationError && (
+          <div
+            style={{
+              fontSize: '12px',
+              color: 'var(--vscode-errorForeground)',
+              lineHeight: 1.45,
+              padding: '8px 10px',
+              borderRadius: '4px',
+              border: '1px solid var(--vscode-inputValidation-errorBorder)',
+              background: 'var(--vscode-inputValidation-errorBackground)',
+            }}
+          >
+            {prRecommendationError}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', marginTop: '10px', flexWrap: 'wrap' }}>
           <button
+            type="button"
+            onClick={handleRecommendPr}
+            disabled={!baseBranch || isFormLocked}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              background: 'var(--vscode-button-secondaryBackground)',
+              color: 'var(--vscode-button-secondaryForeground)',
+              border: 'none',
+              padding: '8px 16px',
+              borderRadius: '4px',
+              cursor: !baseBranch || isFormLocked ? 'not-allowed' : 'pointer',
+              opacity: !baseBranch || isFormLocked ? 0.5 : 1,
+              fontWeight: 500,
+              fontSize: '13px',
+            }}
+          >
+            {isPrLoading ? (
+              <RefreshCw size={16} style={{ animation: 'gitcat-refresh-spin 1s linear infinite' }} />
+            ) : (
+              <Sparkles size={16} />
+            )}
+            AI 설명 추천
+          </button>
+          <button
+            type="button"
             onClick={handleSubmit}
-            disabled={!canCreatePr || isCreatingPr || isRecommendationInProgress}
+            disabled={!canCreatePr || isFormLocked}
             style={{
               display: 'flex', alignItems: 'center', gap: '6px',
               background: 'var(--vscode-button-background)', color: 'var(--vscode-button-foreground)',
               border: 'none', padding: '8px 16px', borderRadius: '4px',
-              cursor: (!canCreatePr || isCreatingPr || isRecommendationInProgress) ? 'not-allowed' : 'pointer',
-              opacity: (!canCreatePr || isCreatingPr || isRecommendationInProgress) ? 0.5 : 1,
+              cursor: !canCreatePr || isFormLocked ? 'not-allowed' : 'pointer',
+              opacity: !canCreatePr || isFormLocked ? 0.5 : 1,
               fontWeight: 500, fontSize: '13px'
             }}
           >
@@ -875,7 +939,7 @@ export const PrPanelLayout: React.FC = () => {
         <PrCreateMetadataSidebar
           metadata={prFormMetadata}
           loading={isPrFormMetadataLoading}
-          disabled={isRecommendationInProgress}
+          disabled={isFormLocked}
           reviewers={prReviewers}
           assignees={prAssignees}
           labels={prLabels}
@@ -887,6 +951,7 @@ export const PrPanelLayout: React.FC = () => {
           onRetryLoad={() => sendMessage('GET_PR_FORM_METADATA', {})}
         />
       </div>
+      )}
     </div>
   );
 };
