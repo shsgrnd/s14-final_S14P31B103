@@ -312,6 +312,7 @@ interface GitCatState {
   clearPrSuggestion: () => void;
   clearLastCreatedPr: () => void;
   clearBranchSuggestions: () => void;
+  clearCommitSuggestions: () => void;
   beginRecommendationRequest: (flow: 'branch' | 'commit' | 'pr') => void;
   clearBranchRecommendationError: () => void;
   clearCommitRecommendationError: () => void;
@@ -522,6 +523,12 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
   clearPrSuggestion: () => set({ prSuggestion: null }),
   clearLastCreatedPr: () => set({ lastCreatedPr: null }),
   clearBranchSuggestions: () => set({ aiBranchSuggestions: [] }),
+  clearCommitSuggestions: () =>
+    set({
+      aiCommitSuggestion: '',
+      aiCommitAlternatives: [],
+      aiCommitSuggestedBranchNames: [],
+    }),
   beginRecommendationRequest: (flow) => set((state) => ({
     pendingRecommendationFlow: flow,
     isPrLoading: flow === 'pr' ? true : state.isPrLoading,

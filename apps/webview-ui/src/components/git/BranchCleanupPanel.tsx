@@ -761,6 +761,8 @@ export const BranchCleanupPanel: React.FC = () => {
                           cursor: isLocked ? 'default' : 'pointer',
                           background: isChecked ? 'rgba(78, 201, 176, 0.08)' : 'transparent',
                           borderLeft: isChecked ? '2px solid #4ec9b0' : '2px solid transparent',
+                          minWidth: 0,
+                          overflow: 'hidden',
                         }}
                         onMouseOver={(e) => {
                           if (!isChecked && !isLocked) e.currentTarget.style.background = 'var(--vscode-list-hoverBackground)';
@@ -787,13 +789,34 @@ export const BranchCleanupPanel: React.FC = () => {
                           {isChecked && <ShieldCheck size={12} color="var(--vscode-button-foreground)" />}
                         </div>
 
-                        <div style={{ flex: 1, minWidth: 0 }}>
+                        <div style={{ flex: 1, minWidth: 0, overflow: 'hidden' }}>
                           <div style={{ fontSize: '13px', fontWeight: isChecked ? 600 : 400, color: vscodeSidebarViewTitleForeground, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                             {branch.name}
                           </div>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '11px', color: webviewBodyForeground, marginTop: '3px', opacity: 0.78 }}>
-                            <Clock size={10} />
-                            {branch.lastActivity}
+                          <div
+                            style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '4px',
+                              fontSize: '11px',
+                              color: webviewBodyForeground,
+                              marginTop: '3px',
+                              opacity: 0.78,
+                              minWidth: 0,
+                              overflow: 'hidden',
+                            }}
+                          >
+                            <Clock size={10} style={{ flexShrink: 0 }} />
+                            <span
+                              style={{
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                                whiteSpace: 'nowrap',
+                                minWidth: 0,
+                              }}
+                            >
+                              {branch.lastActivity}
+                            </span>
                           </div>
                         </div>
 
@@ -854,8 +877,9 @@ export const BranchCleanupPanel: React.FC = () => {
                 )}
 
                 {selected.size > 0 && (
-                  <div style={{ padding: '16px 16px 8px 16px' }}>
+                  <div style={{ padding: '16px 16px 8px 16px', minWidth: 0 }}>
                     <button
+                      type="button"
                       onClick={() => setShowConfirmModal(true)}
                       style={{
                         display: 'flex',
@@ -863,6 +887,7 @@ export const BranchCleanupPanel: React.FC = () => {
                         justifyContent: 'center',
                         gap: '8px',
                         width: '100%',
+                        minWidth: 0,
                         height: '32px',
                         background: 'var(--vscode-button-background)',
                         color: 'var(--vscode-button-foreground)',
@@ -871,10 +896,21 @@ export const BranchCleanupPanel: React.FC = () => {
                         cursor: 'pointer',
                         fontSize: '12px',
                         fontWeight: 600,
+                        overflow: 'hidden',
+                        boxSizing: 'border-box',
                       }}
                     >
-                      <Trash2 size={14} />
-                      {t('branchCleanup.deleteSelected', { count: selected.size })}
+                      <Trash2 size={14} style={{ flexShrink: 0 }} />
+                      <span
+                        style={{
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          minWidth: 0,
+                        }}
+                      >
+                        {t('branchCleanup.deleteSelected', { count: selected.size })}
+                      </span>
                     </button>
                   </div>
                 )}
