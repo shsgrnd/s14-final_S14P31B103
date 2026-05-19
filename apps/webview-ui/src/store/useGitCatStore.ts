@@ -174,6 +174,7 @@ interface GitCatState {
   currentWorktreePath: string;
   isAnalyzing: boolean;
   isRefreshingStatus: boolean;
+  isLoadingStatusSummary: boolean;
   isPulling: boolean;
   /** GIT_ADD_ALL / GIT_STAGE_* 등 stage 타깃 LOADING */
   isStaging: boolean;
@@ -423,6 +424,7 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
   currentWorktreePath: '',
   isAnalyzing: false,
   isRefreshingStatus: false,
+  isLoadingStatusSummary: false,
   isPulling: false,
   isStaging: false,
   isCommitting: false,
@@ -739,6 +741,9 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
       case 'LOADING':
         if (payload.target === 'status') {
           set({ isRefreshingStatus: payload.loading });
+        }
+        if (payload.target === 'statusSummary') {
+          set({ isLoadingStatusSummary: payload.loading });
         }
         if (payload.target === 'pull') {
           set({ isPulling: payload.loading });

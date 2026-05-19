@@ -191,13 +191,18 @@ export class GitMessageHandler {
       if (fetchRemote) {
         await this.gitService.fetchAllPrune();
       }
-      const [status, branches] = await Promise.all([
-        this.gitService.getStatusWithWorktrees(),
+      const [status, branches, summary] = await Promise.all([
+        this.gitService.getStatusWithWorktrees({ fetchRemote }),
         this.gitService.getBranches(),
+        this.gitService.getStatusSummary({ fetchRemote }),
       ]);
       webview.postMessage({
         type: 'GIT_STATUS_UPDATED',
         payload: { status },
+      });
+      webview.postMessage({
+        type: 'GIT_STATUS_SUMMARY',
+        payload: { summary },
       });
       webview.postMessage({
         type: 'BRANCH_LIST',

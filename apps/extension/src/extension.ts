@@ -74,7 +74,7 @@ export async function activate(context: vscode.ExtensionContext) {
   if (rootPath && projectId) {
     try {
       const gitClient = new GitCliClient(rootPath);
-      gitService = new GitService(gitClient);
+      gitService = new GitService(gitClient, undefined, rootPath);
 
       const branchCleanupService = new BranchCleanupService(gitService);
       gitMessageHandler = new GitMessageHandler(gitService, branchCleanupService);
@@ -164,8 +164,9 @@ export async function activate(context: vscode.ExtensionContext) {
     );
   }
 
+  let gitStatusRefreshController: GitStatusRefreshController | undefined;
   if (gitService) {
-    const gitStatusRefreshController = new GitStatusRefreshController(gitService, messageRouter);
+    gitStatusRefreshController = new GitStatusRefreshController(gitService, messageRouter);
     gitStatusRefreshController.start();
     context.subscriptions.push(gitStatusRefreshController);
   }
@@ -287,7 +288,7 @@ export async function activate(context: vscode.ExtensionContext) {
     sessionCoordinator,
     liveLocalRuntimeManager,
   );
-  EventRegistry.registerAll(context, sessionCoordinator);
+  EventRegistry.registerAll(context, sessionCoordinator, gitStatusRefreshController);
 
   if (rootPath && projectId && gitService) {
     void initializeRecommendationBackfill(
