@@ -311,7 +311,7 @@ export const SidebarLayout: React.FC = () => {
           }}
         >
           <SectionHeader
-            label="Files"
+            label={t('sidebar.section.files')}
             expanded={expanded.filetree}
             onToggle={() => setExpanded((p) => ({ ...p, filetree: !p.filetree }))}
           />
@@ -337,7 +337,7 @@ export const SidebarLayout: React.FC = () => {
           }}
         >
           <SectionHeader
-            label="Snapshots"
+            label={t('sidebar.section.snapshots')}
             expanded={expanded.safety}
             badge={snapshotTimelineBadgeCount > 0 ? snapshotTimelineBadgeCount : undefined}
             onToggle={() => setExpanded((p) => ({ ...p, safety: !p.safety }))}
@@ -364,7 +364,7 @@ export const SidebarLayout: React.FC = () => {
           }}
         >
           <SectionHeader
-            label="Branch Cleanup"
+            label={t('sidebar.section.branchCleanup')}
             expanded={expanded.branch}
             onToggle={() => setExpanded((p) => ({ ...p, branch: !p.branch }))}
           />
@@ -390,7 +390,7 @@ export const SidebarLayout: React.FC = () => {
           }}
         >
           <SectionHeader
-            label="Git Stash"
+            label={t('sidebar.section.gitStash')}
             expanded={expanded.stash}
             badge={stashes.length > 0 ? stashes.length : undefined}
             onToggle={() => setExpanded((p) => ({ ...p, stash: !p.stash }))}
