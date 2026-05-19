@@ -9,7 +9,10 @@ const webviewUiRoot = path.join(repoRoot, 'apps', 'webview-ui');
 const artifactsDir = path.join(extensionRoot, '.artifacts');
 const stagingDir = path.join(artifactsDir, 'vsce-staging');
 const extensionPackageJson = require(path.join(extensionRoot, 'package.json'));
-const outputPath = path.join(artifactsDir, `gitcat-${extensionPackageJson.version}.vsix`);
+const outputPath = path.join(
+  artifactsDir,
+  `${extensionPackageJson.name}-${extensionPackageJson.version}.vsix`
+);
 
 function runCommand(command, args, cwd) {
   const result = spawnSync(command, args, {
@@ -449,6 +452,8 @@ function stageExtensionPackage(workspacePackages) {
   );
   copyIfExists('media');
   copyIfExists('icon.png');
+  copyIfExists('package.nls.json');
+  copyIfExists('package.nls.ko.json');
   copyIfExists('README.md');
   copyIfExists('LICENSE');
   copyIfExists('.vscodeignore');

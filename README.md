@@ -13,6 +13,15 @@ GitCat은 생성형 AI 코딩 환경에서 흔히 발생하는 예기치 않은 
 4. **중재 방향 제안**: 충돌 해결을 위한 논리적 중재 방향 제시
 5. **diff/patch 기반 병합 초안 생성**: AI가 제안하는 병합 초안을 diff/patch 형태로 제공
 6. **Git 편의성 향상**: 커밋 메시지, 브랜치명, PR 제목/본문, 작업 설명 자동 추천
+7. **Git 워크플로 진행 가시화**: 변경 → 스테이징 → 커밋 → 푸시 단계를 스텝퍼로 보여주고 다음 액션을 안내
+8. **스냅샷 타임라인 정리**: 스냅샷 요약명을 더 자연스럽게 표시하고 필요 시 바로 이름을 수정
+
+---
+
+## ✨ 최근 UX 개선
+- Git 패널에 워크플로 스텝퍼를 추가해 현재 Git 진행 상태와 다음 액션을 더 직관적으로 확인할 수 있습니다.
+- 스냅샷 타임라인에서 요약명을 더 명확하게 표시하고, 인라인으로 이름을 수정할 수 있습니다.
+- VSIX / Marketplace 배포 식별자를 `GitCat.gitcat-vscode` 기준으로 정리해 배포 패키지 구분을 명확히 했습니다.
 
 ---
 
@@ -70,15 +79,20 @@ GitCat은 VS Code Marketplace에서 바로 설치하거나, GitHub Releases 등�
 
 ### Marketplace에서 설치
 1. VS Code의 Extensions 탭을 엽니다.
-2. `GitCat`을 검색합니다.
+2. `GitCat for VS Code`를 검색합니다.
 3. `Install`을 누른 뒤 VS Code를 다시 로드하거나 재시작합니다.
 
 ### VSIX 파일로 설치
 
 1. VS Code에서 Command Palette(`Ctrl+Shift+P`, macOS는 `Cmd+Shift+P`)를 엽니다.
 2. `Extensions: Install from VSIX...`를 실행합니다.
-3. 받은 `gitcat-0.0.5.vsix` 파일을 선택합니다.
+3. 받은 `gitcat-vscode-0.0.6.vsix` 파일을 선택합니다.
 4. 설치가 끝나면 VS Code를 다시 로드하거나 재시작합니다.
+
+참고:
+- 현재 Marketplace / VSIX 확장 ID는 `GitCat.gitcat-vscode`입니다.
+- 기존 `GitCat.gitcat` 설치본에서 옮겨오는 경우 `live-local` 런타임과 VS Code `SecretStorage` 기반 토큰/API 키를 새 확장 기준으로 다시 설정해야 할 수 있습니다.
+- 이 경우 `GitCat: Install Local Runtime`, `GitCat: Set GitHub Token`, `live-remote` API 키 입력을 다시 한 번 수행하는 것이 안전합니다.
 
 처음 사용할 때 권장 순서:
 1. Command Palette에서 `GitCat: Open Panel`을 실행해 GitCat 패널이 열리는지 확인합니다.

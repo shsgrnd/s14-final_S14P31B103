@@ -69,6 +69,7 @@ pnpm --dir apps/extension run package:vsix
 설명:
 - 위 명령은 extension typecheck와 번들 빌드를 포함한다.
 - 생성된 VSIX는 로컬 설치 또는 최종 시연용 패키지로 활용할 수 있다.
+- 현재 기준 기본 파일명은 `gitcat-vscode-<version>.vsix`이다.
 
 ## 5. 실행 절차
 
@@ -85,6 +86,10 @@ pnpm --dir apps/extension run package:vsix
 2. `Extensions: Install from VSIX...`를 실행한다.
 3. 생성된 VSIX 파일을 선택한다.
 4. 설치 후 VS Code를 reload 한다.
+
+참고:
+- 현재 Marketplace / VSIX 확장 ID는 `GitCat.gitcat-vscode`이다.
+- 기존 `GitCat.gitcat` 설치본에서 옮겨오는 경우 `live-local` 런타임과 VS Code `SecretStorage` 기반 토큰/API 키를 새 확장 기준으로 다시 설정해야 할 수 있다.
 
 ## 6. AI 모드 운영 기준
 
