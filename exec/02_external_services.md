@@ -124,7 +124,7 @@ pnpm --dir apps/extension run package:vsix
 | 항목 | 내용 |
 | --- | --- |
 | 시연 설치 방식 | VSIX / Marketplace 중 택1 |
-| 최종 사용 VSIX 파일명 | gitcat-vscode-0.0.5.vsix |
+| 최종 사용 VSIX 파일명 | gitcat-vscode-0.0.6.vsix |
 | 배포 위치 | Marketplace |
 
 추가 참고:

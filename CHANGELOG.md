@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+## v0.0.6 - 2026-05-19
+
+### Added
+- Git 패널에 `changes → staging → commit → push` 진행 단계를 보여주는 워크플로 스텝퍼와 다음 액션 힌트를 추가했습니다.
+
+### Improved
+- 저장, 커밋, 푸시 이후 Git 상태 갱신 흐름을 보완해 패널과 파일 목록의 반영 시점을 더 안정화했습니다.
+- 스냅샷 타임라인에서 요약명을 더 자연스럽게 표시하고 이름 수정 흐름을 인라인 편집 방식으로 개선했습니다.
+- Marketplace / VSIX 배포 식별자를 `GitCat.gitcat-vscode` 기준으로 정리했습니다.
+- VSIX 출력 파일명이 `gitcat-vscode-<version>.vsix` 형식을 따르도록 패키징 스크립트를 정리했습니다.
+- README, 포팅 문서, 외부 서비스 문서를 `0.0.6` 패키징 기준으로 갱신했습니다.
+
+### Notes
+- 기존 `GitCat.gitcat` 설치본과는 별도 확장으로 취급될 수 있으므로 `live-local` 런타임과 VS Code `SecretStorage` 기반 토큰/API 키를 다시 설정해야 할 수 있습니다.
+
 ## v0.0.5 - 2026-05-19
 
 ### Improved

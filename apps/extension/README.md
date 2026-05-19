@@ -8,6 +8,11 @@ Node.js 환경에서 동작하며, 사용자의 명령어 입력 처리, 로컬 
 - **저장소 접근 (`src/storage/`)**: SQLite, 로컬 파일(스냅샷, diff 등), VS Code 내장 Storage 접근 및 제어
 - **웹뷰 통신 (`src/webview/`)**: 사용자와 상호작용하는 UI(`apps/webview-ui`)를 관리하고 메시지 통신(Message Passing) 중계
 - **AI 연동**: `packages/ai-pipeline`을 호출하여 비즈니스 로직을 연결하는 얇은 어댑터 역할 수행
+- **Git 상태 동기화 안정화**: 저장, 커밋, 푸시 이후 Git 상태가 UI 스텝퍼와 파일 패널에 빠르게 반영되도록 이벤트를 조정
+
+## 최근 UI 반영 사항
+- Git 패널에 워크플로 스텝퍼를 추가해 `changes → staging → commit → push` 진행 단계를 보여줍니다.
+- 스냅샷 타임라인에서 요약명을 더 자연스럽게 표시하고 인라인 이름 수정 흐름을 지원합니다.
 
 ## Command Palette 명령어
 VS Code에서 Command Palette(`Ctrl+Shift+P`, macOS는 `Cmd+Shift+P`)를 열면 아래 명령어를 사용할 수 있습니다.
