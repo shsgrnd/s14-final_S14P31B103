@@ -3,6 +3,7 @@ import { ChevronDown, ChevronUp, GitBranch, GitPullRequest, ShieldCheck, X } fro
 import { useGitCatStore } from '../../store/useGitCatStore';
 import { useDefaultPrBaseBranch } from '../../hooks/useDefaultPrBaseBranch';
 import { vscodeSidebarViewTitleForeground, webviewBodyForeground, webviewDescriptionForeground } from '../../shared/styles';
+import { t } from '../../i18n';
 
 export interface PrSettingsSidebarProps {
   open: boolean;
@@ -55,12 +56,12 @@ export const PrSettingsSidebar: React.FC<PrSettingsSidebarProps> = ({ open, onCl
   const handlePick = (name: string) => {
     setDefaultBranch(name);
     setIsBranchListOpen(false);
-    setSavedToast(`기본 target 브랜치를 "${name}"으로 설정했습니다.`);
+    setSavedToast(t('settings.pr.toastSet', { name }));
   };
 
   const handleClear = () => {
     clearDefaultBranch();
-    setSavedToast('기본 target 브랜치 설정을 해제했습니다.');
+    setSavedToast(t('settings.pr.toastCleared'));
   };
 
   return (
@@ -119,13 +120,13 @@ export const PrSettingsSidebar: React.FC<PrSettingsSidebarProps> = ({ open, onCl
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
             <GitPullRequest size={15} style={{ color: 'var(--vscode-charts-blue)', flexShrink: 0 }} />
-            <span style={{ fontSize: 13, fontWeight: 700, color: vscodeSidebarViewTitleForeground }}>환경설정</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: vscodeSidebarViewTitleForeground }}>{t('settings.pr.title')}</span>
           </div>
           <button
             type="button"
             onClick={onClose}
-            title="닫기 (Esc)"
-            aria-label="환경설정 닫기"
+            title={`${t('settings.ai.close')} (Esc)`}
+            aria-label={t('settings.ai.close')}
             style={{
               background: 'transparent',
               border: 'none',
@@ -157,7 +158,7 @@ export const PrSettingsSidebar: React.FC<PrSettingsSidebarProps> = ({ open, onCl
               }}
             >
               <GitPullRequest size={13} style={{ color: 'var(--vscode-charts-blue)' }} />
-              PR 기본 target 브랜치
+              {t('settings.pr.baseBranch')}
             </div>
             <p
               style={{
@@ -168,8 +169,7 @@ export const PrSettingsSidebar: React.FC<PrSettingsSidebarProps> = ({ open, onCl
                 opacity: 0.92,
               }}
             >
-              Create Pull Request 패널을 열 때 자동으로 채워질 base 브랜치를 지정합니다.
-              현재 브랜치 목록에 그 브랜치가 없으면 기존 자동 추론(보호 브랜치 → main/master 등) 으로 자연스럽게 fallback 됩니다.
+              {t('settings.pr.baseBranchDesc')}
             </p>
 
             <div
@@ -214,7 +214,7 @@ export const PrSettingsSidebar: React.FC<PrSettingsSidebarProps> = ({ open, onCl
                     opacity: defaultBranch ? 1 : 0.82,
                   }}
                 >
-                  {defaultBranch ?? '지정되지 않음 (자동 추론 사용)'}
+                  {defaultBranch ?? t('settings.pr.unassigned')}
                 </span>
               </div>
               {isBranchListOpen ? (
@@ -247,7 +247,7 @@ export const PrSettingsSidebar: React.FC<PrSettingsSidebarProps> = ({ open, onCl
                     opacity: 0.72,
                   }}
                 >
-                  현재 선택 가능한 다른 로컬 브랜치가 없습니다.
+                  {t('settings.pr.emptyLocal')}
                 </div>
               ) : (
                 localBranches.map((b, i) => {
@@ -293,7 +293,7 @@ export const PrSettingsSidebar: React.FC<PrSettingsSidebarProps> = ({ open, onCl
                         </span>
                         {isProtected && (
                           <span
-                            title="보호된 브랜치"
+                            title={t('settings.pr.protected')}
                             style={{
                               display: 'inline-flex',
                               alignItems: 'center',
@@ -305,7 +305,7 @@ export const PrSettingsSidebar: React.FC<PrSettingsSidebarProps> = ({ open, onCl
                               color: 'var(--vscode-charts-purple, #b48ead)',
                             }}
                           >
-                            <ShieldCheck size={10} /> 보호됨
+                            <ShieldCheck size={10} /> {t('settings.pr.protected')}
                           </span>
                         )}
                       </div>
@@ -333,15 +333,15 @@ export const PrSettingsSidebar: React.FC<PrSettingsSidebarProps> = ({ open, onCl
                 {savedToast ??
                   (defaultBranch
                     ? defaultBranchStillExists
-                      ? '현재 설정이 다음 PR 생성에 적용됩니다.'
-                      : '저장된 브랜치를 현재 저장소에서 찾을 수 없어 자동 추론을 사용합니다.'
-                    : '미지정 시 보호 브랜치/일반 기본 브랜치 순으로 자동 추론합니다.')}
+                      ? t('settings.pr.toastNext')
+                      : t('settings.pr.toastMissing')
+                    : t('settings.pr.toastFallback'))}
               </div>
               <button
                 type="button"
                 onClick={handleClear}
                 disabled={!defaultBranch}
-                title="저장된 기본값 삭제"
+                title={t('settings.pr.clear')}
                 style={{
                   padding: '4px 10px',
                   fontSize: 11,
@@ -354,7 +354,7 @@ export const PrSettingsSidebar: React.FC<PrSettingsSidebarProps> = ({ open, onCl
                   flexShrink: 0,
                 }}
               >
-                초기화
+                {t('settings.pr.clear')}
               </button>
             </div>
           </section>

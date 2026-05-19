@@ -5,6 +5,7 @@ import { GitService } from '../features/git/GitService';
 import { GitHubTokenProvider } from '../integrations/github/GitHubTokenProvider';
 import { SafetySessionCoordinator } from '../features/safety/session/SafetySessionCoordinator';
 import { LiveLocalRuntimeManager } from '../platform/LiveLocalRuntimeManager';
+import { t } from '../i18n';
 
 export class CommandRegistry {
     static registerAll(
@@ -15,48 +16,44 @@ export class CommandRegistry {
         liveLocalRuntimeManager?: LiveLocalRuntimeManager,
     ) {
 
-        // Webview 패널 오픈 커맨드 (I-10-gitcat.openPanel)
         context.subscriptions.push(
             vscode.commands.registerCommand('gitcat.openPanel', () => {
                 PanelCommandHandler.execute(context, webviewProvider);
             })
         );
 
-        // Git 관련 더미/API 호출 커맨드 (Tree View UI 등에서 호출)
         context.subscriptions.push(
             vscode.commands.registerCommand('gitcat.getGitStatus', async () => {
                 return await gitService?.getStatusWithWorktrees({ fetchRemote: true });
             })
         );
 
-        // GitHub PR 생성 테스트용 토큰 설정
         context.subscriptions.push(
             vscode.commands.registerCommand('gitcat.installLocalRuntime', async () => {
                 await liveLocalRuntimeManager?.startInstallFlow();
             }),
             vscode.commands.registerCommand('gitcat.setGitHubToken', async () => {
                 const token = await vscode.window.showInputBox({
-                    title: 'GitCat: Set GitHub Token',
-                    prompt: 'GitHub Personal Access Token을 입력하세요. SecretStorage에만 저장됩니다.',
+                    title: t('githubToken.input.title'),
+                    prompt: t('githubToken.input.prompt'),
                     password: true,
                     ignoreFocusOut: true,
-                    validateInput: (value) => value.trim() ? undefined : 'GitHub token을 입력하세요.',
+                    validateInput: (value) => value.trim() ? undefined : t('githubToken.input.validation'),
                 });
 
                 if (!token) return;
 
                 const tokenProvider = new GitHubTokenProvider(context.secrets);
                 await tokenProvider.setToken(token.trim());
-                vscode.window.showInformationMessage('GitCat: GitHub token이 저장되었습니다.');
+                vscode.window.showInformationMessage(t('githubToken.saved'));
             }),
             vscode.commands.registerCommand('gitcat.clearGitHubToken', async () => {
                 const tokenProvider = new GitHubTokenProvider(context.secrets);
                 await tokenProvider.deleteToken();
-                vscode.window.showInformationMessage('GitCat: GitHub token이 삭제되었습니다.');
+                vscode.window.showInformationMessage(t('githubToken.cleared'));
             }),
         );
 
-        // 스냅샷 관련 커맨드
         context.subscriptions.push(
             vscode.commands.registerCommand('gitcat.createSnapshot', async () => {
                 const { SnapshotCommandHandler } = await import('./SnapshotCommandHandler');
@@ -70,7 +67,5 @@ export class CommandRegistry {
                 return await RestoreCommandHandler.handleRestoreSnapshot('dummy-id');
             })
         );
-
-        // 추가 커맨드 등록 위치
     }
 }

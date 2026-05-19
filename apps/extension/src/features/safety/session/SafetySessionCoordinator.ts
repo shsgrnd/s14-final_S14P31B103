@@ -2,6 +2,7 @@ import * as vscode from 'vscode';
 import { SessionMeta, SessionType } from '@gitcat/shared-types';
 import { AiChangeDetector } from './AiChangeDetector';
 import { ISnapshotService } from '../snapshot/ISnapshotService';
+import { t } from '../../../i18n';
 
 export class SafetySessionCoordinator {
     private currentSession: SessionMeta | null = null;
@@ -52,7 +53,7 @@ export class SafetySessionCoordinator {
 
         if (type === 'ai' && this.interSessionUserChangedFiles.size > 0) {
             await this.snapshotService.createSnapshot('auto_dirty_before_ai', {
-                reason: 'AI 작업 시작 전 사용자 변경분 자동 보호 스냅샷',
+                reason: t('session.snapshot.autoDirtyBeforeAi'),
                 changedFiles: Array.from(this.interSessionUserChangedFiles),
                 userBaselines: new Map(this.interSessionUserBaselines),
                 userChangedFiles: Array.from(this.interSessionUserChangedFiles),
@@ -61,7 +62,7 @@ export class SafetySessionCoordinator {
             this.interSessionUserChangedFiles.clear();
         } else if (type === 'ai' && this.dirtyFiles.size > 0) {
             await this.snapshotService.createSnapshot('auto_dirty_before_ai', {
-                reason: 'AI 작업 시작 전 현재 dirty 상태 자동 보호 스냅샷',
+                reason: t('session.snapshot.autoDirtyCurrentBeforeAi'),
                 changedFiles: Array.from(this.dirtyFiles),
             });
         }
@@ -111,7 +112,7 @@ export class SafetySessionCoordinator {
         const snapshotType = endedSession.type === 'ai' ? 'ai_result' : 'manual_edit_result';
         await this.snapshotService.createSnapshot(snapshotType, {
             sessionId: endedSession.sessionId,
-            reason: reason || '세션 종료',
+            reason: reason || t('session.reason.default'),
             changedFiles: Array.from(this.changedFiles),
             baselines: new Map(this.baselines),
             currentContents: this.buildCurrentContentsSnapshot(),
@@ -137,21 +138,19 @@ export class SafetySessionCoordinator {
             return undefined;
         }
 
-        // Manual snapshot should take priority over pending auto-timeout snapshot.
         if (this.sessionTimer) {
             clearTimeout(this.sessionTimer);
             this.sessionTimer = null;
         }
 
         const snapshotId = await this.snapshotService.createSnapshot('savepoint', {
-            reason: title?.trim() || '수동 스냅샷',
+            reason: title?.trim() || t('session.snapshot.manual'),
             force: true,
             changedFiles: Array.from(this.changedFiles),
             baselines: new Map(this.baselines),
             currentContents: this.buildCurrentContentsSnapshot(),
         });
 
-        // Prevent immediate duplicate auto snapshot from the same change set.
         this.currentSession = null;
         this.baselines.clear();
         this.currentTextCache.clear();
@@ -166,7 +165,7 @@ export class SafetySessionCoordinator {
         }
         this.sessionTimer = setTimeout(async () => {
             console.log(`[SafetySessionCoordinator] session timeout reached (${this.SESSION_TIMEOUT_MS}ms)`);
-            await this.endSession('세션 타임아웃');
+            await this.endSession(t('session.reason.timeout'));
         }, this.SESSION_TIMEOUT_MS);
     }
 
@@ -176,7 +175,6 @@ export class SafetySessionCoordinator {
         }
 
         const doc = event.document;
-        // [DEBUG] 함수 진입 확인 - 이 로그가 안 보이면 이벤트 연결 자체가 안 된 것
         console.log(`[DEBUG] handleDocumentChange called: scheme=${doc.uri.scheme}, changes=${event.contentChanges.length}`);
 
         if (doc.uri.scheme !== 'file') {
@@ -206,24 +204,19 @@ export class SafetySessionCoordinator {
             }
 
             if (!this.currentSession) {
-                // interSession baseline 캡처 (세션 시작 전 콜스액 상태 기록)
                 this.interSessionUserChangedFiles.add(fsPath);
                 if (!this.interSessionUserBaselines.has(fsPath)) {
                     try {
                         const fileData = await vscode.workspace.fs.readFile(doc.uri);
-                        // 이 맵은 스냅샷 비교 시 원본 바이트(Uint8Array)를 그대로 보관하는 용도이므로,
-                        // 문자열로 변환하지 않고 readFile 결과를 그대로 유지해야 합니다.
                         this.interSessionUserBaselines.set(fsPath, fileData);
                     } catch {
                         this.interSessionUserBaselines.set(fsPath, new Uint8Array());
                     }
                 }
-                // readFile 대기 중 다른 이벤트가 먼저 세션을 시작했을 수 있으므로 재확인
                 if (!this.currentSession) {
                     await this.startManualSession();
                 }
             }
-            // manual 세션 중 or AI 세션 중: 아래 changedFiles에 추가됨
         }
 
         this.changedFiles.add(fsPath);
@@ -257,7 +250,6 @@ export class SafetySessionCoordinator {
         }
         const fsPath = doc.uri.fsPath;
         this.dirtyFiles.delete(fsPath);
-
     }
 
     public resetAfterRestore(): void {

@@ -3,6 +3,7 @@ import { X, Info } from 'lucide-react';
 import { AIDraftPanel } from './AIDraftPanel';
 import { ConflictAnalysisView } from './ConflictAnalysisView';
 import { useGitCatStore } from '../../store/useGitCatStore';
+import { t } from '../../i18n';
 
 type MergeReviewVariant = 'sidebar' | 'main' | 'pr';
 
@@ -79,15 +80,14 @@ export const MergeReviewPanel: React.FC<MergeReviewPanelProps> = ({ variant = 's
           <Info size={14} style={{ flexShrink: 0, marginTop: 2, opacity: 0.85 }} />
           <div style={{ flex: 1, minWidth: 0 }}>
             {isMergeProposalLoading ? (
-              <span>AI 병합 초안을 생성하는 중입니다…</span>
+              <span>{t('merge.proposalLoading')}</span>
             ) : isMergeAnalysisLoading ? (
-              <span>충돌 후보를 분석하는 중입니다…</span>
+              <span>{t('merge.analysisLoading')}</span>
             ) : mergeApplyFollowupHint ? (
               <span>{mergeApplyFollowupHint}</span>
             ) : (
               <span>
-                Push·Pull·PR 생성 전에 막힌 병합 충돌 가능 구간입니다. 후보를 선택해 AI 초안을 받은 뒤 수락하면 로컬 파일만
-                바뀝니다. 이어서 스테이징 → 커밋 → 푸시로 원격에 반영하세요.
+                {t('merge.desc')}
               </span>
             )}
           </div>
@@ -95,8 +95,8 @@ export const MergeReviewPanel: React.FC<MergeReviewPanelProps> = ({ variant = 's
             {mergeApplyFollowupHint && (
               <button
                 type="button"
-                title="안내 닫기"
-                aria-label="안내 닫기"
+                title={t('merge.closeNotice')}
+                aria-label={t('merge.closeNotice')}
                 onClick={() => clearMergeApplyHint()}
                 className="gitcat-icon-press"
                 style={{
@@ -130,7 +130,7 @@ export const MergeReviewPanel: React.FC<MergeReviewPanelProps> = ({ variant = 's
                   whiteSpace: 'nowrap',
                 }}
               >
-                검토 닫기
+                {t('merge.closeReview')}
               </button>
             )}
           </div>
