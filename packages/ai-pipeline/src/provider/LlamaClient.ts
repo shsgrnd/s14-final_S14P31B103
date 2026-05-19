@@ -256,7 +256,13 @@ export class GitCatLlamaClient {
 
       try {
         await fs.access(runtimeEntryPath);
-        return await import(pathToFileURL(runtimeEntryPath).href);
+        // 번들된 CommonJS 환경에서는 동적 import가 require(file://...)로 변환될 수 있어
+        // 로컬 런타임 ESM 엔트리 로딩이 깨집니다. new Function으로 우회해
+        // 런타임 시점의 진짜 import()를 강제로 사용합니다.
+        return await new Function(
+          'modulePath',
+          'return import(modulePath)',
+        )(pathToFileURL(runtimeEntryPath).href);
       } catch (error) {
         if (!this.allowBundledRuntimeFallback) {
           throw new Error(
