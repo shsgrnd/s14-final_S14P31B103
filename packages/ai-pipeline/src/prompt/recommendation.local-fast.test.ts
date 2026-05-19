@@ -5,6 +5,11 @@ import {
   getRecommendationSystemPrompt,
 } from './recommendation';
 
+type PrRecommendationTestInput = Extract<
+  RecommendationInput,
+  { recommendation_type: 'pr_description' }
+>;
+
 function createCommitPayload(): RecommendationInput {
   return {
     project_id: 'proj_local_fast',
@@ -36,7 +41,7 @@ function createBranchPayload(): RecommendationInput {
   };
 }
 
-function createPrPayload(): RecommendationInput {
+function createPrPayload(): PrRecommendationTestInput {
   return {
     project_id: 'proj_local_fast_pr_no_template',
     session_id: 'sess_local_fast_pr_no_template',
@@ -52,7 +57,17 @@ function createPrPayload(): RecommendationInput {
   };
 }
 
-function createLongTemplatePrPayload(): RecommendationInput {
+function createEnglishOutputPrPayload(): PrRecommendationTestInput {
+  return {
+    ...createPrPayload(),
+    project_id: 'proj_local_fast_pr_en_output',
+    session_id: 'sess_local_fast_pr_en_output',
+    change_summary: 'Generate English PR content from language setting',
+    output_language: 'en',
+  };
+}
+
+function createLongTemplatePrPayload(): PrRecommendationTestInput {
   return {
     project_id: 'proj_local_fast_pr',
     session_id: 'sess_local_fast_pr',
@@ -69,7 +84,7 @@ function createLongTemplatePrPayload(): RecommendationInput {
   };
 }
 
-function createEnglishTemplatePrPayload(): RecommendationInput {
+function createEnglishTemplatePrPayload(): PrRecommendationTestInput {
   return {
     project_id: 'proj_local_fast_pr_en',
     session_id: 'sess_local_fast_pr_en',
@@ -89,6 +104,16 @@ function createEnglishTemplatePrPayload(): RecommendationInput {
       '- How did you verify this?',
     ].join('\n'),
     schema_version: '1.0',
+  };
+}
+
+function createEnglishTemplateKoreanOutputPrPayload(): PrRecommendationTestInput {
+  return {
+    ...createEnglishTemplatePrPayload(),
+    project_id: 'proj_local_fast_pr_en_template_ko_output',
+    session_id: 'sess_local_fast_pr_en_template_ko_output',
+    change_summary: 'Prefer Korean output even with English template',
+    output_language: 'ko',
   };
 }
 
@@ -127,9 +152,29 @@ function run(): void {
   assert.equal(remotePrPrompt.includes('제목(title)과 primary_text(PR 본문)는 기본적으로 모두 한국어로 작성한다.'), true);
   assert.equal(remotePrPrompt.includes('template가 없다면 섹션 제목, 본문, 불릿도 한국어로 작성한다.'), true);
 
+  const localEnglishOutputPrPrompt = buildRecommendationUserPrompt(createEnglishOutputPrPayload(), 'local-fast');
+  assert.equal(localEnglishOutputPrPrompt.includes('Write both title and primary_text in English.'), true);
+  assert.equal(localEnglishOutputPrPrompt.includes('If no template is provided, use English section headings, body text, and bullets.'), true);
+  assert.equal(localEnglishOutputPrPrompt.includes('Write both title and primary_text in Korean by default.'), false);
+
+  const remoteEnglishOutputPrPrompt = buildRecommendationUserPrompt(createEnglishOutputPrPayload(), 'default');
+  assert.equal(remoteEnglishOutputPrPrompt.includes('제목(title)과 primary_text(PR 본문)는 모두 영어로 작성한다.'), true);
+  assert.equal(remoteEnglishOutputPrPrompt.includes('template가 없다면 섹션 제목, 본문, 불릿도 영어로 작성한다.'), true);
+  assert.equal(remoteEnglishOutputPrPrompt.includes('제목(title)과 primary_text(PR 본문)는 기본적으로 모두 한국어로 작성한다.'), false);
+
   const localLongTemplatePrPrompt = buildRecommendationUserPrompt(createLongTemplatePrPayload(), 'local-fast');
   assert.equal(localLongTemplatePrPrompt.includes('[TRUNCATED FOR LOCAL-FAST]'), true);
   assert.equal(localLongTemplatePrPrompt.includes('alternative_texts empty'), true);
+
+  const localEnglishTemplateKoreanOutputPrompt = buildRecommendationUserPrompt(createEnglishTemplateKoreanOutputPrPayload(), 'local-fast');
+  assert.equal(localEnglishTemplateKoreanOutputPrompt.includes('Write both title and primary_text in Korean.'), true);
+  assert.equal(localEnglishTemplateKoreanOutputPrompt.includes('headings and body content in Korean.'), true);
+  assert.equal(localEnglishTemplateKoreanOutputPrompt.includes('write both title and primary_text in English.'), false);
+
+  const remoteEnglishTemplateKoreanOutputPrompt = buildRecommendationUserPrompt(createEnglishTemplateKoreanOutputPrPayload(), 'default');
+  assert.equal(remoteEnglishTemplateKoreanOutputPrompt.includes('제목(title)과 primary_text(PR 본문)는 모두 한국어로 작성한다.'), true);
+  assert.equal(remoteEnglishTemplateKoreanOutputPrompt.includes('섹션 제목과 본문은 한국어로 다시 작성한다.'), true);
+  assert.equal(remoteEnglishTemplateKoreanOutputPrompt.includes('both title and primary_text must stay in English.'), false);
 
   const localEnglishTemplatePrPrompt = buildRecommendationUserPrompt(createEnglishTemplatePrPayload(), 'local-fast');
   assert.equal(localEnglishTemplatePrPrompt.includes('write both title and primary_text in English.'), true);

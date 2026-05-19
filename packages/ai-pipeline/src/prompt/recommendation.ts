@@ -2,6 +2,7 @@ import { RecommendationInput } from '@gitcat/shared-types';
 
 export type RecommendationPromptVariant = 'default' | 'local-fast';
 type PrTemplatePreferredLanguage = 'ko' | 'en' | 'default';
+type RequestedPrOutputLanguage = 'ko' | 'en' | undefined;
 const LOCAL_FAST_COMMIT_MAX_CHANGED_FILES = 6;
 const LOCAL_FAST_PR_MAX_CHANGED_FILES = 5;
 const LOCAL_FAST_COMMIT_MAX_DIFF_SUMMARY_LENGTH = 1000;
@@ -185,11 +186,52 @@ function detectPrTemplatePreferredLanguage(template?: string): PrTemplatePreferr
   return 'default';
 }
 
+function resolvePrDescriptionInstructionLanguage(
+  payload: Extract<RecommendationInput, { recommendation_type: 'pr_description' }>,
+): RequestedPrOutputLanguage {
+  return payload.output_language;
+}
+
 function getPrDescriptionLanguageInstructions(
-  template?: string,
+  payload: Extract<RecommendationInput, { recommendation_type: 'pr_description' }>,
   variant: RecommendationPromptVariant = 'default',
 ): string[] {
-  const preferredLanguage = detectPrTemplatePreferredLanguage(template);
+  const requestedLanguage = resolvePrDescriptionInstructionLanguage(payload);
+  const hasTemplate = Boolean(payload.template?.trim());
+
+  if (requestedLanguage === 'en') {
+    return variant === 'local-fast'
+      ? [
+        '- Write both title and primary_text in English.',
+        hasTemplate
+          ? '- Even if the template uses another language, preserve its section order, structure, and placeholder intent while rewriting headings and body content in English.'
+          : '- If no template is provided, use English section headings, body text, and bullets.',
+      ]
+      : [
+        '- 제목(title)과 primary_text(PR 본문)는 모두 영어로 작성한다.',
+        hasTemplate
+          ? '- template가 다른 언어를 사용하더라도 섹션 순서, 구조, placeholder intent는 유지하고, 섹션 제목과 본문은 영어로 다시 작성한다.'
+          : '- template가 없다면 섹션 제목, 본문, 불릿도 영어로 작성한다.',
+      ];
+  }
+
+  if (requestedLanguage === 'ko') {
+    return variant === 'local-fast'
+      ? [
+        '- Write both title and primary_text in Korean.',
+        hasTemplate
+          ? '- Even if the template uses another language, preserve its section order, structure, and placeholder intent while rewriting headings and body content in Korean.'
+          : '- If no template is provided, use Korean section headings, body text, and bullets.',
+      ]
+      : [
+        '- 제목(title)과 primary_text(PR 본문)는 모두 한국어로 작성한다.',
+        hasTemplate
+          ? '- template가 다른 언어를 사용하더라도 섹션 순서, 구조, placeholder intent는 유지하고, 섹션 제목과 본문은 한국어로 다시 작성한다.'
+          : '- template가 없다면 섹션 제목, 본문, 불릿도 한국어로 작성한다.',
+      ];
+  }
+
+  const preferredLanguage = detectPrTemplatePreferredLanguage(payload.template);
 
   if (preferredLanguage === 'en') {
     return variant === 'local-fast'
@@ -298,7 +340,7 @@ export function buildRecommendationUserPrompt(
   const context = buildRecommendationContext(payload, variant);
   const instructions: string[] = [];
   const prLanguageInstructions = payload.recommendation_type === 'pr_description'
-    ? getPrDescriptionLanguageInstructions(payload.template, variant)
+    ? getPrDescriptionLanguageInstructions(payload, variant)
     : [];
 
   switch (payload.recommendation_type) {
