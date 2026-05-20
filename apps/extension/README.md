@@ -26,7 +26,7 @@ VS Code에서 Command Palette(`Ctrl+Shift+P`, macOS는 `Cmd+Shift+P`)를 열면 
 ## 로컬 VSIX 패키징
 - Windows 기준으로 `pnpm --dir apps/extension run package:vsix`를 실행하면 `.artifacts/` 아래에 VSIX 파일이 생성됩니다.
 - 현재 기본 파일명은 `gitcat-vscode-<version>.vsix`입니다.
-- `0.1.1` 배포본 기준 예상 출력 파일명은 `gitcat-vscode-0.1.1.vsix`입니다.
+- `0.1.2` 배포본 기준 예상 출력 파일명은 `gitcat-vscode-0.1.2.vsix`입니다.
 - 이 스크립트는 `vsce package`를 호출하며, 내부적으로 `typecheck + esbuild 번들 빌드`를 함께 수행합니다.
 - GitHub Actions에서는 `.github/workflows/package-vsix.yml`로 동일한 패키징 절차를 수동 실행하거나 태그 푸시 기준으로 재사용할 수 있습니다.
 - 최종 산출물은 VS Code Marketplace 배포와 `.vsix` 직접 배포에 모두 사용할 수 있습니다.
