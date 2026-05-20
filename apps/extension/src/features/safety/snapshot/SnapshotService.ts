@@ -211,7 +211,7 @@ export class SnapshotService implements ISnapshotService {
       return undefined;
     }
 
-    const { patchText, hunks, changedFiles, deletedFiles } = diffResult;
+    const { patchText, hunks, changedFiles, deletedFiles, skippedFiles } = diffResult;
     const safetyWarnings = this.safetyCheckService.analyzeSnapshot({
       changedFiles,
       deletedFiles,
@@ -225,6 +225,18 @@ export class SnapshotService implements ISnapshotService {
         return undefined;
       }
     } else if (!options.force) {
+      if (changedFiles.length === 0) {
+        const outsideWorkspaceSkippedCount = skippedFiles.filter((file) => file.reason === 'outside_workspace').length;
+        if (outsideWorkspaceSkippedCount > 0) {
+          console.log(
+            `[SnapshotService] 워크스페이스 외부 파일 ${outsideWorkspaceSkippedCount}개 제외 → 스냅샷 생략 (type=${type})`,
+          );
+        } else {
+          console.log('[SnapshotService] 변경된 파일 없음 → 스냅샷 생략');
+        }
+        return undefined;
+      }
+
       // 자동 스냅샷: 변경 줄 수가 최소 기준 미만이면 생략
       const totalChangedLines = this.countChangedLines(changedFiles);
       if (totalChangedLines < SNAPSHOT_MIN_CHANGED_LINES) {

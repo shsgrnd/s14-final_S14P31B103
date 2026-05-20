@@ -508,7 +508,10 @@ export class MessageRouter {
   private async handleGetSnapshotFiles(message: InboundMessage, webview: vscode.Webview): Promise<void> {
     const service = this.requireSnapshotQueryService();
     const payload = message.payload as { snapshotId: string };
-    const detail = await service.getSnapshotDetail(payload.snapshotId);
+    const detail = await this.tryGetSnapshotDetailSafe(service, payload.snapshotId);
+    if (!detail) {
+      return;
+    }
 
     await webview.postMessage({
       type: 'SNAPSHOT_DETAIL',
@@ -564,11 +567,13 @@ export class MessageRouter {
     // we push the resolved snapshot detail once more to guarantee sidebar
     // summary rows have file and line counts before the user expands the item.
     if (snapshotId) {
-      const detail = await queryService.getSnapshotDetail(snapshotId);
-      this.broadcast({
-        type: 'SNAPSHOT_DETAIL',
-        payload: { detail },
-      } as OutboundMessage);
+      const detail = await this.tryGetSnapshotDetailSafe(queryService, snapshotId);
+      if (detail) {
+        this.broadcast({
+          type: 'SNAPSHOT_DETAIL',
+          payload: { detail },
+        } as OutboundMessage);
+      }
     }
 
     const result = await queryService.listSnapshots();
@@ -582,7 +587,10 @@ export class MessageRouter {
   private async handleGetSnapshotDetail(message: InboundMessage, webview: vscode.Webview): Promise<void> {
     const service = this.requireSnapshotQueryService();
     const payload = message.payload as { snapshotId: string };
-    const detail = await service.getSnapshotDetail(payload.snapshotId);
+    const detail = await this.tryGetSnapshotDetailSafe(service, payload.snapshotId);
+    if (!detail) {
+      return;
+    }
 
     await webview.postMessage({
       type: 'SNAPSHOT_DETAIL',
@@ -594,7 +602,21 @@ export class MessageRouter {
   private async handleGetSnapshotFileDiff(message: InboundMessage, webview: vscode.Webview): Promise<void> {
     const service = this.requireSnapshotQueryService();
     const payload = message.payload as { snapshotId: string; filePath: string };
-    const result = await service.getSnapshotFileDiff(payload.snapshotId, payload.filePath);
+    let result;
+    try {
+      result = await service.getSnapshotFileDiff(payload.snapshotId, payload.filePath);
+    } catch (error) {
+      console.warn(
+        `[GitCat][Snapshot] file diff unavailable: snapshotId=${payload.snapshotId}, filePath=${payload.filePath}`,
+        error,
+      );
+      result = {
+        snapshotId: payload.snapshotId,
+        filePath: payload.filePath.replace(/\\/g, '/'),
+        diffText: '',
+        hunks: [],
+      };
+    }
 
     await webview.postMessage({
       type: 'SNAPSHOT_FILE_DIFF',
@@ -960,6 +982,18 @@ export class MessageRouter {
       type: 'ERROR',
       payload: { code, message }
     } as OutboundMessage);
+  }
+
+  private async tryGetSnapshotDetailSafe(
+    service: SnapshotQueryService,
+    snapshotId: string,
+  ): Promise<Awaited<ReturnType<SnapshotQueryService['getSnapshotDetail']>> | null> {
+    try {
+      return await service.getSnapshotDetail(snapshotId);
+    } catch (error) {
+      console.warn(`[GitCat][Snapshot] detail unavailable: snapshotId=${snapshotId}`, error);
+      return null;
+    }
   }
 
   private requireSnapshotQueryService(): SnapshotQueryService {
