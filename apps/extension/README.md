@@ -13,6 +13,7 @@ Node.js 환경에서 동작하며, 사용자의 명령어 입력 처리, 로컬 
 ## 최근 UI 반영 사항
 - Git 패널에 워크플로 스텝퍼를 추가해 `changes → staging → commit → push` 진행 단계를 보여줍니다.
 - 스냅샷 타임라인에서 요약명을 더 자연스럽게 표시하고 인라인 이름 수정 흐름을 지원합니다.
+- 새로 생성된 스냅샷은 생성 직후 타입명 fallback을 먼저 보여주고, 이후 백그라운드에서 GitCat 언어 설정 기준의 최종 요약/제목으로 갱신됩니다.
 
 ## Command Palette 명령어
 VS Code에서 Command Palette(`Ctrl+Shift+P`, macOS는 `Cmd+Shift+P`)를 열면 아래 명령어를 사용할 수 있습니다.
@@ -25,7 +26,7 @@ VS Code에서 Command Palette(`Ctrl+Shift+P`, macOS는 `Cmd+Shift+P`)를 열면 
 ## 로컬 VSIX 패키징
 - Windows 기준으로 `pnpm --dir apps/extension run package:vsix`를 실행하면 `.artifacts/` 아래에 VSIX 파일이 생성됩니다.
 - 현재 기본 파일명은 `gitcat-vscode-<version>.vsix`입니다.
-- `0.1.0` 배포본 기준 예상 출력 파일명은 `gitcat-vscode-0.1.0.vsix`입니다.
+- `0.1.1` 배포본 기준 예상 출력 파일명은 `gitcat-vscode-0.1.1.vsix`입니다.
 - 이 스크립트는 `vsce package`를 호출하며, 내부적으로 `typecheck + esbuild 번들 빌드`를 함께 수행합니다.
 - GitHub Actions에서는 `.github/workflows/package-vsix.yml`로 동일한 패키징 절차를 수동 실행하거나 태그 푸시 기준으로 재사용할 수 있습니다.
 - 최종 산출물은 VS Code Marketplace 배포와 `.vsix` 직접 배포에 모두 사용할 수 있습니다.

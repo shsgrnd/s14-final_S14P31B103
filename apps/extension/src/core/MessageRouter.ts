@@ -31,6 +31,7 @@ import {
   OutboundMessage,
   ErrorCode
 } from '@gitcat/shared-types';
+import { t } from '../i18n';
 
 /**
  * Webview에서 오는 모든 메시지를 중앙에서 검증하고 각 핸들러로 분기하는 라우터입니다.
@@ -546,7 +547,7 @@ export class MessageRouter {
     const snapshotId = this.safetySessionCoordinator
       ? await this.safetySessionCoordinator.createManualSnapshot(title)
       : await snapshotService.createSnapshot('savepoint', {
-        reason: title || 'Manual snapshot',
+        reason: title || t('session.snapshot.manual'),
         force: true,
       });
 
@@ -982,5 +983,4 @@ export class MessageRouter {
     return this.restoreHistoryQueryService;
   }
 }
-
 

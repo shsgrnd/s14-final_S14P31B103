@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+## v0.1.1 - 2026-05-20
+
+### Improved
+- 스냅샷 생성 직후에는 기존처럼 타입명 fallback을 먼저 노출하고, 이후 백그라운드에서 최종 제목을 채우는 흐름으로 정리했습니다.
+- 스냅샷 최종 제목은 AI 요약이 가능하면 해당 결과를 사용하고, 실패 시에도 GitCat 언어 설정(`auto` / `ko` / `en`) 기준 fallback 제목으로 갱신되도록 보완했습니다.
+- `pre_restore`를 포함한 시스템 스냅샷의 `reason` / `summary` fallback도 GitCat 언어 설정을 따르도록 통일했습니다.
+- 루트 `README.md`, `apps/extension/README.md`, extension manifest 버전을 `0.1.1` 패키징 기준으로 갱신했습니다.
+
 ## v0.1.0 - 2026-05-19
 
 ### Improved

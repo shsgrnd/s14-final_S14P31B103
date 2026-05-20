@@ -16,6 +16,7 @@ import { SnapshotIdGenerator } from './SnapshotIdGenerator';
 import { SafetyCheckService } from './SafetyCheckService';
 import { SnapshotDiffService, type SnapshotFileInput } from './SnapshotDiffService';
 import { deserializeSafetyWarnings, serializeSafetyWarnings } from './SafetyWarningSerialization';
+import { t } from '../../../i18n';
 
 const MAX_SNAPSHOTS = 1000;
 
@@ -245,8 +246,8 @@ export class RestoreService {
     }
     const preRestoreSnapshotId = await this.snapshotService.createSnapshot('pre_restore', {
       force: true,
-      reason: `Automatic safety snapshot before restoring to ${targetSnapshotId}`,
-      summary: `Pre-restore backup for ${targetSnapshotId}`,
+      reason: t('snapshot.preRestore.reason', { targetSnapshotId }),
+      summary: t('snapshot.preRestore.summary', { targetSnapshotId }),
       changedFiles: changedPaths,
       baselines,
       currentContents: new Map(currentStates),

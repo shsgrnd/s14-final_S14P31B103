@@ -232,7 +232,7 @@ export async function activate(context: vscode.ExtensionContext) {
                   snapshotId: row.snapshot_id,
                   type: row.type as any,
                   createdAt: row.created_at,
-                  summary: undefined, // 처음 생성 시에는 요약이 없음
+                  summary: undefined, // 생성 직후에는 타입 fallback을 먼저 보여주고, 이후 비동기 요약으로 갱신
                 },
               },
             });
@@ -248,7 +248,7 @@ export async function activate(context: vscode.ExtensionContext) {
                   snapshotId: row.snapshot_id,
                   type: row.type as any,
                   createdAt: row.created_at,
-                  summary: row.summary ?? undefined, // AI가 생성한 요약 제목 본문
+                  summary: row.summary ?? undefined,
                 },
               },
             });
