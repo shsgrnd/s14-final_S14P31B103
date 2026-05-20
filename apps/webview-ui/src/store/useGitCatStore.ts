@@ -137,6 +137,19 @@ function mergeSnapshotPatch(existing: SnapshotMeta, patch: Partial<SnapshotMeta>
   };
 }
 
+function resolveSnapshotDisplayName(
+  snapshots: SnapshotMeta[],
+  snapshotId: string | undefined,
+): string {
+  if (!snapshotId) {
+    return '--';
+  }
+
+  const snapshot = snapshots.find((item) => item.snapshotId === snapshotId);
+  const preferredLabel = snapshot?.summary?.trim() || snapshot?.reason?.trim();
+  return preferredLabel || snapshotId;
+}
+
 function dedupePrTemplatesForDisplay(
   templates: OutboundPayload<'PR_TEMPLATES'>['templates'],
 ): OutboundPayload<'PR_TEMPLATES'>['templates'] {
@@ -725,6 +738,11 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
 
       case 'RESTORE_DONE': {
         const sid = (payload as OutboundPayload<'RESTORE_DONE'>).snapshotId;
+        const snapshotNotificationMessage = (snapshots: SnapshotMeta[]) =>
+          translateUserFacingGitMessage(
+            `스냅샷 시점으로 복원했습니다. (대상: ${resolveSnapshotDisplayName(snapshots, sid)})`,
+            'success',
+          );
         set((state) => ({
           restoreConfirmDialog: null,
           sectionNotifications: {
@@ -735,6 +753,15 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
                 `스냅샷 시점으로 복원했습니다. (대상: ${sid})`,
                 'success',
               ),
+            },
+          },
+        }));
+        set((state) => ({
+          sectionNotifications: {
+            ...state.sectionNotifications,
+            snapshots: {
+              type: 'success',
+              message: snapshotNotificationMessage(state.snapshots),
             },
           },
         }));

@@ -10,6 +10,19 @@ import { useSidebarSectionNotificationMode } from '../../app/SidebarSectionNotif
 import { snapshotsVisibleInSidebarTimeline } from '../../shared/snapshotTimelineVisibility';
 import { t } from '../../i18n';
 
+function resolveSnapshotDisplayName(
+  snapshots: SnapshotMeta[],
+  snapshotId: string | undefined,
+): string {
+  if (!snapshotId) {
+    return '--';
+  }
+
+  const snapshot = snapshots.find((item) => item.snapshotId === snapshotId);
+  const preferredLabel = snapshot?.summary?.trim() || snapshot?.reason?.trim();
+  return preferredLabel || snapshotId;
+}
+
 export const SnapshotTimeline: React.FC = () => {
   const {
     snapshots,
@@ -453,7 +466,12 @@ export const SnapshotTimeline: React.FC = () => {
 }
 
       <DiffDialog snapshotFileDiff={snapshotFileDiff} onClose={clearSnapshotFileDiff} />
-      <RestoreHistoryDialog histories={restoreHistories} open={restoreHistoryOpen} onClose={() => setRestoreHistoryOpen(false)} />
+      <RestoreHistoryDialog
+        histories={restoreHistories}
+        snapshots={snapshots}
+        open={restoreHistoryOpen}
+        onClose={() => setRestoreHistoryOpen(false)}
+      />
       <RestoreConfirmDialog
         dialog={restoreConfirmDialog}
         onCancel={handleCancelRestore}
@@ -639,10 +657,12 @@ function DiffDialog({
 
 function RestoreHistoryDialog({
   histories,
+  snapshots,
   open,
   onClose,
 }: {
   histories: RestoreHistory[];
+  snapshots: SnapshotMeta[];
   open: boolean;
   onClose: () => void;
 }) {
@@ -688,8 +708,14 @@ function RestoreHistoryDialog({
           ) : (
             histories.map((row) => {
               const view = row as unknown as RestoreHistoryRowView;
-              const from = view.fromSnapshotId ?? view.preRestoreSnapshotId ?? '--';
-              const to = view.toSnapshotId ?? view.targetSnapshotId ?? '--';
+              const from = resolveSnapshotDisplayName(
+                snapshots,
+                view.fromSnapshotId ?? view.preRestoreSnapshotId,
+              );
+              const to = resolveSnapshotDisplayName(
+                snapshots,
+                view.toSnapshotId ?? view.targetSnapshotId,
+              );
               return (
                 <div
                   key={view.restoreId}
@@ -708,8 +734,8 @@ function RestoreHistoryDialog({
                   </div>
                   <div style={{ color: 'var(--vscode-descriptionForeground)', fontFamily: 'var(--vscode-editor-font-family, monospace)' }}>
                     {t('snapshots.restoreHistoryFlow', {
-                      from: from !== '--' ? `${from.slice(0, 8)}...` : '--',
-                      to: to !== '--' ? `${to.slice(0, 8)}...` : '--',
+                      from,
+                      to,
                     })}
                   </div>
                   {view.failureReason && (
