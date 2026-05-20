@@ -16,6 +16,11 @@ export class AiSecretService {
     if (process.env.GMS_KEY) {
       return true;
     }
+    return this.hasStoredApiKey();
+  }
+
+  /** UI 표시용 — SecretStorage에만 저장된 키 여부 (환경변수 GMS_KEY 제외) */
+  async hasStoredApiKey(): Promise<boolean> {
     const apiKey = await this.secretStorage.get(AI_API_KEY_SECRET_KEY);
     return Boolean(apiKey);
   }

@@ -1,7 +1,12 @@
 import React, { useEffect, useId, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { useAiApiKeyStorage } from '../../hooks/useAiApiKeyStorage';
-import { validateAiApiKeyInput } from '../../shared/aiApiKeyValidate';
+import {
+  validateAiApiKeyInput,
+  validateAiRemoteBaseUrlInput,
+  validateAiRemoteModelInput,
+} from '../../shared/aiApiKeyValidate';
+import { t } from '../../i18n';
 
 export interface AiApiKeySettingsModalProps {
   open: boolean;
@@ -15,21 +20,36 @@ type Feedback = { tone: 'success' | 'info'; text: string } | null;
  * document.body로 포털하여 overflow 레이아웃 밖에서 웹뷰 뷰포트 기준 오버레이로 표시한다.
  */
 export const AiApiKeySettingsModal: React.FC<AiApiKeySettingsModalProps> = ({ open, onClose }) => {
-  const { hasKey, saveKey, clearKey } = useAiApiKeyStorage();
-  const [input, setInput] = useState('');
+  const {
+    aiMode,
+    hasKey,
+    hasStoredKey,
+    remoteBaseUrl,
+    remoteModel,
+    saveSettings,
+    clearKey,
+  } = useAiApiKeyStorage();
+  const [apiKeyInput, setApiKeyInput] = useState('');
+  const [remoteBaseUrlInput, setRemoteBaseUrlInput] = useState('');
+  const [remoteModelInput, setRemoteModelInput] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Feedback>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const descId = useId();
-  const prHintId = useId();
+  const remoteDescId = useId();
 
   useEffect(() => {
     if (!open) {
-      setInput('');
+      setApiKeyInput('');
+      setRemoteBaseUrlInput('');
+      setRemoteModelInput('');
       setError(null);
       setFeedback(null);
       return;
     }
+    setApiKeyInput('');
+    setRemoteBaseUrlInput(remoteBaseUrl);
+    setRemoteModelInput(remoteModel);
     const t = window.setTimeout(() => inputRef.current?.focus(), 0);
     return () => window.clearTimeout(t);
   }, [open]);
@@ -45,35 +65,75 @@ export const AiApiKeySettingsModal: React.FC<AiApiKeySettingsModalProps> = ({ op
 
   if (!open) return null;
 
-  const trimmed = input.trim();
-  const validationPreview = trimmed ? validateAiApiKeyInput(trimmed) : null;
-  const canSave = Boolean(trimmed) && !validationPreview;
+  const isRemoteMode = aiMode === 'live-remote';
+  const trimmedKey = apiKeyInput.trim();
+  const trimmedRemoteBaseUrl = remoteBaseUrlInput.trim();
+  const trimmedRemoteModel = remoteModelInput.trim();
+  const apiKeyValidation = trimmedKey ? validateAiApiKeyInput(trimmedKey) : null;
+  const remoteBaseUrlValidation = trimmedRemoteBaseUrl ? validateAiRemoteBaseUrlInput(trimmedRemoteBaseUrl) : null;
+  const remoteModelValidation = trimmedRemoteModel ? validateAiRemoteModelInput(trimmedRemoteModel) : null;
+  const effectiveHasKey = hasKey || Boolean(trimmedKey);
+  const remoteFieldsValid = !isRemoteMode || (
+    Boolean(trimmedRemoteBaseUrl)
+    && Boolean(trimmedRemoteModel)
+    && !remoteBaseUrlValidation
+    && !remoteModelValidation
+  );
+  const describedBy = isRemoteMode ? `${descId} ${remoteDescId}` : descId;
+  const hasSavePayload = Boolean(trimmedKey) || isRemoteMode;
+  const canSave = effectiveHasKey
+    && hasSavePayload
+    && (!trimmedKey || !apiKeyValidation)
+    && remoteFieldsValid;
 
   const onSave = () => {
-    const next = input.trim();
-    const v = validateAiApiKeyInput(next);
-    if (v) {
-      setError(v);
+    if (!effectiveHasKey) {
+      setError(t('settings.ai.keyRequired'));
       return;
     }
+
+    if (trimmedKey) {
+      const keyError = validateAiApiKeyInput(trimmedKey);
+      if (keyError) {
+        setError(keyError);
+        return;
+      }
+    }
+
+    if (isRemoteMode) {
+      const baseUrlError = validateAiRemoteBaseUrlInput(trimmedRemoteBaseUrl);
+      if (baseUrlError) {
+        setError(baseUrlError);
+        return;
+      }
+      const modelError = validateAiRemoteModelInput(trimmedRemoteModel);
+      if (modelError) {
+        setError(modelError);
+        return;
+      }
+    }
+
+    saveSettings({
+      apiKey: trimmedKey || undefined,
+      remoteBaseUrl: isRemoteMode ? trimmedRemoteBaseUrl : undefined,
+      remoteModel: isRemoteMode ? trimmedRemoteModel : undefined,
+    });
     setError(null);
-    saveKey(next);
-    setInput('');
+    setApiKeyInput('');
     setFeedback({
       tone: 'success',
-      text: '안전한 내부 저장소(SecretStorage)에 저장되었습니다. 이제 AI 기능을 사용할 수 있습니다.',
+      text: t('settings.ai.success'),
     });
   };
 
   const onClear = () => {
     setError(null);
     clearKey();
-    setInput('');
-    setFeedback({ tone: 'info', text: '저장된 키를 안전하게 삭제했습니다.' });
+    setApiKeyInput('');
+    setFeedback({ tone: 'info', text: t('settings.ai.cleared') });
   };
 
-  const onInputChange = (v: string) => {
-    setInput(v);
+  const resetFeedback = () => {
     setError(null);
     setFeedback(null);
   };
@@ -83,7 +143,7 @@ export const AiApiKeySettingsModal: React.FC<AiApiKeySettingsModalProps> = ({ op
       role="dialog"
       aria-modal="true"
       aria-labelledby="gitcat-ai-key-title"
-      aria-describedby={`${descId} ${prHintId}`}
+      aria-describedby={describedBy}
       style={{
         position: 'fixed',
         inset: 0,
@@ -117,7 +177,7 @@ export const AiApiKeySettingsModal: React.FC<AiApiKeySettingsModalProps> = ({ op
         onMouseDown={(e) => e.stopPropagation()}
       >
         <h2 id="gitcat-ai-key-title" style={{ margin: '0 0 10px', fontSize: '14px', fontWeight: 700 }}>
-          AI API 키
+          {t('settings.ai.title')}
         </h2>
         <p
           id={descId}
@@ -128,8 +188,7 @@ export const AiApiKeySettingsModal: React.FC<AiApiKeySettingsModalProps> = ({ op
             color: 'var(--vscode-descriptionForeground)',
           }}
         >
-          입력값은 마스킹되어 표시됩니다. 입력하신 키는 VS Code의 안전한 내부 저장소(SecretStorage)에 보관되며, 콘솔 로그나{' '}
-          <code style={{ fontSize: '10px' }}>SET_CONFIG</code>로 유출되지 않습니다.
+          {t('settings.ai.desc')}
         </p>
 
         {hasKey && (
@@ -140,7 +199,21 @@ export const AiApiKeySettingsModal: React.FC<AiApiKeySettingsModalProps> = ({ op
               color: 'var(--vscode-charts-green)',
             }}
           >
-            이미 저장된 키가 있습니다. 새 키로 덮어쓰거나 삭제할 수 있습니다.
+            {t('settings.ai.hasKey')}
+          </div>
+        )}
+
+        {isRemoteMode && (
+          <div
+            id={remoteDescId}
+            style={{
+              marginBottom: '10px',
+              fontSize: '11px',
+              lineHeight: 1.45,
+              color: 'var(--vscode-descriptionForeground)',
+            }}
+          >
+            {t('settings.ai.remoteDesc')}
           </div>
         )}
 
@@ -167,7 +240,7 @@ export const AiApiKeySettingsModal: React.FC<AiApiKeySettingsModalProps> = ({ op
             color: 'var(--vscode-descriptionForeground)',
           }}
         >
-          API 키
+          {t('settings.ai.label')}
         </label>
         <input
           id="gitcat-ai-api-key-input"
@@ -175,9 +248,12 @@ export const AiApiKeySettingsModal: React.FC<AiApiKeySettingsModalProps> = ({ op
           type="password"
           autoComplete="off"
           spellCheck={false}
-          value={input}
-          onChange={(e) => onInputChange(e.target.value)}
-          placeholder={hasKey ? '새 키를 입력하면 기존 값을 덮어씁니다' : 'sk-… 또는 GMS 키'}
+          value={apiKeyInput}
+          onChange={(e) => {
+            setApiKeyInput(e.target.value);
+            resetFeedback();
+          }}
+          placeholder={hasKey ? t('settings.ai.placeholderOverwrite') : t('settings.ai.placeholder')}
           aria-invalid={error ? 'true' : 'false'}
           style={{
             width: '100%',
@@ -191,10 +267,96 @@ export const AiApiKeySettingsModal: React.FC<AiApiKeySettingsModalProps> = ({ op
             marginBottom: '4px',
           }}
         />
-        {trimmed && validationPreview && (
+        {trimmedKey && apiKeyValidation && (
           <div style={{ fontSize: '10px', color: 'var(--vscode-descriptionForeground)', marginBottom: '6px' }}>
-            {validationPreview}
+            {apiKeyValidation}
           </div>
+        )}
+
+        {isRemoteMode && (
+          <>
+            <label
+              htmlFor="gitcat-ai-remote-base-url-input"
+              style={{
+                display: 'block',
+                fontSize: '11px',
+                marginTop: '10px',
+                marginBottom: '6px',
+                color: 'var(--vscode-descriptionForeground)',
+              }}
+            >
+              {t('settings.ai.remoteBaseUrlLabel')}
+            </label>
+            <input
+              id="gitcat-ai-remote-base-url-input"
+              type="text"
+              autoComplete="off"
+              spellCheck={false}
+              value={remoteBaseUrlInput}
+              onChange={(e) => {
+                setRemoteBaseUrlInput(e.target.value);
+                resetFeedback();
+              }}
+              placeholder={t('settings.ai.remoteBaseUrlPlaceholder')}
+              style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                padding: '8px 10px',
+                fontSize: '12px',
+                borderRadius: '4px',
+                border: '1px solid var(--vscode-input-border)',
+                background: 'var(--vscode-input-background)',
+                color: 'var(--vscode-input-foreground)',
+                marginBottom: '4px',
+              }}
+            />
+            {trimmedRemoteBaseUrl && remoteBaseUrlValidation && (
+              <div style={{ fontSize: '10px', color: 'var(--vscode-descriptionForeground)', marginBottom: '6px' }}>
+                {remoteBaseUrlValidation}
+              </div>
+            )}
+
+            <label
+              htmlFor="gitcat-ai-remote-model-input"
+              style={{
+                display: 'block',
+                fontSize: '11px',
+                marginTop: '10px',
+                marginBottom: '6px',
+                color: 'var(--vscode-descriptionForeground)',
+              }}
+            >
+              {t('settings.ai.remoteModelLabel')}
+            </label>
+            <input
+              id="gitcat-ai-remote-model-input"
+              type="text"
+              autoComplete="off"
+              spellCheck={false}
+              value={remoteModelInput}
+              onChange={(e) => {
+                setRemoteModelInput(e.target.value);
+                resetFeedback();
+              }}
+              placeholder={t('settings.ai.remoteModelPlaceholder')}
+              style={{
+                width: '100%',
+                boxSizing: 'border-box',
+                padding: '8px 10px',
+                fontSize: '12px',
+                borderRadius: '4px',
+                border: '1px solid var(--vscode-input-border)',
+                background: 'var(--vscode-input-background)',
+                color: 'var(--vscode-input-foreground)',
+                marginBottom: '4px',
+              }}
+            />
+            {trimmedRemoteModel && remoteModelValidation && (
+              <div style={{ fontSize: '10px', color: 'var(--vscode-descriptionForeground)', marginBottom: '6px' }}>
+                {remoteModelValidation}
+              </div>
+            )}
+          </>
         )}
 
         {error && (
@@ -202,16 +364,16 @@ export const AiApiKeySettingsModal: React.FC<AiApiKeySettingsModalProps> = ({ op
         )}
 
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'flex-end', marginTop: '12px' }}>
-          {hasKey && (
+          {hasStoredKey && (
             <button type="button" onClick={onClear} style={secondaryBtn}>
-              삭제
+              {t('settings.ai.delete')}
             </button>
           )}
           <button type="button" onClick={onClose} style={secondaryBtn}>
-            닫기
+            {t('settings.ai.close')}
           </button>
           <button type="button" onClick={onSave} disabled={!canSave} style={canSave ? primaryBtn : primaryBtnDisabled}>
-            저장
+            {t('settings.ai.save')}
           </button>
         </div>
       </div>

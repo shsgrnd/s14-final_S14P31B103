@@ -3,14 +3,24 @@ import type { DiffResult } from '@gitcat/git-core';
 import type {
   AnalyzeConflictRequest,
   ConflictCandidateRow,
+  ConflictKind,
+  MergeCompareContentPayload,
   MergeConflictCandidateView,
+  MergeConflictRegion,
 } from '@gitcat/shared-types';
 import type { MergeRepositoryBundle } from '../../storage/interfaces';
+import type { GitService } from '../git/GitService';
 import {
   MergeAnalysisInputContext,
   MergeInputAssembler,
 } from './MergeInputAssembler';
 import { MergeAnalysisArtifactStore } from './MergeAnalysisArtifactStore';
+import {
+  enrichConflictFields,
+  normalizeFilePath,
+  parseDiffHunks,
+  type ConflictDetectionInput,
+} from './mergeConflictEnrichment';
 
 export interface MergeConflictAnalysisResult {
   analysisId: string;
@@ -33,26 +43,40 @@ interface DetectedConflictCandidate {
   detectedBy: 'diff';
   riskLevel: 'high' | 'medium' | 'low';
   confidenceScore: number;
+  conflictKind: ConflictKind;
+  conflictRegions: MergeConflictRegion[];
+  sourceFullContent?: string;
+  targetFullContent?: string;
+  baseFullContent?: string;
 }
 
-interface DiffHunkSummary {
-  lineStart: number;
-  lineEnd: number;
-  excerpt: string;
+interface StoredArtifactCandidate {
+  candidate_id: string;
+  file_path?: string;
+  line_start?: number;
+  line_end?: number;
+  source_excerpt?: string;
+  target_excerpt?: string;
+  base_excerpt?: string;
+  reason?: string;
+  suggestion?: string;
+  conflict_kind?: ConflictKind;
+  conflict_regions?: MergeConflictRegion[];
+  source_full_content?: string;
+  target_full_content?: string;
+  base_full_content?: string;
+  risk_level?: DetectedConflictCandidate['riskLevel'];
+  confidence_score?: number;
 }
 
-interface HunkOverlapSummary {
-  lineStart: number;
-  lineEnd: number;
-  sourceExcerpt?: string;
-  targetExcerpt?: string;
+interface StoredAnalysisArtifact {
+  source_branch_tip?: string;
+  target_branch_tip?: string;
+  candidates?: StoredArtifactCandidate[];
 }
 
 /**
  * ANALYZE_CONFLICT 요청을 실제 병합 분석 흐름으로 연결합니다.
- *
- * 현재 MVP에서는 공통 조상 이후 source/target 양쪽에서 같은 파일이 바뀐 경우를 diff 기반 후보로 탐지합니다.
- * AST 기반 정밀 분석은 이후 단계에서 이 서비스의 detectCandidates 흐름에 추가합니다.
  */
 export class MergeConflictAnalysisService {
   constructor(
@@ -62,7 +86,39 @@ export class MergeConflictAnalysisService {
       'mergeAnalyses' | 'conflictCandidates'
     >,
     private readonly artifactStore: MergeAnalysisArtifactStore,
+    private readonly gitService: GitService,
   ) {}
+
+  /** Webview에서 후보 선택 시 artifact에 저장된 전체 비교 본문을 로드합니다. */
+  async getCandidateCompareContent(
+    analysisId: string,
+    candidateId: string,
+  ): Promise<MergeCompareContentPayload | null> {
+    const status = await this.gitService.getStatus();
+    try {
+      const artifact = await this.artifactStore.readAnalysis<StoredAnalysisArtifact>(
+        status.repoRoot,
+        analysisId,
+      );
+      const stored = artifact.candidates?.find((c) => c.candidate_id === candidateId);
+      if (!stored) {
+        return null;
+      }
+      return {
+        analysisId,
+        candidateId,
+        sourceExcerpt: stored.source_excerpt,
+        targetExcerpt: stored.target_excerpt,
+        baseExcerpt: stored.base_excerpt,
+        sourceFullContent: stored.source_full_content,
+        targetFullContent: stored.target_full_content,
+        baseFullContent: stored.base_full_content,
+        conflictRegions: stored.conflict_regions,
+      };
+    } catch {
+      return null;
+    }
+  }
 
   async analyze(request: AnalyzeConflictRequest): Promise<MergeConflictAnalysisResult> {
     const context = await this.assembler.buildAnalysisInput({
@@ -73,38 +129,13 @@ export class MergeConflictAnalysisService {
 
     const existing = await this.repositories.mergeAnalyses.findById(context.analysisId);
     if (existing?.status === 'completed') {
-      const rows = await this.repositories.conflictCandidates.listByAnalysis(context.analysisId);
-
-      // artifact JSON에서 excerpt 등 풍부한 데이터를 복원 (DB에는 최소 데이터만 저장되어 있음)
-      type ArtifactCandidate = {
-        candidate_id: string;
-        source_excerpt?: string;
-        target_excerpt?: string;
-        reason?: string;
-        suggestion?: string;
-      };
-      const artifactMap = new Map<string, ArtifactCandidate>();
-      try {
-        const artifact = await this.artifactStore.readAnalysis<{
-          candidates?: ArtifactCandidate[];
-        }>(context.repoRoot, context.analysisId);
-        for (const c of artifact.candidates ?? []) {
-          artifactMap.set(c.candidate_id, c);
-        }
-      } catch {
-        // artifact 파일이 없으면 DB 데이터만 사용
+      const stale = await this.isAnalysisStale(context);
+      if (!stale) {
+        return this.loadCompletedAnalysis(context, existing.analysis_artifact_path);
       }
-
-      return {
-        analysisId: context.analysisId,
-        artifactPath: existing.analysis_artifact_path,
-        candidates: rows.map((row) =>
-          this.toCandidateViewFromRow(row, artifactMap.get(row.candidate_id)),
-        ),
-      };
-    }
-
-    if (!existing) {
+      await this.repositories.conflictCandidates.deleteByAnalysis(context.analysisId);
+      await this.repositories.mergeAnalyses.updateStatus(context.analysisId, 'analyzing');
+    } else if (!existing) {
       await this.repositories.mergeAnalyses.insert({
         analysis_id: context.analysisId,
         source_worktree_instance_id: context.source.worktreeInstanceId,
@@ -119,7 +150,7 @@ export class MergeConflictAnalysisService {
     }
 
     try {
-      const candidates = this.detectCandidates(context);
+      const candidates = await this.detectCandidates(context);
       const artifact = await this.artifactStore.writeAnalysis(
         context.repoRoot,
         context.analysisId,
@@ -153,11 +184,57 @@ export class MergeConflictAnalysisService {
     }
   }
 
-  private detectCandidates(context: MergeAnalysisInputContext): DetectedConflictCandidate[] {
+  private async isAnalysisStale(context: MergeAnalysisInputContext): Promise<boolean> {
+    try {
+      const artifact = await this.artifactStore.readAnalysis<StoredAnalysisArtifact>(
+        context.repoRoot,
+        context.analysisId,
+      );
+      if (!artifact.source_branch_tip || !artifact.target_branch_tip) {
+        return true;
+      }
+      return (
+        artifact.source_branch_tip !== context.sourceBranchTip
+        || artifact.target_branch_tip !== context.targetBranchTip
+      );
+    } catch {
+      return true;
+    }
+  }
+
+  private async loadCompletedAnalysis(
+    context: MergeAnalysisInputContext,
+    artifactPath: string | null,
+  ): Promise<MergeConflictAnalysisResult> {
+    const rows = await this.repositories.conflictCandidates.listByAnalysis(context.analysisId);
+    const artifactMap = new Map<string, StoredArtifactCandidate>();
+
+    try {
+      const artifact = await this.artifactStore.readAnalysis<StoredAnalysisArtifact>(
+        context.repoRoot,
+        context.analysisId,
+      );
+      for (const candidate of artifact.candidates ?? []) {
+        artifactMap.set(candidate.candidate_id, candidate);
+      }
+    } catch {
+      // artifact 없으면 DB만 사용
+    }
+
+    return {
+      analysisId: context.analysisId,
+      artifactPath,
+      candidates: rows.map((row) =>
+        this.toCandidateViewFromRow(row, artifactMap.get(row.candidate_id)),
+      ),
+    };
+  }
+
+  private async detectCandidates(context: MergeAnalysisInputContext): Promise<DetectedConflictCandidate[]> {
     const sourceDiffs = this.toDiffMap(context.sourceDiffs);
     const targetDiffs = this.toDiffMap(context.targetDiffs);
-    const sourceHunks = this.parseDiffHunks(context.sourceDiffText);
-    const targetHunks = this.parseDiffHunks(context.targetDiffText);
+    const sourceHunks = parseDiffHunks(context.sourceDiffText);
+    const targetHunks = parseDiffHunks(context.targetDiffText);
     const candidates: DetectedConflictCandidate[] = [];
 
     for (const [filePath, sourceDiff] of sourceDiffs) {
@@ -166,110 +243,89 @@ export class MergeConflictAnalysisService {
         continue;
       }
 
-      const overlap = this.findFirstHunkOverlap(
-        sourceHunks.get(filePath) ?? [],
-        targetHunks.get(filePath) ?? [],
+      const detectionInput: ConflictDetectionInput = {
+        filePath,
+        sourceDiff,
+        targetDiff,
+        sourceHunks: sourceHunks.get(filePath) ?? [],
+        targetHunks: targetHunks.get(filePath) ?? [],
+      };
+
+      const enriched = await enrichConflictFields(
+        this.gitService,
+        detectionInput,
+        context.source.branchName,
+        context.target.branchName,
+        context.mergeBase,
       );
-      const fallbackHunk = (sourceHunks.get(filePath) ?? targetHunks.get(filePath) ?? [])[0];
-      const lineStart = overlap?.lineStart ?? fallbackHunk?.lineStart ?? 1;
-      const lineEnd = overlap?.lineEnd ?? fallbackHunk?.lineEnd ?? lineStart;
-      const severity = this.resolveSeverity(sourceDiff, targetDiff, overlap !== null);
+
+      const severity = this.resolveSeverity(
+        sourceDiff,
+        targetDiff,
+        enriched.hasLineOverlap,
+        enriched.conflictKind,
+      );
       const riskLevel = severity === 'high' ? 'high' : severity === 'medium' ? 'medium' : 'low';
-      const hasLineOverlap = overlap !== null;
 
       candidates.push({
         candidateId: `candidate_${hash(`${context.analysisId}:${filePath}`)}`,
         analysisId: context.analysisId,
         filePath,
-        lineStart,
-        lineEnd,
+        lineStart: enriched.lineStart,
+        lineEnd: enriched.lineEnd,
         severity,
-        reason: hasLineOverlap
-          ? '공통 조상 이후 source와 target 양쪽 diff hunk가 같은 라인 범위를 변경했습니다.'
-          : '공통 조상 이후 source와 target 양쪽에서 같은 파일이 변경되었습니다.',
-        suggestion: hasLineOverlap
-          ? '겹치는 라인 범위를 우선 검토한 뒤 AI 병합 제안 단계로 넘겨야 합니다.'
-          : '같은 파일 안의 변경 의도를 비교하되, 직접 라인 충돌 가능성은 낮게 봅니다.',
-        sourceExcerpt: overlap?.sourceExcerpt ?? fallbackHunk?.excerpt,
-        targetExcerpt: overlap?.targetExcerpt ?? fallbackHunk?.excerpt,
+        reason: this.buildReason(enriched.conflictKind, enriched.hasLineOverlap),
+        suggestion: this.buildSuggestion(enriched.conflictKind),
+        sourceExcerpt: enriched.sourceExcerpt,
+        targetExcerpt: enriched.targetExcerpt,
+        baseExcerpt: enriched.baseFullContent,
         detectedBy: 'diff',
         riskLevel,
-        confidenceScore: hasLineOverlap ? 0.9 : severity === 'high' ? 0.85 : 0.65,
+        confidenceScore: enriched.hasLineOverlap ? 0.9 : severity === 'high' ? 0.85 : 0.65,
+        conflictKind: enriched.conflictKind,
+        conflictRegions: enriched.conflictRegions,
+        sourceFullContent: enriched.sourceFullContent,
+        targetFullContent: enriched.targetFullContent,
+        baseFullContent: enriched.baseFullContent,
       });
     }
 
     return candidates.sort((a, b) => a.filePath.localeCompare(b.filePath));
   }
 
+  private buildReason(kind: ConflictKind, hasLineOverlap: boolean): string {
+    if (kind === 'add_add') {
+      return 'source와 target 양쪽에서 동일 경로 파일이 새로 추가되었습니다.';
+    }
+    if (kind === 'full_file') {
+      return '같은 파일에서 대규모 변경이 감지되어 전체 파일 비교가 필요합니다.';
+    }
+    if (hasLineOverlap) {
+      return '공통 조상 이후 source와 target 양쪽 diff hunk가 같은 라인 범위를 변경했습니다.';
+    }
+    return '공통 조상 이후 source와 target 양쪽에서 같은 파일이 변경되었습니다.';
+  }
+
+  private buildSuggestion(kind: ConflictKind): string {
+    if (kind === 'full_file' || kind === 'add_add') {
+      return '전체 파일과 검토 구간 칩을 확인한 뒤 AI 병합 제안 단계로 넘기세요.';
+    }
+    return '겹치는 구간을 우선 검토한 뒤 AI 병합 제안 단계로 넘기세요.';
+  }
+
   private toDiffMap(diffs: DiffResult[]): Map<string, DiffResult> {
     const map = new Map<string, DiffResult>();
     for (const diff of diffs) {
-      map.set(this.normalizeFilePath(diff.filePath), diff);
+      map.set(normalizeFilePath(diff.filePath), diff);
       if (diff.oldPath) {
-        map.set(this.normalizeFilePath(diff.oldPath), diff);
+        map.set(normalizeFilePath(diff.oldPath), diff);
       }
     }
     return map;
   }
 
-  private parseDiffHunks(diffText: string): Map<string, DiffHunkSummary[]> {
-    const result = new Map<string, DiffHunkSummary[]>();
-    const lines = diffText.split(/\r?\n/);
-    let currentFile: string | null = null;
-
-    for (let index = 0; index < lines.length; index += 1) {
-      const line = lines[index];
-      const fileMatch = line.match(/^diff --git a\/(.+) b\/(.+)$/);
-      if (fileMatch) {
-        currentFile = this.normalizeFilePath(fileMatch[2]);
-        continue;
-      }
-
-      const hunkMatch = line.match(/^@@ -(\d+)(?:,(\d+))? \+\d+(?:,\d+)? @@/);
-      if (!currentFile || !hunkMatch) {
-        continue;
-      }
-
-      const lineStart = Number(hunkMatch[1]);
-      const lineCount = Number(hunkMatch[2] ?? '1');
-      const excerpt = lines.slice(index, Math.min(index + 18, lines.length)).join('\n');
-      const hunks = result.get(currentFile) ?? [];
-      hunks.push({
-        lineStart,
-        lineEnd: Math.max(lineStart, lineStart + lineCount - 1),
-        excerpt,
-      });
-      result.set(currentFile, hunks);
-    }
-
-    return result;
-  }
-
-  private findFirstHunkOverlap(
-    sourceHunks: DiffHunkSummary[],
-    targetHunks: DiffHunkSummary[],
-  ): HunkOverlapSummary | null {
-    for (const sourceHunk of sourceHunks) {
-      for (const targetHunk of targetHunks) {
-        const lineStart = Math.max(sourceHunk.lineStart, targetHunk.lineStart);
-        const lineEnd = Math.min(sourceHunk.lineEnd, targetHunk.lineEnd);
-
-        if (lineStart <= lineEnd) {
-          return {
-            lineStart,
-            lineEnd,
-            sourceExcerpt: sourceHunk.excerpt,
-            targetExcerpt: targetHunk.excerpt,
-          };
-        }
-      }
-    }
-
-    return null;
-  }
-
   private shouldAnalyzeFile(filePath: string): boolean {
-    const normalized = this.normalizeFilePath(filePath);
+    const normalized = normalizeFilePath(filePath);
     const excludedPrefixes = [
       '.git/',
       '.vscode/gitcat/',
@@ -289,7 +345,11 @@ export class MergeConflictAnalysisService {
     sourceDiff: DiffResult,
     targetDiff: DiffResult,
     hasLineOverlap: boolean,
+    conflictKind: ConflictKind,
   ): 'high' | 'medium' | 'low' {
+    if (conflictKind === 'add_add' || conflictKind === 'full_file') {
+      return 'high';
+    }
     if (hasLineOverlap) {
       return 'high';
     }
@@ -317,31 +377,37 @@ export class MergeConflictAnalysisService {
       baseExcerpt: candidate.baseExcerpt,
       detectedBy: candidate.detectedBy,
       riskLevel: candidate.riskLevel,
+      conflictKind: candidate.conflictKind,
+      conflictRegions: candidate.conflictRegions,
+      sourceFullContent: candidate.sourceFullContent,
+      targetFullContent: candidate.targetFullContent,
+      baseFullContent: candidate.baseFullContent,
     };
   }
 
   private toCandidateViewFromRow(
     row: ConflictCandidateRow,
-    artifact?: {
-      source_excerpt?: string;
-      target_excerpt?: string;
-      reason?: string;
-      suggestion?: string;
-    },
+    artifact?: StoredArtifactCandidate,
   ): MergeConflictCandidateView {
     return {
       analysisId: row.analysis_id,
       candidateId: row.candidate_id,
       filePath: row.file_path,
-      lineStart: row.line_start ?? 1,
-      lineEnd: row.line_end ?? row.line_start ?? 1,
+      lineStart: row.line_start ?? artifact?.line_start ?? 1,
+      lineEnd: row.line_end ?? artifact?.line_end ?? row.line_start ?? 1,
       severity: this.severityFromConfidence(row.confidence_score),
       reason: artifact?.reason ?? '이미 저장된 병합 충돌 후보입니다.',
       suggestion: artifact?.suggestion,
       sourceExcerpt: artifact?.source_excerpt,
       targetExcerpt: artifact?.target_excerpt,
+      baseExcerpt: artifact?.base_excerpt,
       detectedBy: row.detected_by,
       riskLevel: this.riskFromConfidence(row.confidence_score),
+      conflictKind: artifact?.conflict_kind,
+      conflictRegions: artifact?.conflict_regions,
+      sourceFullContent: artifact?.source_full_content,
+      targetFullContent: artifact?.target_full_content,
+      baseFullContent: artifact?.base_full_content,
     };
   }
 
@@ -364,7 +430,7 @@ export class MergeConflictAnalysisService {
     candidates: DetectedConflictCandidate[],
   ) {
     return {
-      schema_version: 'merge-analysis-v1',
+      schema_version: 'merge-analysis-v2',
       analysis_id: context.analysisId,
       project_id: context.projectId,
       session_id: context.sessionId,
@@ -373,6 +439,8 @@ export class MergeConflictAnalysisService {
       source_branch: context.source.branchName,
       target_branch: context.target.branchName,
       merge_base: context.mergeBase,
+      source_branch_tip: context.sourceBranchTip,
+      target_branch_tip: context.targetBranchTip,
       related_files: context.relatedFiles,
       source_diffs: context.sourceDiffs,
       target_diffs: context.targetDiffs,
@@ -392,13 +460,14 @@ export class MergeConflictAnalysisService {
         target_excerpt: candidate.targetExcerpt,
         base_excerpt: candidate.baseExcerpt,
         risk_level: candidate.riskLevel,
+        conflict_kind: candidate.conflictKind,
+        conflict_regions: candidate.conflictRegions,
+        source_full_content: candidate.sourceFullContent,
+        target_full_content: candidate.targetFullContent,
+        base_full_content: candidate.baseFullContent,
       })),
       created_at: new Date().toISOString(),
     };
-  }
-
-  private normalizeFilePath(filePath: string): string {
-    return filePath.replace(/\\/g, '/');
   }
 }
 

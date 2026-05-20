@@ -5,7 +5,9 @@ import {
 } from 'lucide-react';
 import { useGitCatStore } from '../../store/useGitCatStore';
 import { useVsCodeApi } from '../../hooks/useVsCodeApi';
+import { t } from '../../i18n';
 import type { WorkspaceFileTreeNode } from '@gitcat/shared-types';
+import { getFileTreeNextActionHint } from '../../shared/gitWorkflowCopy';
 
 // ── VS Code 스타일 인라인 SVG 아이콘 ─────────────────────────────────────────
 
@@ -111,7 +113,7 @@ const StatusSummaryPopup: React.FC<StatusSummaryPopupProps> = ({ onClose, trigge
       {!statusSummary ? (
         <div style={{ padding: '16px', textAlign: 'center', fontSize: '11px', color: 'var(--vscode-descriptionForeground)' }}>
           <RefreshCw size={14} style={{ animation: 'gitcat-refresh-spin 1s linear infinite', marginBottom: '6px' }} />
-          <div>불러오는 중...</div>
+          <div>{t('loading.panel')}</div>
         </div>
       ) : (
         <div style={{ padding: '8px 0' }}>
@@ -184,24 +186,21 @@ const StatusSummaryPopup: React.FC<StatusSummaryPopupProps> = ({ onClose, trigge
           })}
 
           {/* 다음 액션 가이드 */}
-          {statusSummary.nextAction && statusSummary.nextAction !== 'UP_TO_DATE' && (
-            <div style={{
-              margin: '6px 10px 2px 10px', padding: '5px 8px',
-              background: 'rgba(86, 156, 214, 0.1)',
-              border: '1px solid rgba(86, 156, 214, 0.3)',
-              borderRadius: '4px', fontSize: '10px', color: '#569cd6',
-            }}>
-              💡 {
-                ({
-                  RESOLVE_CONFLICTS: '충돌 해결이 필요합니다',
-                  ADD_CHANGES: '변경사항을 스테이징하세요',
-                  COMMIT_CHANGES: '커밋할 준비가 됐습니다',
-                  PULL_CHANGES: '원격 변경사항을 Pull하세요',
-                  PUSH_COMMITS: 'Push할 커밋이 있습니다',
-                } as Record<string, string>)[statusSummary.nextAction]
-              }
-            </div>
-          )}
+          {(() => {
+            const hint = getFileTreeNextActionHint(statusSummary.nextAction);
+            return hint ? (
+              
+                <div style={{
+                  margin: '6px 10px 2px 10px', padding: '5px 8px',
+                  background: 'rgba(86, 156, 214, 0.1)',
+                  border: '1px solid rgba(86, 156, 214, 0.3)',
+                  borderRadius: '4px', fontSize: '10px', color: '#569cd6',
+                }}>
+                  💡 {hint}
+                </div>
+              
+            ) : null;
+          })()}
         </div>
       )}
     </div>
@@ -353,6 +352,7 @@ export const FileTreePanel: React.FC = () => {
   // WORKSPACE_TREE 메시지 수신
   useEffect(() => {
     const handler = (event: MessageEvent) => {
+      if (event.data?.type === 'ERROR') { console.error('Received ERROR:', event.data.payload); setIsLoading(false); }
       if (event.data?.type === 'WORKSPACE_TREE') {
         const { tree } = event.data.payload;
         setWorkspaceTree(tree.nodes ?? []);
@@ -558,7 +558,7 @@ export const FileTreePanel: React.FC = () => {
         {isLoading ? (
           <div style={{ textAlign: 'center', padding: '20px', color: 'var(--vscode-descriptionForeground)', fontSize: '12px' }}>
             <RefreshCw size={16} style={{ animation: 'gitcat-refresh-spin 1s linear infinite', marginBottom: '8px' }} />
-            <div>로딩 중...</div>
+            <div>{t('loading.fileTree')}</div>
           </div>
         ) : tab === 'changed' ? (
           changedFiles.length === 0 ? (

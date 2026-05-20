@@ -10,6 +10,8 @@ import {
   AcceptMergeRequestSchema,
   AnalyzeConflictRequestSchema,
   GetAiDraftRequestSchema,
+  GetMergeCompareContentRequestSchema,
+  MergeCompareContentPayloadSchema,
   MergeCompleteViewSchema,
   MergeConflictCandidateViewSchema,
   MergeProposalViewSchema,
@@ -82,6 +84,8 @@ export const InboundPayloadSchemaMap = {
   RESTORE_SNAPSHOT: z.object({ snapshotId: z.string() }),
   CONFIRM_RESTORE_SNAPSHOT: z.object({ snapshotId: z.string(), confirmed: z.boolean() }),
   ANALYZE_CONFLICT: AnalyzeConflictRequestSchema,
+  GET_MERGE_COMPARE_CONTENT: GetMergeCompareContentRequestSchema,
+  CLEAR_MERGE_REVIEW_UI: z.object({}).strict(),
   ACCEPT_MERGE: AcceptMergeRequestSchema,
   REJECT_MERGE: RejectMergeRequestSchema,
   RUN_MERGE: z.object({ source: z.string(), target: z.string().optional(), skipGuard: z.boolean().optional() }),
@@ -176,8 +180,12 @@ export const InboundPayloadSchemaMap = {
     skipGuard: z.boolean().optional(),    // 충돌 가드 건너뜀 (충돌 해결 후 재시도 시)
   }),
   OPEN_PR_PANEL: z.object({ skipGuard: z.boolean().optional() }),
-  // AI API Key 관리
-  SAVE_AI_API_KEY: z.object({ apiKey: z.string().min(1) }),
+  // AI remote 설정 관리
+  SAVE_AI_API_KEY: z.object({
+    apiKey: z.string().min(1).optional(),
+    remoteBaseUrl: z.string().min(1).optional(),
+    remoteModel: z.string().min(1).optional(),
+  }).strict(),
   DELETE_AI_API_KEY: z.object({}).strict(),
   CHECK_AI_API_KEY: z.object({}).strict(),
 } as const;
@@ -235,12 +243,15 @@ export const OutboundPayloadSchemaMap = {
     preserveResolvedCandidates: z.boolean().optional(),
     resolvedCandidates: z.record(z.string(), z.enum(['accepted', 'rejected'])).optional(),
     resolvedCandidatesByFilePath: z.record(z.string(), z.enum(['accepted', 'rejected'])).optional(),
+    /** 수락 반영된 파일 미리보기용 (filePath → 워킹트리에 쓴 본문) */
+    appliedFileContents: z.record(z.string(), z.string()).optional(),
   }),
   CANDIDATE_RESOLVED: z.object({
     candidateId: z.string(),
     filePath: z.string(),
     status: z.enum(['accepted', 'rejected']),
   }),
+  MERGE_COMPARE_CONTENT: MergeCompareContentPayloadSchema,
   MERGE_PROPOSAL: z.object({ proposals: z.array(MergeProposalViewSchema) }),
   MERGE_COMPLETE: z.object({ merge: MergeCompleteViewSchema }),
   COMMIT_SUGGESTIONS: z.object({ suggestions: CommitSuggestionSchema }),
@@ -250,7 +261,12 @@ export const OutboundPayloadSchemaMap = {
   WORKTREE_LIST: z.object({ worktrees: z.array(WorktreeInfoSchema) }),
   WORKSPACE_TREE: z.object({ tree: WorkspaceTreeSchema }),
   GIT_OPERATION_RESULT: z.object({ operation: z.string(), result: GitResultSchema }),
-  ERROR: z.object({ code: ErrorCodeEnum, message: z.string() }),
+  ERROR: z.object({
+    code: ErrorCodeEnum,
+    message: z.string(),
+    /** merge 수락/거절 피드백 롤백 여부 판단용 */
+    domain: z.enum(['merge_feedback']).optional(),
+  }),
   LOADING: z.object({ target: z.string(), loading: z.boolean() }),
   NOTIFICATION: z.object({ type: z.enum(['info', 'warning', 'error']), message: z.string() }),
   // stash 목록 응답
@@ -296,8 +312,14 @@ export const OutboundPayloadSchemaMap = {
     /** PR은 생성됐지만 reviewers/assignees/labels/milestone 등 일부 설정이 실패한 경우의 안내 메시지 목록 */
     metadataWarnings: z.array(z.string()).optional(),
   }),
-  // AI API Key 상태 응답
-  AI_API_KEY_STATUS: z.object({ hasKey: z.boolean() }),
+  // AI remote 설정 상태 응답
+  AI_API_KEY_STATUS: z.object({
+    hasKey: z.boolean(),
+    hasStoredKey: z.boolean(),
+    remoteBaseUrl: z.string(),
+    remoteModel: z.string(),
+    aiMode: z.enum(['live-local', 'live-remote']),
+  }),
 } as const;
 
 /**

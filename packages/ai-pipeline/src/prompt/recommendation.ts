@@ -1,6 +1,8 @@
 import { RecommendationInput } from '@gitcat/shared-types';
 
 export type RecommendationPromptVariant = 'default' | 'local-fast';
+type PrTemplatePreferredLanguage = 'ko' | 'en' | 'default';
+type RequestedPrOutputLanguage = 'ko' | 'en' | undefined;
 const LOCAL_FAST_COMMIT_MAX_CHANGED_FILES = 6;
 const LOCAL_FAST_PR_MAX_CHANGED_FILES = 5;
 const LOCAL_FAST_COMMIT_MAX_DIFF_SUMMARY_LENGTH = 1000;
@@ -142,6 +144,142 @@ function stripHtmlComments(text: string): string {
     .trim();
 }
 
+function detectPrTemplatePreferredLanguage(template?: string): PrTemplatePreferredLanguage {
+  if (!template?.trim()) {
+    return 'default';
+  }
+
+  const cleanedTemplate = stripHtmlComments(template);
+  if (!cleanedTemplate) {
+    return 'default';
+  }
+
+  const koreanCharCount = (cleanedTemplate.match(/[가-힣]/g) ?? []).length;
+  const englishWordCount = (cleanedTemplate.match(/[A-Za-z]{3,}/g) ?? []).length;
+  const englishHeadingHits = (
+    cleanedTemplate.match(
+      /\b(summary|overview|description|motivation|changes|checklist|testing|test plan|review points|release notes?|details|why|how to test|issue|related issue)\b/gi,
+    ) ?? []
+  ).length;
+  const englishPlaceholderHits = (
+    cleanedTemplate.match(
+      /\b(fill|replace|describe|write|please|tbd|n\/a|none)\b/gi,
+    ) ?? []
+  ).length;
+  const koreanHeadingHits = (
+    cleanedTemplate.match(
+      /(요약|개요|배경|변경 사항|주요 변경|체크리스트|테스트|검증|리뷰 포인트|릴리즈 노트|상세 내용|이슈)/g,
+    ) ?? []
+  ).length;
+
+  const englishScore = englishWordCount + englishHeadingHits * 3 + englishPlaceholderHits * 2;
+  const koreanScore = koreanCharCount + koreanHeadingHits * 6;
+
+  if (englishScore >= 12 && englishScore > koreanScore * 1.5) {
+    return 'en';
+  }
+
+  if (koreanScore >= 8 && koreanScore >= englishScore) {
+    return 'ko';
+  }
+
+  return 'default';
+}
+
+function resolvePrDescriptionInstructionLanguage(
+  payload: Extract<RecommendationInput, { recommendation_type: 'pr_description' }>,
+): RequestedPrOutputLanguage {
+  return payload.output_language;
+}
+
+function getPrDescriptionLanguageInstructions(
+  payload: Extract<RecommendationInput, { recommendation_type: 'pr_description' }>,
+  variant: RecommendationPromptVariant = 'default',
+): string[] {
+  const requestedLanguage = resolvePrDescriptionInstructionLanguage(payload);
+  const hasTemplate = Boolean(payload.template?.trim());
+
+  if (requestedLanguage === 'en') {
+    return variant === 'local-fast'
+      ? [
+        '- Write both title and primary_text in English.',
+        hasTemplate
+          ? '- If a template is provided, preserve markdown section heading lines exactly as written in the template.'
+          : '- If no template is provided, use English section headings, body text, and bullets.',
+        hasTemplate
+          ? '- Rewrite every non-heading visible text in English while preserving the template section order, structure, and intent.'
+          : '- If no template is provided, use English section headings, body text, and bullets.',
+        hasTemplate
+          ? '- This includes checklist items, bullet text, placeholder text, helper notes, and prose. Do not leave Korean text unless it is a code identifier, branch name, file path, command, or URL.'
+          : '- Keep visible prose in English throughout the draft.',
+      ]
+      : [
+        '- 제목(title)과 primary_text(PR 본문)는 모두 영어로 작성한다.',
+        hasTemplate
+          ? '- template가 제공되면 마크다운 섹션 heading 줄 자체는 template 원문 그대로 유지한다.'
+          : '- template가 없다면 섹션 제목, 본문, 불릿도 영어로 작성한다.',
+        hasTemplate
+          ? '- 섹션 순서, 구조, placeholder intent는 유지하되, heading이 아닌 모든 visible text는 영어로 다시 작성한다.'
+          : '- 본문과 불릿도 모두 영어로 유지한다.',
+        hasTemplate
+          ? '- checklist 항목, bullet text, placeholder text, helper note, 일반 설명문까지 모두 영어로 작성하고, code identifier / branch name / file path / command / URL만 원문을 유지한다.'
+          : '- 눈에 보이는 일반 텍스트는 모두 영어로 작성한다.',
+      ];
+  }
+
+  if (requestedLanguage === 'ko') {
+    return variant === 'local-fast'
+      ? [
+        '- Write both title and primary_text in Korean.',
+        hasTemplate
+          ? '- If a template is provided, preserve markdown section heading lines exactly as written in the template.'
+          : '- If no template is provided, use Korean section headings, body text, and bullets.',
+        hasTemplate
+          ? '- Rewrite every non-heading visible text in Korean while preserving the template section order, structure, and intent.'
+          : '- If no template is provided, use Korean section headings, body text, and bullets.',
+        hasTemplate
+          ? '- This includes checklist items, bullet text, placeholder text, helper notes, and prose. Do not leave English text unless it is a code identifier, branch name, file path, command, or URL.'
+          : '- Keep visible prose in Korean throughout the draft.',
+      ]
+      : [
+        '- 제목(title)과 primary_text(PR 본문)는 모두 한국어로 작성한다.',
+        hasTemplate
+          ? '- template가 제공되면 마크다운 섹션 heading 줄 자체는 template 원문 그대로 유지한다.'
+          : '- template가 없다면 섹션 제목, 본문, 불릿도 한국어로 작성한다.',
+        hasTemplate
+          ? '- 섹션 순서, 구조, placeholder intent는 유지하되, heading이 아닌 모든 visible text는 한국어로 다시 작성한다.'
+          : '- 본문과 불릿도 모두 한국어로 유지한다.',
+        hasTemplate
+          ? '- checklist 항목, bullet text, placeholder text, helper note, 일반 설명문까지 모두 한국어로 작성하고, code identifier / branch name / file path / command / URL만 원문을 유지한다.'
+          : '- 눈에 보이는 일반 텍스트는 모두 한국어로 작성한다.',
+      ];
+  }
+
+  const preferredLanguage = detectPrTemplatePreferredLanguage(payload.template);
+
+  if (preferredLanguage === 'en') {
+    return variant === 'local-fast'
+      ? [
+        '- The provided PR template strongly signals English, so write both title and primary_text in English.',
+        '- Preserve markdown section heading lines exactly as written in the template, but keep newly written non-heading text in English.',
+      ]
+      : [
+        '- Provided Template Markdown strongly suggests English usage, so both title and primary_text must stay in English.',
+        '- template의 마크다운 섹션 heading 줄은 그대로 유지하되, 새로 작성하는 heading 외 visible text는 영어로 유지한다.',
+      ];
+  }
+
+  return variant === 'local-fast'
+    ? [
+      '- Write both title and primary_text in Korean by default.',
+      '- If no template is provided, use Korean section headings, body text, and bullets.',
+    ]
+    : [
+      '- 제목(title)과 primary_text(PR 본문)는 기본적으로 모두 한국어로 작성한다.',
+      '- template가 없다면 섹션 제목, 본문, 불릿도 한국어로 작성한다.',
+    ];
+}
+
 /**
  * recommendation 결과는 사람이 그대로 복사해 쓸 가능성이 높아서
  * JSON 필드와 출력 제약을 시스템 프롬프트에서 명확히 고정합니다.
@@ -225,6 +363,9 @@ export function buildRecommendationUserPrompt(
 ): string {
   const context = buildRecommendationContext(payload, variant);
   const instructions: string[] = [];
+  const prLanguageInstructions = payload.recommendation_type === 'pr_description'
+    ? getPrDescriptionLanguageInstructions(payload, variant)
+    : [];
 
   switch (payload.recommendation_type) {
     case 'branch_name':
@@ -281,7 +422,9 @@ export function buildRecommendationUserPrompt(
         instructions.push(
           'Task:',
           '- Identify the PR purpose from change_summary, work_intent, diff_summary, and branch_context.',
-          '- If template is provided, preserve its section headings and order as closely as possible.',
+          '- If template is provided, preserve markdown section heading lines and section order exactly as closely as possible.',
+          '- Do not preserve non-heading template text verbatim unless it is a code identifier, branch name, file path, command, or URL.',
+          ...prLanguageInstructions,
           '- Write concrete markdown content reviewers can scan quickly.',
           '- primary_text must be the full PR description markdown.',
           '- Return exactly 1 PR draft in primary_text and keep alternative_texts empty.',
@@ -293,12 +436,14 @@ export function buildRecommendationUserPrompt(
           '- Step 1 (의도 파악): PR 범위 요약(change_summary)과 작업 의도(work_intent)를 바탕으로 PR의 핵심 목적을 파악한다.',
           '- Step 2 (상세 분석): 실제 변경 사항이 모두 포함된 Diff 원문(diff_summary)을 중점적으로 분석하고, 커밋 로그(branch_context)를 종합하여 코드 변경 사항의 전체 흐름을 파악한다.',
           '- Step 3 (포맷팅): template가 제공되면 그 마크다운 섹션 구조와 순서를 최대한 유지한 채 내용을 채우고, template가 없으면 코드 리뷰어가 변경 목적, 핵심 내용, 유의사항을 한눈에 파악할 수 있도록 마크다운(Markdown) 형식의 PR Description을 작성한다.',
+          ...prLanguageInstructions,
           '',
           'Additional Instructions:',
           '- Use readability-focused markdown formatting.',
           '- primary_text will be the full markdown string.',
-          '- If Template Markdown is provided, preserve its section headings and order as closely as possible.',
+          '- If Template Markdown is provided, preserve its markdown section heading lines and order as closely as possible.',
           '- Fill the template with concrete PR content rather than repeating empty placeholders.',
+          '- Rewrite non-heading template text into the requested output language unless it is a code identifier, branch name, file path, command, or URL.',
           '- Do not add new top-level sections unless they are necessary to complete the template intent.'
         );
       }

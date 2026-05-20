@@ -1,10 +1,11 @@
-const path = require('path');
 const fs = require('fs');
+const path = require('path');
+const { spawnSync } = require('child_process');
 
 const extensionRoot = path.resolve(__dirname, '..');
 const repoRoot = path.resolve(extensionRoot, '..', '..');
 
-function resolveEsbuild() {
+function resolveModule(moduleId) {
   const searchPaths = [
     extensionRoot,
     repoRoot,
@@ -14,15 +15,44 @@ function resolveEsbuild() {
 
   for (const searchPath of searchPaths) {
     try {
-      return require(require.resolve('esbuild', { paths: [searchPath] }));
+      return require.resolve(moduleId, { paths: [searchPath] });
     } catch (error) {
       // Try the next candidate path.
     }
   }
 
-  throw new Error(
-    'esbuild를 찾지 못했습니다. workspace 의존성이 설치되어 있는지 확인해 주세요.'
-  );
+  throw new Error(`Could not resolve module "${moduleId}" for the extension build.`);
+}
+
+function resolveEsbuild() {
+  return require(resolveModule('esbuild'));
+}
+
+function shouldFallbackToTsc(error) {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.includes('Access is denied') || message.includes('Could not resolve');
+}
+
+function runTscFallback(watchMode) {
+  const tscCliPath = resolveModule('typescript/bin/tsc');
+  const args = [tscCliPath, '-p', extensionRoot];
+
+  if (watchMode) {
+    args.push('--watch', '--preserveWatchOutput');
+  }
+
+  const result = spawnSync(process.execPath, args, {
+    cwd: extensionRoot,
+    stdio: 'inherit',
+  });
+
+  if (result.error) {
+    throw result.error;
+  }
+
+  if (typeof result.status === 'number' && result.status !== 0) {
+    throw new Error(`TypeScript fallback build failed with exit code ${result.status}.`);
+  }
 }
 
 async function run() {
@@ -56,13 +86,32 @@ async function run() {
   };
 
   if (watchMode) {
-    const ctx = await esbuild.context(options);
-    await ctx.watch();
-    console.log('[build-extension] watching for changes...');
-    return;
+    try {
+      const ctx = await esbuild.context(options);
+      await ctx.watch();
+      console.log('[build-extension] watching for changes...');
+      return;
+    } catch (error) {
+      if (!shouldFallbackToTsc(error)) {
+        throw error;
+      }
+
+      console.warn('[build-extension] esbuild watch failed, falling back to tsc watch:', error);
+      runTscFallback(true);
+      return;
+    }
   }
 
-  await esbuild.build(options);
+  try {
+    await esbuild.build(options);
+  } catch (error) {
+    if (!shouldFallbackToTsc(error)) {
+      throw error;
+    }
+
+    console.warn('[build-extension] esbuild failed, falling back to tsc emit:', error);
+    runTscFallback(false);
+  }
 }
 
 run().catch((error) => {

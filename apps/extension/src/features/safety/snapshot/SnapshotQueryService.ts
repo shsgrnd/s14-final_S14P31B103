@@ -67,17 +67,37 @@ export class SnapshotQueryService {
 
   async getSnapshotDetail(snapshotId: string): Promise<SnapshotDetail> {
     const meta = await this.toSnapshotMeta(snapshotId);
-    const artifact = await this.storage.readSnapshotArtifact(snapshotId);
+    try {
+      const artifact = await this.storage.readSnapshotArtifact(snapshotId);
 
-    return {
-      meta,
-      manifest: artifact.manifest,
-      diffText: artifact.patchText,
-      files: artifact.manifest.changedFiles,
-      hunks: artifact.hunks,
-      safetyWarnings: getManifestSafetyWarnings(artifact.manifest),
-      warningSummary: this.toWarningSummary(getManifestSafetyWarnings(artifact.manifest)),
-    } as SnapshotDetail;
+      return {
+        meta,
+        manifest: artifact.manifest,
+        diffText: artifact.patchText,
+        files: artifact.manifest.changedFiles,
+        hunks: artifact.hunks,
+        safetyWarnings: getManifestSafetyWarnings(artifact.manifest),
+        warningSummary: this.toWarningSummary(getManifestSafetyWarnings(artifact.manifest)),
+      } as SnapshotDetail;
+    } catch {
+      const fallbackFiles = await this.getSnapshotFiles(snapshotId);
+      return {
+        meta,
+        manifest: {
+          snapshotId: meta.snapshotId,
+          type: meta.type,
+          previousSnapshotId: meta.previousSnapshotId,
+          createdAt: meta.createdAt,
+          summary: meta.summary,
+          reason: meta.reason,
+          changedFiles: fallbackFiles,
+        },
+        diffText: '',
+        files: fallbackFiles,
+        hunks: [],
+        warningSummary: meta.warningSummary,
+      } as SnapshotDetail;
+    }
   }
 
   async getSnapshotFiles(snapshotId: string): Promise<SnapshotFile[]> {
@@ -87,17 +107,36 @@ export class SnapshotQueryService {
 
   async getSnapshotFileDiff(snapshotId: string, filePath: string): Promise<SnapshotFileDiffResult> {
     const normalizedFilePath = filePath.replace(/\\/g, '/');
-    const artifact = await this.storage.readSnapshotArtifact(snapshotId);
-    const targetFile = artifact.manifest.changedFiles.find((file) => file.filePath === normalizedFilePath);
-    const hunks = artifact.hunks.filter((hunk) => hunk.filePath === normalizedFilePath);
+    try {
+      const artifact = await this.storage.readSnapshotArtifact(snapshotId);
+      const targetFile = artifact.manifest.changedFiles.find((file) => file.filePath === normalizedFilePath);
+      const hunks = artifact.hunks.filter((hunk) => hunk.filePath === normalizedFilePath);
 
-    return {
-      snapshotId,
-      filePath: normalizedFilePath,
-      diffText: this.extractFilePatch(artifact.patchText, normalizedFilePath, targetFile),
-      file: targetFile,
-      hunks,
-    };
+      return {
+        snapshotId,
+        filePath: normalizedFilePath,
+        diffText: this.extractFilePatch(artifact.patchText, normalizedFilePath, targetFile),
+        file: targetFile,
+        hunks,
+      };
+    } catch {
+      // Artifact file may be missing for legacy/corrupted rows.
+      // Return a safe empty diff so the UI can open without surfacing ENOENT.
+      const fallbackFiles = await this.snapshotFileRepository.listBySnapshotId(snapshotId);
+      const fallbackTarget = fallbackFiles.find((f) => f.original_path.replace(/\\/g, '/') === normalizedFilePath);
+      return {
+        snapshotId,
+        filePath: normalizedFilePath,
+        diffText: '',
+        file: fallbackTarget
+          ? {
+              filePath: fallbackTarget.original_path.replace(/\\/g, '/'),
+              status: 'modified',
+            }
+          : undefined,
+        hunks: [],
+      };
+    }
   }
 
   private async toSnapshotMeta(snapshotId: string): Promise<SnapshotMeta> {

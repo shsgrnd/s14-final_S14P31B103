@@ -3,6 +3,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import { MessageRouter } from '../core/MessageRouter';
 import { resolveWebviewDistPath } from './webviewAssets';
+import { getWebviewLocaleBootstrapScript } from '../i18n';
 
 export class SidebarProvider implements vscode.WebviewViewProvider {
     constructor(
@@ -74,7 +75,7 @@ export class SidebarProvider implements vscode.WebviewViewProvider {
 
         html = html.replace(
             '</head>',
-            `<script>window.GITCAT_LOGO_URI = "${logoUri.toString()}";</script></head>`
+            `${getWebviewLocaleBootstrapScript('sidebar')}<script>window.GITCAT_LOGO_URI = "${logoUri.toString()}";</script></head>`
         );
 
         return html;

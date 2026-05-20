@@ -10,6 +10,8 @@ export const InboundMessageTypeEnum = z.enum([
   'RESTORE_SNAPSHOT',
   'CONFIRM_RESTORE_SNAPSHOT',
   'ANALYZE_CONFLICT',
+  'GET_MERGE_COMPARE_CONTENT',
+  'CLEAR_MERGE_REVIEW_UI',
   'ACCEPT_MERGE',
   'REJECT_MERGE',
   'RUN_MERGE',
@@ -104,6 +106,7 @@ export const OutboundMessageTypeEnum = z.enum([
   'RESTORE_DONE',
   'RESTORE_CONFIRM_REQUIRED',
   'CONFLICT_RESULT',
+  'MERGE_COMPARE_CONTENT',
   /** 병합 후보 수락/거절 — 모든 webview의 병합 위험 분석 목록 상태 동기화 */
   'CANDIDATE_RESOLVED',
   'MERGE_PROPOSAL',

@@ -1,4 +1,4 @@
-import * as fs from 'fs/promises';
+﻿import * as fs from 'fs/promises';
 import * as path from 'path';
 import type {
   SnapshotRepository,
@@ -20,6 +20,7 @@ import { SnapshotIdGenerator } from './SnapshotIdGenerator';
 import { SnapshotAutoCleanupService } from './SnapshotAutoCleanupService';
 import { SafetyCheckService } from './SafetyCheckService';
 import { serializeSafetyWarnings } from './SafetyWarningSerialization';
+import { t } from '../../../i18n';
 
 /**
  * 스냅샷 자동 삭제 정책: 최근 N개 초과 시 오래된 스냅샷을 삭제한다.
@@ -33,6 +34,7 @@ export const SNAPSHOT_KEEP_RECENT_COUNT = 10;
 export const SNAPSHOT_KEEP_RECENT_PRE_RESTORE_COUNT = 3;
 
 /**
+
  * 스냅샷 생성 최소 변경 줄 수
  *
  * diff 결과의 추가(+)/삭제(-) 줄 합계가 이 값 미만이면 스냅샷을 생성하지 않는다.
@@ -40,9 +42,10 @@ export const SNAPSHOT_KEEP_RECENT_PRE_RESTORE_COUNT = 3;
  */
 export const SNAPSHOT_MIN_CHANGED_LINES = 5;
 const LOCAL_AI_SUMMARY_DELAY_MS = 300;
+type SnapshotSummaryLanguage = 'ko' | 'en';
 
 /**
- * SnapshotService 생성 옵션
+ * SnapshotService ?앹꽦 ?듭뀡
  */
 export interface SnapshotServiceOptions {
   /**
@@ -71,10 +74,16 @@ export interface SnapshotServiceOptions {
   aiClient?: AiClient;
 
   /**
+   * 새로 생성되는 AI 스냅샷 요약 제목의 언어를 매번 조회합니다.
+   * 기존 저장된 스냅샷 제목은 그대로 유지됩니다.
+   */
+  snapshotSummaryLanguageResolver?: () => SnapshotSummaryLanguage;
+
+  /**
    * 스냅샷이 생성된 직후 UI에 즉시 알리기 위한 브로드캐스트 콜백.
    * AI 요약 전에 호출되어 '생성 중...' 또는 빈 제목 상태로 목록에 먼저 추가되도록 합니다.
    */
-  onSnapshotCreated?: (row: SnapshotRow) => void;
+  onSnapshotCreated?: (row: SnapshotRow, changedFiles: SnapshotFile[]) => void;
 
   /**
    * AI 요약 완료 후 UI에 알리기 위한 브로드캐스트 콜백.
@@ -112,8 +121,9 @@ export class SnapshotService implements ISnapshotService {
   private readonly safetyCheckService: SafetyCheckService;
   /** AI 요약 호출에 사용되는 AiClient 인스턴스. 제공되지 않으면 AI 요약 기능이 비활성화됨 */
   private readonly aiClient?: AiClient;
+  private readonly snapshotSummaryLanguageResolver: () => SnapshotSummaryLanguage;
   /** 스냅샷 생성 직후 웹뷰에 이벤트를 전송하기 위한 콜백 */
-  private readonly onSnapshotCreated?: (row: SnapshotRow) => void;
+  private readonly onSnapshotCreated?: (row: SnapshotRow, changedFiles: SnapshotFile[]) => void;
   /** AI 요약 완료 후 웹뷰에 SNAPSHOT_UPDATED 이벤트를 전송하기 위한 콜백 */
   private readonly onSnapshotUpdated?: (row: SnapshotRow) => void;
   private readonly keepRecentPreRestoreCount: number;
@@ -131,6 +141,7 @@ export class SnapshotService implements ISnapshotService {
     this.keepRecentCount = options.keepRecentCount ?? SNAPSHOT_KEEP_RECENT_COUNT;
     this.safetyCheckService = new SafetyCheckService(this.workspaceRoot);
     this.aiClient = options.aiClient;
+    this.snapshotSummaryLanguageResolver = options.snapshotSummaryLanguageResolver ?? (() => 'ko');
     this.onSnapshotCreated = options.onSnapshotCreated;
     this.onSnapshotUpdated = options.onSnapshotUpdated;
     this.keepRecentPreRestoreCount =
@@ -152,6 +163,19 @@ export class SnapshotService implements ISnapshotService {
 
     await this.cleanupService.deleteSnapshot(snapshotId);
     console.log(`[SnapshotService] 스냅샷 삭제 완료: ${snapshotId}`);
+  }
+
+  async renameSnapshot(snapshotId: string, newTitle: string): Promise<void> {
+    const existing = await this.snapshotRepository.findById(snapshotId);
+    if (!existing) {
+      throw new Error(`Snapshot not found: ${snapshotId}`);
+    }
+    const trimmed = newTitle.trim();
+    if (!trimmed) {
+      throw new Error('Snapshot title cannot be empty');
+    }
+    await this.snapshotRepository.updateSummary(snapshotId, trimmed);
+    console.log(`[SnapshotService] 스냅샷 표시 이름 변경 완료: ${snapshotId}`);
   }
 
   /**
@@ -183,11 +207,11 @@ export class SnapshotService implements ISnapshotService {
     try {
       diffResult = await this.buildDiff(primaryBaselines, primaryChangedFiles, options.currentContents);
     } catch (diffError) {
-      console.error('[SnapshotService] diff 생성 실패:', diffError);
+      console.error('[SnapshotService] diff  생성 실패:', diffError);
       return undefined;
     }
 
-    const { patchText, hunks, changedFiles, deletedFiles } = diffResult;
+    const { patchText, hunks, changedFiles, deletedFiles, skippedFiles } = diffResult;
     const safetyWarnings = this.safetyCheckService.analyzeSnapshot({
       changedFiles,
       deletedFiles,
@@ -201,6 +225,18 @@ export class SnapshotService implements ISnapshotService {
         return undefined;
       }
     } else if (!options.force) {
+      if (changedFiles.length === 0) {
+        const outsideWorkspaceSkippedCount = skippedFiles.filter((file) => file.reason === 'outside_workspace').length;
+        if (outsideWorkspaceSkippedCount > 0) {
+          console.log(
+            `[SnapshotService] 워크스페이스 외부 파일 ${outsideWorkspaceSkippedCount}개 제외 → 스냅샷 생략 (type=${type})`,
+          );
+        } else {
+          console.log('[SnapshotService] 변경된 파일 없음 → 스냅샷 생략');
+        }
+        return undefined;
+      }
+
       // 자동 스냅샷: 변경 줄 수가 최소 기준 미만이면 생략
       const totalChangedLines = this.countChangedLines(changedFiles);
       if (totalChangedLines < SNAPSHOT_MIN_CHANGED_LINES) {
@@ -232,6 +268,7 @@ export class SnapshotService implements ISnapshotService {
     // --- Manifest 구성 ---
     const previousSnapshot = await this.snapshotRepository.findLatestByWorktreeInstance(this.worktreeInstanceId);
     const previousSnapshotId = previousSnapshot?.snapshot_id ?? undefined;
+    const fallbackSummary = this.resolveInitialSummary(type, options);
 
     const manifest: SnapshotManifest = {
       snapshotId,
@@ -239,7 +276,7 @@ export class SnapshotService implements ISnapshotService {
       previousSnapshotId,
       createdAt,
       reason: options.reason,
-      summary: options.summary,
+      summary: undefined,
       changedFiles,
       safetyWarnings: safetyWarnings.length > 0 ? safetyWarnings : undefined,
       warnings: safetyWarnings.length > 0 ? safetyWarnings : undefined,
@@ -281,7 +318,7 @@ export class SnapshotService implements ISnapshotService {
         type,
         previous_snapshot_id: previousSnapshotId ?? null,
         reason: options.reason ?? null,
-        summary: options.summary ?? null,
+        summary: null,
         local_path: path.relative(this.workspaceRoot, snapshotDir).replace(/\\/g, '/'),
         safety_warnings_json: serializeSafetyWarnings(safetyWarnings),
         created_at: createdAt,
@@ -295,13 +332,13 @@ export class SnapshotService implements ISnapshotService {
       return undefined;
     }
 
-    // --- snapshot_files DB 저장 ---
+     // --- snapshot_files DB 저장 ---
     await this.saveSnapshotFiles(snapshotId, changedFiles, createdAt);
 
     // --- 즉시 UI 업데이트 콜백 호출 ---
     if (this.onSnapshotCreated && snapshotRow) {
       try {
-        this.onSnapshotCreated(snapshotRow);
+        this.onSnapshotCreated(snapshotRow, changedFiles);
       } catch (err) {
         console.error('[SnapshotService] onSnapshotCreated 콜백 중 오류:', err);
       }
@@ -330,7 +367,7 @@ export class SnapshotService implements ISnapshotService {
     }
 
     // --- AI 요약 제목 생성 (비동기, 실패 허용) ---
-    this.scheduleAiSummary(snapshotRow.snapshot_id, patchText);
+    this.scheduleAiSummary(snapshotRow.snapshot_id, patchText, fallbackSummary);
 
     return snapshotRow.snapshot_id;
   }
@@ -346,10 +383,6 @@ export class SnapshotService implements ISnapshotService {
   isRestoreOperationActive(): boolean {
     return this.restoreOperationDepth > 0;
   }
-
-  // ─────────────────────────────────────────────────────────────────────────
-  // Private Helpers
-  // ─────────────────────────────────────────────────────────────────────────
 
   /**
    * diff를 계산한다. baselines/changedFiles가 없으면 빈 diff를 반환한다.
@@ -498,13 +531,13 @@ export class SnapshotService implements ISnapshotService {
     } catch (error) {
       // snapshot_files 저장 실패는 경고만 남기고 스냅샷 생성은 유지
       console.error(
-        `[SnapshotService] snapshot_files 저장 실패 (snapshotId=${snapshotId}):`,
+         `[SnapshotService] snapshot_files 저장 실패 (snapshotId=${snapshotId}):`,
         error,
       );
     }
   }
 
-  /**
+   /**
    * 로컬 파일 롤백: DB 저장 실패 시 이미 저장된 로컬 파일을 삭제한다.
    *
    * @param snapshotId 롤백할 스냅샷 ID
@@ -568,7 +601,7 @@ export class SnapshotService implements ISnapshotService {
     } catch (rollbackError) {
       // 롤백 실패 시 orphan 파일이 남을 수 있음 - 경고만 남김
       console.error(
-        `[SnapshotService] 로컬 파일 롤백 실패 (snapshotId=${snapshotId}) - orphan 파일 주의:`,
+       `[SnapshotService] 로컬 파일 롤백 실패 (snapshotId=${snapshotId}) - orphan 파일 주의:`,
         rollbackError,
       );
     }
@@ -600,31 +633,41 @@ export class SnapshotService implements ISnapshotService {
   private scheduleAiSummary(
     snapshotId: string,
     patchText: string,
+    fallbackSummary?: string,
   ): void {
-    if (!this.aiClient || !patchText) {
+    if (!this.aiClient && !fallbackSummary) {
       return;
     }
 
-    // 클로저 내부에서 undefined 가능성을 없애기 위해 로컬 변수에 고정
+     // 클로저 내부에서 undefined 가능성을 없애기 위해 로컬 변수에 고정
     const aiClient = this.aiClient;
 
     const runSummary = async () => {
       try {
-        // diff가 너무 길면 앞부분만 잘라서 전달 (토큰 절약)
-        const trimmedDiff = patchText.length > 4000 ? patchText.slice(0, 4000) + '\n...(truncated)' : patchText;
+        let summary = '';
+        if (aiClient && patchText) {
+          // diff가 너무 길면 앞부분만 잘라서 전달 (토큰 절약)
+          const trimmedDiff = patchText.length > 4000 ? patchText.slice(0, 4000) + '\n...(truncated)' : patchText;
+          const summaryLanguage = this.resolveSnapshotSummaryLanguage();
 
-        const rawSummary = await aiClient.generateResponse('recommendation', {
-          systemPrompt: getSnapshotSummarySystemPrompt(),
-          userPrompt: buildSnapshotSummaryUserPrompt(trimmedDiff),
-        }, {
-          priority: 'background',
-        });
+          const rawSummary = await aiClient.generateResponse('recommendation', {
+            systemPrompt: getSnapshotSummarySystemPrompt(summaryLanguage),
+            userPrompt: buildSnapshotSummaryUserPrompt(trimmedDiff),
+          }, {
+            priority: 'background',
+          });
 
-        // 스냅샷 목록에는 분류 태그보다 실제 작업 요약이 더 중요해서 제목 본문만 저장합니다.
-        const summary = rawSummary.trim().split('\n')[0];
+          // 스냅샷 목록에는 분류 태그보다 실제 작업 요약이 더 중요해서 제목 본문만 저장합니다.
+          summary = rawSummary.trim().split('\n')[0] ?? '';
+        }
 
-        await this.snapshotRepository.updateSummary(snapshotId, summary);
-        console.log(`[SnapshotService] AI 요약 저장 완료: id=${snapshotId}, summary=${summary}`);
+        const resolvedSummary = summary.trim() || fallbackSummary?.trim() || '';
+        if (!resolvedSummary) {
+          return;
+        }
+
+        await this.snapshotRepository.updateSummary(snapshotId, resolvedSummary);
+        console.log(`[SnapshotService] 스냅샷 요약 저장 완료: id=${snapshotId}, summary=${resolvedSummary}`);
 
         // UI 업데이트 콜백 호출
         if (this.onSnapshotUpdated) {
@@ -634,11 +677,29 @@ export class SnapshotService implements ISnapshotService {
           }
         }
       } catch (aiError) {
-        console.warn(`[SnapshotService] AI 요약 생성 실패 (snapshotId=${snapshotId}):`, aiError);
+        const resolvedFallback = fallbackSummary?.trim();
+        if (!resolvedFallback) {
+          console.warn(`[SnapshotService] AI 요약 생성 실패 (snapshotId=${snapshotId}):`, aiError);
+          return;
+        }
+
+        try {
+          await this.snapshotRepository.updateSummary(snapshotId, resolvedFallback);
+          console.log(`[SnapshotService] AI 요약 실패 후 fallback 제목 저장: id=${snapshotId}, summary=${resolvedFallback}`);
+
+          if (this.onSnapshotUpdated) {
+            const updatedRow = await this.snapshotRepository.findById(snapshotId);
+            if (updatedRow) {
+              this.onSnapshotUpdated(updatedRow);
+            }
+          }
+        } catch (fallbackError) {
+          console.warn(`[SnapshotService] fallback 제목 저장 실패 (snapshotId=${snapshotId}):`, fallbackError);
+        }
       }
     };
 
-    if (aiClient.isLiveLocalMode()) {
+    if (aiClient?.isLiveLocalMode()) {
       setTimeout(() => {
         void runSummary();
       }, LOCAL_AI_SUMMARY_DELAY_MS);
@@ -661,6 +722,41 @@ export class SnapshotService implements ISnapshotService {
       const deletions = file.deletions ?? 0;
       return sum + additions + deletions;
     }, 0);
+  }
+
+  private resolveInitialSummary(
+    type: SnapshotCreationType,
+    options: CreateSnapshotOptions,
+  ): string | undefined {
+    const explicitSummary = options.summary?.trim();
+    if (explicitSummary) {
+      return explicitSummary;
+    }
+
+    const reasonSummary = options.reason?.trim();
+    if (reasonSummary) {
+      return reasonSummary;
+    }
+
+    return this.defaultSummaryForType(type);
+  }
+
+  private defaultSummaryForType(type: SnapshotCreationType): string {
+    const keyMap: Record<SnapshotCreationType, string> = {
+      ai_pre_action: 'snapshot.type.aiPreAction',
+      auto_dirty_before_ai: 'snapshot.type.autoDirtyBeforeAi',
+      ai_result: 'snapshot.type.aiResult',
+      manual_edit_result: 'snapshot.type.manualEditResult',
+      savepoint: 'snapshot.type.savepoint',
+      pre_restore: 'snapshot.type.preRestore',
+    };
+
+    return t(keyMap[type]);
+  }
+
+  private resolveSnapshotSummaryLanguage(): SnapshotSummaryLanguage {
+    const resolved = this.snapshotSummaryLanguageResolver();
+    return resolved === 'en' ? 'en' : 'ko';
   }
 
   private normalizeWorkspacePath(filePath: string): string {

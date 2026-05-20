@@ -112,12 +112,42 @@ function mapSnapshotFilesToMetaRows(files: SnapshotFile[]): SnapshotMetaFileRow[
 }
 
 function mergeSnapshotPatch(existing: SnapshotMeta, patch: Partial<SnapshotMeta>): SnapshotMeta {
+  const existingFiles = existing.files;
+  const patchFiles = patch.files;
+  const shouldKeepExistingFiles =
+    Array.isArray(existingFiles)
+    && existingFiles.length > 0
+    && Array.isArray(patchFiles)
+    && patchFiles.length === 0;
+  const mergedFiles = shouldKeepExistingFiles
+    ? existingFiles
+    : (patchFiles ?? existingFiles);
+
+  const mergedChangedFileCount = Math.max(
+    existing.changedFileCount ?? 0,
+    patch.changedFileCount ?? 0,
+  ) || undefined;
+
   return {
     ...existing,
     ...patch,
     snapshotId: existing.snapshotId,
-    files: patch.files ?? existing.files,
+    changedFileCount: mergedChangedFileCount,
+    files: mergedFiles,
   };
+}
+
+function resolveSnapshotDisplayName(
+  snapshots: SnapshotMeta[],
+  snapshotId: string | undefined,
+): string {
+  if (!snapshotId) {
+    return '--';
+  }
+
+  const snapshot = snapshots.find((item) => item.snapshotId === snapshotId);
+  const preferredLabel = snapshot?.summary?.trim() || snapshot?.reason?.trim();
+  return preferredLabel || snapshotId;
 }
 
 function dedupePrTemplatesForDisplay(
@@ -163,10 +193,18 @@ interface GitCatState {
   isMergeProposalLoading: boolean;
   /** ACCEPT_MERGE 후 로컬만 반영됨을 안내하는 카피 */
   mergeApplyFollowupHint: string | null;
+  /** 수락/거절 응답 대기 중인 피드백 (optimistic resolved 방지) */
+  pendingMergeFeedback: {
+    candidateId: string;
+    filePath: string;
+    status: 'accepted' | 'rejected';
+    proposedContent?: string;
+  } | null;
   currentBranch: string;
   currentWorktreePath: string;
   isAnalyzing: boolean;
   isRefreshingStatus: boolean;
+  isLoadingStatusSummary: boolean;
   isPulling: boolean;
   /** GIT_ADD_ALL / GIT_STAGE_* 등 stage 타깃 LOADING */
   isStaging: boolean;
@@ -270,6 +308,16 @@ interface GitCatState {
   setAIDraft: (draft: MergeProposalView | null) => void;
   /** 충돌 후보 처리 결과를 기록합니다 */
   markCandidateResolved: (candidateId: string, status: 'accepted' | 'rejected', filePath?: string) => void;
+  /** 수락/거절 실패 시 optimistic 상태 롤백 */
+  unmarkCandidateResolved: (candidateId: string, filePath?: string) => void;
+  /** ACCEPT_MERGE / REJECT_MERGE 전송 직후 — 서버 응답 전까지 resolved 표시 금지 */
+  beginMergeFeedback: (payload: {
+    candidateId: string;
+    filePath: string;
+    status: 'accepted' | 'rejected';
+    proposedContent?: string;
+  }) => void;
+  clearPendingMergeFeedback: () => void;
   setAppliedFileContent: (filePath: string, content: string) => void;
   getCandidateResolvedStatus: (conflict: MergeConflictCandidateView) => 'accepted' | 'rejected' | undefined;
   /** 모든 충돌 후보 처리 상태를 초기화합니다 */
@@ -294,6 +342,7 @@ interface GitCatState {
   clearPrSuggestion: () => void;
   clearLastCreatedPr: () => void;
   clearBranchSuggestions: () => void;
+  clearCommitSuggestions: () => void;
   beginRecommendationRequest: (flow: 'branch' | 'commit' | 'pr') => void;
   clearBranchRecommendationError: () => void;
   clearCommitRecommendationError: () => void;
@@ -401,10 +450,12 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
   isMergeAnalysisLoading: false,
   isMergeProposalLoading: false,
   mergeApplyFollowupHint: null,
+  pendingMergeFeedback: null,
   currentBranch: '',
   currentWorktreePath: '',
   isAnalyzing: false,
   isRefreshingStatus: false,
+  isLoadingStatusSummary: false,
   isPulling: false,
   isStaging: false,
   isCommitting: false,
@@ -502,6 +553,12 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
   clearPrSuggestion: () => set({ prSuggestion: null }),
   clearLastCreatedPr: () => set({ lastCreatedPr: null }),
   clearBranchSuggestions: () => set({ aiBranchSuggestions: [] }),
+  clearCommitSuggestions: () =>
+    set({
+      aiCommitSuggestion: '',
+      aiCommitAlternatives: [],
+      aiCommitSuggestedBranchNames: [],
+    }),
   beginRecommendationRequest: (flow) => set((state) => ({
     pendingRecommendationFlow: flow,
     isPrLoading: flow === 'pr' ? true : state.isPrLoading,
@@ -514,7 +571,8 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
   clearPrRecommendationError: () => set({ prRecommendationError: null }),
   setBranchCleanupInSettingsMode: (open) => set({ branchCleanupInSettingsMode: open }),
   clearSnapshotFileDiff: () => set({ snapshotFileDiff: null }),
-  clearMergeReviewUi: () =>
+  clearMergeReviewUi: () => {
+    sendMessage('CLEAR_MERGE_REVIEW_UI', {});
     set({
       conflicts: [],
       selectedConflict: null,
@@ -530,7 +588,9 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
       appliedFileContents: {},
       pendingGitAction: null,
       pendingMergeSource: null,
-    }),
+      pendingMergeFeedback: null,
+    });
+  },
   markCandidateResolved: (candidateId, status, filePath) =>
     set((state) => ({
       resolvedCandidates: { ...state.resolvedCandidates, [candidateId]: status },
@@ -538,6 +598,21 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
         ? { ...state.resolvedCandidatesByFilePath, [filePath]: status }
         : state.resolvedCandidatesByFilePath,
     })),
+  unmarkCandidateResolved: (candidateId, filePath) =>
+    set((state) => {
+      const { [candidateId]: _removed, ...resolvedCandidates } = state.resolvedCandidates;
+      const resolvedCandidatesByFilePath = { ...state.resolvedCandidatesByFilePath };
+      if (filePath) {
+        delete resolvedCandidatesByFilePath[filePath];
+      }
+      const appliedFileContents = { ...state.appliedFileContents };
+      if (filePath) {
+        delete appliedFileContents[filePath];
+      }
+      return { resolvedCandidates, resolvedCandidatesByFilePath, appliedFileContents };
+    }),
+  beginMergeFeedback: (payload) => set({ pendingMergeFeedback: payload }),
+  clearPendingMergeFeedback: () => set({ pendingMergeFeedback: null }),
   setAppliedFileContent: (filePath, content) =>
     set((state) => ({
       appliedFileContents: { ...state.appliedFileContents, [filePath]: content },
@@ -556,6 +631,7 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
       appliedFileContents: {},
       pendingGitAction: null,
       pendingMergeSource: null,
+      pendingMergeFeedback: null,
     }),
   clearMergeApplyHint: () => set({ mergeApplyFollowupHint: null }),
   clearRestoreConfirmDialog: () => set({ restoreConfirmDialog: null }),
@@ -596,14 +672,25 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
 
     switch (type) {
       case 'SNAPSHOT_LIST':
-        set({ snapshots: payload.snapshots ?? [] });
+        set((state) => {
+          const incoming = (payload.snapshots ?? []) as SnapshotMeta[];
+          const existingById = new Map(state.snapshots.map((snapshot) => [snapshot.snapshotId, snapshot]));
+          const merged = incoming.map((snapshot) => {
+            const existing = existingById.get(snapshot.snapshotId);
+            return existing ? mergeSnapshotPatch(existing, snapshot) : snapshot;
+          });
+          return { snapshots: merged };
+        });
         break;
 
       case 'SNAPSHOT_CREATED': {
         const snap = payload.snapshot as SnapshotMeta;
         set((state) => {
-          if (state.snapshots.some((s) => s.snapshotId === snap.snapshotId)) {
-            return {};
+          const idx = state.snapshots.findIndex((s) => s.snapshotId === snap.snapshotId);
+          if (idx !== -1) {
+            const next = [...state.snapshots];
+            next[idx] = mergeSnapshotPatch(next[idx]!, snap);
+            return { snapshots: next };
           }
           return { snapshots: [snap, ...state.snapshots] };
         });
@@ -651,6 +738,11 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
 
       case 'RESTORE_DONE': {
         const sid = (payload as OutboundPayload<'RESTORE_DONE'>).snapshotId;
+        const snapshotNotificationMessage = (snapshots: SnapshotMeta[]) =>
+          translateUserFacingGitMessage(
+            `스냅샷 시점으로 복원했습니다. (대상: ${resolveSnapshotDisplayName(snapshots, sid)})`,
+            'success',
+          );
         set((state) => ({
           restoreConfirmDialog: null,
           sectionNotifications: {
@@ -661,6 +753,15 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
                 `스냅샷 시점으로 복원했습니다. (대상: ${sid})`,
                 'success',
               ),
+            },
+          },
+        }));
+        set((state) => ({
+          sectionNotifications: {
+            ...state.sectionNotifications,
+            snapshots: {
+              type: 'success',
+              message: snapshotNotificationMessage(state.snapshots),
             },
           },
         }));
@@ -702,6 +803,9 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
       case 'LOADING':
         if (payload.target === 'status') {
           set({ isRefreshingStatus: payload.loading });
+        }
+        if (payload.target === 'statusSummary') {
+          set({ isLoadingStatusSummary: payload.loading });
         }
         if (payload.target === 'pull') {
           set({ isPulling: payload.loading });
@@ -746,11 +850,50 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
           set({ isMergeProposalLoading: payload.loading });
         }
         break;
+      case 'MERGE_COMPARE_CONTENT': {
+        const compare = payload as {
+          analysisId: string;
+          candidateId: string;
+          sourceExcerpt?: string;
+          targetExcerpt?: string;
+          baseExcerpt?: string;
+          sourceFullContent?: string;
+          targetFullContent?: string;
+          baseFullContent?: string;
+          conflictRegions?: import('@gitcat/shared-types').MergeConflictRegion[];
+        };
+        const patchCandidate = (
+          candidate: import('@gitcat/shared-types').MergeConflictCandidateView,
+        ) => {
+          if (candidate.candidateId !== compare.candidateId) {
+            return candidate;
+          }
+          return {
+            ...candidate,
+            sourceExcerpt: compare.sourceExcerpt ?? candidate.sourceExcerpt,
+            targetExcerpt: compare.targetExcerpt ?? candidate.targetExcerpt,
+            baseExcerpt: compare.baseExcerpt ?? candidate.baseExcerpt,
+            sourceFullContent: compare.sourceFullContent,
+            targetFullContent: compare.targetFullContent,
+            baseFullContent: compare.baseFullContent,
+            conflictRegions: compare.conflictRegions ?? candidate.conflictRegions,
+            compareContentTruncated: false,
+          };
+        };
+        set((state) => ({
+          conflicts: state.conflicts.map(patchCandidate),
+          selectedConflict: state.selectedConflict
+            ? patchCandidate(state.selectedConflict)
+            : null,
+        }));
+        break;
+      }
       case 'CONFLICT_RESULT': {
         const conflictPayload = payload as {
           preserveResolvedCandidates?: boolean;
           resolvedCandidates?: Record<string, 'accepted' | 'rejected'>;
           resolvedCandidatesByFilePath?: Record<string, 'accepted' | 'rejected'>;
+          appliedFileContents?: Record<string, string>;
           triggeringAction?: GitCatState['pendingGitAction'];
           mergeSource?: string;
         };
@@ -765,6 +908,7 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
             conflictPayload.resolvedCandidates,
             conflictPayload.resolvedCandidatesByFilePath,
           );
+          const incomingApplied = conflictPayload.appliedFileContents ?? {};
           return {
             conflicts: nextConflicts,
             mergeConflictAnalysisId: payload.analysisId ?? null,
@@ -772,7 +916,9 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
             mergeApplyFollowupHint: null,
             resolvedCandidates: merged.resolvedCandidates,
             resolvedCandidatesByFilePath: merged.resolvedCandidatesByFilePath,
-            appliedFileContents: preserveResolved ? state.appliedFileContents : {},
+            appliedFileContents: preserveResolved
+              ? { ...state.appliedFileContents, ...incomingApplied }
+              : incomingApplied,
             pendingGitAction: conflictPayload.triggeringAction ?? state.pendingGitAction,
             pendingMergeSource: conflictPayload.mergeSource ?? state.pendingMergeSource,
           };
@@ -785,6 +931,26 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
           filePath: string;
           status: 'accepted' | 'rejected';
         };
+        const pendingFeedback = get().pendingMergeFeedback;
+        const matchesPending = pendingFeedback?.candidateId === resolvedPayload.candidateId;
+        if (matchesPending) {
+          if (
+            resolvedPayload.status === 'accepted'
+            && pendingFeedback?.proposedContent
+          ) {
+            get().setAppliedFileContent(
+              resolvedPayload.filePath,
+              pendingFeedback.proposedContent,
+            );
+          }
+          set((state) => ({
+            pendingMergeFeedback: null,
+            currentAIDraft:
+              state.currentAIDraft?.candidateId === resolvedPayload.candidateId
+                ? null
+                : state.currentAIDraft,
+          }));
+        }
         get().markCandidateResolved(
           resolvedPayload.candidateId,
           resolvedPayload.status,
@@ -909,6 +1075,28 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
 
       case 'ERROR': {
         const rawMsg = payload.message ?? '';
+        const errorDomain = (payload as { domain?: string }).domain;
+        const pendingMergeFeedback = get().pendingMergeFeedback;
+        if (pendingMergeFeedback && errorDomain === 'merge_feedback') {
+          get().unmarkCandidateResolved(
+            pendingMergeFeedback.candidateId,
+            pendingMergeFeedback.filePath,
+          );
+          const message = translateUserFacingGitMessage(rawMsg, 'error');
+          set({
+            pendingMergeFeedback: null,
+            globalNotification: { type: 'error', message },
+            sectionNotifications: {
+              ...get().sectionNotifications,
+              git: { type: 'error', message },
+            },
+            notificationLogs: [
+              ...get().notificationLogs,
+              makeLogEntry('error', message, 'error'),
+            ],
+          });
+          break;
+        }
         const recommendationFlow = get().pendingRecommendationFlow;
         const recommendationMessage = translateUserFacingGitMessage(rawMsg, 'error');
         if (recommendationFlow === 'branch') {
@@ -1031,7 +1219,7 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
               // 에디터 패널이 닫힌 뒤 사용자가 결과를 알 수 있도록 한다.
               globalNotification: bannerType === 'success'
                 ? { type: 'success', message }
-                : state.globalNotification,
+                : (shouldClearMerge ? null : state.globalNotification),
               sectionNotifications: {
                 ...state.sectionNotifications,
                 git: { type: bannerType, message },

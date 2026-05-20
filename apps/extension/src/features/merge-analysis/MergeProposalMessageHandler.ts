@@ -58,6 +58,7 @@ export class MergeProposalMessageHandler {
         filePath: request.filePath,
         status: 'accepted',
       });
+      this.messageRouter.publishAppliedFileContent(request.filePath, request.proposedContent);
       this.messageRouter.broadcast({
         type: 'NOTIFICATION',
         payload: {
@@ -111,6 +112,7 @@ export class MergeProposalMessageHandler {
       payload: {
         code: 'INTERNAL_ERROR',
         message,
+        domain: 'merge_feedback',
       },
     } as OutboundMessage);
   }

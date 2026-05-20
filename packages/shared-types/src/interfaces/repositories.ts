@@ -230,6 +230,7 @@ export interface MergeAnalysisRepository {
 export interface ConflictCandidateRepository {
   insertMany(candidates: Array<Omit<ConflictCandidateRow, 'created_at'> & { created_at?: string }>): Promise<void>;
   listByAnalysis(analysisId: string): Promise<ConflictCandidateRow[]>;
+  deleteByAnalysis(analysisId: string): Promise<void>;
 }
 
 /**

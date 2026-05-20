@@ -16,6 +16,7 @@ import { SnapshotIdGenerator } from './SnapshotIdGenerator';
 import { SafetyCheckService } from './SafetyCheckService';
 import { SnapshotDiffService, type SnapshotFileInput } from './SnapshotDiffService';
 import { deserializeSafetyWarnings, serializeSafetyWarnings } from './SafetyWarningSerialization';
+import { t } from '../../../i18n';
 
 const MAX_SNAPSHOTS = 1000;
 
@@ -164,7 +165,7 @@ export class RestoreService {
     }
 
     const manifests = new Map<string, SnapshotManifest>();
-    const candidatePaths = await this.collectCandidatePaths(snapshots, manifests);
+    const candidatePaths = await this.collectCandidatePaths(snapshots, manifests, snapshotId);
     const desiredStates = new Map<string, Uint8Array | null>();
     const currentStates = new Map<string, Uint8Array | null>();
 
@@ -245,8 +246,8 @@ export class RestoreService {
     }
     const preRestoreSnapshotId = await this.snapshotService.createSnapshot('pre_restore', {
       force: true,
-      reason: `Automatic safety snapshot before restoring to ${targetSnapshotId}`,
-      summary: `Pre-restore backup for ${targetSnapshotId}`,
+      reason: t('snapshot.preRestore.reason', { targetSnapshotId }),
+      summary: t('snapshot.preRestore.summary', { targetSnapshotId }),
       changedFiles: changedPaths,
       baselines,
       currentContents: new Map(currentStates),
@@ -270,11 +271,19 @@ export class RestoreService {
   private async collectCandidatePaths(
     snapshots: SnapshotRow[],
     manifests: Map<string, SnapshotManifest>,
+    targetSnapshotId?: string,
   ): Promise<Set<string>> {
     const candidatePaths = await this.collectWorkspacePaths();
 
     for (const snapshot of snapshots) {
-      const manifest = await this.getManifest(snapshot.snapshot_id, manifests);
+      const manifest = await this.getManifest(
+        snapshot.snapshot_id,
+        manifests,
+        snapshot.snapshot_id === targetSnapshotId,
+      );
+      if (!manifest) {
+        continue;
+      }
       for (const changedFile of manifest.changedFiles) {
         candidatePaths.add(this.normalizeRelativePath(changedFile.filePath));
         if (changedFile.renamedFrom) {
@@ -295,7 +304,14 @@ export class RestoreService {
     let wasTouchedByAnySnapshot = false;
 
     for (let index = targetIndex; index >= 0; index -= 1) {
-      const manifest = await this.getManifest(snapshots[index].snapshot_id, manifests);
+      const manifest = await this.getManifest(
+        snapshots[index].snapshot_id,
+        manifests,
+        index === targetIndex,
+      );
+      if (!manifest) {
+        continue;
+      }
       const touchedFile = this.findTouchedFile(manifest, filePath);
       if (!touchedFile) {
         continue;
@@ -314,7 +330,10 @@ export class RestoreService {
     }
 
     for (let index = targetIndex + 1; index < snapshots.length; index += 1) {
-      const manifest = await this.getManifest(snapshots[index].snapshot_id, manifests);
+      const manifest = await this.getManifest(snapshots[index].snapshot_id, manifests, false);
+      if (!manifest) {
+        continue;
+      }
       const touchedFile = this.findTouchedFile(manifest, filePath);
       if (!touchedFile) {
         continue;
@@ -424,15 +443,38 @@ export class RestoreService {
   private async getManifest(
     snapshotId: string,
     manifests: Map<string, SnapshotManifest>,
-  ): Promise<SnapshotManifest> {
+    requiredForRestore: boolean,
+  ): Promise<SnapshotManifest | null> {
     const cached = manifests.get(snapshotId);
     if (cached) {
       return cached;
     }
 
-    const manifest = await this.storage.readSnapshotManifest(snapshotId);
-    manifests.set(snapshotId, manifest);
-    return manifest;
+    try {
+      const manifest = await this.storage.readSnapshotManifest(snapshotId);
+      manifests.set(snapshotId, manifest);
+      return manifest;
+    } catch (error) {
+      if (requiredForRestore || !this.isMissingSnapshotArtifactError(error)) {
+        throw error;
+      }
+
+      console.warn(
+        `[RestoreService] Skipping snapshot with missing artifact during restore planning: ${snapshotId}`,
+        error,
+      );
+      return null;
+    }
+  }
+
+  private isMissingSnapshotArtifactError(error: unknown): boolean {
+    const nodeError = error as NodeJS.ErrnoException | undefined;
+    if (nodeError?.code === 'ENOENT') {
+      return true;
+    }
+
+    const message = error instanceof Error ? error.message : String(error);
+    return message.includes('ENOENT') || message.includes('no such file or directory');
   }
 
   private async applyWorkspaceState(

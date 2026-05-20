@@ -1,32 +1,31 @@
 import * as vscode from 'vscode';
 import { SafetySessionCoordinator } from '../features/safety/session/SafetySessionCoordinator';
+import { t } from '../i18n';
 
 export class SnapshotCommandHandler {
     static async handleCreateSnapshot(
         safetySessionCoordinator: SafetySessionCoordinator,
     ): Promise<string | undefined> {
         const title = await vscode.window.showInputBox({
-            title: 'GitCat: Create Snapshot',
-            prompt: 'Optional snapshot title or reason',
-            placeHolder: 'Manual snapshot before refactor',
+            title: t('snapshot.create.title'),
+            prompt: t('snapshot.create.prompt'),
+            placeHolder: t('snapshot.create.placeholder'),
             ignoreFocusOut: true,
         });
 
         if (title === undefined) {
-            vscode.window.showInformationMessage('GitCat: Snapshot creation cancelled.');
+            vscode.window.showInformationMessage(t('snapshot.create.cancelled'));
             return undefined;
         }
 
         const snapshotId = await safetySessionCoordinator.createManualSnapshot(title);
 
         if (!snapshotId) {
-            vscode.window.showWarningMessage(
-                'GitCat: Snapshot was skipped. A restore may already be in progress.',
-            );
+            vscode.window.showWarningMessage(t('snapshot.create.skipped'));
             return undefined;
         }
 
-        vscode.window.showInformationMessage(`GitCat: Snapshot created (${snapshotId}).`);
+        vscode.window.showInformationMessage(t('snapshot.create.success', { snapshotId }));
         return snapshotId;
     }
 

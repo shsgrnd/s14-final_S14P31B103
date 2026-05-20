@@ -13,9 +13,10 @@
     --primary: var(--vscode-button-background);
     --primary-foreground: var(--vscode-button-foreground);
     --primary-hover: var(--vscode-button-hoverBackground);
-    --secondary: var(--vscode-button-secondaryBackground);
-    --secondary-foreground: var(--vscode-button-secondaryForeground);
-    --secondary-hover: var(--vscode-button-secondaryHoverBackground);
+  /* Dark Modern 등: secondary 토큰이 사이드바와 구분되지 않을 때 대비 확보 */
+    --secondary: var(--vscode-button-secondaryBackground, var(--vscode-input-background, var(--vscode-list-hoverBackground)));
+    --secondary-foreground: var(--vscode-button-secondaryForeground, var(--vscode-foreground, var(--vscode-editor-foreground)));
+    --secondary-hover: var(--vscode-button-secondaryHoverBackground, var(--vscode-list-hoverBackground));
     --muted: var(--vscode-list-hoverBackground);
     --muted-foreground: var(--vscode-list-deemphasizedForeground);
     --accent: var(--vscode-list-activeSelectionBackground);
@@ -27,6 +28,13 @@
     /* Description Text */
     --description: var(--vscode-descriptionForeground, var(--vscode-foreground));
   }
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  width: 100%;
 }
 
 body {
@@ -89,6 +97,159 @@ select option {
 @keyframes gitcat-refresh-spin {
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }
+}
+
+@keyframes gitcat-workflow-ring-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.gitcat-workflow-stepper {
+  margin: 0 8px 10px 8px;
+}
+
+.gitcat-workflow-loading,
+.gitcat-workflow-hint {
+  font-size: 10px;
+  line-height: 1.3;
+  color: var(--vscode-descriptionForeground);
+}
+
+.gitcat-workflow-loading {
+  opacity: 0.75;
+}
+
+.gitcat-workflow-hint {
+  margin-top: 3px;
+  opacity: 0.9;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gitcat-workflow-hint--error {
+  color: var(--vscode-errorForeground);
+}
+
+.gitcat-workflow-hint--pull {
+  color: var(--vscode-charts-orange, #cca700);
+}
+
+.gitcat-workflow-track {
+  display: grid;
+  grid-template-rows: auto auto;
+  row-gap: 3px;
+  align-items: center;
+  width: 100%;
+}
+
+.gitcat-workflow-step-node {
+  justify-self: center;
+  align-self: center;
+  z-index: 1;
+}
+
+.gitcat-workflow-dot {
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  border-width: 1.5px;
+  border-style: solid;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  box-sizing: border-box;
+}
+
+.gitcat-workflow-step-label {
+  justify-self: center;
+  font-size: 9px;
+  font-weight: 500;
+  text-align: center;
+  line-height: 1.15;
+  max-width: 5.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gitcat-workflow-step-label--active {
+  font-weight: 600;
+}
+
+.gitcat-workflow-connector {
+  position: relative;
+  align-self: center;
+  width: 100%;
+  height: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 0;
+}
+
+.gitcat-workflow-connector::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 2px;
+  transform: translateY(-50%);
+  background: var(--vscode-panel-border);
+  opacity: 0.55;
+  z-index: 0;
+}
+
+.gitcat-workflow-connector--done::before {
+  background: var(--vscode-charts-green, #89d185);
+  opacity: 0.85;
+}
+
+.gitcat-workflow-connector--muted::before {
+  opacity: 0.28;
+}
+
+.gitcat-workflow-connector-arrow {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: var(--vscode-descriptionForeground);
+  pointer-events: none;
+  user-select: none;
+}
+
+.gitcat-workflow-connector-arrow svg {
+  display: block;
+  flex-shrink: 0;
+}
+
+.gitcat-workflow-connector--done .gitcat-workflow-connector-arrow {
+  color: var(--vscode-charts-green, #89d185);
+}
+
+.gitcat-workflow-connector--muted .gitcat-workflow-connector-arrow {
+  opacity: 0.45;
+}
+
+.gitcat-workflow-dot--spinning {
+  background: transparent !important;
+}
+
+.gitcat-workflow-dot-ring {
+  position: absolute;
+  inset: -1px;
+  border-radius: 50%;
+  border: 1.5px solid transparent;
+  border-top-color: var(--vscode-focusBorder);
+  border-right-color: var(--vscode-focusBorder);
+  box-sizing: border-box;
+  animation: gitcat-workflow-ring-spin 0.75s linear infinite;
 }
 
 @keyframes gitcat-pulse {
@@ -188,7 +349,7 @@ select option {
   font-weight: bold;
   text-transform: uppercase;
   color: var(--vscode-sideBarTitle-foreground, var(--vscode-titleBar-activeForeground, var(--vscode-tab-activeForeground, var(--vscode-activityBar-foreground, var(--vscode-sideBar-foreground, var(--vscode-editor-foreground))))));
-  padding: 8px 12px;
+  padding: 5px 12px;
   display: flex;
   align-items: center;
   justify-content: space-between;

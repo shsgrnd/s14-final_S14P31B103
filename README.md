@@ -12,7 +12,17 @@ GitCat은 생성형 AI 코딩 환경에서 흔히 발생하는 예기치 않은 
 3. **병합 전 충돌 설명**: 병합 전에 발생할 수 있는 충돌 지점을 미리 분석하여 이해하기 쉽게 설명
 4. **중재 방향 제안**: 충돌 해결을 위한 논리적 중재 방향 제시
 5. **diff/patch 기반 병합 초안 생성**: AI가 제안하는 병합 초안을 diff/patch 형태로 제공
-6. **Git 편의성 향상**: 커밋 메시지, 브랜치명, 작업 설명 자동 추천
+6. **Git 편의성 향상**: 커밋 메시지, 브랜치명, PR 제목/본문, 작업 설명 자동 추천
+7. **Git 워크플로 진행 가시화**: 변경 → 스테이징 → 커밋 → 푸시 단계를 스텝퍼로 보여주고 다음 액션을 안내
+8. **스냅샷 타임라인 정리**: 스냅샷 요약명을 더 자연스럽게 표시하고 필요 시 바로 이름을 수정
+
+---
+
+## ✨ 최근 UX 개선
+- Git 패널에 워크플로 스텝퍼를 추가해 현재 Git 진행 상태와 다음 액션을 더 직관적으로 확인할 수 있습니다.
+- 스냅샷 타임라인에서 요약명을 더 명확하게 표시하고, 인라인으로 이름을 수정할 수 있습니다.
+- 새로 생성된 스냅샷은 생성 직후 타입명 fallback을 먼저 표시하고, 이후 백그라운드에서 GitCat 언어 설정(`auto` / `ko` / `en`) 기준의 최종 요약/제목으로 갱신됩니다.
+- VSIX / Marketplace 배포 식별자를 `GitCat.gitcat-vscode` 기준으로 정리해 배포 패키지 구분을 명확히 했습니다.
 
 ---
 
@@ -65,20 +75,42 @@ GitCat은 생성형 AI 코딩 환경에서 흔히 발생하는 예기치 않은 
 
 ---
 
+## 📦 VSIX 패키징
+배포용 VSIX는 프로젝트 루트에서 아래 명령으로 생성할 수 있습니다.
+
+```bash
+pnpm --dir apps/extension run package:vsix
+```
+
+패키징 전에 확인할 점:
+- 루트에서 `pnpm install`이 끝나 있어야 합니다.
+- 이 스크립트는 내부적으로 `typecheck + extension/webview 빌드 + vsce package`를 함께 수행합니다.
+- 결과물은 `apps/extension/.artifacts/` 아래에 생성됩니다.
+- `0.1.2` 기준 예상 파일명은 `gitcat-vscode-0.1.2.vsix`입니다.
+
+GitHub Actions를 쓰는 경우에는 `.github/workflows/package-vsix.yml`에서도 같은 절차를 실행할 수 있습니다.
+
+---
+
 ## 📥 설치 및 첫 실행
 GitCat은 VS Code Marketplace에서 바로 설치하거나, GitHub Releases 등으로 받은 `.vsix` 파일로 직접 설치할 수 있습니다.
 
 ### Marketplace에서 설치
 1. VS Code의 Extensions 탭을 엽니다.
-2. `GitCat`을 검색합니다.
+2. `GitCat for VS Code`를 검색합니다.
 3. `Install`을 누른 뒤 VS Code를 다시 로드하거나 재시작합니다.
 
 ### VSIX 파일로 설치
 
 1. VS Code에서 Command Palette(`Ctrl+Shift+P`, macOS는 `Cmd+Shift+P`)를 엽니다.
 2. `Extensions: Install from VSIX...`를 실행합니다.
-3. 받은 `gitcat-0.0.3.vsix` 파일을 선택합니다.
+3. 받은 `gitcat-vscode-0.1.2.vsix` 파일을 선택합니다.
 4. 설치가 끝나면 VS Code를 다시 로드하거나 재시작합니다.
+
+참고:
+- 현재 Marketplace / VSIX 확장 ID는 `GitCat.gitcat-vscode`입니다.
+- 기존 `GitCat.gitcat` 설치본에서 옮겨오는 경우 `live-local` 런타임과 VS Code `SecretStorage` 기반 토큰/API 키를 새 확장 기준으로 다시 설정해야 할 수 있습니다.
+- 이 경우 `GitCat: Install Local Runtime`, `GitCat: Set GitHub Token`, `live-remote` AI 설정(API 키/base URL/model) 입력을 다시 한 번 수행하는 것이 안전합니다.
 
 처음 사용할 때 권장 순서:
 1. Command Palette에서 `GitCat: Open Panel`을 실행해 GitCat 패널이 열리는지 확인합니다.
@@ -97,26 +129,35 @@ GitCat은 VS Code Marketplace에서 바로 설치하거나, GitHub Releases 등�
 
 사용 시에는 VS Code 설정에서 `Gitcat > Ai: Mode`를 `live-local`로 변경한 뒤,
 `Gitcat > Ai: Local Model Path`에 다운로드한 GGUF 파일의 절대 경로를 입력하면 됩니다.
+WSL 환경에서는 Windows의 `C:\...` 경로를 입력해도 내부에서 `/mnt/c/...`로 자동 변환됩니다.
+일반 Remote Linux/SSH 환경에서는 자동 변환되지 않으므로, 원격 서버 기준 실제 절대 경로를 입력해야 합니다.
 
 ## 📦 AI 런타임 배포 정책
 GitCat VSIX는 **멀티플랫폼 단일 패키지** 정책을 따릅니다. 따라서 최종 VSIX에는 플랫폼별 `node-llama-cpp` 네이티브 런타임을 동봉하지 않습니다.
 
 - `mock`: 추가 설치 없이 바로 사용할 수 있습니다.
-- `live-remote`: GMS API 키가 필요합니다. 키가 없으면 첫 AI 추천 실행 시 입력창이 뜨고, 입력한 값은 VS Code SecretStorage에 안전하게 저장됩니다.
+- `live-remote`: AI API 키와 remote base URL/model 설정이 필요합니다. 키는 GitCat 사이드바의 키 아이콘에서 입력해 VS Code SecretStorage에 저장하고, remote base URL/model은 같은 UI에서 함께 관리합니다.
 - `live-local`: GGUF 모델 파일과 별도로 로컬 추론 런타임 초기 설치가 필요할 수 있습니다.
 
 `live-remote` 사용 시 준비 순서:
 1. VS Code 설정에서 `Gitcat > Ai: Mode`를 `live-remote`로 변경합니다.
-2. 브랜치 추천, 커밋 추천, PR 추천 같은 AI 기능을 처음 실행합니다.
-3. `GMS_KEY`가 환경 변수에 없으면 API 키 입력창이 뜹니다.
-4. 입력한 키는 VS Code SecretStorage에 저장되며, 이후 같은 VS Code 프로필에서는 다시 입력하지 않아도 됩니다.
+2. GitCat 사이드바 하단의 키 아이콘을 눌러 AI 설정 UI를 엽니다.
+3. `API Key`, `Remote Base URL`, `Remote Model`을 입력해 저장합니다.
+4. API 키는 VS Code SecretStorage에 저장되며, base URL/model은 `gitcat.ai.remoteBaseUrl`, `gitcat.ai.remoteModel` 설정에 저장됩니다.
+5. 기존처럼 `.env`의 `GMS_KEY`, `GMS_BASE_URL`, `GMS_MODEL`도 fallback으로 계속 사용할 수 있습니다.
 
 `live-local` 사용 시 준비 순서:
 1. GGUF 모델 파일을 Hugging Face에서 다운로드합니다.
 2. VS Code 설정에서 `Gitcat > Ai: Mode`를 `live-local`로 변경합니다.
-3. `Gitcat > Ai: Local Model Path`에 GGUF 절대 경로를 입력합니다.
+3. `Gitcat > Ai: Local Model Path`에 GGUF 절대 경로를 입력합니다. Windows에서는 `C:\...`를 입력하면 되고, WSL에서는 같은 값을 입력해도 내부에서 `/mnt/c/...`로 자동 변환됩니다. 일반 Remote Linux/SSH 환경에서는 원격 서버 기준 절대 경로를 입력합니다.
 4. VS Code에서 Command Palette(`Ctrl+Shift+P`, macOS는 `Cmd+Shift+P`)를 연 뒤 `GitCat: Install Local Runtime`을 실행해 `node-llama-cpp` 런타임 설치를 시작합니다.
 5. 설치가 끝나면 브랜치 추천, 커밋 추천, PR 추천 같은 AI 기능을 다시 실행합니다.
+
+## 📝 PR 추천 언어 정책
+- `PR recommendation`은 기본적으로 **한국어 제목과 본문**을 생성합니다.
+- PR template를 함께 사용하는 경우에는 template의 섹션 구조와 순서를 최대한 유지합니다.
+- `gitcat.language`가 `en`이면 PR 제목과 본문은 영어로 생성되고, `ko`이면 한국어로 생성됩니다.
+- 영어 template를 사용하는 경우에도 template의 **마크다운 섹션 heading 줄은 그대로 유지**하고, heading이 아닌 본문/체크리스트/placeholder/helper text는 현재 GitCat 언어 설정에 맞춰 다시 작성합니다.
 
 참고:
 - 이 저장소에서 실험적으로 측정한 `host-only` 최적화본은 최종 배포 정책이 아닙니다.
@@ -126,15 +167,17 @@ GitCat VSIX는 **멀티플랫폼 단일 패키지** 정책을 따릅니다. 따�
 ## 🔐 토큰과 API 키 안내
 - `GitCat: Set GitHub Token`: GitHub PR 관련 기능에 사용할 GitHub Personal Access Token을 저장합니다.
 - `live-remote`용 AI API 키는 GitHub 토큰과 별개입니다.
-- `live-remote`는 `GMS_KEY` 환경 변수 또는 첫 실행 시 입력한 API 키를 사용합니다.
+- `live-remote`는 UI에 저장한 API 키/base URL/model을 우선 사용하고, 값이 비어 있으면 `GMS_KEY`, `GMS_BASE_URL`, `GMS_MODEL` 환경 변수로 fallback합니다.
 
 ## ⌨️ 주요 명령어
 VS Code에서 Command Palette(`Ctrl+Shift+P`, macOS는 `Cmd+Shift+P`)를 열면 아래 GitCat 명령어를 직접 실행할 수 있습니다.
 
 - `GitCat: Open Panel`: 메인 GitCat 패널을 엽니다.
+- `GitCat: Refresh Status`: 현재 워크스페이스의 Git 상태를 다시 조회합니다.
 - `GitCat: Create Snapshot`: 현재 작업 상태를 수동 스냅샷으로 저장합니다.
 - `GitCat: Install Local Runtime`: `live-local`용 `node-llama-cpp` 런타임 설치를 시작합니다.
 - `GitCat: Set GitHub Token`: GitHub PR 기능용 토큰을 저장합니다.
+- `GitCat: Clear GitHub Token`: 저장된 GitHub PR 기능용 토큰을 제거합니다.
 
 ---
 

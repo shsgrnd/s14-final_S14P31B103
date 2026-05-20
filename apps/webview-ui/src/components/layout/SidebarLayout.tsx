@@ -9,6 +9,13 @@ import { useGitCatStore } from '../../store/useGitCatStore';
 import { SidebarSectionNotificationProvider } from '../../app/SidebarSectionNotificationContext';
 import { FooterSectionNotificationBalloon } from './FooterSectionNotificationBalloon';
 import { SidebarResizeHandle } from './SidebarResizeHandle';
+import { useVsCodeApi } from '../../hooks/useVsCodeApi';
+import { applyLanguageSetting, getLanguageSetting, getLocale, t } from '../../i18n';
+import {
+  getNextExpandedSection,
+  SIDEBAR_SECTION_LABEL,
+} from '../../hooks/sidebarSectionLayout';
+import { useSidebarSectionExpanded } from '../../hooks/useSidebarSectionExpanded';
 import {
   type SidebarSectionKey,
   useSidebarSectionWeights,
@@ -37,8 +44,8 @@ const StashPanel = lazy(() => import('../git/StashPanel').then((m) => ({ default
  * 합산 검증: SECTION_MIN_HEIGHT(80) × 4 + FILES_MIN_HEIGHT(120) = 440px
  *   → 일반적인 VS Code 사이드바 높이(~600-900px) 범위 내에서 5개 섹션 모두 펼쳐도 잘리지 않음
  *
- * 각 섹션의 flex-grow 가중치는 useSidebarSectionWeights 훅으로 관리되며 (기본 Files=2, 그 외 1),
- * 인접 섹션 사이 SidebarResizeHandle 을 드래그해 사용자가 조정한다.
+ * flex-grow 가중치는 useSidebarSectionWeights 로 관리(기본 모두 1 → 펼친 섹션끼리 1/N).
+ * 리사이즈 핸들은 접힌 섹션을 건너뛰고, 화면에 보이는 열린 패널 사이에만 표시된다.
  */
 const SECTION_MIN_HEIGHT = '80px';
 const FILES_MIN_HEIGHT = '120px';
@@ -53,6 +60,7 @@ const SECTION_MIN_HEIGHT_PX = 80;
  * - 무거운 패널은 React.lazy로 분할 로드해 첫 페인트 이후 JS 파싱 부담을 줄임
  */
 export const SidebarLayout: React.FC = () => {
+  const { sendMessage } = useVsCodeApi();
   const snapshots = useGitCatStore((state) => state.snapshots);
   const snapshotTimelineBadgeCount = useMemo(
     () => snapshotsVisibleInSidebarTimeline(snapshots).length,
@@ -73,6 +81,7 @@ export const SidebarLayout: React.FC = () => {
   const mergeReviewActiveRef = useRef(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [prSettingsOpen, setPrSettingsOpen] = useState(false);
+  const [languageSetting, setLanguageSetting] = useState<'auto' | 'ko' | 'en'>(getLanguageSetting());
   const [notificationCenterOpen, setNotificationCenterOpen] = useState(false);
   const [clearAllLogsConfirmOpen, setClearAllLogsConfirmOpen] = useState(false);
   const [sectionBalloonOpen, setSectionBalloonOpen] = useState(false);
@@ -139,13 +148,7 @@ export const SidebarLayout: React.FC = () => {
     openNotificationCenter();
   }, [openNotificationCenter]);
 
-  const [expanded, setExpanded] = useState({
-    filetree: true,
-    git: true,
-    safety: false,
-    branch: false,
-    stash: false,
-  });
+  const { expanded, setExpanded, toggleSection } = useSidebarSectionExpanded();
 
   // 세로 리사이즈: 각 섹션의 현재 렌더 높이를 측정하기 위한 refs
   // (RefObject<HTMLElement> 형식이어야 <section ref={...}> 의 LegacyRef 와 호환됨)
@@ -159,20 +162,31 @@ export const SidebarLayout: React.FC = () => {
   const { weights, setPairWeights } = useSidebarSectionWeights();
 
   /**
-   * 두 인접 섹션 사이에 들어갈 리사이즈 핸들에 필요한 props 를 생성.
-   * - visible: 두 섹션이 모두 펼쳐졌을 때만 노출 (한쪽이 접혀 있으면 리사이즈 의미가 없음)
-   * - getHeight: 드래그 시작 시점의 실제 렌더 높이를 측정
+   * 열린 섹션 `above` 바로 아래에 붙는 리사이즈 핸들.
+   * 아래쪽에서 다음으로 펼쳐진 섹션(접힌 섹션은 건너뜀)과 높이 비율을 조절한다.
    */
   const makeHandleProps = (above: SidebarSectionKey, below: SidebarSectionKey) => ({
-    visible: expanded[above] && expanded[below],
+    visible: true,
     getAboveHeight: () => sectionRefs[above].current?.getBoundingClientRect().height ?? 0,
     getBelowHeight: () => sectionRefs[below].current?.getBoundingClientRect().height ?? 0,
     getAboveWeight: () => weights[above],
     getBelowWeight: () => weights[below],
     onWeightsChange: (newAbove: number, newBelow: number) => setPairWeights(above, below, newAbove, newBelow),
     minSectionPx: SECTION_MIN_HEIGHT_PX,
-    ariaLabel: `${above}와 ${below} 섹션 높이 조절`,
+    ariaLabel: `${SIDEBAR_SECTION_LABEL[above]}와 ${SIDEBAR_SECTION_LABEL[below]} 섹션 높이 조절`,
   });
+
+  const renderSectionResizeHandle = (above: SidebarSectionKey) => {
+    if (!expanded[above]) return null;
+    const below = getNextExpandedSection(above, expanded);
+    if (!below) return null;
+    return (
+      <SidebarResizeHandle
+        key={`resize-${above}-${below}`}
+        {...makeHandleProps(above, below)}
+      />
+    );
+  };
 
   useEffect(() => {
     if (!notificationCenterOpen) {
@@ -183,6 +197,21 @@ export const SidebarLayout: React.FC = () => {
     if (!el) return;
     el.scrollTop = el.scrollHeight;
   }, [notificationCenterOpen, notificationLogs.length]);
+
+  useEffect(() => {
+    if (!notificationCenterOpen) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        if (clearAllLogsConfirmOpen) {
+          setClearAllLogsConfirmOpen(false);
+        } else {
+          setNotificationCenterOpen(false);
+        }
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [notificationCenterOpen, clearAllLogsConfirmOpen]);
 
   const formatTime = (timestamp: number): string =>
     new Date(timestamp).toLocaleTimeString([], {
@@ -237,6 +266,19 @@ export const SidebarLayout: React.FC = () => {
     setClearAllLogsConfirmOpen(false);
   };
 
+  const currentLanguageLabel = getLocale() === 'ko' ? t('git.language.korean') : t('git.language.english');
+
+  const handleLanguageChange = (value: 'auto' | 'ko' | 'en') => {
+    setLanguageSetting(value);
+    applyLanguageSetting(value);
+    sendMessage('SET_CONFIG', {
+      config: {
+        key: 'gitcat.language',
+        value,
+      },
+    });
+  };
+
   return (
     <SidebarSectionNotificationProvider
       prSettingsOpen={prSettingsOpen}
@@ -269,7 +311,7 @@ export const SidebarLayout: React.FC = () => {
           <SectionHeader
             label="Git & AI"
             expanded={expanded.git}
-            onToggle={() => setExpanded((p) => ({ ...p, git: !p.git }))}
+            onToggle={() => toggleSection('git')}
           />
           {expanded.git && (
             <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
@@ -280,23 +322,22 @@ export const SidebarLayout: React.FC = () => {
           )}
         </section>
 
-        <SidebarResizeHandle {...makeHandleProps('git', 'filetree')} />
+        {renderSectionResizeHandle('git')}
 
         <section
           ref={sectionRefs.filetree}
           style={{
             display: 'flex',
             flexDirection: 'column',
-            // Files 영역은 기본 가중치가 2배(useSidebarSectionWeights 기본값)라 다른 섹션이 펼쳐져도 트리 가독성을 우선 확보
             flex: expanded.filetree ? `${weights.filetree} 1 0` : 'none',
             minHeight: expanded.filetree ? FILES_MIN_HEIGHT : 'auto',
             overflow: 'hidden',
           }}
         >
           <SectionHeader
-            label="Files"
+            label={t('sidebar.section.files')}
             expanded={expanded.filetree}
-            onToggle={() => setExpanded((p) => ({ ...p, filetree: !p.filetree }))}
+            onToggle={() => toggleSection('filetree')}
           />
           {expanded.filetree && (
             <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
@@ -307,7 +348,7 @@ export const SidebarLayout: React.FC = () => {
           )}
         </section>
 
-        <SidebarResizeHandle {...makeHandleProps('filetree', 'safety')} />
+        {renderSectionResizeHandle('filetree')}
 
         <section
           ref={sectionRefs.safety}
@@ -320,10 +361,10 @@ export const SidebarLayout: React.FC = () => {
           }}
         >
           <SectionHeader
-            label="Snapshots"
+            label={t('sidebar.section.snapshots')}
             expanded={expanded.safety}
             badge={snapshotTimelineBadgeCount > 0 ? snapshotTimelineBadgeCount : undefined}
-            onToggle={() => setExpanded((p) => ({ ...p, safety: !p.safety }))}
+            onToggle={() => toggleSection('safety')}
           />
           {expanded.safety && (
             <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
@@ -334,7 +375,7 @@ export const SidebarLayout: React.FC = () => {
           )}
         </section>
 
-        <SidebarResizeHandle {...makeHandleProps('safety', 'branch')} />
+        {renderSectionResizeHandle('safety')}
 
         <section
           ref={sectionRefs.branch}
@@ -347,9 +388,9 @@ export const SidebarLayout: React.FC = () => {
           }}
         >
           <SectionHeader
-            label="Branch Cleanup"
+            label={t('sidebar.section.branchCleanup')}
             expanded={expanded.branch}
-            onToggle={() => setExpanded((p) => ({ ...p, branch: !p.branch }))}
+            onToggle={() => toggleSection('branch')}
           />
           {expanded.branch && (
             <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
@@ -360,7 +401,7 @@ export const SidebarLayout: React.FC = () => {
           )}
         </section>
 
-        <SidebarResizeHandle {...makeHandleProps('branch', 'stash')} />
+        {renderSectionResizeHandle('branch')}
 
         <section
           ref={sectionRefs.stash}
@@ -373,10 +414,10 @@ export const SidebarLayout: React.FC = () => {
           }}
         >
           <SectionHeader
-            label="Git Stash"
+            label={t('sidebar.section.gitStash')}
             expanded={expanded.stash}
             badge={stashes.length > 0 ? stashes.length : undefined}
-            onToggle={() => setExpanded((p) => ({ ...p, stash: !p.stash }))}
+            onToggle={() => toggleSection('stash')}
           />
           {expanded.stash && (
             <div style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}>
@@ -393,24 +434,53 @@ export const SidebarLayout: React.FC = () => {
           position: 'relative',
           display: 'flex',
           alignItems: 'center',
-          justifyContent: 'flex-end',
+          justifyContent: 'flex-start',
           gap: 4,
           padding: '6px 10px',
           borderTop: '1px solid var(--vscode-panel-border)',
           background: 'var(--vscode-sideBar-background)',
           flexShrink: 0,
+          minWidth: 0,
         }}
       >
         <FooterSectionNotificationBalloon
           paintVisible={sectionBalloonOpen && !notificationCenterOpen}
         />
-        <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginLeft: 'auto' }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: 4,
+            flex: 1,
+            minWidth: 0,
+          }}
+        >
           <button
             type="button"
             className="gitcat-icon-press"
-            style={{ ...footerIconBtn, position: 'relative' }}
-            title="오류/알림 기록 보기"
-            aria-label="오류/알림 기록 보기"
+            style={{ ...footerIconBtn, flexShrink: 0 }}
+            title={t('sidebar.settings.pr')}
+            aria-label={t('sidebar.settings.pr')}
+            onClick={() => setPrSettingsOpen(true)}
+          >
+            <SlidersHorizontal size={15} />
+          </button>
+          <button
+            type="button"
+            className="gitcat-icon-press"
+            style={{ ...footerIconBtn, flexShrink: 0 }}
+            title={t('sidebar.settings.aiApiKey')}
+            aria-label={t('sidebar.settings.aiApiKey')}
+            onClick={() => setSettingsOpen(true)}
+          >
+            <KeyRound size={15} />
+          </button>
+          <button
+            type="button"
+            className="gitcat-icon-press"
+            style={{ ...footerIconBtn, position: 'relative', flexShrink: 0 }}
+            title={t('sidebar.alerts.viewLogs')}
+            aria-label={t('sidebar.alerts.viewLogs')}
             onClick={handleFooterAlertClick}
           >
             <AlertTriangle size={15} />
@@ -443,26 +513,39 @@ export const SidebarLayout: React.FC = () => {
               </span>
             )}
           </button>
-          <button
-            type="button"
-            className="gitcat-icon-press"
-            style={footerIconBtn}
-            title="AI API 키 설정"
-            aria-label="AI API 키 설정"
-            onClick={() => setSettingsOpen(true)}
+          <div
+            style={{
+              flex: '1 1 0',
+              minWidth: 0,
+              maxWidth: 160,
+              display: 'flex',
+            }}
           >
-            <KeyRound size={15} />
-          </button>
-          <button
-            type="button"
-            className="gitcat-icon-press"
-            style={footerIconBtn}
-            title="환경설정"
-            aria-label="환경설정 (PR 기본 target 브랜치 등)"
-            onClick={() => setPrSettingsOpen(true)}
-          >
-            <SlidersHorizontal size={15} />
-          </button>
+            <select
+              aria-label={t('git.language.label')}
+              title={t('git.language.label')}
+              value={languageSetting}
+              onChange={(e) => handleLanguageChange(e.target.value as 'auto' | 'ko' | 'en')}
+              style={{
+                width: '100%',
+                minWidth: 0,
+                maxWidth: '100%',
+                height: '26px',
+                padding: '0 8px',
+                borderRadius: '4px',
+                border: '1px solid var(--vscode-dropdown-border, var(--vscode-panel-border))',
+                background: 'var(--vscode-dropdown-background, var(--vscode-sideBar-background))',
+                color: 'var(--vscode-dropdown-foreground, var(--vscode-sideBar-foreground))',
+                fontSize: '11px',
+                cursor: 'pointer',
+                boxSizing: 'border-box',
+              }}
+            >
+              <option value="auto">{t('git.language.auto')}</option>
+              <option value="en">{t('git.language.english')}</option>
+              <option value="ko">{t('git.language.korean')}</option>
+            </select>
+          </div>
         </div>
       </footer>
 
@@ -538,7 +621,7 @@ export const SidebarLayout: React.FC = () => {
                     id="gitcat-clear-logs-title"
                     style={{ fontSize: '13px', lineHeight: 1.5, marginBottom: '14px' }}
                   >
-                    오류/알림 기록을 전체 다 삭제하시겠습니까?
+                    {t('sidebar.notificationCenter.clearAllConfirm')}
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
                     <button
@@ -553,9 +636,7 @@ export const SidebarLayout: React.FC = () => {
                         color: 'var(--vscode-button-secondaryForeground)',
                         cursor: 'pointer',
                       }}
-                    >
-                      아니요
-                    </button>
+                    >{t('git.cancel')}</button>
                     <button
                       type="button"
                       onClick={handleConfirmClearAllLogs}
@@ -568,9 +649,7 @@ export const SidebarLayout: React.FC = () => {
                         color: 'var(--vscode-button-foreground)',
                         cursor: 'pointer',
                       }}
-                    >
-                      예
-                    </button>
+                    >{t('sidebar.notificationCenter.clearAll')}</button>
                   </div>
                 </div>
               </div>
@@ -585,15 +664,15 @@ export const SidebarLayout: React.FC = () => {
               }}
             >
               <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--vscode-editor-foreground)' }}>
-                오류/알림 기록
+                {t('sidebar.notificationCenter.title')}
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <button
                   type="button"
                   className="gitcat-icon-press"
                   style={{ ...footerIconBtn, color: 'var(--vscode-editor-foreground)', opacity: 0.9 }}
-                  title="기록 비우기"
-                  aria-label="기록 비우기"
+                  title={t('sidebar.notificationCenter.clearAll')}
+                  aria-label={t('sidebar.notificationCenter.clearAll')}
                   disabled={notificationLogs.length === 0}
                   onClick={handleTrashClearAllClick}
                 >
@@ -603,8 +682,8 @@ export const SidebarLayout: React.FC = () => {
                   type="button"
                   className="gitcat-icon-press"
                   style={{ ...footerIconBtn, color: 'var(--vscode-editor-foreground)', opacity: 0.9 }}
-                  title="닫기"
-                  aria-label="닫기"
+                  title={t('sidebar.notificationCenter.close')}
+                  aria-label={t('sidebar.notificationCenter.close')}
                   onClick={() => setNotificationCenterOpen(false)}
                 >
                   <X size={14} />
@@ -621,7 +700,7 @@ export const SidebarLayout: React.FC = () => {
             >
               {notificationLogs.length === 0 ? (
                 <div style={{ fontSize: '12px', color: 'var(--vscode-editor-foreground)', opacity: 0.78, padding: '8px 0' }}>
-                  아직 기록된 알림이 없습니다.
+                  {t('sidebar.notificationCenter.empty')}
                 </div>
               ) : (
                 <div
@@ -651,8 +730,8 @@ export const SidebarLayout: React.FC = () => {
                         <button
                           type="button"
                           className="gitcat-icon-press"
-                          title="이 항목만 삭제"
-                          aria-label="이 알림 삭제"
+                          title={t('sidebar.notificationCenter.removeOne')}
+                          aria-label={t('sidebar.notificationCenter.removeOne')}
                           onClick={() => handleDismissOneLog(log.id)}
                           style={{
                             position: 'absolute',

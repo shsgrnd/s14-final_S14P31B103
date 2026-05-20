@@ -1,15 +1,11 @@
 import React from 'react';
 import { webviewBodyForeground, webviewDescriptionForeground } from '../../shared/styles';
+import { t } from '../../i18n';
 
 interface LoadingFallbackProps {
   isSlowBoot: boolean;
 }
 
-/**
- * 초기 로딩 스플래시 화면 컴포넌트
- * - 정상 부팅 시: "사이드바와 초기 데이터를 준비하고 있습니다."
- * - 3초 초과 시: 지연 안내 메시지로 전환
- */
 export const LoadingFallback: React.FC<LoadingFallbackProps> = ({ isSlowBoot }) => (
   <div style={{
     height: '100vh',
@@ -65,7 +61,7 @@ export const LoadingFallback: React.FC<LoadingFallbackProps> = ({ isSlowBoot }) 
         letterSpacing: '0.02em',
         color: webviewBodyForeground,
       }}>
-        GitCat을 불러오는 중입니다...
+        {t('loading.title')}
       </div>
 
       <div style={{
@@ -74,9 +70,7 @@ export const LoadingFallback: React.FC<LoadingFallbackProps> = ({ isSlowBoot }) 
         color: webviewDescriptionForeground,
         opacity: 0.92,
       }}>
-        {isSlowBoot
-          ? '초기 로딩이 지연되고 있습니다. 잠시 후 다시 선택하거나 다른 탭으로 이동 후 돌아와 주세요.'
-          : '사이드바와 초기 데이터를 준비하고 있습니다.'}
+        {isSlowBoot ? t('loading.slow') : t('loading.ready')}
       </div>
     </div>
   </div>

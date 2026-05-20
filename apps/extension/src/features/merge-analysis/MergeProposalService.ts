@@ -214,6 +214,7 @@ export class MergeProposalService {
           && proposal.feature_type === (request.featureType ?? 'merge_patch_draft'),
       );
       if (existing) {
+        await this.rehydrateProposalIfMissing(existing);
         return { proposals: [this.toProposalView(existing)] };
       }
     }
@@ -295,6 +296,7 @@ export class MergeProposalService {
   }
 
   async accept(request: AcceptMergeRequest): Promise<MergeFeedbackResult> {
+    await this.rehydrateProposalFromArtifactIfMissing(request.proposalId, request.analysisId);
     const proposal = await this.requireProposal(request.proposalId);
     const analysis = await this.loadAnalysisArtifact(request.analysisId);
     const feedbackId = this.feedbackId(request.proposalId, 'accepted');
@@ -336,6 +338,7 @@ export class MergeProposalService {
   }
 
   async reject(request: RejectMergeRequest): Promise<MergeFeedbackResult> {
+    await this.rehydrateProposalFromArtifactIfMissing(request.proposalId, request.analysisId);
     const proposal = await this.requireProposal(request.proposalId);
     const analysis = await this.loadAnalysisArtifact(request.analysisId);
     const feedbackId = this.feedbackId(request.proposalId, 'rejected');
@@ -358,6 +361,46 @@ export class MergeProposalService {
       feedbackId,
       status: 'rejected',
     };
+  }
+
+  /**
+   * proposals.json 캐시는 남았지만 SQLite가 비운 경우(Extension Host 재로드 등) DB 행을 복원합니다.
+   */
+  private async rehydrateProposalFromArtifactIfMissing(
+    proposalId: string,
+    analysisId: string,
+  ): Promise<void> {
+    const existing = await this.repositories.mergeProposals.findById(proposalId);
+    if (existing) {
+      return;
+    }
+
+    const artifact = await this.artifactStore.readProposals<StoredProposalsArtifact>(
+      this.workspaceRoot,
+      analysisId,
+    );
+    const entry = artifact?.proposals.find((proposal) => proposal.proposal_id === proposalId);
+    if (!entry) {
+      return;
+    }
+
+    await this.rehydrateProposalIfMissing(entry);
+  }
+
+  private async rehydrateProposalIfMissing(entry: StoredProposalArtifactEntry): Promise<void> {
+    const existing = await this.repositories.mergeProposals.findById(entry.proposal_id);
+    if (existing) {
+      return;
+    }
+
+    try {
+      await this.repositories.mergeProposals.insertMany([this.toProposalRow(entry)]);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `Merge proposal not found: ${entry.proposal_id} (cache re-hydrate failed: ${message})`,
+      );
+    }
   }
 
   private async requireProposal(proposalId: string): Promise<MergeProposalRow> {

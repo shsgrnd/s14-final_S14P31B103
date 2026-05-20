@@ -4,7 +4,7 @@
         {
             "label": "pnpm compile",
             "type": "shell",
-            "command": "corepack pnpm --filter @gitcat/shared-types run build; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; corepack pnpm --filter @gitcat/storage run build; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; corepack pnpm --filter @gitcat/ai-pipeline run build; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; corepack pnpm --filter @gitcat/git-core run build; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; corepack pnpm --filter @gitcat/git-client-cli run build; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; corepack pnpm --filter @gitcat/webview-ui run build; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; corepack pnpm --filter gitcat run compile",
+            "command": "corepack pnpm --filter @gitcat/shared-types run build; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; corepack pnpm --filter @gitcat/storage run build; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; corepack pnpm --filter @gitcat/ai-pipeline run build; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; corepack pnpm --filter @gitcat/git-core run build; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; corepack pnpm --filter @gitcat/git-client-cli run build; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; corepack pnpm --filter @gitcat/webview-ui run build; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }; corepack pnpm --filter gitcat-vscode run compile",
             "options": {
                 "cwd": "${workspaceFolder}",
                 "shell": {
@@ -27,13 +27,16 @@
         {
             "label": "pnpm watch",
             "type": "shell",
-            "command": "pnpm",
-            "args": [
-                "run",
-                "watch"
-            ],
+            "command": "corepack pnpm run watch",
             "options": {
-                "cwd": "c:/Users/SSAFY/Desktop/s14-final_S14P31B103/apps/extension"
+                "cwd": "${workspaceFolder}/apps/extension",
+                "shell": {
+                    "executable": "powershell.exe",
+                    "args": [
+                        "-NoProfile",
+                        "-Command"
+                    ]
+                }
             },
             "isBackground": true,
             "group": {

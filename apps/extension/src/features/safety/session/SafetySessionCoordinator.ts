@@ -2,14 +2,22 @@ import * as vscode from 'vscode';
 import { SessionMeta, SessionType } from '@gitcat/shared-types';
 import { AiChangeDetector } from './AiChangeDetector';
 import { ISnapshotService } from '../snapshot/ISnapshotService';
+import { t } from '../../../i18n';
 
 export class SafetySessionCoordinator {
     private currentSession: SessionMeta | null = null;
     private baselines = new Map<string, Uint8Array>();
     private currentTextCache = new Map<string, string>();
+    private currentContentOverrides = new Map<string, Uint8Array | null>();
+    private lastObservedText = new Map<string, string>();
+    private observedFileContents = new Map<string, Uint8Array>();
+    private pendingSaveBaselines = new Map<string, Uint8Array>();
     private changedFiles = new Set<string>();
     private dirtyFiles = new Set<string>();
     private aiChangeDetector = new AiChangeDetector();
+    private lastNonFileAiHintAt = 0;
+    private readonly SAVE_RECOVERY_AI_HINT_WINDOW_MS = 10 * 1000;
+    private workspaceStateWarmupPromise: Promise<void> | null = null;
 
     private interSessionUserBaselines = new Map<string, Uint8Array>();
     private interSessionUserChangedFiles = new Set<string>();
@@ -37,6 +45,28 @@ export class SafetySessionCoordinator {
         return this.dirtyFiles;
     }
 
+    public rememberDocumentState(doc: vscode.TextDocument): void {
+        if (doc.uri.scheme !== 'file') {
+            return;
+        }
+
+        const fsPath = doc.uri.fsPath;
+        if (this.isIgnoredPath(fsPath)) {
+            return;
+        }
+
+        const text = doc.getText();
+        this.lastObservedText.set(fsPath, text);
+        this.observedFileContents.set(fsPath, Buffer.from(text, 'utf8'));
+    }
+
+    public warmWorkspaceFileState(): Promise<void> {
+        if (!this.workspaceStateWarmupPromise) {
+            this.workspaceStateWarmupPromise = this.doWarmWorkspaceFileState();
+        }
+        return this.workspaceStateWarmupPromise;
+    }
+
     public async startAiSession(baseSnapshotId?: string): Promise<string> {
         return this.startSession('ai', baseSnapshotId);
     }
@@ -46,24 +76,30 @@ export class SafetySessionCoordinator {
     }
 
     private async startSession(type: SessionType, baseSnapshotId?: string): Promise<string> {
+        const previousSession = this.currentSession ? { ...this.currentSession } : null;
         if (this.currentSession) {
             await this.endSession();
         }
 
-        if (type === 'ai' && this.interSessionUserChangedFiles.size > 0) {
-            await this.snapshotService.createSnapshot('auto_dirty_before_ai', {
-                reason: 'AI 작업 시작 전 사용자 변경분 자동 보호 스냅샷',
-                changedFiles: Array.from(this.interSessionUserChangedFiles),
-                userBaselines: new Map(this.interSessionUserBaselines),
-                userChangedFiles: Array.from(this.interSessionUserChangedFiles),
-            });
+        const shouldCreateAutoDirtyBeforeAi = type === 'ai' && previousSession === null;
+        if (shouldCreateAutoDirtyBeforeAi) {
+            const pendingPaths = this.interSessionUserChangedFiles.size > 0
+                ? Array.from(this.interSessionUserChangedFiles)
+                : Array.from(this.dirtyFiles);
+            if (pendingPaths.length > 0) {
+                const baselines = await this.collectBaselinesForPaths(pendingPaths);
+                const currentContents = this.buildCurrentContentsForPaths(pendingPaths);
+                await this.snapshotService.createSnapshot('auto_dirty_before_ai', {
+                    reason: this.interSessionUserChangedFiles.size > 0
+                        ? t('session.snapshot.autoDirtyBeforeAi')
+                        : t('session.snapshot.autoDirtyCurrentBeforeAi'),
+                    changedFiles: pendingPaths,
+                    baselines,
+                    currentContents,
+                });
+            }
             this.interSessionUserBaselines.clear();
             this.interSessionUserChangedFiles.clear();
-        } else if (type === 'ai' && this.dirtyFiles.size > 0) {
-            await this.snapshotService.createSnapshot('auto_dirty_before_ai', {
-                reason: 'AI 작업 시작 전 현재 dirty 상태 자동 보호 스냅샷',
-                changedFiles: Array.from(this.dirtyFiles),
-            });
         }
 
         const sessionId = `session_${Date.now()}`;
@@ -77,6 +113,7 @@ export class SafetySessionCoordinator {
 
         this.baselines.clear();
         this.currentTextCache.clear();
+        this.currentContentOverrides.clear();
         this.changedFiles.clear();
 
         console.log(`Started ${type} session: ${sessionId}`);
@@ -109,21 +146,24 @@ export class SafetySessionCoordinator {
         console.log(`Ended session: ${endedSession.sessionId}${reason ? ` (Reason: ${reason})` : ''}`);
 
         const snapshotType = endedSession.type === 'ai' ? 'ai_result' : 'manual_edit_result';
+        const trackedPaths = this.getTrackedFilePaths();
         await this.snapshotService.createSnapshot(snapshotType, {
             sessionId: endedSession.sessionId,
-            reason: reason || '세션 종료',
-            changedFiles: Array.from(this.changedFiles),
+            reason: reason || t('session.reason.default'),
+            changedFiles: trackedPaths,
             baselines: new Map(this.baselines),
-            currentContents: this.buildCurrentContentsSnapshot(),
+            currentContents: this.buildCurrentContentsForPaths(trackedPaths),
         });
 
         if (endedSession.type === 'ai') {
             for (const filePath of this.baselines.keys()) {
                 if (!this.interSessionUserBaselines.has(filePath)) {
                     const currentText = this.currentTextCache.get(filePath);
+                    const currentBytes = this.currentContentOverrides.get(filePath);
                     this.interSessionUserBaselines.set(
                         filePath,
-                        currentText ? Buffer.from(currentText, 'utf8') : new Uint8Array(),
+                        currentBytes
+                            ?? (currentText ? Buffer.from(currentText, 'utf8') : new Uint8Array()),
                     );
                 }
             }
@@ -137,24 +177,23 @@ export class SafetySessionCoordinator {
             return undefined;
         }
 
-        // Manual snapshot should take priority over pending auto-timeout snapshot.
         if (this.sessionTimer) {
             clearTimeout(this.sessionTimer);
             this.sessionTimer = null;
         }
 
         const snapshotId = await this.snapshotService.createSnapshot('savepoint', {
-            reason: title?.trim() || '수동 스냅샷',
+            reason: title?.trim() || t('session.snapshot.manual'),
             force: true,
-            changedFiles: Array.from(this.changedFiles),
+            changedFiles: this.getTrackedFilePaths(),
             baselines: new Map(this.baselines),
             currentContents: this.buildCurrentContentsSnapshot(),
         });
 
-        // Prevent immediate duplicate auto snapshot from the same change set.
         this.currentSession = null;
         this.baselines.clear();
         this.currentTextCache.clear();
+        this.currentContentOverrides.clear();
         this.changedFiles.clear();
 
         return snapshotId;
@@ -166,7 +205,7 @@ export class SafetySessionCoordinator {
         }
         this.sessionTimer = setTimeout(async () => {
             console.log(`[SafetySessionCoordinator] session timeout reached (${this.SESSION_TIMEOUT_MS}ms)`);
-            await this.endSession('세션 타임아웃');
+            await this.endSession(t('session.reason.timeout'));
         }, this.SESSION_TIMEOUT_MS);
     }
 
@@ -176,8 +215,15 @@ export class SafetySessionCoordinator {
         }
 
         const doc = event.document;
-        // [DEBUG] 함수 진입 확인 - 이 로그가 안 보이면 이벤트 연결 자체가 안 된 것
         console.log(`[DEBUG] handleDocumentChange called: scheme=${doc.uri.scheme}, changes=${event.contentChanges.length}`);
+
+        if (event.contentChanges.length === 0) {
+            return;
+        }
+
+        if (this.isAiBridgeScheme(doc.uri.scheme)) {
+            this.lastNonFileAiHintAt = Date.now();
+        }
 
         if (doc.uri.scheme !== 'file') {
             return;
@@ -187,47 +233,64 @@ export class SafetySessionCoordinator {
         if (this.isIgnoredPath(fsPath)) {
             return;
         }
+        const previousObservedText = this.lastObservedText.get(fsPath);
+        const previousObservedBytes = this.observedFileContents.get(fsPath);
+        const baselineReadPromise: Promise<Uint8Array> | null = previousObservedText === undefined
+            ? (async () => {
+                if (previousObservedBytes) {
+                    return previousObservedBytes;
+                }
+                try {
+                    return await vscode.workspace.fs.readFile(doc.uri);
+                } catch {
+                    return new Uint8Array();
+                }
+            })()
+            : null;
+
+        if (
+            event.reason === vscode.TextDocumentChangeReason.Undo ||
+            event.reason === vscode.TextDocumentChangeReason.Redo
+        ) {
+            if (doc.isDirty) {
+                const text = doc.getText();
+                this.currentTextCache.set(fsPath, text);
+                this.currentContentOverrides.set(fsPath, Buffer.from(text, 'utf8'));
+                if (this.currentSession) {
+                    this.changedFiles.add(fsPath);
+                }
+                this.dirtyFiles.add(fsPath);
+            } else {
+                this.currentTextCache.delete(fsPath);
+                this.currentContentOverrides.delete(fsPath);
+                this.dirtyFiles.delete(fsPath);
+                if (!this.currentSession) {
+                    this.changedFiles.delete(fsPath);
+                    this.interSessionUserChangedFiles.delete(fsPath);
+                    this.interSessionUserBaselines.delete(fsPath);
+                }
+            }
+            return;
+        }
 
         const isAiChange = await this.aiChangeDetector.analyzeChange(event);
 
-        if (isAiChange) {
-            if (!this.currentSession || this.currentSession.type !== 'ai') {
+        // Keep the current session type until it ends.
+        // Mid-session switching (manual <-> ai) can create chained snapshots
+        // for one logical edit burst (manual_result -> auto_dirty_before_ai -> ai_result).
+        if (!this.currentSession) {
+            if (isAiChange) {
                 await this.startAiSession();
+            } else {
+                await this.startManualSession();
             }
-        } else if (!this.currentSession) {
-            this.interSessionUserChangedFiles.add(fsPath);
-            if (!this.interSessionUserBaselines.has(fsPath)) {
-                try {
-                    const fileData = await vscode.workspace.fs.readFile(doc.uri);
-                    this.interSessionUserBaselines.set(fsPath, fileData);
-                } catch {
-                    this.interSessionUserBaselines.set(fsPath, new Uint8Array());
-                }
-            }
-
-            if (!this.currentSession) {
-                // interSession baseline 캡처 (세션 시작 전 콜스액 상태 기록)
-                this.interSessionUserChangedFiles.add(fsPath);
-                if (!this.interSessionUserBaselines.has(fsPath)) {
-                    try {
-                        const fileData = await vscode.workspace.fs.readFile(doc.uri);
-                        // 이 맵은 스냅샷 비교 시 원본 바이트(Uint8Array)를 그대로 보관하는 용도이므로,
-                        // 문자열로 변환하지 않고 readFile 결과를 그대로 유지해야 합니다.
-                        this.interSessionUserBaselines.set(fsPath, fileData);
-                    } catch {
-                        this.interSessionUserBaselines.set(fsPath, new Uint8Array());
-                    }
-                }
-                // readFile 대기 중 다른 이벤트가 먼저 세션을 시작했을 수 있으므로 재확인
-                if (!this.currentSession) {
-                    await this.startManualSession();
-                }
-            }
-            // manual 세션 중 or AI 세션 중: 아래 changedFiles에 추가됨
         }
 
         this.changedFiles.add(fsPath);
-        this.currentTextCache.set(fsPath, doc.getText());
+        const currentText = doc.getText();
+        this.currentTextCache.set(fsPath, currentText);
+        this.currentContentOverrides.set(fsPath, Buffer.from(currentText, 'utf8'));
+        this.lastObservedText.set(fsPath, currentText);
 
         if (doc.isDirty) {
             this.dirtyFiles.add(fsPath);
@@ -237,17 +300,98 @@ export class SafetySessionCoordinator {
 
         if (this.currentSession && !this.baselines.has(fsPath)) {
             try {
-                const fileData = await vscode.workspace.fs.readFile(doc.uri);
-                this.baselines.set(fsPath, fileData);
+                const beforeText = previousObservedText;
+                if (beforeText === undefined) {
+                    throw new Error('No previous observed text available');
+                }
+                this.baselines.set(fsPath, Buffer.from(beforeText, 'utf8'));
             } catch {
-                this.baselines.set(fsPath, new Uint8Array());
+                try {
+                    const fileData = baselineReadPromise
+                        ? await baselineReadPromise
+                        : await vscode.workspace.fs.readFile(doc.uri);
+                    this.baselines.set(fsPath, fileData);
+                } catch {
+                    this.baselines.set(fsPath, new Uint8Array());
+                }
             }
         }
 
         this.resetSessionTimer();
     }
 
-    public handleDocumentSave(doc: vscode.TextDocument) {
+    public async handleWillSaveDocument(doc: vscode.TextDocument): Promise<void> {
+        if (this.snapshotService.isRestoreOperationActive()) {
+            return;
+        }
+
+        if (doc.uri.scheme !== 'file') {
+            return;
+        }
+
+        const fsPath = doc.uri.fsPath;
+        if (this.isIgnoredPath(fsPath) || this.changedFiles.has(fsPath) || this.baselines.has(fsPath)) {
+            return;
+        }
+
+        try {
+            const fileData = await vscode.workspace.fs.readFile(doc.uri);
+            this.pendingSaveBaselines.set(fsPath, fileData);
+        } catch {
+            this.pendingSaveBaselines.set(fsPath, new Uint8Array());
+        }
+    }
+
+    public async handleFilesystemChange(uri: vscode.Uri): Promise<void> {
+        await this.handleFilesystemMutation(uri, 'changed');
+    }
+
+    public async handleFilesystemCreate(uri: vscode.Uri): Promise<void> {
+        await this.handleFilesystemMutation(uri, 'created');
+    }
+
+    public async handleFilesystemDelete(uri: vscode.Uri): Promise<void> {
+        await this.handleFilesystemMutation(uri, 'deleted');
+    }
+
+    private async collectBaselinesForPaths(paths: string[]): Promise<Map<string, Uint8Array>> {
+        const baselines = new Map<string, Uint8Array>();
+        for (const filePath of paths) {
+            const cached = this.interSessionUserBaselines.get(filePath)
+                ?? this.baselines.get(filePath)
+                ?? this.observedFileContents.get(filePath);
+            if (cached) {
+                baselines.set(filePath, cached);
+                continue;
+            }
+
+            try {
+                const fileData = await vscode.workspace.fs.readFile(vscode.Uri.file(filePath));
+                baselines.set(filePath, fileData);
+            } catch {
+                baselines.set(filePath, new Uint8Array());
+            }
+        }
+        return baselines;
+    }
+
+    private buildCurrentContentsForPaths(paths: Iterable<string>): Map<string, Uint8Array | null> {
+        const currentContents = new Map<string, Uint8Array | null>();
+        for (const filePath of paths) {
+            if (this.currentContentOverrides.has(filePath)) {
+                currentContents.set(filePath, this.currentContentOverrides.get(filePath) ?? null);
+                continue;
+            }
+            const currentText = this.currentTextCache.get(filePath) ?? this.findOpenDocumentText(filePath);
+            if (currentText === undefined) {
+                continue;
+            }
+            currentContents.set(filePath, Buffer.from(currentText, 'utf8'));
+        }
+        return currentContents;
+    }
+
+    public async handleDocumentSave(doc: vscode.TextDocument): Promise<void> {
         if (this.snapshotService.isRestoreOperationActive()) {
             return;
         }
@@ -256,8 +400,48 @@ export class SafetySessionCoordinator {
             return;
         }
         const fsPath = doc.uri.fsPath;
-        this.dirtyFiles.delete(fsPath);
+        const currentText = doc.getText();
+        const previousObservedText = this.lastObservedText.get(fsPath);
+        const pendingSaveBaseline = this.pendingSaveBaselines.get(fsPath);
+        const pendingSaveText = pendingSaveBaseline
+            ? Buffer.from(pendingSaveBaseline).toString('utf8')
+            : undefined;
 
+        // Some edit flows (e.g. chat-editing bridge) may skip file-scheme contentChanges.
+        // Recover missed tracking at save-time by comparing the previously observed text.
+        const shouldRecoverFromSave =
+            !this.changedFiles.has(fsPath) &&
+            (
+                (previousObservedText !== undefined && previousObservedText !== currentText) ||
+                (pendingSaveText !== undefined && pendingSaveText !== currentText)
+            );
+
+        if (shouldRecoverFromSave) {
+            if (!this.currentSession) {
+                if (this.shouldTreatSaveRecoveryAsAi()) {
+                    await this.startAiSession();
+                } else {
+                    await this.startManualSession();
+                }
+            }
+            if (this.currentSession && !this.baselines.has(fsPath)) {
+                if (previousObservedText !== undefined && previousObservedText !== currentText) {
+                    this.baselines.set(fsPath, Buffer.from(previousObservedText, 'utf8'));
+                } else if (pendingSaveBaseline !== undefined) {
+                    this.baselines.set(fsPath, pendingSaveBaseline);
+                }
+            }
+            this.changedFiles.add(fsPath);
+            this.currentTextCache.set(fsPath, currentText);
+            this.currentContentOverrides.set(fsPath, Buffer.from(currentText, 'utf8'));
+            console.log(`[SafetySessionCoordinator] recovered missed file change on save: ${fsPath}`);
+            this.resetSessionTimer();
+        }
+
+        this.pendingSaveBaselines.delete(fsPath);
+        this.dirtyFiles.delete(fsPath);
+        this.currentContentOverrides.delete(fsPath);
+        this.rememberDocumentState(doc);
     }
 
     public resetAfterRestore(): void {
@@ -269,23 +453,138 @@ export class SafetySessionCoordinator {
         this.currentSession = null;
         this.baselines.clear();
         this.currentTextCache.clear();
+        this.currentContentOverrides.clear();
+        this.lastObservedText.clear();
+        this.observedFileContents.clear();
+        this.workspaceStateWarmupPromise = null;
+        this.pendingSaveBaselines.clear();
         this.changedFiles.clear();
         this.dirtyFiles.clear();
         this.interSessionUserBaselines.clear();
         this.interSessionUserChangedFiles.clear();
         console.log('[SafetySessionCoordinator] reset state after snapshot restore.');
+        void this.warmWorkspaceFileState();
     }
 
     private buildCurrentContentsSnapshot(): Map<string, Uint8Array | null> {
-        const currentContents = new Map<string, Uint8Array | null>();
+        return this.buildCurrentContentsForPaths(this.getTrackedFilePaths());
+    }
+
+    private getTrackedFilePaths(): string[] {
+        const tracked = new Set<string>();
         for (const filePath of this.changedFiles) {
-            const currentText = this.currentTextCache.get(filePath);
-            if (currentText === undefined) {
-                continue;
-            }
-            currentContents.set(filePath, Buffer.from(currentText, 'utf8'));
+            tracked.add(filePath);
         }
-        return currentContents;
+        for (const filePath of this.baselines.keys()) {
+            tracked.add(filePath);
+        }
+        for (const filePath of this.currentTextCache.keys()) {
+            tracked.add(filePath);
+        }
+        return Array.from(tracked);
+    }
+
+    private findOpenDocumentText(fsPath: string): string | undefined {
+        const document = vscode.workspace.textDocuments.find((doc) => doc.uri.scheme === 'file' && doc.uri.fsPath === fsPath);
+        return document?.getText();
+    }
+
+    private async doWarmWorkspaceFileState(): Promise<void> {
+        try {
+            const files = await vscode.workspace.findFiles('**/*', '**/{.git,node_modules,dist,build}/**');
+            let cachedCount = 0;
+            for (const file of files) {
+                if (file.scheme !== 'file' || this.isIgnoredPath(file.fsPath)) {
+                    continue;
+                }
+                try {
+                    const data = await vscode.workspace.fs.readFile(file);
+                    this.observedFileContents.set(file.fsPath, data);
+                    cachedCount += 1;
+                } catch {
+                    // Ignore unreadable files; they will fall back to live observation.
+                }
+            }
+            console.log(`[SafetySessionCoordinator] warmed workspace file state for ${cachedCount} files.`);
+        } catch (error) {
+            console.warn('[SafetySessionCoordinator] failed to warm workspace file state:', error);
+        }
+    }
+
+    private async handleFilesystemMutation(
+        uri: vscode.Uri,
+        mutation: 'changed' | 'created' | 'deleted',
+    ): Promise<void> {
+        if (this.snapshotService.isRestoreOperationActive() || uri.scheme !== 'file') {
+            return;
+        }
+
+        const fsPath = uri.fsPath;
+        if (this.isIgnoredPath(fsPath)) {
+            return;
+        }
+
+        const openDocument = vscode.workspace.textDocuments.find((doc) => doc.uri.scheme === 'file' && doc.uri.fsPath === fsPath);
+        if (openDocument) {
+            return;
+        }
+
+        const previousObservedBytes = this.observedFileContents.get(fsPath);
+        let currentBytes: Uint8Array | null = null;
+        if (mutation !== 'deleted') {
+            try {
+                currentBytes = await vscode.workspace.fs.readFile(uri);
+            } catch {
+                currentBytes = null;
+            }
+        }
+
+        if (mutation === 'changed') {
+            if (previousObservedBytes === undefined) {
+                if (currentBytes) {
+                    this.observedFileContents.set(fsPath, currentBytes);
+                }
+                return;
+            }
+            if (currentBytes && Buffer.compare(Buffer.from(previousObservedBytes), Buffer.from(currentBytes)) === 0) {
+                return;
+            }
+        }
+
+        if (!this.currentSession) {
+            if (this.shouldTreatSaveRecoveryAsAi()) {
+                await this.startAiSession();
+            } else {
+                await this.startManualSession();
+            }
+        }
+
+        if (this.currentSession && !this.baselines.has(fsPath)) {
+            if (mutation === 'created') {
+                this.baselines.set(fsPath, new Uint8Array());
+            } else if (previousObservedBytes !== undefined) {
+                this.baselines.set(fsPath, previousObservedBytes);
+            } else {
+                if (currentBytes) {
+                    this.observedFileContents.set(fsPath, currentBytes);
+                }
+                return;
+            }
+        }
+
+        this.changedFiles.add(fsPath);
+        this.currentTextCache.delete(fsPath);
+        this.currentContentOverrides.set(fsPath, currentBytes);
+
+        if (currentBytes) {
+            this.observedFileContents.set(fsPath, currentBytes);
+        } else {
+            this.observedFileContents.delete(fsPath);
+            this.lastObservedText.delete(fsPath);
+        }
+
+        console.log(`[SafetySessionCoordinator] tracked external file ${mutation}: ${fsPath}`);
+        this.resetSessionTimer();
     }
 
     private isIgnoredPath(fsPath: string): boolean {
@@ -296,5 +595,14 @@ export class SafetySessionCoordinator {
             normalizedPath.includes('/dist/') ||
             normalizedPath.includes('/build/')
         );
+    }
+
+    private shouldTreatSaveRecoveryAsAi(): boolean {
+        const now = Date.now();
+        return now - this.lastNonFileAiHintAt <= this.SAVE_RECOVERY_AI_HINT_WINDOW_MS;
+    }
+
+    private isAiBridgeScheme(scheme: string): boolean {
+        return scheme.startsWith('chat-editing') || scheme === 'vscode-chat-code-block';
     }
 }
