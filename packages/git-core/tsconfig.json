@@ -4,7 +4,8 @@
     "module": "commonjs",
     "moduleResolution": "node",
     "rootDir": "src",
-    "outDir": "dist"
+    "outDir": "dist",
+    "ignoreDeprecations": "5.0" 
   },
   "include": ["src/**/*"]
 }

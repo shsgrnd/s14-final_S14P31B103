@@ -112,12 +112,42 @@ function mapSnapshotFilesToMetaRows(files: SnapshotFile[]): SnapshotMetaFileRow[
 }
 
 function mergeSnapshotPatch(existing: SnapshotMeta, patch: Partial<SnapshotMeta>): SnapshotMeta {
+  const existingFiles = existing.files;
+  const patchFiles = patch.files;
+  const shouldKeepExistingFiles =
+    Array.isArray(existingFiles)
+    && existingFiles.length > 0
+    && Array.isArray(patchFiles)
+    && patchFiles.length === 0;
+  const mergedFiles = shouldKeepExistingFiles
+    ? existingFiles
+    : (patchFiles ?? existingFiles);
+
+  const mergedChangedFileCount = Math.max(
+    existing.changedFileCount ?? 0,
+    patch.changedFileCount ?? 0,
+  ) || undefined;
+
   return {
     ...existing,
     ...patch,
     snapshotId: existing.snapshotId,
-    files: patch.files ?? existing.files,
+    changedFileCount: mergedChangedFileCount,
+    files: mergedFiles,
   };
+}
+
+function resolveSnapshotDisplayName(
+  snapshots: SnapshotMeta[],
+  snapshotId: string | undefined,
+): string {
+  if (!snapshotId) {
+    return '--';
+  }
+
+  const snapshot = snapshots.find((item) => item.snapshotId === snapshotId);
+  const preferredLabel = snapshot?.summary?.trim() || snapshot?.reason?.trim();
+  return preferredLabel || snapshotId;
 }
 
 function dedupePrTemplatesForDisplay(
@@ -642,14 +672,25 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
 
     switch (type) {
       case 'SNAPSHOT_LIST':
-        set({ snapshots: payload.snapshots ?? [] });
+        set((state) => {
+          const incoming = (payload.snapshots ?? []) as SnapshotMeta[];
+          const existingById = new Map(state.snapshots.map((snapshot) => [snapshot.snapshotId, snapshot]));
+          const merged = incoming.map((snapshot) => {
+            const existing = existingById.get(snapshot.snapshotId);
+            return existing ? mergeSnapshotPatch(existing, snapshot) : snapshot;
+          });
+          return { snapshots: merged };
+        });
         break;
 
       case 'SNAPSHOT_CREATED': {
         const snap = payload.snapshot as SnapshotMeta;
         set((state) => {
-          if (state.snapshots.some((s) => s.snapshotId === snap.snapshotId)) {
-            return {};
+          const idx = state.snapshots.findIndex((s) => s.snapshotId === snap.snapshotId);
+          if (idx !== -1) {
+            const next = [...state.snapshots];
+            next[idx] = mergeSnapshotPatch(next[idx]!, snap);
+            return { snapshots: next };
           }
           return { snapshots: [snap, ...state.snapshots] };
         });
@@ -697,6 +738,11 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
 
       case 'RESTORE_DONE': {
         const sid = (payload as OutboundPayload<'RESTORE_DONE'>).snapshotId;
+        const snapshotNotificationMessage = (snapshots: SnapshotMeta[]) =>
+          translateUserFacingGitMessage(
+            `스냅샷 시점으로 복원했습니다. (대상: ${resolveSnapshotDisplayName(snapshots, sid)})`,
+            'success',
+          );
         set((state) => ({
           restoreConfirmDialog: null,
           sectionNotifications: {
@@ -707,6 +753,15 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
                 `스냅샷 시점으로 복원했습니다. (대상: ${sid})`,
                 'success',
               ),
+            },
+          },
+        }));
+        set((state) => ({
+          sectionNotifications: {
+            ...state.sectionNotifications,
+            snapshots: {
+              type: 'success',
+              message: snapshotNotificationMessage(state.snapshots),
             },
           },
         }));

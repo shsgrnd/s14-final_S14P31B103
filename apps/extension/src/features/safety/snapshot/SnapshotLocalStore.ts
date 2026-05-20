@@ -20,6 +20,8 @@ const ALLOWED_ARTIFACT_FILES = new Set([
   'user_patch.diff',
 ]);
 const TEMP_DIR_INFIX = '__tmp__';
+const WINDOWS_RENAME_RETRY_CODES = new Set(['EPERM', 'EBUSY', 'ENOTEMPTY']);
+const RENAME_RETRY_DELAYS_MS = [25, 75, 150, 300];
 
 export interface SnapshotLocalArtifact {
   manifest: SnapshotManifest;
@@ -147,7 +149,7 @@ export class SnapshotLocalStore {
         await fs.writeFile(userPatchPath, artifact.userPatchText, 'utf8');
       }
 
-      await fs.rename(tempSnapshotDir, snapshotDir);
+      await this.renameWithRetry(tempSnapshotDir, snapshotDir);
 
       return {
         ok: true,
@@ -221,7 +223,7 @@ export class SnapshotLocalStore {
       throw error;
     }
 
-    await fs.rename(originalDir, trashedDir);
+    await this.renameWithRetry(originalDir, trashedDir);
     return {
       snapshotId,
       originalDir,
@@ -233,7 +235,7 @@ export class SnapshotLocalStore {
     this.assertMatchingSnapshotId(handle.snapshotId, path.basename(handle.originalDir));
     this.assertInsideDirectory(this.snapshotsRoot, handle.originalDir, 'snapshot directory');
     this.assertInsideDirectory(this.snapshotsRoot, handle.trashedDir, 'trashed snapshot directory');
-    await fs.rename(handle.trashedDir, handle.originalDir);
+    await this.renameWithRetry(handle.trashedDir, handle.originalDir);
   }
 
   async deleteTrashedSnapshot(handle: SnapshotTrashHandle): Promise<void> {
@@ -465,6 +467,41 @@ export class SnapshotLocalStore {
       }
       throw error;
     }
+  }
+
+  private async renameWithRetry(sourcePath: string, destinationPath: string): Promise<void> {
+    const attempts = [0, ...RENAME_RETRY_DELAYS_MS];
+
+    for (let index = 0; index < attempts.length; index += 1) {
+      const delayMs = attempts[index];
+      if (delayMs > 0) {
+        await this.wait(delayMs);
+      }
+
+      try {
+        await fs.rename(sourcePath, destinationPath);
+        return;
+      } catch (error) {
+        if (!this.isRetriableWindowsRenameError(error) || index === attempts.length - 1) {
+          throw error;
+        }
+      }
+    }
+  }
+
+  private isRetriableWindowsRenameError(error: unknown): boolean {
+    const nodeError = error as NodeJS.ErrnoException | undefined;
+    if (process.platform !== 'win32') {
+      return false;
+    }
+
+    return WINDOWS_RENAME_RETRY_CODES.has(nodeError?.code ?? '');
+  }
+
+  private async wait(delayMs: number): Promise<void> {
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, delayMs);
+    });
   }
 
   private assertMatchingSnapshotId(expected: string, actual: string): void {

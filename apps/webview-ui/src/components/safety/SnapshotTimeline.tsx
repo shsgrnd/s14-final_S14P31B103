@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { FileText, Rewind, ChevronRight, Plus, Edit2, Trash2, History, X, AlertTriangle } from 'lucide-react';
 import { useGitCatStore } from '../../store/useGitCatStore';
@@ -9,6 +9,19 @@ import { SectionNotificationBanner } from '../common/SectionNotificationBanner';
 import { useSidebarSectionNotificationMode } from '../../app/SidebarSectionNotificationContext';
 import { snapshotsVisibleInSidebarTimeline } from '../../shared/snapshotTimelineVisibility';
 import { t } from '../../i18n';
+
+function resolveSnapshotDisplayName(
+  snapshots: SnapshotMeta[],
+  snapshotId: string | undefined,
+): string {
+  if (!snapshotId) {
+    return '--';
+  }
+
+  const snapshot = snapshots.find((item) => item.snapshotId === snapshotId);
+  const preferredLabel = snapshot?.summary?.trim() || snapshot?.reason?.trim();
+  return preferredLabel || snapshotId;
+}
 
 export const SnapshotTimeline: React.FC = () => {
   const {
@@ -30,6 +43,7 @@ export const SnapshotTimeline: React.FC = () => {
   const [deleteConfirmSnapshotId, setDeleteConfirmSnapshotId] = useState<string | null>(null);
   const [editingSnapshotId, setEditingSnapshotId] = useState<string | null>(null);
   const [editingTitle, setEditingTitle] = useState('');
+  const prefetchedSnapshotDetailIdsRef = useRef<Set<string>>(new Set());
 
   const visibleSnapshots = useMemo(() => snapshotsVisibleInSidebarTimeline(snapshots), [snapshots]);
 
@@ -37,6 +51,17 @@ export const SnapshotTimeline: React.FC = () => {
     if (!expandedSnapshotId) return;
     sendMessage('GET_SNAPSHOT_DETAIL', { snapshotId: expandedSnapshotId });
   }, [expandedSnapshotId, sendMessage]);
+
+  useEffect(() => {
+    for (const snapshot of visibleSnapshots) {
+      const hasFiles = Array.isArray(snapshot.files) && snapshot.files.length > 0;
+      const shouldPrefetch = !hasFiles && (snapshot.changedFileCount ?? 0) > 0;
+      if (!shouldPrefetch) continue;
+      if (prefetchedSnapshotDetailIdsRef.current.has(snapshot.snapshotId)) continue;
+      prefetchedSnapshotDetailIdsRef.current.add(snapshot.snapshotId);
+      sendMessage('GET_SNAPSHOT_DETAIL', { snapshotId: snapshot.snapshotId });
+    }
+  }, [visibleSnapshots, sendMessage]);
 
   useEffect(() => {
     if (!expandedSnapshotId) return;
@@ -206,6 +231,7 @@ export const SnapshotTimeline: React.FC = () => {
         {visibleSnapshots.map((snapshot) => {
           const isExpanded = expandedSnapshotId === snapshot.snapshotId;
           const files = snapshot.files ?? [];
+          const filesCount = files.length > 0 ? files.length : (snapshot.changedFileCount ?? 0);
           const addedLines = files.reduce((acc, file) => acc + (file.added || 0), 0);
           const removedLines = files.reduce((acc, file) => acc + (file.removed || 0), 0);
           const title = snapshot.summary || snapshot.type;
@@ -291,7 +317,7 @@ export const SnapshotTimeline: React.FC = () => {
                   )}
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '4px', fontSize: '11px', color: 'var(--vscode-descriptionForeground)', overflow: 'hidden' }}>
                     <span style={{ fontWeight: 600, whiteSpace: 'nowrap', flexShrink: 0 }}>
-                      {t('snapshots.files', { count: files.length })}
+                      {t('snapshots.files', { count: filesCount })}
                     </span>
                     {addedLines > 0 && <span style={{ color: 'var(--vscode-gitDecoration-addedResourceForeground)' }}>+{addedLines}</span>}
                     {removedLines > 0 && <span style={{ color: 'var(--vscode-gitDecoration-deletedResourceForeground)' }}>-{removedLines}</span>}
@@ -440,7 +466,12 @@ export const SnapshotTimeline: React.FC = () => {
 }
 
       <DiffDialog snapshotFileDiff={snapshotFileDiff} onClose={clearSnapshotFileDiff} />
-      <RestoreHistoryDialog histories={restoreHistories} open={restoreHistoryOpen} onClose={() => setRestoreHistoryOpen(false)} />
+      <RestoreHistoryDialog
+        histories={restoreHistories}
+        snapshots={snapshots}
+        open={restoreHistoryOpen}
+        onClose={() => setRestoreHistoryOpen(false)}
+      />
       <RestoreConfirmDialog
         dialog={restoreConfirmDialog}
         onCancel={handleCancelRestore}
@@ -626,10 +657,12 @@ function DiffDialog({
 
 function RestoreHistoryDialog({
   histories,
+  snapshots,
   open,
   onClose,
 }: {
   histories: RestoreHistory[];
+  snapshots: SnapshotMeta[];
   open: boolean;
   onClose: () => void;
 }) {
@@ -675,8 +708,14 @@ function RestoreHistoryDialog({
           ) : (
             histories.map((row) => {
               const view = row as unknown as RestoreHistoryRowView;
-              const from = view.fromSnapshotId ?? view.preRestoreSnapshotId ?? '--';
-              const to = view.toSnapshotId ?? view.targetSnapshotId ?? '--';
+              const from = resolveSnapshotDisplayName(
+                snapshots,
+                view.fromSnapshotId ?? view.preRestoreSnapshotId,
+              );
+              const to = resolveSnapshotDisplayName(
+                snapshots,
+                view.toSnapshotId ?? view.targetSnapshotId,
+              );
               return (
                 <div
                   key={view.restoreId}
@@ -695,8 +734,8 @@ function RestoreHistoryDialog({
                   </div>
                   <div style={{ color: 'var(--vscode-descriptionForeground)', fontFamily: 'var(--vscode-editor-font-family, monospace)' }}>
                     {t('snapshots.restoreHistoryFlow', {
-                      from: from !== '--' ? `${from.slice(0, 8)}...` : '--',
-                      to: to !== '--' ? `${to.slice(0, 8)}...` : '--',
+                      from,
+                      to,
                     })}
                   </div>
                   {view.failureReason && (
@@ -894,6 +933,24 @@ function classifyDiffLine(raw: string): DiffLineKind {
   return 'ctx';
 }
 
+function shouldHideDiffLine(raw: string): boolean {
+  const line = raw.trimEnd();
+  return (
+    line.startsWith('@@') ||
+    line.startsWith('diff --git ') ||
+    line.startsWith('index ') ||
+    line.startsWith('--- ') ||
+    line.startsWith('+++ ') ||
+    line.startsWith('New file mode ') ||
+    line.startsWith('Deleted file mode ') ||
+    line.startsWith('similarity index ') ||
+    line.startsWith('rename from ') ||
+    line.startsWith('rename to ') ||
+    line.startsWith('Binary files ') ||
+    line.startsWith('\\ No newline at end of file')
+  );
+}
+
 function diffStatusColor(status: string): string {
   const normalized = status.toUpperCase();
   if (normalized === 'MODIFIED') return 'var(--vscode-gitDecoration-modifiedResourceForeground)';
@@ -905,6 +962,7 @@ function diffStatusColor(status: string): string {
 function renderColoredDiffText(diffText: string): React.ReactNode {
   const lines = diffText.split('\n');
   return lines.map((line, index) => {
+    if (shouldHideDiffLine(line)) return null;
     const kind = classifyDiffLine(line);
     const style: React.CSSProperties =
       kind === 'add'

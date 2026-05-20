@@ -1,0 +1,15 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./apps/extension" },
+    { "path": "./apps/webview-ui" },
+    { "path": "./packages/ai-pipeline" },
+    { "path": "./packages/conflict-analyzer" },
+    { "path": "./packages/git-client-cli" },
+    { "path": "./packages/git-core" },
+    { "path": "./packages/session-core" },
+    { "path": "./packages/shared-types" },
+    { "path": "./packages/snapshot-core" },
+    { "path": "./packages/storage" }
+  ]
+}

@@ -6,7 +6,6 @@
     "target": "ES2022",
     "outDir": "./dist",
     "rootDir": "./src",
-    "ignoreDeprecations": "6.0",
     "declaration": true
   },
   "include": [

@@ -20,11 +20,19 @@ export class AiChangeDetector {
       return false;
     }
 
+    if (
+      event.reason === vscode.TextDocumentChangeReason.Undo ||
+      event.reason === vscode.TextDocumentChangeReason.Redo
+    ) {
+      return false;
+    }
+
     const now = Date.now();
     const timeSinceLastChange = this.lastChangeTime === 0 ? 9999 : now - this.lastChangeTime;
     this.lastChangeTime = now;
 
     let maxLinesAddedOrRemoved = 0;
+    let totalLinesChanged = 0;
     let insertedText = '';
 
     for (const change of event.contentChanges) {
@@ -37,6 +45,7 @@ export class AiChangeDetector {
       if (linesChanged > maxLinesAddedOrRemoved) {
         maxLinesAddedOrRemoved = linesChanged;
       }
+      totalLinesChanged += linesChanged;
 
       if (change.text) {
         insertedText += change.text;
@@ -46,6 +55,10 @@ export class AiChangeDetector {
     // 최소 2줄 이상의 변경(삽입 또는 삭제/수정)이 일어나야 AI 변경 후보로 올림
     if (maxLinesAddedOrRemoved < 2) {
       return false;
+    }
+
+    if (maxLinesAddedOrRemoved >= 5 || totalLinesChanged >= 8 || insertedText.length >= 160) {
+      return true;
     }
 
     let score = 0;
