@@ -20,6 +20,7 @@ import { SnapshotIdGenerator } from './SnapshotIdGenerator';
 import { SnapshotAutoCleanupService } from './SnapshotAutoCleanupService';
 import { SafetyCheckService } from './SafetyCheckService';
 import { serializeSafetyWarnings } from './SafetyWarningSerialization';
+import { t } from '../../../i18n';
 
 /**
  * ?ㅻ깄???먮룞 ??젣 ?뺤콉: 理쒓렐 N媛?珥덇낵 ???ㅻ옒???ㅻ깄?룹쓣 ??젣?쒕떎.
@@ -246,6 +247,7 @@ export class SnapshotService implements ISnapshotService {
     // --- Manifest 援ъ꽦 ---
     const previousSnapshot = await this.snapshotRepository.findLatestByWorktreeInstance(this.worktreeInstanceId);
     const previousSnapshotId = previousSnapshot?.snapshot_id ?? undefined;
+    const fallbackSummary = this.resolveInitialSummary(type, options);
 
     const manifest: SnapshotManifest = {
       snapshotId,
@@ -253,7 +255,7 @@ export class SnapshotService implements ISnapshotService {
       previousSnapshotId,
       createdAt,
       reason: options.reason,
-      summary: options.summary,
+      summary: undefined,
       changedFiles,
       safetyWarnings: safetyWarnings.length > 0 ? safetyWarnings : undefined,
       warnings: safetyWarnings.length > 0 ? safetyWarnings : undefined,
@@ -295,7 +297,7 @@ export class SnapshotService implements ISnapshotService {
         type,
         previous_snapshot_id: previousSnapshotId ?? null,
         reason: options.reason ?? null,
-        summary: options.summary ?? null,
+        summary: null,
         local_path: path.relative(this.workspaceRoot, snapshotDir).replace(/\\/g, '/'),
         safety_warnings_json: serializeSafetyWarnings(safetyWarnings),
         created_at: createdAt,
@@ -344,7 +346,7 @@ export class SnapshotService implements ISnapshotService {
     }
 
     // --- AI ?붿빟 ?쒕ぉ ?앹꽦 (鍮꾨룞湲? ?ㅽ뙣 ?덉슜) ---
-    this.scheduleAiSummary(snapshotRow.snapshot_id, patchText);
+    this.scheduleAiSummary(snapshotRow.snapshot_id, patchText, fallbackSummary);
 
     return snapshotRow.snapshot_id;
   }
@@ -613,8 +615,9 @@ export class SnapshotService implements ISnapshotService {
   private scheduleAiSummary(
     snapshotId: string,
     patchText: string,
+    fallbackSummary?: string,
   ): void {
-    if (!this.aiClient || !patchText) {
+    if (!this.aiClient && !fallbackSummary) {
       return;
     }
 
@@ -623,22 +626,30 @@ export class SnapshotService implements ISnapshotService {
 
     const runSummary = async () => {
       try {
-        // diff媛 ?덈Т 湲몃㈃ ?욌?遺꾨쭔 ?섎씪???꾨떖 (?좏겙 ?덉빟)
-        const trimmedDiff = patchText.length > 4000 ? patchText.slice(0, 4000) + '\n...(truncated)' : patchText;
-        const summaryLanguage = this.resolveSnapshotSummaryLanguage();
+        let summary = '';
+        if (aiClient && patchText) {
+          // diff媛 ?덈Т 湲몃㈃ ?욌?遺꾨쭔 ?섎씪???꾨떖 (?좏겙 ?덉빟)
+          const trimmedDiff = patchText.length > 4000 ? patchText.slice(0, 4000) + '\n...(truncated)' : patchText;
+          const summaryLanguage = this.resolveSnapshotSummaryLanguage();
 
-        const rawSummary = await aiClient.generateResponse('recommendation', {
-          systemPrompt: getSnapshotSummarySystemPrompt(summaryLanguage),
-          userPrompt: buildSnapshotSummaryUserPrompt(trimmedDiff),
-        }, {
-          priority: 'background',
-        });
+          const rawSummary = await aiClient.generateResponse('recommendation', {
+            systemPrompt: getSnapshotSummarySystemPrompt(summaryLanguage),
+            userPrompt: buildSnapshotSummaryUserPrompt(trimmedDiff),
+          }, {
+            priority: 'background',
+          });
 
-        // ?ㅻ깄??紐⑸줉?먮뒗 遺꾨쪟 ?쒓렇蹂대떎 ?ㅼ젣 ?묒뾽 ?붿빟????以묒슂?댁꽌 ?쒕ぉ 蹂몃Ц留???ν빀?덈떎.
-        const summary = rawSummary.trim().split('\n')[0];
+          // ?ㅻ깄??紐⑸줉?먮뒗 遺꾨쪟 ?쒓렇蹂대떎 ?ㅼ젣 ?묒뾽 ?붿빟????以묒슂?댁꽌 ?쒕ぉ 蹂몃Ц留???ν빀?덈떎.
+          summary = rawSummary.trim().split('\n')[0] ?? '';
+        }
 
-        await this.snapshotRepository.updateSummary(snapshotId, summary);
-        console.log(`[SnapshotService] AI ?붿빟 ????꾨즺: id=${snapshotId}, summary=${summary}`);
+        const resolvedSummary = summary.trim() || fallbackSummary?.trim() || '';
+        if (!resolvedSummary) {
+          return;
+        }
+
+        await this.snapshotRepository.updateSummary(snapshotId, resolvedSummary);
+        console.log(`[SnapshotService] 스냅샷 요약 저장 완료: id=${snapshotId}, summary=${resolvedSummary}`);
 
         // UI ?낅뜲?댄듃 肄쒕갚 ?몄텧
         if (this.onSnapshotUpdated) {
@@ -648,11 +659,29 @@ export class SnapshotService implements ISnapshotService {
           }
         }
       } catch (aiError) {
-        console.warn(`[SnapshotService] AI ?붿빟 ?앹꽦 ?ㅽ뙣 (snapshotId=${snapshotId}):`, aiError);
+        const resolvedFallback = fallbackSummary?.trim();
+        if (!resolvedFallback) {
+          console.warn(`[SnapshotService] AI ?붿빟 ?앹꽦 ?ㅽ뙣 (snapshotId=${snapshotId}):`, aiError);
+          return;
+        }
+
+        try {
+          await this.snapshotRepository.updateSummary(snapshotId, resolvedFallback);
+          console.log(`[SnapshotService] AI 요약 실패 후 fallback 제목 저장: id=${snapshotId}, summary=${resolvedFallback}`);
+
+          if (this.onSnapshotUpdated) {
+            const updatedRow = await this.snapshotRepository.findById(snapshotId);
+            if (updatedRow) {
+              this.onSnapshotUpdated(updatedRow);
+            }
+          }
+        } catch (fallbackError) {
+          console.warn(`[SnapshotService] fallback 제목 저장 실패 (snapshotId=${snapshotId}):`, fallbackError);
+        }
       }
     };
 
-    if (aiClient.isLiveLocalMode()) {
+    if (aiClient?.isLiveLocalMode()) {
       setTimeout(() => {
         void runSummary();
       }, LOCAL_AI_SUMMARY_DELAY_MS);
@@ -677,6 +706,36 @@ export class SnapshotService implements ISnapshotService {
     }, 0);
   }
 
+  private resolveInitialSummary(
+    type: SnapshotCreationType,
+    options: CreateSnapshotOptions,
+  ): string | undefined {
+    const explicitSummary = options.summary?.trim();
+    if (explicitSummary) {
+      return explicitSummary;
+    }
+
+    const reasonSummary = options.reason?.trim();
+    if (reasonSummary) {
+      return reasonSummary;
+    }
+
+    return this.defaultSummaryForType(type);
+  }
+
+  private defaultSummaryForType(type: SnapshotCreationType): string {
+    const keyMap: Record<SnapshotCreationType, string> = {
+      ai_pre_action: 'snapshot.type.aiPreAction',
+      auto_dirty_before_ai: 'snapshot.type.autoDirtyBeforeAi',
+      ai_result: 'snapshot.type.aiResult',
+      manual_edit_result: 'snapshot.type.manualEditResult',
+      savepoint: 'snapshot.type.savepoint',
+      pre_restore: 'snapshot.type.preRestore',
+    };
+
+    return t(keyMap[type]);
+  }
+
   private resolveSnapshotSummaryLanguage(): SnapshotSummaryLanguage {
     const resolved = this.snapshotSummaryLanguageResolver();
     return resolved === 'en' ? 'en' : 'ko';
@@ -699,4 +758,3 @@ export class SnapshotService implements ISnapshotService {
     }
   }
 }
-
