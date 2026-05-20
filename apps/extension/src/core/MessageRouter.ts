@@ -272,7 +272,7 @@ export class MessageRouter {
     for (const webview of this.webviews) {
       webview.postMessage(message).then(
         undefined,
-        (error) => console.warn('[GitCat] Failed to post message to webview:', error),
+        (error: unknown) => console.warn('[GitCat] Failed to post message to webview:', error),
       );
     }
   }
@@ -560,6 +560,17 @@ export class MessageRouter {
       requestId: message.requestId,
     } as OutboundMessage);
 
+    // Creation callbacks and list refresh can arrive in different orders, so
+    // we push the resolved snapshot detail once more to guarantee sidebar
+    // summary rows have file and line counts before the user expands the item.
+    if (snapshotId) {
+      const detail = await queryService.getSnapshotDetail(snapshotId);
+      this.broadcast({
+        type: 'SNAPSHOT_DETAIL',
+        payload: { detail },
+      } as OutboundMessage);
+    }
+
     const result = await queryService.listSnapshots();
     await webview.postMessage({
       type: 'SNAPSHOT_LIST',
@@ -781,7 +792,7 @@ export class MessageRouter {
   }
 
   private getOpenFileDocuments(): vscode.TextDocument[] {
-    return vscode.workspace.textDocuments.filter((doc) =>
+    return vscode.workspace.textDocuments.filter((doc: vscode.TextDocument) =>
       doc.uri.scheme === 'file',
     );
   }
@@ -841,9 +852,9 @@ export class MessageRouter {
     const rootName = path.basename(folder.uri.fsPath) || folder.name;
     const nodes = this.buildWorkspaceTree(
       files
-        .map((uri) => path.relative(folder.uri.fsPath, uri.fsPath).replace(/\\/g, '/'))
+        .map((uri: vscode.Uri) => path.relative(folder.uri.fsPath, uri.fsPath).replace(/\\/g, '/'))
         .filter(Boolean)
-        .sort((a, b) => a.localeCompare(b)),
+        .sort((a: string, b: string) => a.localeCompare(b)),
     );
 
     webview.postMessage({
@@ -983,4 +994,3 @@ export class MessageRouter {
     return this.restoreHistoryQueryService;
   }
 }
-

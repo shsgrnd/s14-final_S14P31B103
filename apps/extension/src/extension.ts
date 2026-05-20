@@ -1,4 +1,4 @@
-import * as vscode from 'vscode';
+﻿import * as vscode from 'vscode';
 import { createHash } from 'crypto';
 import {
   GitCatDatabase,
@@ -87,8 +87,7 @@ export async function activate(context: vscode.ExtensionContext) {
     }
   }
 
-  // ――― GitHub PR 생성 계층 초기화 ――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――
-  // GitHub token은 VS Code SecretStorage에만 저장한다. (SQLite/파일 금지)
+  // ?뺚뺚?GitHub PR ?앹꽦 怨꾩링 珥덇린???뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚?  // GitHub token? VS Code SecretStorage?먮쭔 ??ν븳?? (SQLite/?뚯씪 湲덉?)
   let pullRequestHandler: PullRequestMessageHandler | undefined;
   const openPullRequestPanelRef: { current?: () => void } = {};
   const closePullRequestPanelRef: { current?: () => void } = {};
@@ -132,13 +131,13 @@ export async function activate(context: vscode.ExtensionContext) {
     undefined,
     undefined,
     undefined,
-    pullRequestHandler,  // GitHub PR 생성 핵들러 주입
+    pullRequestHandler,  // GitHub PR ?앹꽦 ?듬뱾??二쇱엯
     undefined,
-    aiApiKeyMessageHandler, // AI API Key 핸들러 주입
+    aiApiKeyMessageHandler, // AI API Key ?몃뱾??二쇱엯
   );
   aiApiKeyMessageHandler.attachMessageRouter(messageRouter);
 
-  // PR 환경설정 핸들러 — 두 webview가 공유할 기본 target 브랜치 등을 workspaceState에 저장한다.
+  // PR ?섍꼍?ㅼ젙 ?몃뱾??????webview媛 怨듭쑀??湲곕낯 target 釉뚮옖移??깆쓣 workspaceState????ν븳??
   const prSettingsService = new PrSettingsService(context.workspaceState);
   const prSettingsHandler = new PrSettingsMessageHandler(prSettingsService, messageRouter);
   messageRouter.setPrSettingsHandler(prSettingsHandler);
@@ -197,8 +196,7 @@ export async function activate(context: vscode.ExtensionContext) {
     })
   );
 
-  // ――― Safety Layer (Snapshot Service) 초기화 ――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――――
-  // DB 초기화 성공 시 실제 SnapshotService, 실패 시 FallbackSnapshotService로 폴백
+  // ?뺚뺚?Safety Layer (Snapshot Service) 珥덇린???뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚뺚?  // DB 珥덇린???깃났 ???ㅼ젣 SnapshotService, ?ㅽ뙣 ??FallbackSnapshotService濡??대갚
   let snapshotService: ISnapshotService = new FallbackSnapshotService();
   messageRouter.setSnapshotService(snapshotService);
   if (rootPath) {
@@ -206,9 +204,9 @@ export async function activate(context: vscode.ExtensionContext) {
       const snapshotDb = await GitCatDatabase.create(rootPath);
       const snapshotDbInstance = snapshotDb.getInstance();
 
-      // [Task 45] AI 클라이언트 구성:
-      // 기존 GitCat 익스텐션의 AI 설정값(모드, 로컬 모델 경로, API 키)을 그대로 가져와
-      // 스냅샷 요약 기능에도 동일한 모델/설정이 적용되도록 합니다.
+      // [Task 45] AI ?대씪?댁뼵??援ъ꽦:
+      // 湲곗〈 GitCat ?듭뒪?먯뀡??AI ?ㅼ젙媛?紐⑤뱶, 濡쒖뺄 紐⑤뜽 寃쎈줈, API ????洹몃?濡?媛?몄?
+      // ?ㅻ깄???붿빟 湲곕뒫?먮룄 ?숈씪??紐⑤뜽/?ㅼ젙???곸슜?섎룄濡??⑸땲??
       const { AiClient } = await import('@gitcat/ai-pipeline/extension');
       const snapshotAiClient = new AiClient(
         createExtensionAiClientOptions(context, aiSecretService, liveLocalRuntimeManager)
@@ -220,11 +218,11 @@ export async function activate(context: vscode.ExtensionContext) {
         new SqliteWorkSessionRepository(snapshotDbInstance),
         {
           workspaceRoot: rootPath,
-          // [Task 45] AI 클라이언트를 주입하면 스냅샷 생성 직후 백그라운드에서 자동 요약이 실행됩니다.
+          // [Task 45] AI ?대씪?댁뼵?몃? 二쇱엯?섎㈃ ?ㅻ깄???앹꽦 吏곹썑 諛깃렇?쇱슫?쒖뿉???먮룞 ?붿빟???ㅽ뻾?⑸땲??
           aiClient: snapshotAiClient,
           snapshotSummaryLanguageResolver: () => resolveLocale(),
-          // 스냅샷 생성 직후 즉시 브로드캐스트하여 UI가 늦게 뜨는 현상을 방지합니다.
-          onSnapshotCreated: (row) => {
+          // ?ㅻ깄???앹꽦 吏곹썑 利됱떆 釉뚮줈?쒖틦?ㅽ듃?섏뿬 UI媛 ??쾶 ?⑤뒗 ?꾩긽??諛⑹??⑸땲??
+          onSnapshotCreated: (row, changedFiles) => {
             messageRouter.broadcast({
               type: 'SNAPSHOT_CREATED',
               payload: {
@@ -232,14 +230,29 @@ export async function activate(context: vscode.ExtensionContext) {
                   snapshotId: row.snapshot_id,
                   type: row.type as any,
                   createdAt: row.created_at,
-                  summary: undefined, // 생성 직후에는 타입 fallback을 먼저 보여주고, 이후 비동기 요약으로 갱신
+                  changedFileCount: changedFiles.length,
+                  files: changedFiles.map((file) => ({
+                    path: file.filePath,
+                    status: file.status,
+                    added: file.additions,
+                    removed: file.deletions,
+                    additions: file.additions,
+                    deletions: file.deletions,
+                    hunkCount: file.hunkCount,
+                    isBinary: file.isBinary,
+                    isLargeFile: file.isLargeFile,
+                    importance: file.importance,
+                    renamedFrom: file.renamedFrom,
+                    renamedTo: file.renamedTo,
+                  })),
+                  summary: undefined, // ?앹꽦 吏곹썑?먮뒗 ???fallback??癒쇱? 蹂댁뿬二쇨퀬, ?댄썑 鍮꾨룞湲??붿빟?쇰줈 媛깆떊
                 },
               },
             });
           },
-          // [Task 45] AI 요약이 완료되면 이 콜백이 호출됩니다.
-          // messageRouter.broadcast를 통해 연결된 모든 웹뷰에 SNAPSHOT_UPDATED 이벤트를 전송하여
-          // 스냅샷 목록의 이름이 실시간으로 갱신되도록 합니다.
+          // [Task 45] AI ?붿빟???꾨즺?섎㈃ ??肄쒕갚???몄텧?⑸땲??
+          // messageRouter.broadcast瑜??듯빐 ?곌껐??紐⑤뱺 ?밸럭??SNAPSHOT_UPDATED ?대깽?몃? ?꾩넚?섏뿬
+          // ?ㅻ깄??紐⑸줉???대쫫???ㅼ떆媛꾩쑝濡?媛깆떊?섎룄濡??⑸땲??
           onSnapshotUpdated: (row) => {
             messageRouter.broadcast({
               type: 'SNAPSHOT_UPDATED',
@@ -280,7 +293,7 @@ export async function activate(context: vscode.ExtensionContext) {
       );
       console.log('GitCat Safety Layer (SnapshotService) initialized at:', rootPath);
     } catch (snapshotInitError) {
-      console.error('GitCat Safety Layer 초기화 실패, FallbackSnapshotService로 폴백합니다:', snapshotInitError);
+      console.error('GitCat Safety Layer 珥덇린???ㅽ뙣, FallbackSnapshotService濡??대갚?⑸땲??', snapshotInitError);
       vscode.window.showWarningMessage(t('safety.init.failed'));
     }
   }
@@ -370,7 +383,7 @@ async function createMergeProposalProvider(
       workspaceRoot,
     );
   } catch (error) {
-    // AI 파이프라인 초기화 실패 시에도 병합 분석/수락 흐름은 확인할 수 있도록 로컬 MVP provider로 낮춥니다.
+    // AI ?뚯씠?꾨씪??珥덇린???ㅽ뙣 ?쒖뿉??蹂묓빀 遺꾩꽍/?섎씫 ?먮쫫? ?뺤씤?????덈룄濡?濡쒖뺄 MVP provider濡???땅?덈떎.
     console.warn('GitCat merge AI provider initialization failed. Falling back to local provider:', error);
     return new LocalMergeProposalDraftProvider();
   }
@@ -519,3 +532,4 @@ function resolveConfiguredRemoteBaseUrl(baseUrl: string): string {
   const normalized = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
   return `${normalized}api.openai.com/v1`;
 }
+

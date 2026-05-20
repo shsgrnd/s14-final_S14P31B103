@@ -5,7 +5,8 @@
     "moduleResolution": "node",
     "target": "ES2022",
     "outDir": "./dist",
-    "rootDir": "./src"
+    "rootDir": "./src",
+    "ignoreDeprecations": "5.0"
   },
   "include": ["src/**/*"]
 }
