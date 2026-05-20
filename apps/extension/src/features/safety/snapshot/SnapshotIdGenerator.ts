@@ -45,11 +45,14 @@ export class SnapshotIdGenerator {
    * @param seed 결정론적 ID 생성을 위한 시드 값 (보통 rootPath)
    * @returns worktreeInstance ID 문자열
    */
-  static generateWorktreeInstanceId(seed: string): string {
-    // 간단한 해시: 문자 코드의 합산 후 16진수 표현
+  static generateWorktreeInstanceId(seed: string, branchName?: string): string {
+    // 같은 워크스페이스라도 브랜치별로 다른 스냅샷 스트림을 갖도록 branchName을 해시에 포함한다.
+    const normalizedSeed = branchName?.trim()
+      ? `${seed}::${branchName.trim()}`
+      : seed;
     let hash = 0;
-    for (let i = 0; i < seed.length; i++) {
-      hash = (Math.imul(31, hash) + seed.charCodeAt(i)) | 0;
+    for (let i = 0; i < normalizedSeed.length; i++) {
+      hash = (Math.imul(31, hash) + normalizedSeed.charCodeAt(i)) | 0;
     }
     const hexHash = Math.abs(hash).toString(16).padStart(8, '0');
     return `fallback_wti_${hexHash}`;

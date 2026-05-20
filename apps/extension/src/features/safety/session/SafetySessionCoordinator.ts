@@ -21,11 +21,17 @@ export class SafetySessionCoordinator {
 
     private interSessionUserBaselines = new Map<string, Uint8Array>();
     private interSessionUserChangedFiles = new Set<string>();
+    private lastKnownBranchName: string | null = null;
+    private ignoreFilesystemEventsUntil = 0;
 
     private sessionTimer: NodeJS.Timeout | null = null;
     private readonly SESSION_TIMEOUT_MS = 45 * 1000;
+    private readonly BRANCH_SWITCH_FILESYSTEM_COOLDOWN_MS = 2 * 1000;
 
-    constructor(private readonly snapshotService: ISnapshotService) {
+    constructor(
+        private readonly snapshotService: ISnapshotService,
+        private readonly currentBranchResolver?: () => Promise<string | null> | string | null,
+    ) {
         console.log('SafetySessionCoordinator initialized');
     }
 
@@ -68,20 +74,29 @@ export class SafetySessionCoordinator {
     }
 
     public async startAiSession(baseSnapshotId?: string): Promise<string> {
+        if (await this.resetIfBranchChanged()) {
+            return this.startSession('ai', baseSnapshotId);
+        }
         return this.startSession('ai', baseSnapshotId);
     }
 
     public async startManualSession(baseSnapshotId?: string): Promise<string> {
+        if (await this.resetIfBranchChanged()) {
+            return this.startSession('manual', baseSnapshotId);
+        }
         return this.startSession('manual', baseSnapshotId);
     }
 
     private async startSession(type: SessionType, baseSnapshotId?: string): Promise<string> {
-        const previousSession = this.currentSession ? { ...this.currentSession } : null;
         if (this.currentSession) {
-            await this.endSession();
+            if (!this.currentSession.baseSnapshotId && baseSnapshotId) {
+                this.currentSession.baseSnapshotId = baseSnapshotId;
+            }
+            this.resetSessionTimer();
+            return this.currentSession.sessionId;
         }
 
-        const shouldCreateAutoDirtyBeforeAi = type === 'ai' && previousSession === null;
+        const shouldCreateAutoDirtyBeforeAi = type === 'ai';
         if (shouldCreateAutoDirtyBeforeAi) {
             const pendingPaths = this.interSessionUserChangedFiles.size > 0
                 ? Array.from(this.interSessionUserChangedFiles)
@@ -176,6 +191,9 @@ export class SafetySessionCoordinator {
         if (this.snapshotService.isRestoreOperationActive()) {
             return undefined;
         }
+        if (await this.resetIfBranchChanged()) {
+            return undefined;
+        }
 
         if (this.sessionTimer) {
             clearTimeout(this.sessionTimer);
@@ -211,6 +229,9 @@ export class SafetySessionCoordinator {
 
     public async handleDocumentChange(event: vscode.TextDocumentChangeEvent) {
         if (this.snapshotService.isRestoreOperationActive()) {
+            return;
+        }
+        if (await this.resetIfBranchChanged()) {
             return;
         }
 
@@ -324,6 +345,9 @@ export class SafetySessionCoordinator {
         if (this.snapshotService.isRestoreOperationActive()) {
             return;
         }
+        if (await this.resetIfBranchChanged()) {
+            return;
+        }
 
         if (doc.uri.scheme !== 'file') {
             return;
@@ -393,6 +417,9 @@ export class SafetySessionCoordinator {
 
     public async handleDocumentSave(doc: vscode.TextDocument): Promise<void> {
         if (this.snapshotService.isRestoreOperationActive()) {
+            return;
+        }
+        if (await this.resetIfBranchChanged()) {
             return;
         }
 
@@ -491,7 +518,10 @@ export class SafetySessionCoordinator {
 
     private async doWarmWorkspaceFileState(): Promise<void> {
         try {
-            const files = await vscode.workspace.findFiles('**/*', '**/{.git,node_modules,dist,build}/**');
+            const files = await vscode.workspace.findFiles(
+                '**/*',
+                '**/{.git,node_modules,dist,build,.gradle,target,out,.vscode/gitcat}/**',
+            );
             let cachedCount = 0;
             for (const file of files) {
                 if (file.scheme !== 'file' || this.isIgnoredPath(file.fsPath)) {
@@ -518,9 +548,18 @@ export class SafetySessionCoordinator {
         if (this.snapshotService.isRestoreOperationActive() || uri.scheme !== 'file') {
             return;
         }
+        if (await this.resetIfBranchChanged()) {
+            return;
+        }
 
         const fsPath = uri.fsPath;
         if (this.isIgnoredPath(fsPath)) {
+            return;
+        }
+        if (Date.now() < this.ignoreFilesystemEventsUntil) {
+            return;
+        }
+        if (await this.isDirectoryUri(uri)) {
             return;
         }
 
@@ -593,7 +632,11 @@ export class SafetySessionCoordinator {
             normalizedPath.includes('/.git/') ||
             normalizedPath.includes('/node_modules/') ||
             normalizedPath.includes('/dist/') ||
-            normalizedPath.includes('/build/')
+            normalizedPath.includes('/build/') ||
+            normalizedPath.includes('/.gradle/') ||
+            normalizedPath.includes('/target/') ||
+            normalizedPath.includes('/out/') ||
+            normalizedPath.includes('/.vscode/gitcat/')
         );
     }
 
@@ -604,5 +647,67 @@ export class SafetySessionCoordinator {
 
     private isAiBridgeScheme(scheme: string): boolean {
         return scheme.startsWith('chat-editing') || scheme === 'vscode-chat-code-block';
+    }
+
+    private async resetIfBranchChanged(): Promise<boolean> {
+        if (!this.currentBranchResolver) {
+            return false;
+        }
+
+        let resolvedBranch: string | null;
+        try {
+            resolvedBranch = await this.currentBranchResolver();
+        } catch (error) {
+            console.warn('[SafetySessionCoordinator] failed to resolve current branch:', error);
+            return false;
+        }
+
+        const normalizedBranch = resolvedBranch?.trim() || null;
+        if (this.lastKnownBranchName === null) {
+            this.lastKnownBranchName = normalizedBranch;
+            return false;
+        }
+
+        if (this.lastKnownBranchName === normalizedBranch) {
+            return false;
+        }
+
+        console.log(
+            `[SafetySessionCoordinator] branch changed: ${this.lastKnownBranchName ?? 'HEAD'} -> ${normalizedBranch ?? 'HEAD'}, resetting transient session state.`,
+        );
+        this.lastKnownBranchName = normalizedBranch;
+        this.ignoreFilesystemEventsUntil = Date.now() + this.BRANCH_SWITCH_FILESYSTEM_COOLDOWN_MS;
+        this.resetTransientStateForBranchSwitch();
+        void this.warmWorkspaceFileState();
+        return true;
+    }
+
+    private async isDirectoryUri(uri: vscode.Uri): Promise<boolean> {
+        try {
+            const stat = await vscode.workspace.fs.stat(uri);
+            return (stat.type & vscode.FileType.Directory) !== 0;
+        } catch {
+            return false;
+        }
+    }
+
+    private resetTransientStateForBranchSwitch(): void {
+        if (this.sessionTimer) {
+            clearTimeout(this.sessionTimer);
+            this.sessionTimer = null;
+        }
+
+        this.currentSession = null;
+        this.baselines.clear();
+        this.currentTextCache.clear();
+        this.currentContentOverrides.clear();
+        this.lastObservedText.clear();
+        this.observedFileContents.clear();
+        this.pendingSaveBaselines.clear();
+        this.changedFiles.clear();
+        this.dirtyFiles.clear();
+        this.interSessionUserBaselines.clear();
+        this.interSessionUserChangedFiles.clear();
+        this.workspaceStateWarmupPromise = null;
     }
 }

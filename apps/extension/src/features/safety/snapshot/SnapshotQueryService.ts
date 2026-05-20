@@ -37,23 +37,29 @@ const MAX_SCAN = 1000;
 export class SnapshotQueryService {
   private readonly storage: LocalStorageImpl;
   private readonly worktreeInstanceId: string;
+  private readonly worktreeInstanceIdResolver?: () => Promise<string> | string;
 
   constructor(
     private readonly snapshotRepository: SnapshotRepository,
     private readonly snapshotFileRepository: SnapshotFileRepository,
     private readonly workspaceRoot: string,
     worktreeInstanceId?: string,
+    worktreeInstanceIdResolver?: () => Promise<string> | string,
   ) {
     this.storage = new LocalStorageImpl(workspaceRoot);
     this.worktreeInstanceId =
       worktreeInstanceId ?? SnapshotIdGenerator.generateWorktreeInstanceId(workspaceRoot);
+    this.worktreeInstanceIdResolver = worktreeInstanceIdResolver;
   }
 
   async listSnapshots(options: SnapshotListQueryOptions = {}): Promise<SnapshotListQueryResult> {
     const limit = this.normalizeLimit(options.limit);
     const offset = this.normalizeOffset(options.offset);
     const scanLimit = Math.min(offset + limit + 1, MAX_SCAN);
-    const rows = await this.snapshotRepository.listByWorkspace(this.worktreeInstanceId, scanLimit);
+    const rows = await this.snapshotRepository.listByWorkspace(
+      await this.getWorktreeInstanceId(),
+      scanLimit,
+    );
     const pagedRows = rows.slice(offset, offset + limit);
     const snapshots = await Promise.all(pagedRows.map((row) => this.toSnapshotMeta(row.snapshot_id)));
 
@@ -253,5 +259,14 @@ export class SnapshotQueryService {
 
   private normalizeOffset(offset: number | undefined): number {
     return offset === undefined ? 0 : Math.max(offset, 0);
+  }
+
+  private async getWorktreeInstanceId(): Promise<string> {
+    if (!this.worktreeInstanceIdResolver) {
+      return this.worktreeInstanceId;
+    }
+
+    const resolved = await this.worktreeInstanceIdResolver();
+    return resolved || this.worktreeInstanceId;
   }
 }
