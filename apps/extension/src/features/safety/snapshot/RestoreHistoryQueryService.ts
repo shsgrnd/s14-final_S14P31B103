@@ -9,19 +9,22 @@ const DEFAULT_LIMIT = 100;
 
 export class RestoreHistoryQueryService {
   private readonly worktreeInstanceId: string;
+  private readonly worktreeInstanceIdResolver?: () => Promise<string> | string;
 
   constructor(
     private readonly restoreHistoryRepository: RestoreHistoryRepository,
     workspaceRoot: string,
     worktreeInstanceId?: string,
+    worktreeInstanceIdResolver?: () => Promise<string> | string,
   ) {
     this.worktreeInstanceId =
       worktreeInstanceId ?? SnapshotIdGenerator.generateWorktreeInstanceId(workspaceRoot);
+    this.worktreeInstanceIdResolver = worktreeInstanceIdResolver;
   }
 
   async listHistory(limit = DEFAULT_LIMIT): Promise<RestoreHistory[]> {
     const rows = await this.restoreHistoryRepository.listByWorkspace(
-      this.worktreeInstanceId,
+      await this.getWorktreeInstanceId(),
       limit,
     );
 
@@ -36,5 +39,14 @@ export class RestoreHistoryQueryService {
       beforeWarnings: deserializeSafetyWarnings(row.safety_warnings_before_json),
       afterWarnings: deserializeSafetyWarnings(row.safety_warnings_after_json),
     }));
+  }
+
+  private async getWorktreeInstanceId(): Promise<string> {
+    if (!this.worktreeInstanceIdResolver) {
+      return this.worktreeInstanceId;
+    }
+
+    const resolved = await this.worktreeInstanceIdResolver();
+    return resolved || this.worktreeInstanceId;
   }
 }

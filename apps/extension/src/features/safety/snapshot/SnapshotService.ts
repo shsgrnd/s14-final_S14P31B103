@@ -60,6 +60,7 @@ export interface SnapshotServiceOptions {
    * - 없으면 workspaceRoot 해시 기반 fallback ID를 사용
    */
   worktreeInstanceId?: string;
+  worktreeInstanceIdResolver?: () => Promise<string> | string;
 
   /**
    * 자동 삭제 정책: 최근 N개 유지 (기본값 SNAPSHOT_KEEP_RECENT_COUNT)
@@ -117,6 +118,7 @@ export class SnapshotService implements ISnapshotService {
   private readonly cleanupService: SnapshotAutoCleanupService;
   private readonly workspaceRoot: string;
   private readonly worktreeInstanceId: string;
+  private readonly worktreeInstanceIdResolver?: () => Promise<string> | string;
   private readonly keepRecentCount: number;
   private readonly safetyCheckService: SafetyCheckService;
   /** AI 요약 호출에 사용되는 AiClient 인스턴스. 제공되지 않으면 AI 요약 기능이 비활성화됨 */
@@ -151,6 +153,7 @@ export class SnapshotService implements ISnapshotService {
     this.worktreeInstanceId =
       options.worktreeInstanceId ??
       SnapshotIdGenerator.generateWorktreeInstanceId(this.workspaceRoot);
+    this.worktreeInstanceIdResolver = options.worktreeInstanceIdResolver;
 
     this.cleanupService = new SnapshotAutoCleanupService(snapshotRepository, this.localStore);
   }
@@ -266,7 +269,8 @@ export class SnapshotService implements ISnapshotService {
     }
 
     // --- Manifest 구성 ---
-    const previousSnapshot = await this.snapshotRepository.findLatestByWorktreeInstance(this.worktreeInstanceId);
+    const worktreeInstanceId = await this.getWorktreeInstanceId();
+    const previousSnapshot = await this.snapshotRepository.findLatestByWorktreeInstance(worktreeInstanceId);
     const previousSnapshotId = previousSnapshot?.snapshot_id ?? undefined;
     const fallbackSummary = this.resolveInitialSummary(type, options);
 
@@ -307,7 +311,12 @@ export class SnapshotService implements ISnapshotService {
     await this.saveFullSnapshotState(snapshotId, primaryBaselines, changedFiles, options.currentContents);
 
     // --- 세션 준비 (DB session_id 확보) ---
-    const sessionId = await this.ensureSession(options.sessionId, type, createdAt);
+    const sessionId = await this.ensureSession(
+      options.sessionId,
+      type,
+      createdAt,
+      worktreeInstanceId,
+    );
 
     // --- DB 메타데이터 저장 ---
     let snapshotRow;
@@ -456,6 +465,7 @@ export class SnapshotService implements ISnapshotService {
     requestedSessionId: string | undefined,
     type: SnapshotCreationType,
     createdAt: string,
+    worktreeInstanceId: string,
   ): Promise<string> {
     // 전달된 sessionId가 DB에 이미 존재하는지 확인
     if (requestedSessionId) {
@@ -478,7 +488,7 @@ export class SnapshotService implements ISnapshotService {
     try {
       const session = await this.workSessionRepository.create({
         session_id: fallbackSessionId,
-        worktree_instance_id: this.worktreeInstanceId,
+        worktree_instance_id: worktreeInstanceId,
         session_type: sessionType,
         status: 'completed',
         started_at: createdAt,
@@ -614,7 +624,7 @@ export class SnapshotService implements ISnapshotService {
   private scheduleCleanup(): void {
     setImmediate(async () => {
       try {
-        await this.cleanupService.cleanup(this.worktreeInstanceId, {
+        await this.cleanupService.cleanup(await this.getWorktreeInstanceId(), {
           keepRecent: this.keepRecentCount,
           keepRecentPreRestore: this.keepRecentPreRestoreCount,
         });
@@ -774,5 +784,14 @@ export class SnapshotService implements ISnapshotService {
       }
       throw error;
     }
+  }
+
+  private async getWorktreeInstanceId(): Promise<string> {
+    if (!this.worktreeInstanceIdResolver) {
+      return this.worktreeInstanceId;
+    }
+
+    const resolved = await this.worktreeInstanceIdResolver();
+    return resolved || this.worktreeInstanceId;
   }
 }

@@ -28,6 +28,7 @@ declare global {
 function App() {
   const { handleMessage, currentBranch } = useGitCatStore();
   const initialFetchDone = useRef(false);
+  const lastSnapshotBranchRef = useRef('');
 
   const isGitConnected = currentBranch !== '';
 
@@ -82,6 +83,26 @@ function App() {
       cancelAnimationFrame(innerRaf);
     };
   }, [isGitConnected]);
+
+  useEffect(() => {
+    if (!isGitConnected) {
+      lastSnapshotBranchRef.current = '';
+      return;
+    }
+
+    if (lastSnapshotBranchRef.current === currentBranch) {
+      return;
+    }
+
+    const previousBranch = lastSnapshotBranchRef.current;
+    lastSnapshotBranchRef.current = currentBranch;
+
+    if (!initialFetchDone.current || !previousBranch) {
+      return;
+    }
+
+    sendMessage('GET_SNAPSHOT_LIST', {});
+  }, [currentBranch, isGitConnected]);
 
   // ── 로딩 스플래시 타이머 ──
   useEffect(() => {

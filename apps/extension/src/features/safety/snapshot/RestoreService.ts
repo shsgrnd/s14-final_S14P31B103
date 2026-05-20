@@ -48,6 +48,7 @@ export class RestoreService {
   private readonly workspaceRoot: string;
   private readonly safetyCheckService: SafetyCheckService;
   private readonly diffService: SnapshotDiffService;
+  private readonly worktreeInstanceIdResolver?: () => Promise<string> | string;
   private isRestoring = false;
 
   constructor(
@@ -55,11 +56,13 @@ export class RestoreService {
     private readonly restoreHistoryRepository: RestoreHistoryRepository,
     private readonly snapshotService: ISnapshotService,
     workspaceRoot: string,
+    worktreeInstanceIdResolver?: () => Promise<string> | string,
   ) {
     this.workspaceRoot = path.resolve(workspaceRoot);
     this.storage = new LocalStorageImpl(this.workspaceRoot);
     this.safetyCheckService = new SafetyCheckService(this.workspaceRoot);
     this.diffService = new SnapshotDiffService();
+    this.worktreeInstanceIdResolver = worktreeInstanceIdResolver;
   }
 
   async restoreToSnapshot(snapshotId: string): Promise<RestoreSnapshotResult> {
@@ -262,7 +265,7 @@ export class RestoreService {
 
   private async listSnapshotsOldestFirst(): Promise<SnapshotRow[]> {
     const rows = await this.snapshotRepository.listByWorkspace(
-      this.getWorktreeInstanceId(),
+      await this.getWorktreeInstanceId(),
       MAX_SNAPSHOTS,
     );
     return [...rows].reverse();
@@ -617,8 +620,13 @@ export class RestoreService {
     }
   }
 
-  private getWorktreeInstanceId(): string {
-    return SnapshotIdGenerator.generateWorktreeInstanceId(this.workspaceRoot);
+  private async getWorktreeInstanceId(): Promise<string> {
+    if (!this.worktreeInstanceIdResolver) {
+      return SnapshotIdGenerator.generateWorktreeInstanceId(this.workspaceRoot);
+    }
+
+    const resolved = await this.worktreeInstanceIdResolver();
+    return resolved || SnapshotIdGenerator.generateWorktreeInstanceId(this.workspaceRoot);
   }
 
   private toRestoreHistory(row: {
