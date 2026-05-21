@@ -86,7 +86,7 @@ pnpm --dir apps/extension run package:vsix
 - 루트에서 `pnpm install`이 끝나 있어야 합니다.
 - 이 스크립트는 내부적으로 `typecheck + extension/webview 빌드 + vsce package`를 함께 수행합니다.
 - 결과물은 `apps/extension/.artifacts/` 아래에 생성됩니다.
-- `0.1.2` 기준 예상 파일명은 `gitcat-vscode-0.1.2.vsix`입니다.
+- `0.1.3` 기준 예상 파일명은 `gitcat-vscode-0.1.3.vsix`입니다.
 
 GitHub Actions를 쓰는 경우에는 `.github/workflows/package-vsix.yml`에서도 같은 절차를 실행할 수 있습니다.
 
@@ -104,7 +104,7 @@ GitCat은 VS Code Marketplace에서 바로 설치하거나, GitHub Releases 등�
 
 1. VS Code에서 Command Palette(`Ctrl+Shift+P`, macOS는 `Cmd+Shift+P`)를 엽니다.
 2. `Extensions: Install from VSIX...`를 실행합니다.
-3. 받은 `gitcat-vscode-0.1.2.vsix` 파일을 선택합니다.
+3. 받은 `gitcat-vscode-0.1.3.vsix` 파일을 선택합니다.
 4. 설치가 끝나면 VS Code를 다시 로드하거나 재시작합니다.
 
 참고:
