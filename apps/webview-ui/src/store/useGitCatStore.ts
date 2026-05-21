@@ -702,7 +702,7 @@ export const useGitCatStore = create<GitCatState>((set, get) => ({
         set((state) => {
           const idx = state.snapshots.findIndex((s) => s.snapshotId === snap.snapshotId);
           if (idx === -1) {
-            return { snapshots: [{ ...snap } as SnapshotMeta, ...state.snapshots] };
+            return state;
           }
           const next = [...state.snapshots];
           next[idx] = mergeSnapshotPatch(next[idx]!, snap);

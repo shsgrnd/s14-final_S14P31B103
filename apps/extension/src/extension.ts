@@ -19,6 +19,7 @@ import { SnapshotQueryService } from './features/safety/snapshot/SnapshotQuerySe
 import { RestoreHistoryQueryService } from './features/safety/snapshot/RestoreHistoryQueryService';
 import { RestoreService } from './features/safety/snapshot/RestoreService';
 import { ISnapshotService } from './features/safety/snapshot/ISnapshotService';
+import { SnapshotIdGenerator } from './features/safety/snapshot/SnapshotIdGenerator';
 import { WebviewProvider } from './webview/WebviewProvider';
 import { SidebarProvider } from './webview/SidebarProvider';
 import { MessageRouter } from './core/MessageRouter';
@@ -203,6 +204,18 @@ export async function activate(context: vscode.ExtensionContext) {
     try {
       const snapshotDb = await GitCatDatabase.create(rootPath);
       const snapshotDbInstance = snapshotDb.getInstance();
+      const resolveSnapshotWorktreeInstanceId = async () => {
+        try {
+          const status = await gitService?.getStatus(rootPath);
+          return SnapshotIdGenerator.generateWorktreeInstanceId(
+            rootPath,
+            status?.currentBranch,
+          );
+        } catch (error) {
+          console.warn('Failed to resolve branch-aware snapshot worktree instance id:', error);
+          return SnapshotIdGenerator.generateWorktreeInstanceId(rootPath);
+        }
+      };
 
       // [Task 45] AI ?대씪?댁뼵??援ъ꽦:
       // 湲곗〈 GitCat ?듭뒪?먯뀡??AI ?ㅼ젙媛?紐⑤뱶, 濡쒖뺄 紐⑤뜽 寃쎈줈, API ????洹몃?濡?媛?몄?
@@ -218,6 +231,7 @@ export async function activate(context: vscode.ExtensionContext) {
         new SqliteWorkSessionRepository(snapshotDbInstance),
         {
           workspaceRoot: rootPath,
+          worktreeInstanceIdResolver: resolveSnapshotWorktreeInstanceId,
           // [Task 45] AI ?대씪?댁뼵?몃? 二쇱엯?섎㈃ ?ㅻ깄???앹꽦 吏곹썑 諛깃렇?쇱슫?쒖뿉???먮룞 ?붿빟???ㅽ뻾?⑸땲??
           aiClient: snapshotAiClient,
           snapshotSummaryLanguageResolver: () => resolveLocale(),
@@ -275,6 +289,8 @@ export async function activate(context: vscode.ExtensionContext) {
           new SqliteSnapshotRepository(snapshotDbInstance),
           new SqliteSnapshotFileRepository(snapshotDbInstance),
           rootPath,
+          undefined,
+          resolveSnapshotWorktreeInstanceId,
         ),
       );
       messageRouter.setRestoreService(
@@ -283,12 +299,15 @@ export async function activate(context: vscode.ExtensionContext) {
           restoreHistoryRepository,
           snapshotService,
           rootPath,
+          resolveSnapshotWorktreeInstanceId,
         ),
       );
       messageRouter.setRestoreHistoryQueryService(
         new RestoreHistoryQueryService(
           restoreHistoryRepository,
           rootPath,
+          undefined,
+          resolveSnapshotWorktreeInstanceId,
         ),
       );
       console.log('GitCat Safety Layer (SnapshotService) initialized at:', rootPath);
@@ -299,7 +318,18 @@ export async function activate(context: vscode.ExtensionContext) {
   }
 
 
-  const sessionCoordinator = new SafetySessionCoordinator(snapshotService);
+  const sessionCoordinator = new SafetySessionCoordinator(
+    snapshotService,
+    async () => {
+      try {
+        const status = await gitService?.getStatus(rootPath);
+        return status?.currentBranch?.trim() || null;
+      } catch (error) {
+        console.warn('Failed to resolve current branch for SafetySessionCoordinator:', error);
+        return null;
+      }
+    },
+  );
   messageRouter.setSafetySessionCoordinator(sessionCoordinator);
   CommandRegistry.registerAll(
     context,
@@ -532,4 +562,3 @@ function resolveConfiguredRemoteBaseUrl(baseUrl: string): string {
   const normalized = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
   return `${normalized}api.openai.com/v1`;
 }
-
